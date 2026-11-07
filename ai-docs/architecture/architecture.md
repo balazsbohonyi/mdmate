@@ -44,7 +44,9 @@ mdmate/
 │  └─ styles/         tokens.css (fonts, sizes, Tailwind map), themes/dark.css and light.css (every color)
 ├─ src-tauri/src/
 │  ├─ commands/       Thin handlers, no logic
-│  ├─ fs/             Read, atomic write, encoding, EOL detection
+│  ├─ access.rs       Which paths the page may read: files the user chose, plus workspace roots
+│  ├─ documents.rs    Open documents by id, and the open, save and close operations on them
+│  ├─ fs/             Raw frame, encoding, line endings (eol), atomic write, round-trip guard
 │  ├─ workspace/      Lazy tree, watcher, file index
 │  ├─ search/         Streaming folder search
 │  ├─ links/          Link guard, scan, rewrite
@@ -73,9 +75,22 @@ sequenceDiagram
   M->>B: apply result
 ```
 
+- Open documents live in a plain map in `src/documents/`. The chrome reads only a small reactive record per document (name, path, dirty, read-only reason, last save error), so editor objects stay out of Vue. A tab is a `{ kind, docId }` record, and several tabs can show one document. A document is dirty when its text or endings differ from the last saved snapshot, and it lives until its last tab closes.
+- Closing the last tab of a dirty document asks first (Save, Don't save, Cancel) in a banner inside the pane. Closing the app asks nothing: hot exit keeps the edits.
+- Each tab has a follower: a state with no history of its own, wired to the master. A follower that no view shows only notes the changes made elsewhere, as one composed change set, and applies it when its tab is next shown, so typing in one pane costs the parked tabs nothing.
+- Undo and redo keys call the document, which runs them on the master and shows the result in every follower; the follower that asked also gets the caret the edit was made from.
 - Undo lives on the master, so closing a pane never loses history.
 - Switching tabs swaps state with `view.setState`, which keeps tabs cheap.
-- `EditorState.lineSeparator` matches the file's own line ending.
+- The text in every state uses `\n` only. Each line break's original ending (`\r\n`, `\n` or `\r`) lives in a state field on the master, and Rust joins them back on save. `EditorState.lineSeparator` stays at its default, because keeping `\r` in the text hides tables and hard breaks from the Markdown parser.
+- The field follows every edit: breaks an edit adds take the ending of the line they came from, breaks after it keep theirs, and undo puts back the endings of breaks it restores (through `invertedEffects`). Moving text, which is one deletion and one insertion of the same text and what a drag makes, carries the endings of the breaks inside it, so the field recognizes a move by that shape and needs nothing carried from the follower.
+
+- A file above 3 MiB on disk opens as plain source: `Document` makes its tabs with no Markdown parser, and the pane shows a notice. The rule lives in `src/documents/largeFile.ts` and is decided once, when the document opens.
+
+### Hot exit
+
+- The page writes one snapshot of the session to `session.json` in the data folder: the split layout, each tab's file and caret, and every unsaved buffer with its text, its line endings and the hash of the file it was typed on. Rust adds the paths of the documents it has open, writes the file with the same temp-file-and-rename as a save, and at the next start grants exactly those paths. The data folder is Tauri's app data folder, or `MDMATE_DATA_DIR` when set.
+- The journal (`src/documents/session.ts`) writes 1000 ms after the first change, one write at a time, and skips a snapshot equal to the last. Closing the window is stopped in Rust, the page flushes and calls `quit_app`, and Rust closes anyway after 3 s. The app never asks.
+- A start restores before the first paint: files open, unsaved buffers go back into their documents, then the layout and tabs. A file that changed since the buffer was typed raises the P2-T5 conflict banner. Text that cannot go back in a tab is kept in `recovered/` with a notice.
 
 ## Live preview
 
@@ -93,8 +108,15 @@ CM6 parsing is budgeted and can stop on huge files, so whole-document features, 
 ## Files and IPC
 
 - File reads return `tauri::ipc::Response`, and writes send raw bytes, avoiding JSON.
+- A document crosses IPC as one raw frame in both directions: a JSON header, the line-ending exceptions as `u32` pairs, then the text with `\n` as its only break (layout in `src-tauri/src/fs/frame.rs`). Rust decodes and encodes; the page never sees a BOM, a UTF-16 byte or a `\r`.
+- The page opens a file and gets a document id, then saves by that id. It never names a path to write to.
+- Rust allows a path only if it saw the user choose it (the open dialog, a restored session) or it lies inside an open workspace folder. Paths are compared with symlinks resolved, and network paths are refused. The page has no command that grants access.
+- A file that would not decode and encode back to the same bytes opens read-only, as does any encoding other than UTF-8 and UTF-16 with a BOM.
 - Saves write a temp file in the same folder, then rename.
-- Each save records its hash, so the watcher can ignore mdmate's own writes.
+- Each save records the hash of what it writes before it writes, so the watcher can ignore mdmate's own writes. Rust decides whether a file changed by comparing content hashes, never by event or timestamp: it keeps, per open document, the hash the page last read or wrote, and says nothing about a file whose content matches it.
+- A save first compares the file on disk with that hash and refuses (`disk-changed`) when they differ, so a change the watcher missed is still never overwritten. The page then asks: keep mine or load theirs.
+- One `notify` watcher watches the folders of open documents (not the files, since replacing a file drops a watch on some systems). A dedicated thread waits for a path to go quiet for 100 ms, reads the file, and sends `{id, hash}` over a `Channel` when the content is news. A missing or locked file says nothing; the tab keeps its text.
+- The page brings a clean tab up to date with `Document.reload` (new master, fresh undo history, one minimal change to every follower so carets stay put). A tab with edits raises a conflict and keeps them.
 - Search, watcher and rewrite results stream over `Channel`.
 - Hot exit journals dirty buffers to the data folder on a measured interval.
 

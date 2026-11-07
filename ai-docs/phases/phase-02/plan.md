@@ -22,7 +22,7 @@ One headless master `EditorState` per file owns text and history. Each pane has 
 
 ## P2-T4: Edit isolation
 
-Set `EditorState.lineSeparator` from the file, and apply the mixed EOL mechanism chosen in P0.
+Apply the mixed EOL mechanism chosen in P0: the text uses `\n` only, and a state field on the master keeps each break's ending through edits, undo and moves. (`EditorState.lineSeparator` stays at its default; keeping `\r` in the text is the rejected option.)
 
 **Done when:** property tests show edits change only their range.
 

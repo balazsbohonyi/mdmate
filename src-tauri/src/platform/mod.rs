@@ -18,6 +18,14 @@ use windows::Native;
 pub(crate) trait Platform {
     /// The OS name.
     fn name(&self) -> &'static str;
+
+    /// Whether the file system treats `A.md` and `a.md` as one file. Two spellings of a path must
+    /// then count as the same document.
+    fn paths_ignore_case(&self) -> bool;
+
+    /// Whether a read failed only because another program has the file locked for a moment, as
+    /// Windows reports while a file is being replaced. Such a read is worth trying again shortly.
+    fn file_is_busy(&self, error: &std::io::Error) -> bool;
 }
 
 /// The implementation for this OS.
@@ -39,5 +47,11 @@ mod tests {
             "linux"
         };
         assert_eq!(current().name(), expected);
+    }
+
+    #[test]
+    fn case_sensitivity_matches_the_default_file_system_of_this_os() {
+        let expected = !cfg!(target_os = "linux");
+        assert_eq!(current().paths_ignore_case(), expected);
     }
 }

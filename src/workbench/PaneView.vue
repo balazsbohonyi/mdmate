@@ -1,14 +1,20 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { requestCloseTab } from '@/documents/store'
+import EditorHost from './EditorHost.vue'
+import PaneNotice from './PaneNotice.vue'
 import type { PaneNode } from './splitTree'
-import { closeTabById, focusPane, selectTab, tabTitle } from './store'
+import { focusPane, selectTab, tabInfo, tabRecord, tabTitle } from './store'
 import { beginTabDrag, tabDrag } from './tabDrag'
 import TabStrip from './TabStrip.vue'
 
 const { pane, active } = defineProps<{ pane: PaneNode; active: boolean }>()
 
-const tabs = computed(() => pane.tabs.map((id) => ({ id, title: tabTitle(id) })))
-const activeTitle = computed(() => (pane.activeTab === null ? null : tabTitle(pane.activeTab)))
+const tabs = computed(() => pane.tabs.map(tabInfo))
+/** The document the pane's active tab shows, if it has a tab. */
+const activeDocId = computed(() =>
+  pane.activeTab === null ? null : (tabRecord(pane.activeTab)?.docId ?? null),
+)
 
 function startDrag(id: string, event: PointerEvent): void {
   beginTabDrag(event, {
@@ -33,14 +39,31 @@ function startDrag(id: string, event: PointerEvent): void {
       :focused="active"
       :dragging-id="tabDrag?.tabId ?? null"
       @select="selectTab"
-      @close="closeTabById"
+      @close="requestCloseTab"
       @press="startDrag"
     />
     <div
       data-pane-body
-      class="flex min-h-0 flex-1 items-center justify-center text-muted-foreground"
+      class="flex min-h-0 flex-1 flex-col"
     >
-      {{ activeTitle ?? 'Open a file to start writing.' }}
+      <template v-if="activeDocId !== null && pane.activeTab !== null">
+        <PaneNotice
+          :doc-id="activeDocId"
+          :tab-id="pane.activeTab"
+        />
+        <div class="min-h-0 flex-1">
+          <EditorHost
+            :tab-id="pane.activeTab"
+            :active="active"
+          />
+        </div>
+      </template>
+      <div
+        v-else
+        class="flex flex-1 items-center justify-center text-muted-foreground"
+      >
+        Open a file to start writing.
+      </div>
     </div>
   </section>
 </template>

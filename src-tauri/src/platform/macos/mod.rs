@@ -9,4 +9,12 @@ impl Platform for Native {
     fn name(&self) -> &'static str {
         "macos"
     }
+
+    fn paths_ignore_case(&self) -> bool {
+        true
+    }
+
+    fn file_is_busy(&self, _error: &std::io::Error) -> bool {
+        false
+    }
 }

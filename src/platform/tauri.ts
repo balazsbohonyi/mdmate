@@ -1,7 +1,8 @@
-import { convertFileSrc, invoke } from '@tauri-apps/api/core'
+import { Channel, convertFileSrc, invoke } from '@tauri-apps/api/core'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import type { Host, PerfConfig, PerfHost } from './host'
+import { decodeFrame, encodeFrame, openedFromFrame } from './frame'
+import type { DiskChange, Host, PerfConfig, PerfHost, SavedFile } from './host'
 
 /** The Rust commands behind this exist only in `--features perf` builds. */
 const perfBridge: PerfHost = {
@@ -10,6 +11,12 @@ const perfBridge: PerfHost = {
   },
   async report(json) {
     await invoke('perf_report', { json })
+  },
+  async ready(json) {
+    await invoke('perf_ready', { json })
+  },
+  async grantFile(path) {
+    await invoke('perf_grant_file', { path })
   },
   assetUrl(path) {
     return convertFileSrc(path)
@@ -72,6 +79,50 @@ export const tauriHost: Host = {
   },
   async readFile(path) {
     return invoke<ArrayBuffer>('read_file', { path })
+  },
+  async pickFiles() {
+    return invoke<string[]>('pick_files')
+  },
+  async openFile(path) {
+    return openedFromFrame(decodeFrame(await invoke<ArrayBuffer>('open_file', { path })))
+  },
+  async saveFile(id, text, endings) {
+    // The body is the frame; the id is a plain number, so the header stays ASCII.
+    return invoke<SavedFile>('save_file', encodeFrame({}, endings, text), {
+      headers: { 'x-document-id': String(id) },
+    })
+  },
+  async closeDocument(id) {
+    await invoke('close_document', { id })
+  },
+  async reloadDocument(id) {
+    return openedFromFrame(decodeFrame(await invoke<ArrayBuffer>('reload_document', { id })))
+  },
+  async loadSession() {
+    return invoke<string | null>('session_load')
+  },
+  async writeSession(json) {
+    await invoke('session_write', new TextEncoder().encode(json))
+  },
+  async recoverBuffer(name, text) {
+    return invoke<string>('session_recover', { name, text })
+  },
+  async watchClose(onClose) {
+    const channel = new Channel<null>()
+    channel.onmessage = onClose
+    await invoke('watch_close', { onClose: channel })
+  },
+  async quitApp() {
+    await invoke('quit_app')
+  },
+  async watchChanges(onChange) {
+    const channel = new Channel<DiskChange>()
+    channel.onmessage = onChange
+    await invoke('watch_changes', { onEvent: channel })
+    // Rust keeps one channel, and subscribing again replaces it, so stopping only mutes this one.
+    return () => {
+      channel.onmessage = () => undefined
+    }
   },
   // Only `pnpm perf` sets the flag. A normal build drops the bridge and its command names.
   ...(import.meta.env.VITE_MDMATE_PERF ? { perf: perfBridge } : {}),

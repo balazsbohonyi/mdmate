@@ -15,6 +15,8 @@ export interface PerfParams {
   decorations: number
   /** 0 opens documents as plain source, with no Markdown parser (P0-T9 size cutoff). */
   parser: number
+  /** crash-restore: 1 builds the session and reports it (the harness then kills the app), 2 restores it and reports what came back. */
+  phase: number
 }
 
 export const DEFAULT_PARAMS: PerfParams = {
@@ -28,6 +30,7 @@ export const DEFAULT_PARAMS: PerfParams = {
   keyIntervalMs: 50,
   decorations: 0,
   parser: 1,
+  phase: 0,
 }
 
 /** What a scenario hands back. The harness computes every statistic from these raw numbers. */

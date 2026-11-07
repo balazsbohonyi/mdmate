@@ -45,12 +45,22 @@ function onPointerDown(event: PointerEvent): void {
     @click="emit('select')"
   >
     <span class="truncate">{{ tab.title }}</span>
+    <span
+      v-if="tab.dirty"
+      data-dirty
+      role="img"
+      aria-label="Unsaved changes"
+      class="ml-auto size-2 shrink-0 rounded-full bg-primary group-hover:hidden"
+    />
     <button
       type="button"
       aria-label="Close tab"
       tabindex="-1"
-      class="ml-auto flex size-5 shrink-0 items-center justify-center rounded-sm opacity-0 group-hover:opacity-100 hover:bg-accent"
-      :class="{ 'opacity-100': active }"
+      class="flex size-5 shrink-0 items-center justify-center rounded-sm opacity-0 group-hover:opacity-100 hover:bg-accent"
+      :class="[
+        { 'opacity-100': active && !tab.dirty },
+        tab.dirty ? 'hidden group-hover:flex' : 'ml-auto',
+      ]"
       @pointerdown.stop
       @click.stop="emit('close')"
     >

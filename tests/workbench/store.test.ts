@@ -4,7 +4,6 @@ import {
   closeTabById,
   dropTabOnEdge,
   moveTabTo,
-  openNewTab,
   resetWorkbench,
   resizeSplit,
   selectTab,
@@ -12,7 +11,7 @@ import {
   tabTitle,
   workbenchLayout,
 } from '@/workbench/store'
-import { seedDemoWorkbench } from '@/workbench/devSeed'
+import { namedDoc, openNewTab } from '../helpers/tabs'
 
 function tabsOf(paneIndex: number): string[] {
   return [...(panesOf(workbenchLayout.value)[paneIndex]?.tabs ?? [])]
@@ -26,7 +25,7 @@ describe('the workbench store', () => {
     expect(tabsOf(0)).toEqual([])
   })
 
-  it('opens tabs in the active pane and remembers their titles', () => {
+  it('opens tabs in the active pane and reads their titles from the document', () => {
     const a = openNewTab('a.md')
     const b = openNewTab('b.md')
     expect(tabsOf(0)).toEqual([a, b])
@@ -34,7 +33,7 @@ describe('the workbench store', () => {
     expect(findPane(workbenchLayout.value, 'p1')?.activeTab).toBe(b)
   })
 
-  it('forgets the title of a closed tab', () => {
+  it('stops answering for a closed tab', () => {
     const a = openNewTab('a.md')
     const b = openNewTab('b.md')
     closeTabById(a)
@@ -47,7 +46,7 @@ describe('the workbench store', () => {
     splitActivePane('row')
     const [, right] = panesOf(workbenchLayout.value)
     expect(right?.tabs.map(tabTitle)).toEqual(['a.md'])
-    splitActivePane('column', 'other.md')
+    splitActivePane('column', namedDoc('other.md'))
     const panes = panesOf(workbenchLayout.value)
     expect(panes.at(-1)?.tabs.map(tabTitle)).toEqual(['other.md'])
     expect(panes).toHaveLength(3)
@@ -61,7 +60,7 @@ describe('the workbench store', () => {
   it('moves a tab between panes and to an edge, and closing the last tab drops the pane', () => {
     const a = openNewTab('a.md')
     openNewTab('b.md')
-    splitActivePane('row', 'c.md')
+    splitActivePane('row', namedDoc('c.md'))
     moveTabTo(a, panesOf(workbenchLayout.value)[1]?.id ?? '')
     expect(tabsOf(1).includes(a)).toBe(true)
     dropTabOnEdge(a, panesOf(workbenchLayout.value)[0]?.id ?? '', 'bottom')
@@ -75,7 +74,7 @@ describe('the workbench store', () => {
   it('selects a tab and its pane', () => {
     const a = openNewTab('a.md')
     openNewTab('b.md')
-    splitActivePane('row', 'c.md')
+    splitActivePane('row', namedDoc('c.md'))
     selectTab(a)
     expect(workbenchLayout.value.activePane).toBe('p1')
     expect(findPane(workbenchLayout.value, 'p1')?.activeTab).toBe(a)
@@ -89,17 +88,5 @@ describe('the workbench store', () => {
     resizeSplit(root.id, [30, 70])
     const resized = workbenchLayout.value.root
     expect(resized.kind === 'split' ? resized.sizes : []).toEqual([30, 70])
-  })
-})
-
-describe('the dev seed', () => {
-  it('builds three levels of splits in mixed directions', () => {
-    seedDemoWorkbench()
-    const describeNode = (node: (typeof workbenchLayout.value)['root']): string =>
-      node.kind === 'pane'
-        ? 'pane'
-        : `${node.direction}(${node.children.map(describeNode).join(' ')})`
-    expect(describeNode(workbenchLayout.value.root)).toBe('row(pane column(pane row(pane pane)))')
-    expect(panesOf(workbenchLayout.value).every((pane) => pane.tabs.length >= 2)).toBe(true)
   })
 })

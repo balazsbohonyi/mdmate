@@ -2,7 +2,6 @@
 import { computed, onUnmounted } from 'vue'
 import { runCommand } from '@/workbench/commands'
 import { registerDefaultCommands } from '@/workbench/defaultCommands'
-import { seedDemoWorkbench } from '@/workbench/devSeed'
 import { installKeybindings } from '@/workbench/keyboard'
 import { sidebarVisible } from '@/workbench/sidebar'
 import WorkbenchView from '@/workbench/WorkbenchView.vue'
@@ -22,10 +21,6 @@ onUnmounted(() => {
 })
 
 const menuEntries = computed(() => buildMenuEntries())
-
-// A layout to try splitting and dragging on, until Phase 2 opens real files. The branch is removed
-// from release builds, which start with one empty pane.
-if (import.meta.env.DEV) seedDemoWorkbench()
 
 function runMenuEntry(id: string): void {
   runCommand(id).catch((error: unknown) => {

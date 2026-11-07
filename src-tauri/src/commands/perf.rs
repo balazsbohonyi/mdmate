@@ -1,6 +1,7 @@
 //! Commands only the perf harness uses. They compile with `--features perf`, which `pnpm perf`
 //! turns on, so a shipped build holds none of this.
 
+use crate::documents::AppState;
 use crate::error::AppError;
 use serde::Serialize;
 use std::path::PathBuf;
@@ -21,6 +22,15 @@ fn now_ms() -> u64 {
 /// Records when Rust first ran. Call it as early as possible in `run`.
 pub(crate) fn mark_started() {
     STARTED_MS.get_or_init(now_ms);
+}
+
+/// The harness reads fixtures by path, so its fixtures folder counts as an open workspace. Only a
+/// perf build does this, and the folder comes from the environment the harness launched us with.
+pub(crate) fn allow_fixtures(state: &AppState) {
+    if let Some(dir) = std::env::var_os("MDMATE_PERF_FIXTURES") {
+        // A missing folder just leaves the harness unable to read fixtures, which it will report.
+        let _ = state.access().grant_root(std::path::Path::new(&dir));
+    }
 }
 
 /// What the harness asked this run to do, read from the environment it launched us with.
@@ -59,6 +69,30 @@ pub(crate) async fn perf_report(app: tauri::AppHandle, json: String) -> Result<(
         .await
         .map_err(|error| AppError::Task(error.to_string()))??;
     app.exit(0);
+    Ok(())
+}
+
+/// Like `perf_report`, but the app keeps running, so a harness can kill it where it stands. The
+/// crash-restore scenario reports here once its edits are journaled.
+#[tauri::command]
+pub(crate) async fn perf_ready(json: String) -> Result<(), AppError> {
+    let out = std::env::var_os("MDMATE_PERF_OUT")
+        .map(PathBuf::from)
+        .ok_or_else(|| AppError::Task("MDMATE_PERF_OUT is not set".into()))?;
+    tauri::async_runtime::spawn_blocking(move || std::fs::write(out, json))
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))??;
+    Ok(())
+}
+
+/// Lets the page open a file without the native dialog, which no harness can drive. The path comes
+/// from whoever launched the perf build and is the only thing it gains access to.
+#[tauri::command]
+pub(crate) fn perf_grant_file(
+    state: tauri::State<'_, std::sync::Arc<AppState>>,
+    path: String,
+) -> Result<(), AppError> {
+    state.access().grant_file(std::path::Path::new(&path))?;
     Ok(())
 }
 

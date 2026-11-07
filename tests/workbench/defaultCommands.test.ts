@@ -16,7 +16,8 @@ import { COMMAND_IDS, registerDefaultCommands } from '@/workbench/defaultCommand
 import { installKeybindings } from '@/workbench/keyboard'
 import { sidebarVisible } from '@/workbench/sidebar'
 import { findPane, panesOf, type Layout } from '@/workbench/splitTree'
-import { openNewTab, resetWorkbench, selectTab, tabTitle, workbenchLayout } from '@/workbench/store'
+import { resetWorkbench, selectTab, tabTitle, workbenchLayout } from '@/workbench/store'
+import { openNewTab } from '../helpers/tabs'
 
 let target: EventTarget
 let removeKeybindings: () => void
@@ -76,6 +77,8 @@ describe('the default commands', () => {
       listCommands().map((command) => [command.id, shortcutLabel(command.id, 'other')]),
     )
     expect(shown).toEqual({
+      [COMMAND_IDS.open]: 'Ctrl+O',
+      [COMMAND_IDS.save]: 'Ctrl+S',
       [COMMAND_IDS.splitRight]: 'Alt+Shift+2',
       [COMMAND_IDS.splitDown]: 'Alt+Shift+8',
       [COMMAND_IDS.closeTab]: 'Ctrl+W',
@@ -87,10 +90,10 @@ describe('the default commands', () => {
   it('can be registered a second time before the first is removed, as hot reload does', () => {
     const removeOld = removeCommands
     removeCommands = registerDefaultCommands()
-    expect(listCommands()).toHaveLength(5)
+    expect(listCommands()).toHaveLength(7)
     // The old shell unmounts after the new one has mounted, and removes what it registered.
     removeOld()
-    expect(listCommands()).toHaveLength(5)
+    expect(listCommands()).toHaveLength(7)
     expect(shortcutLabel(COMMAND_IDS.toggleSidebar, 'other')).toBe('Ctrl+Shift+B')
   })
 
@@ -98,7 +101,7 @@ describe('the default commands', () => {
     removeCommands()
     expect(listCommands()).toEqual([])
     removeCommands = registerDefaultCommands()
-    expect(listCommands()).toHaveLength(5)
+    expect(listCommands()).toHaveLength(7)
   })
 })
 

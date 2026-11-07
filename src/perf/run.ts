@@ -2,6 +2,8 @@ import { windowShown } from '@/lib/lifecycle'
 import { getHost } from '@/platform'
 import { assetScope } from './assetScope'
 import { dragAuto, dragByHand } from './dragLab'
+import { crashRestore } from './crashRestore'
+import { journalCost } from './journalCost'
 import { SIZES_MB } from './params'
 import { labByHand } from './lab'
 import { open } from './open'
@@ -37,6 +39,8 @@ const scenarios: Record<string, (ctx: ScenarioContext) => Promise<ScenarioOutput
   'typing-1mb': (ctx) => typing(ctx, 'dispatch'),
   'typing-1mb-trusted': (ctx) => typing(ctx, 'trusted'),
   ...sizedScenarios(),
+  'crash-restore': crashRestore,
+  'journal-cost': journalCost,
   'asset-scope': assetScope,
   lab: labByHand,
   'drag-auto': dragAuto,
@@ -81,6 +85,7 @@ export async function runPerf(): Promise<void> {
     }
     // Startup times the wait for the window itself, so it is measured before any check.
     const env = config.scenario === 'startup' ? undefined : await checkWindow()
+    // crash-restore phase 1 never returns here: it reports through `ready` and waits to be killed.
     const output = await run(ctx)
     if (ctx.params.decorations === 1) Object.assign(output.values, probeDecorations())
     report = { scenario: config.scenario, ok: true, env: env ?? snapshotEnv(), ...output }

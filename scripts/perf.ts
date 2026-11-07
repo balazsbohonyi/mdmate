@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
  * The perf harness. `pnpm perf <scenario...|all> [--runs 5] [--skip-build] [--fresh-profile]
- * [--set name=value]`.
+ * [--set name=value] [--corrupt]`. `--corrupt` is for crash-restore only: it damages the saved
+ * session on purpose, to show the comparison can fail. `--with-session` starts each measured launch
+ * with a saved session on disk (tabs and about 1 MB of unsaved text) instead of an empty data folder.
  *
  * It builds the release app with the perf driver, launches it once per run, lets the app measure
  * itself on the real WebView2, and writes everything to perf-results/. Windows only for now.
@@ -11,6 +13,7 @@
 import { execFileSync, spawn, spawnSync } from 'node:child_process'
 import {
   copyFileSync,
+  cpSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -50,7 +53,7 @@ interface Spec {
   /** Real key events from the DevTools port instead of in-page dispatch. */
   trusted?: boolean
   /** Which harness driver plays input into the page. Typing is the default. */
-  driver?: 'drag'
+  driver?: 'drag' | 'crash'
   /** A pass/fail check run once, not a timing: the page's values and notes are printed as they are. */
   check?: boolean
   /** How long a launch may take. Checks that need a person get longer. */
@@ -85,9 +88,8 @@ function openMetrics({ report }: RunData): Record<string, number> {
   return {
     'warm open, median': warm('totalMs'),
     'cold open (first)': at(q(report, 'totalMs'), 0),
-    'warm: IPC read': warm('ipcMs'),
-    'warm: decode': warm('decodeMs'),
-    'warm: build state': warm('stateMs'),
+    'warm: Rust open and IPC': warm('openMs'),
+    'warm: build document and tab': warm('documentMs'),
     'warm: show': warm('showMs'),
     'warm: paint': warm('paintMs'),
   }
@@ -144,6 +146,23 @@ const SPECS: Record<string, Spec> = {
     metrics: openMetrics,
   },
   ...sizedSpecs(),
+  'crash-restore': {
+    claim: 'ISC-47, ISC-48',
+    page: 'crash-restore',
+    headlineName: 'restore',
+    targetMs: 0,
+    check: true,
+    driver: 'crash',
+    metrics: () => ({}),
+  },
+  'journal-cost': {
+    claim: 'fog: hot-exit journal interval',
+    page: 'journal-cost',
+    headlineName: '',
+    targetMs: 0,
+    check: true,
+    metrics: () => ({}),
+  },
   'asset-scope': {
     claim: 'fog: asset protocol scope',
     page: 'asset-scope',
@@ -199,6 +218,8 @@ const SPECS: Record<string, Spec> = {
         'switch, p95': total.p95,
         'switch, median': total.p50,
         'switch, max': total.max,
+        'switch, median, plain': summarize(q(report, 'plainMs')).p50,
+        'switch, median, with a change made elsewhere': summarize(q(report, 'pendingMs')).p50,
         'synchronous part, median': summarize(q(report, 'syncMs')).p50,
       }
     },
@@ -234,12 +255,16 @@ function parseArgs(argv: string[]) {
   let warmups = 2
   let skipBuild = false
   let freshProfile = false
+  let corrupt = false
+  let withSession = false
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i] ?? ''
     if (arg === '--runs') runs = Number(argv[++i])
     else if (arg === '--warmups') warmups = Number(argv[++i])
     else if (arg === '--skip-build') skipBuild = true
     else if (arg === '--fresh-profile') freshProfile = true
+    else if (arg === '--corrupt') corrupt = true
+    else if (arg === '--with-session') withSession = true
     else if (arg === '--set') {
       const [key, value] = (argv[++i] ?? '').split('=')
       if (!key || !(key in DEFAULT_PARAMS) || Number.isNaN(Number(value)))
@@ -258,7 +283,16 @@ function parseArgs(argv: string[]) {
   if (chosen.length === 0 || chosen.some((name) => !(name in SPECS))) {
     fail(`name a scenario: ${Object.keys(SPECS).join(', ')}, or all`)
   }
-  return { chosen, runs, warmups, skipBuild, freshProfile, params: { ...DEFAULT_PARAMS, ...set } }
+  return {
+    chosen,
+    runs,
+    warmups,
+    skipBuild,
+    freshProfile,
+    corrupt,
+    withSession,
+    params: { ...DEFAULT_PARAMS, ...set },
+  }
 }
 
 function build(): void {
@@ -393,7 +427,31 @@ function killStragglers(): number {
   }
 }
 
-async function launch(spec: Spec, params: PerfParams, label: string): Promise<RunData> {
+interface LaunchOptions {
+  /**
+   * The app's data folder. By default every launch gets an empty one of its own, so a run neither
+   * reads nor leaves a session in the real one. Pass a folder to share it between launches.
+   */
+  dataDir?: string
+  /** A data folder to copy in before launching, so every run starts from the same saved session. */
+  seedDir?: string | undefined
+  /** Wait for the page's `ready` report, then kill the app the hard way instead of waiting for it to quit. */
+  killOnReady?: boolean
+}
+
+async function launch(
+  spec: Spec,
+  params: PerfParams,
+  label: string,
+  options: LaunchOptions = {},
+): Promise<RunData> {
+  let dataDir = options.dataDir
+  if (dataDir === undefined) {
+    dataDir = join(RESULTS, 'tmp', `data-${spec.page}-${label}`)
+    rmSync(dataDir, { recursive: true, force: true })
+  }
+  mkdirSync(dataDir, { recursive: true })
+  if (options.seedDir !== undefined) cpSync(options.seedDir, dataDir, { recursive: true })
   const outFile = join(RESULTS, 'tmp', `${spec.page}-${label}.json`)
   mkdirSync(join(RESULTS, 'tmp'), { recursive: true })
   rmSync(outFile, { force: true })
@@ -414,6 +472,7 @@ async function launch(spec: Spec, params: PerfParams, label: string): Promise<Ru
       MDMATE_PERF_OUT: outFile,
       MDMATE_PERF_FIXTURES: join(ROOT, 'tests', 'fixtures'),
       MDMATE_PERF_PARAMS: JSON.stringify(params),
+      MDMATE_DATA_DIR: dataDir,
       WEBVIEW2_USER_DATA_FOLDER: PROFILE,
       WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: browserArgs.join(' '),
     },
@@ -436,6 +495,14 @@ async function launch(spec: Spec, params: PerfParams, label: string): Promise<Ru
     })
   }
 
+  if (options.killOnReady) {
+    // The page writes its result and then waits. Killing the process is a crash: no close event,
+    // no flush, nothing but what the app had already put on disk.
+    const deadline = Date.now() + (spec.timeoutMs ?? RUN_TIMEOUT_MS)
+    while (!existsSync(outFile) && Date.now() < deadline) await sleep(25)
+    await sleep(100)
+    child.kill()
+  }
   const exitCode = await exited
   clearTimeout(timer)
   const exitMs = Date.now()
@@ -498,6 +565,107 @@ async function runCheck(name: string, params: PerfParams, info: ReturnType<typeo
   console.log(`wrote ${file}`)
 }
 
+interface CrashState {
+  layout: string
+  tabs: Record<string, unknown>[]
+}
+
+/**
+ * Builds a session in a real app, kills the app where it stands, starts it again the normal way
+ * and compares what came back with what was there. `corrupt` changes one letter of the saved
+ * session in between, which the comparison must then catch: that is the proof it can fail.
+ */
+async function runCrashRestore(
+  params: PerfParams,
+  info: ReturnType<typeof system>,
+  corrupt: boolean,
+): Promise<void> {
+  const spec = SPECS['crash-restore']
+  if (!spec) fail('crash-restore is missing from the specs')
+  console.log(
+    `\n== crash-restore (${spec.claim})${corrupt ? ', with one letter corrupted' : ''} ==`,
+  )
+  const dataDir = join(RESULTS, 'tmp', 'data-crash-restore')
+  rmSync(dataDir, { recursive: true, force: true })
+
+  console.log('phase 1: edit in three files, wait for the journal, kill the app...')
+  const first = await launch(spec, { ...params, phase: 1 }, 'phase-1', {
+    dataDir,
+    killOnReady: true,
+  })
+  const sessionFile = join(dataDir, 'session.json')
+  if (!existsSync(sessionFile)) fail('the first run left no session.json')
+  console.log(
+    `  journal wrote ${fmt(v(first.report, 'journalLagMs'))} ms after the last edit (interval ${String(v(first.report, 'intervalMs'))} ms); snapshot ${String(v(first.report, 'snapshotBytes'))} bytes, built in ${fmt(v(first.report, 'buildMs'))} ms, written in ${fmt(v(first.report, 'writeMs'))} ms`,
+  )
+
+  if (corrupt) {
+    const text = readFileSync(sessionFile, 'utf8')
+    if (!text.includes('CRASH-MID')) fail('the marker to corrupt is not in the session file')
+    writeFileSync(sessionFile, text.replace('CRASH-MID', 'CRASH-MIX'))
+  }
+
+  console.log('phase 2: start again the normal way and compare...')
+  const second = await launch(spec, { ...params, phase: 2 }, 'phase-2', { dataDir })
+
+  const before = (first.report.notes as { state: CrashState }).state
+  const after = (second.report.notes as { state: CrashState }).state
+  const problems: string[] = []
+  if (before.layout !== after.layout) problems.push('the layout differs')
+  if (before.tabs.length !== after.tabs.length) {
+    problems.push(`${String(before.tabs.length)} tabs before, ${String(after.tabs.length)} after`)
+  }
+  before.tabs.forEach((tab, i) => {
+    const other = after.tabs[i] ?? {}
+    for (const key of Object.keys(tab)) {
+      if (tab[key] !== other[key]) {
+        problems.push(
+          `tab ${String(tab.path)}: ${key} was ${String(tab[key])}, now ${String(other[key])}`,
+        )
+      }
+    }
+  })
+  const notices = (second.report.notes as { notices?: string[] }).notices ?? []
+  if (notices.length > 0) problems.push(`the restore reported: ${notices.join(' | ')}`)
+
+  console.log(
+    `  restored ${String(v(second.report, 'restoredTabs'))} tabs and ${String(v(second.report, 'restoredBuffers'))} unsaved buffers in ${fmt(v(second.report, 'restoreMs'))} ms`,
+  )
+  for (const line of problems) console.log(`  DIFFERENCE: ${line}`)
+  const identical = problems.length === 0
+  console.log(
+    corrupt
+      ? identical
+        ? 'RESULT: the corrupted session came back looking identical, so this check cannot fail'
+        : 'RESULT: the corruption was caught, so this check can fail'
+      : identical
+        ? 'RESULT: everything came back exactly as it was'
+        : 'RESULT: the restored session differs from the one that was killed',
+  )
+
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..*/, '').replace('T', '-')
+  const file = join(RESULTS, `crash-restore${corrupt ? '-corrupt' : ''}-${stamp}.json`)
+  writeFileSync(
+    file,
+    JSON.stringify(
+      {
+        label: 'Windows',
+        scenario: 'crash-restore',
+        corrupt,
+        identical,
+        problems,
+        system: info,
+        first,
+        second,
+      },
+      null,
+      2,
+    ),
+  )
+  console.log(`wrote ${file}`)
+  if (corrupt === identical) process.exitCode = 1
+}
+
 const fmt = (n: number) => (Number.isFinite(n) ? n.toFixed(n < 10 ? 2 : 1) : 'n/a')
 
 async function measure(
@@ -506,9 +674,20 @@ async function measure(
   warmups: number,
   params: PerfParams,
   info: ReturnType<typeof system>,
+  withSession: boolean,
 ) {
   const spec = SPECS[name]
   if (!spec) fail(`unknown scenario ${name}`)
+  let seedDir: string | undefined
+  if (withSession) {
+    // A session like a real one: the crash-restore scenario's tabs and unsaved buffers, ~1 MB of text.
+    seedDir = join(RESULTS, 'tmp', 'seed-session')
+    rmSync(seedDir, { recursive: true, force: true })
+    const crash = SPECS['crash-restore']
+    if (!crash) fail('crash-restore is missing from the specs')
+    console.log('building a realistic saved session for the launches below...')
+    await launch(crash, { ...params, phase: 1 }, 'seed', { dataDir: seedDir, killOnReady: true })
+  }
   const decorated = params.decorations === 1
   console.log(`\n== ${name} (${spec.claim})${decorated ? ', decorations on' : ''} ==`)
 
@@ -516,13 +695,13 @@ async function measure(
   const warmup: RunData[] = []
   for (let w = 1; w <= warmups; w++) {
     console.log(`warm-up launch ${String(w)}/${String(warmups)}, not counted...`)
-    warmup.push(await launch(spec, params, `warmup-${String(w)}`))
+    warmup.push(await launch(spec, params, `warmup-${String(w)}`, { seedDir }))
   }
 
   const all: RunData[] = []
   for (let i = 1; i <= runs; i++) {
     process.stdout.write(`run ${String(i)}/${String(runs)}... `)
-    const run = await launch(spec, params, `run-${String(i)}`)
+    const run = await launch(spec, params, `run-${String(i)}`, { seedDir })
     all.push(run)
     const headline = spec.metrics(run)[spec.headlineName] ?? Number.NaN
     console.log(`${fmt(headline)} ms (CPU ${run.idlePct.toFixed(0)}% idle before launch)`)
@@ -590,9 +769,8 @@ async function measure(
 
 async function main(): Promise<void> {
   if (process.platform !== 'win32') fail('pnpm perf runs on Windows only for now')
-  const { chosen, runs, warmups, skipBuild, freshProfile, params } = parseArgs(
-    process.argv.slice(2),
-  )
+  const { chosen, runs, warmups, skipBuild, freshProfile, corrupt, withSession, params } =
+    parseArgs(process.argv.slice(2))
 
   if (!existsSync(join(ROOT, 'tests', 'fixtures', 'generated', 'realistic-1mb.md'))) {
     console.log('perf: generating fixtures...')
@@ -617,8 +795,9 @@ async function main(): Promise<void> {
   }
 
   for (const name of chosen) {
-    if (SPECS[name]?.check) await runCheck(name, params, info)
-    else await measure(name, runs, warmups, params, info)
+    if (SPECS[name]?.driver === 'crash') await runCrashRestore(params, info, corrupt)
+    else if (SPECS[name]?.check) await runCheck(name, params, info)
+    else await measure(name, runs, warmups, params, info, withSession)
   }
 }
 

@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 26/181
+progress: 48/181
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-07T13:34:49Z
+updated: 2026-11-07T18:19:16Z
 principal_stated_goal: "I want to build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -61,7 +61,6 @@ You double-click a README and it is on screen before you have finished looking a
 
 ## Not yet specified
 
-- fog: what hot-exit journal interval balances safety and disk writes — needs P2 measurement.
 
 ## Test Strategy
 
@@ -256,14 +255,14 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 ### F0 · Cross-cutting
 Why: these promises hold everywhere, and any single feature could quietly break them.
 
-- [ ] ISC-1: Anti: saving an unedited file never changes a byte.
-- [ ] ISC-2: Anti: an edit never changes bytes outside its range.
-- [ ] ISC-3: Mixed line-ending files keep each untouched line's ending after an edit.
+- [x] ISC-1: Anti: saving an unedited file never changes a byte.
+- [x] ISC-2: Anti: an edit never changes bytes outside its range.
+- [x] ISC-3: Mixed line-ending files keep each untouched line's ending after an edit.
 - [ ] ISC-4: The release app is usable within 1000 ms of launch.
-- [ ] ISC-5: A 1 MB Markdown file opens within 100 ms.
-- [ ] ISC-6: Switching tabs completes within 50 ms.
+- [x] ISC-5: A 1 MB Markdown file opens within 100 ms.
+- [x] ISC-6: Switching tabs completes within 50 ms.
 - [ ] ISC-7: Typing stays under 16 ms per key on the 1 MB fixture.
-- [ ] ISC-8: Files above 3 MB open as plain source with a notice.
+- [x] ISC-8: Files above 3 MB open as plain source with a notice.
 - [x] ISC-9: `cfg(windows)` and `target_os` appear only inside `platform/`.
 - [x] ISC-10: `cargo check` passes on macOS in CI.
 - [x] ISC-11: `cargo check` passes on Linux in CI.
@@ -303,21 +302,21 @@ Why: a dense keyboard-driven layout you can rearrange freely is what separates t
 ### F2 · Reliable documents
 Why: nobody trusts an editor twice after it loses their words, so no action here may lose work.
 
-- [ ] ISC-36: Opening a file loads its content into a tab.
-- [ ] ISC-37: Ctrl+S writes edits to disk.
-- [ ] ISC-38: Tabs with unsaved edits show a dirty marker.
-- [ ] ISC-39: Files in unsupported encodings open read-only with a notice.
-- [ ] ISC-40: Anti: a failed save never damages the original file.
-- [ ] ISC-41: An edit in one pane appears in another pane showing that file.
-- [ ] ISC-42: Undo from either pane reverts the last edit.
-- [ ] ISC-43: Closing a pane keeps the document's undo history.
-- [ ] ISC-44: A disk change reloads a clean tab.
-- [ ] ISC-45: A disk change on an edited tab raises a conflict choice.
-- [ ] ISC-46: Anti: mdmate's own save triggers no reload or conflict.
-- [ ] ISC-47: A force-kill loses nothing up to the last journal write.
-- [ ] ISC-48: A restart restores tabs and split layout.
-- [ ] ISC-49: Anti: closing the app with unsaved edits shows no prompt.
-- [ ] ISC-174: Opening an already open file focuses its tab.
+- [x] ISC-36: Opening a file loads its content into a tab.
+- [x] ISC-37: Ctrl+S writes edits to disk.
+- [x] ISC-38: Tabs with unsaved edits show a dirty marker.
+- [x] ISC-39: Files in unsupported encodings open read-only with a notice.
+- [x] ISC-40: Anti: a failed save never damages the original file.
+- [x] ISC-41: An edit in one pane appears in another pane showing that file.
+- [x] ISC-42: Undo from either pane reverts the last edit.
+- [x] ISC-43: Closing a pane keeps the document's undo history.
+- [x] ISC-44: A disk change reloads a clean tab.
+- [x] ISC-45: A disk change on an edited tab raises a conflict choice.
+- [x] ISC-46: Anti: mdmate's own save triggers no reload or conflict.
+- [x] ISC-47: A force-kill loses nothing up to the last journal write.
+- [x] ISC-48: A restart restores tabs and split layout.
+- [x] ISC-49: Anti: closing the app with unsaved edits shows no prompt.
+- [x] ISC-174: Opening an already open file focuses its tab.
 
 ### F3 · Inline live preview
 Why: this is the reason mdmate exists; you read the rendered page and edit it in place, with syntax only where you are working.
@@ -392,7 +391,7 @@ Why: formatting should stay in your fingers, so writing never stops for syntax.
 Why: Markdown lives among other files, so the sidebar must manage them and renames must never strand a link.
 
 - [ ] ISC-97: Multiple root folders show in the tree.
-- [ ] ISC-98: A loose file opens without any root folder.
+- [x] ISC-98: A loose file opens without any root folder.
 - [ ] ISC-99: A 10,000-entry folder renders under 200 rows.
 - [ ] ISC-100: The tree creates a new file.
 - [ ] ISC-101: The tree renames a file.
@@ -519,6 +518,17 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - 2026-11-07: Startup with the full shell is 435 ms median on a warm profile (5 runs, every run within 10%), against 1000 ms. The bare shell took 429 to 475 ms, so the title bar, tab strip, sidebar frame and status bar cost almost nothing.
 - 2026-11-07: Closing the last tab of the only pane leaves that pane empty, instead of removing it. ISC-31 holds for every pane that has a sibling; removing the last pane would leave no workbench to open a file into.
 - 2026-11-07: Split sizes are percentages that always add up to 100, and every split node carries an id so a view can key it and a resize can name it. Moving a tab to the pane it is already in, and dropping the only tab of a pane on that pane's own edge, change nothing beyond order.
+- 2026-11-07: Chose Rust for the whole byte transform (decode, split off the line endings, join, encode) and a raw frame of header, ending exceptions and newline-only text over IPC in both directions. The ISC-1 and ISC-2 probes are Rust tests, so the code that touches bytes has to be Rust; the page owns the text and the ending of each break.
+- 2026-11-07: Chose `rfd` directly for the open dialog over `tauri-plugin-dialog`, since the plugin pulls `tauri-plugin-fs` into the build graph and ISC-21 says that crate is absent.
+- 2026-11-07: Chose a path policy where the page can read and save only files Rust saw the user choose, or files inside an open workspace folder, compared with symlinks resolved. The page has no command that grants access. Saves go by a Rust-issued document id, never by a path.
+- 2026-11-07: refined: the P0 decision (newline-only text, endings in a state field) supersedes the Phase 2 plan line "Set `EditorState.lineSeparator` from the file" and the matching architecture bullet. `lineSeparator` stays at its default.
+- 2026-11-07: 2026-11-07: Kept open documents in a plain map with a small reactive record for the chrome, and made closing the last tab of an edited document ask first, in a banner inside the pane instead of a modal. Why: rule one keeps editor objects out of Vue, and closing the app never prompts because hot exit keeps the edits (ISC-49). Easy to change if the owner prefers a modal.
+- 2026-11-07: 2026-11-07: Gave each tab a follower state and kept undo history on one headless master per document. Parked tabs only note changes and apply them as one change when shown. Why: closing a pane never loses history (ISC-43), and typing in one pane does not make every parked tab parse. Selection undo (Mod-u) is not bound on followers.
+- 2026-11-07: 2026-11-07: Recognised a move by the shape of its change, one deletion and one insertion of the same text, instead of an effect carried from the follower. Why: the master receives only the change set, the undo and redo of a move have the same shape, and moving text is a move whoever does it. Two cursors that delete and type the same newlines look like a move too, which only changes the endings of the breaks typed there.
+- 2026-11-07: Decided what counts as an outside change by content, not by event: Rust keeps the hash each document last read or wrote and reports only a different one. Why: one save raises several events, notify can lose some, and the app's own write must be recognised; one comparison handles all three. A save records its hash before it writes, because the watcher thread can see the new file before the save returns.
+- 2026-11-07: Made opening a file that is already open leave Rust's record alone, and the page treats a different hash as an outside change. Why: refreshing the record made the host believe the page was current while it still held the old text, which would let a save overwrite a change the page never saw.
+- 2026-11-07: Hot exit writes `session.json` (layout, tabs, carets, unsaved buffers) one journal interval after a change and once on close; the interval is 1000 ms. Why: a write costs the page about one late frame at 1 MB (5 ms to build, 26 ms to confirm) and two at 4 MB, so 1000 ms means about 1 late frame in 60 while typing (worked out, not measured with the journal live) and at most a second of typing lost to a force-kill. Measured in P2-T6 (`pnpm perf journal-cost`); easy to change in `JOURNAL_INTERVAL_MS` if the owner wants fewer writes or less to lose.
+- 2026-11-07: Applied the P0 cutoff: files above 3 MiB open as plain source with a notice, decided once when the document opens by the size on disk. Why: the parser is what makes typing slow at size (P0-T9), and the same rule covers restored sessions. Known limit: a file that grows past the cutoff while open keeps the parser until reopened.
 
 ## Verification
 
@@ -548,12 +558,33 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-35: Ctrl+Shift+B hid and showed the sidebar as a trusted key press in `pnpm dev` (Claude in Chrome: panes moved from x 240 to 0 and back, the menu item did the same) and as a real OS key press in the `pnpm tauri dev` window (240 to 0 and back); the keydown was taken from the page (`defaultPrevented` true); `tests/workbench/defaultCommands.test.ts` runs the shortcut against the real store (P1-T6).
 - ISC-171: Alt+Shift+2 split a lone 1296 px pane into two columns of 648 px in `pnpm dev`, and an 860 px pane into 430 and 430 in `pnpm tauri dev` with real OS keys, the new pane becoming the active one; the menu item gave the same split in `pnpm dev`, and unit tests show that AltGr (Ctrl+Alt+2) does not trigger it (P1-T6).
 - ISC-172: Alt+Shift+8 split the active pane into two rows, 367 and 367 px high in `pnpm dev` and 332 and 332 px in `pnpm tauri dev` with real OS keys; after the split right of ISC-171, the active pane became a column inside that row (P1-T6).
+- ISC-1: `pnpm test:rust roundtrip_unedited` reads every fixture (8 committed, 7 generated up to 10 MB), splits it into text and endings, joins and encodes it again, and gets identical bytes and hash, also through a temp-folder save; 3000 seeded random byte strings in four shapes do the same or open read-only (src-tauri/src/fs/mod.rs). Broken on purpose twice (`join` ignoring the exceptions, `encode` dropping the BOM), the fixture tests fail. The page half is checked in P2-T2 (P2-T1).
+- ISC-39: `pnpm test:rust unsupported_encoding`: the Latin-1 fixture, broken UTF-8 and broken UTF-16 open as `unsupported-encoding` with their text shown, and a save for them is refused with `read-only` (src-tauri/src/fs/mod.rs, src-tauri/src/documents.rs). The notice itself is drawn in P2-T2 (P2-T1).
+- ISC-40: `pnpm test:rust atomic_save`: a failure injected after the temp file is flushed and before the rename leaves the original bytes untouched and no temp file behind, for an existing and a missing target; a failed rename onto a folder does the same. Writing straight to the target instead makes two of them fail (src-tauri/src/fs/atomic.rs, P2-T1).
+- ISC-36: `pnpm test:web tests/documents/open.test.ts`: a file opened through the mock host shows its content in a new tab named after the file; the dialog opens several files, a cancelled dialog opens none, and a file that fails is named while the others still open. In the browser (Claude in Chrome on pnpm dev) Ctrl+O put README.md and notes.md in tabs with their text and the path in the status bar (src/documents/store.ts) (P2-T2).
+- ISC-37: `pnpm test:rust save_writes_edits` writes edits in every supported encoding and leaves the other lines' endings alone (src-tauri/src/fs/mod.rs); `pnpm test:web tests/documents/open.test.ts` presses Ctrl+S on a clean and on an edited document: one host save with the right bytes, and the key taken from the page both times. In the browser Ctrl+S cleared the dirty dot and wrote the file, and a mixed LF, CRLF and CR file came back byte for byte with one character added. Not run through the real window's Rust path, because the desktop was locked; see decisions (P2-T2).
+- ISC-98: `pnpm test:web tests/documents/open.test.ts` opens a file with no folder and no root anywhere in the store; `pnpm test:rust access` shows Rust allows the files the user chose and not their neighbours, and in the real app a file nobody chose is refused with `not-allowed` (src-tauri/src/access.rs) (P2-T2).
+- ISC-174: `pnpm test:web tests/documents/open.test.ts` opens one path twice, once in another spelling, and once from a different pane: each time the existing tab is focused, in the pane that holds it, and no second tab appears (src/documents/store.ts) (P2-T2).
+- ISC-6: `pnpm perf tab-switch` (release build, Windows, five runs): switch p95 11.2 ms (runs 9.4 to 11.7) against 50 ms, median 7.7 ms; half the switches also apply a change made in another pane (median 6.9 ms, the rest 8.2 ms). The harness calls the spread not repeatable by its 10% rule and notes the CPU was busy before three runs, but every run is under 12 ms, four times inside the target (src/perf/tabSwitch.ts, src/documents/follower.ts) (P2-T3).
+- ISC-38: Claude in Chrome on `pnpm dev` (Interceptor is not set up here, see the Phase 1 decisions): typing in a clean tab puts a dot after its name in every pane that shows the file, and saving or undoing back to the saved text clears it; screenshot ss_8342t9l8v shows the dot after an edit (src/workbench/TabStripItem.vue) (P2-T3).
+- ISC-41: `pnpm test:web tests/documents/sync.test.ts`: a master with two followers, an edit in either shows in the other and in the master; a parked follower catches up with one applied change; 150 seeded random runs of 40 steps keep every follower equal to the master. In the browser, text typed in the right pane showed in the left (src/documents/document.ts, src/documents/follower.ts) (P2-T3).
+- ISC-42: `pnpm test:web tests/documents/sync.test.ts`: undo from the follower that did not make the edit reverts it in every follower and the master, edits from both followers undo in order, quick typing undoes as one step, and the caret goes where the edit was made. In the browser, Ctrl+Z in the left pane reverted what was typed in the right (P2-T3).
+- ISC-43: `pnpm test:web tests/documents/sync.test.ts`: after the follower that made two edits is closed, another follower undoes both and redoes one; closing every follower and opening a new one keeps the history. In the browser, closing the right pane's tab and pressing Ctrl+Z in the left reverted its edit (P2-T3).
+- ISC-2: `pnpm test:rust edit_isolation`: 1000 random files (UTF-8, UTF-8 with a BOM, UTF-16 in both orders, every ending), 982 of them given one edit at a random range; the bytes before the range and after it are the file's own and the middle is the new text. Breaking join two ways (ignoring every ending exception, or putting one a break late) fails it on run 0 (src-tauri/src/fs/mod.rs, src-tauri/src/fs/eol.rs) (P2-T4).
+- ISC-3: `pnpm test:web tests/editor/lineEndings.test.ts`: on the 367-line mixed-eol fixture, appending to, splitting, joining and deleting each line leaves every other line's raw bytes identical and undo puts the whole file back; 300 random runs of 40 steps (edits, two-change edits, drags, undo, redo) match a plain reference model after every step and undoing a whole run gives back the opened bytes. Four deliberate breaks of the field fail 6, 4, 4 and 14 tests (src/editor/lineEndings.ts) (P2-T4).
+- ISC-44: `pnpm test:web tests/documents/external.test.ts`: a write to an open file with a clean tab replaces its text and line endings, keeps a caret away from the change where it was, starts the undo history over, follows a file turning read-only into every editor, and applies the later of two writes that overlap one read; a file that vanishes changes nothing. Breaking the reload fails 9 tests, the per-document ordering 1, the fresh history 3. Also seen in the real window with a real file write and a rename-style replace (src/documents/store.ts, src/documents/document.ts) (P2-T5).
+- ISC-45: `pnpm test:web tests/documents/external.test.ts`: a write to a tab with edits raises a conflict and leaves its text, its edited mark and the file alone; saving is refused until Keep mine (keeps the edits, next save replaces the file) or Load theirs (shows the file, drops the edits); the host itself still refuses a save over the new file; a change no event reported is found by the save or by opening the file again. Reading an edited tab anyway fails 1 test, a save that ignores a pending conflict 1, typing overwritten during a read 1. Real window: banner shown, Keep mine and Load theirs clicked (src/documents/store.ts) (P2-T5).
+- ISC-46: `pnpm test:rust own_save_ignored`: the watcher's event delivered after the save, delivered before the save returns (through Stage::AfterRename) and from the running notify watcher reports no change. Recording the hash after the write instead of before fails the before-return test, and a watcher that stops comparing with the recorded hash fails five. Real window: Ctrl+S left the editor state the same object with no banner (src-tauri/src/documents.rs, src-tauri/src/workspace/watch.rs) (P2-T5).
+- ISC-47: `pnpm perf crash-restore` (release app, real WebView2): edits in three files, one with mixed line endings and one of 1 MB, journaled on its own 911 to 931 ms after the last edit, the app killed with TerminateProcess, started again the normal way; layout, edited marks, carets and the SHA-256 of the bytes a save would write all equal. With one letter of the saved session changed in between (`--corrupt`) the mixed-endings tab's SHA-256 differs and the run fails, so the check can fail. Real window with real typing: killed after one interval, restored, Ctrl+S wrote the typed text with every ending kept (src/documents/session.ts, src-tauri/src/session/mod.rs) (P2-T6).
+- ISC-48: `pnpm test:web tests/documents/session.test.ts`: a written session restores to a layout equal to the one saved, with splits, sizes, tab order and the active tab and pane; carets (including in tabs never shown), unsaved edits with mixed endings, buffers for a changed or missing file, damaged endings and layouts, the one-write-at-a-time journal and the close flush are covered. Breaking one write at a time fails 2 tests, skip-identical 1, close without flush 3, interval 0 2, unvalidated endings 1 (src/documents/session.ts, src/workbench/store.ts restoreWorkbench) (P2-T6).
+- ISC-49: Real app run (`cargo run --features perf`, 11 checks scripted over the DevTools port): typed text, then an OS close request (`CloseMainWindow`) and then the title bar's Close button, 100 ms after typing and inside the journal interval; both ended the app with no prompt and the next start held the text typed in those 100 ms, still marked edited. The close handler flushes the journal before quitting (src-tauri/src/lib.rs, src/documents/session.ts) (P2-T6).
+- ISC-5: `pnpm perf open-1mb` (release app, real WebView2, 5 runs after 2 warm-ups): a 1 MB file opened the way the app does (openFile in Rust, Document, tab state, show, frame) takes 20.8 ms warm (20.0 to 21.0, repeatable) and 48.7 ms on the first open of a run, against 100 ms (src/perf/open.ts) (P2-T7).
+- ISC-8: `pnpm test:web tests/documents/largeFile.test.ts`: a file one byte above 3 MiB, a 5 MB file and a multi-byte file above 3 MiB on disk open as plain source (no parser, `plainSource` set, notice text); exactly 3 MiB and 1 MB keep the parser; a large file edits and saves byte for byte and stays plain when its unsaved edits are restored. `>=` fails 2 tests, a 5 MiB cutoff 5, ignoring size 4, counting characters 1. Real window: realistic-5mb.md shows the notice and no highlighting (src/documents/largeFile.ts, src/documents/document.ts) (P2-T7).
 
 ## Remaining Work
 
 - [ ] Ship the Inter font's OFL-1.1 notice with the installer and portable zip, and credit it in the README — the font is bundled from `@fontsource-variable/inter`; waits on P10-T3 to P10-T5.
 - [ ] Check the resolved Rust dependency graph for network crates with `cargo tree --target all` — `no-network` reads direct dependencies only, because the lockfile lists `reqwest` and `hyper` although none is in the Windows build graph; waits on P10-T2, where ISC-20 closes.
-- [ ] Build the real line-ending state field and make undo restore a deleted line break's old ending, and keep each break's ending when a selection with line breaks is moved by drag — the P0 spike gives such breaks the neighbour's ending; waits on Phase 2, where ISC-3 closes.
 - [ ] Turn the asset protocol on for real (the `protocol-asset` feature, `assetProtocol` enabled with an empty scope) and grow its scope with `allow_directory` when a workspace opens, and divide Tauri drop positions by the pixel ratio in the platform layer — both were tested in P0 (drop positions at 125% scale only); waits on the phases that add images and file drops.
 - [ ] Re-measure with the real live-preview layer, block widgets included: typing against 16 ms, the 3 MB plain-source cutoff, and startup on a fresh WebView2 profile, against the 1000 ms of ISC-4 (a bare shell takes 475 ms); then delete `src/perf/throwawayDecorations.ts`; waits on Phase 3.
 - [ ] Decide whether the Windows 11 snap-layout hover flyout is worth answering `WM_NCHITTEST` from Rust — v1 ships custom caption buttons without it, and Win+Z and edge snapping work; waits on the owner.

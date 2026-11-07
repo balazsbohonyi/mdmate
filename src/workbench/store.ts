@@ -1,4 +1,5 @@
 import { computed, shallowReactive, shallowRef } from 'vue'
+import { docMeta } from '@/documents/meta'
 import {
   activatePane,
   activateTab,
@@ -19,38 +20,76 @@ import {
   type SplitId,
   type TabId,
 } from './splitTree'
+import type { TabInfo, TabRecord } from './tabs'
 
 /**
- * The live workbench: the current layout and the title of every tab. A module-level store, shared
- * by the panes, the commands and the shell. The layout is replaced whole on each change, so it is
+ * The live workbench: the current layout and what each tab shows. A module-level store, shared by
+ * the panes, the commands and the shell. The layout is replaced whole on each change, so it is
  * held in a shallow ref and the pure functions in `splitTree.ts` do the work.
  */
 const layout = shallowRef<Layout>(createLayout())
-const titles = shallowReactive(new Map<TabId, string>())
+const records = shallowReactive(new Map<TabId, TabRecord>())
 let tabCounter = 0
 
 export const workbenchLayout = computed(() => layout.value)
 
+export function tabRecord(id: TabId): TabRecord | undefined {
+  return records.get(id)
+}
+
+/** The name on a tab: its document's file name. */
 export function tabTitle(id: TabId): string {
-  return titles.get(id) ?? id
+  const record = records.get(id)
+  return (record && docMeta(record.docId)?.name) ?? id
+}
+
+export function tabInfo(id: TabId): TabInfo {
+  const record = records.get(id)
+  const meta = record && docMeta(record.docId)
+  return {
+    id,
+    kind: record?.kind ?? 'markdown',
+    title: meta?.name ?? id,
+    dirty: meta?.dirty ?? false,
+  }
+}
+
+/** Every tab that shows this document. */
+export function tabsOfDocument(docId: number): TabId[] {
+  return [...records].filter(([, record]) => record.docId === docId).map(([id]) => id)
+}
+
+type ClosedListener = (tabId: TabId, record: TabRecord) => void
+const closedListeners = new Set<ClosedListener>()
+
+/** Calls `listener` for each tab that leaves the layout, however it left. Returns the stop function. */
+export function onTabClosed(listener: ClosedListener): () => void {
+  closedListeners.add(listener)
+  return () => {
+    closedListeners.delete(listener)
+  }
 }
 
 function change(update: (current: Layout) => Layout): void {
   layout.value = update(layout.value)
-  // Titles of closed tabs go with them.
+  // Records of closed tabs go with them, and the listeners hear about each.
   const open = new Set(allTabs(layout.value))
-  for (const id of [...titles.keys()]) if (!open.has(id)) titles.delete(id)
+  for (const [id, record] of [...records]) {
+    if (open.has(id)) continue
+    records.delete(id)
+    for (const listener of closedListeners) listener(id, record)
+  }
 }
 
-function newTabId(title: string): TabId {
+function newTabId(record: TabRecord): TabId {
   const id = `tab-${++tabCounter}`
-  titles.set(id, title)
+  records.set(id, record)
   return id
 }
 
-/** Opens a new tab in a pane (the active one by default). */
-export function openNewTab(title: string, paneId?: PaneId): TabId {
-  const id = newTabId(title)
+/** Opens a new tab showing `record` in a pane (the active one by default). */
+export function openTabFor(record: TabRecord, paneId?: PaneId): TabId {
+  const id = newTabId(record)
   change((current) => openTab(current, id, paneId))
   return id
 }
@@ -84,22 +123,38 @@ export function resizeSplit(splitId: SplitId, sizes: readonly number[]): void {
 }
 
 /**
- * Splits the active pane. The new pane opens a second tab with the active tab's title, standing in
- * for a second view of the same document until Phase 2 has documents. `title` names the new tab
- * instead. An active pane with no tab gets an empty neighbour.
+ * Splits the active pane. The new pane opens a tab on `shown`, or by default on the same document
+ * as the active tab, so an edit in either pane shows in both. With neither, the new pane is empty.
  */
-export function splitActivePane(direction: Direction, title?: string): void {
+export function splitActivePane(direction: Direction, shown?: TabRecord): void {
   const current = layout.value
   const active = findPane(current, current.activePane)
-  const copied = active?.activeTab ? tabTitle(active.activeTab) : null
-  const name = title ?? copied
-  const tabs = name === null ? [] : [newTabId(name)]
+  const record = shown ?? (active?.activeTab ? records.get(active.activeTab) : undefined)
+  const tabs = record === undefined ? [] : [newTabId(record)]
   change((state) => splitPane(state, state.activePane, direction, 'after', tabs))
 }
 
-/** Starts over with one empty pane. Tests and the dev seed use it. */
+/**
+ * Replaces the whole workbench with a layout read from a saved session and the tabs it names.
+ * Every tab in the layout must have a record. New tabs get ids after the highest one restored.
+ */
+export function restoreWorkbench(restored: Layout, tabs: ReadonlyMap<TabId, TabRecord>): void {
+  const open = new Set(allTabs(restored))
+  for (const id of open) {
+    if (!tabs.has(id)) throw new Error(`restoring a layout: tab ${id} has no record`)
+  }
+  records.clear()
+  for (const id of open) {
+    const record = tabs.get(id)
+    if (record !== undefined) records.set(id, record)
+  }
+  tabCounter = Math.max(0, ...[...open].map((id) => Number(/^tab-(\d+)$/.exec(id)?.[1] ?? 0)))
+  layout.value = restored
+}
+
+/** Starts over with one empty pane. Tests use it. */
 export function resetWorkbench(): void {
   layout.value = createLayout()
-  titles.clear()
+  records.clear()
   tabCounter = 0
 }

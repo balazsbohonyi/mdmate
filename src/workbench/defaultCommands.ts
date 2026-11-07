@@ -1,10 +1,18 @@
+import {
+  canSaveActive,
+  openFromDialog,
+  requestCloseTab,
+  saveActiveDocument,
+} from '@/documents/store'
 import { getHost } from '@/platform'
 import { registerCommand, removeCommand } from './commands'
 import { findPane } from './splitTree'
-import { closeTabById, splitActivePane, workbenchLayout } from './store'
+import { splitActivePane, workbenchLayout } from './store'
 import { toggleSidebar } from './sidebar'
 
 export const COMMAND_IDS = {
+  open: 'file.open',
+  save: 'file.save',
   splitRight: 'workbench.splitRight',
   splitDown: 'workbench.splitDown',
   closeTab: 'workbench.closeTab',
@@ -30,6 +38,20 @@ export function registerDefaultCommands(): () => void {
   for (const id of Object.values(COMMAND_IDS)) removeCommand(id)
   const disposers = [
     registerCommand({
+      id: COMMAND_IDS.open,
+      title: 'Open...',
+      keybinding: 'Mod+O',
+      run: openFromDialog,
+    }),
+    registerCommand({
+      id: COMMAND_IDS.save,
+      title: 'Save',
+      keybinding: 'Mod+S',
+      // Disabled when there is nothing to write, but the key is still taken from the page.
+      enabled: canSaveActive,
+      run: saveActiveDocument,
+    }),
+    registerCommand({
       id: COMMAND_IDS.splitRight,
       title: 'Split Right',
       keybinding: 'Alt+Shift+2',
@@ -52,7 +74,7 @@ export function registerDefaultCommands(): () => void {
       enabled: () => activeTab() !== null,
       run: () => {
         const tab = activeTab()
-        if (tab !== null) closeTabById(tab)
+        if (tab !== null) requestCloseTab(tab)
       },
     }),
     registerCommand({
