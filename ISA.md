@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 23/181
+progress: 26/181
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-07T13:22:46Z
+updated: 2026-11-07T13:34:49Z
 principal_stated_goal: "I want to build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -295,9 +295,9 @@ Why: a dense keyboard-driven layout you can rearrange freely is what separates t
 - [x] ISC-32: Dragging a tab moves it to another pane.
 - [x] ISC-33: Dragging a tab to a pane edge creates a split.
 - [x] ISC-34: Dragging a split handle resizes the adjacent panes.
-- [ ] ISC-35: A keyboard shortcut toggles the sidebar.
-- [ ] ISC-171: A keyboard shortcut splits the active pane right.
-- [ ] ISC-172: A keyboard shortcut splits the active pane down.
+- [x] ISC-35: A keyboard shortcut toggles the sidebar.
+- [x] ISC-171: A keyboard shortcut splits the active pane right.
+- [x] ISC-172: A keyboard shortcut splits the active pane down.
 - [x] ISC-176: Dragging a tab within a strip reorders it.
 
 ### F2 · Reliable documents
@@ -545,6 +545,9 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-176: trusted drag in `pnpm dev` (Claude in Chrome) took README.md along its strip to after the last tab and the strip went from README, notes, ideas to notes, ideas, README; the same drag with a real OS mouse in the `pnpm tauri dev` window did the same, with the insertion bar drawn 2 px wide at the right border and the dragged tab dimmed; neither run fired a `dragstart` or `selectstart` or left text selected; `tests/workbench/tabDropTarget.test.ts` fixes the index rule and fails when the threshold, the release-time re-aim or the inclusive border are broken (P1-T5).
 - ISC-32: trusted drag in `pnpm dev` moved notes.md from the top-left pane into the bottom-right pane (it landed last and active, the source kept its other tabs), and the same move with a real OS mouse in `pnpm tauri dev` gave the same result (P1-T5).
 - ISC-33: trusted drag in `pnpm dev` of ideas.md onto the right edge of the top-right pane made a new pane beside it (648 px split into 323 and 323); in `pnpm tauri dev` a real OS mouse did the same, the preview covered exactly the right half of the pane (214.75 by 297.5 px) while the button was held, and a real Escape press mid-drag removed the overlay and left the layout untouched after release (P1-T5).
+- ISC-35: Ctrl+Shift+B hid and showed the sidebar as a trusted key press in `pnpm dev` (Claude in Chrome: panes moved from x 240 to 0 and back, the menu item did the same) and as a real OS key press in the `pnpm tauri dev` window (240 to 0 and back); the keydown was taken from the page (`defaultPrevented` true); `tests/workbench/defaultCommands.test.ts` runs the shortcut against the real store (P1-T6).
+- ISC-171: Alt+Shift+2 split a lone 1296 px pane into two columns of 648 px in `pnpm dev`, and an 860 px pane into 430 and 430 in `pnpm tauri dev` with real OS keys, the new pane becoming the active one; the menu item gave the same split in `pnpm dev`, and unit tests show that AltGr (Ctrl+Alt+2) does not trigger it (P1-T6).
+- ISC-172: Alt+Shift+8 split the active pane into two rows, 367 and 367 px high in `pnpm dev` and 332 and 332 px in `pnpm tauri dev` with real OS keys; after the split right of ISC-171, the active pane became a column inside that row (P1-T6).
 
 ## Remaining Work
 

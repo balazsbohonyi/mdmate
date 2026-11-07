@@ -1,28 +1,36 @@
 <script setup lang="ts">
-import { getHost } from '@/platform'
+import { computed, onUnmounted } from 'vue'
+import { runCommand } from '@/workbench/commands'
+import { registerDefaultCommands } from '@/workbench/defaultCommands'
 import { seedDemoWorkbench } from '@/workbench/devSeed'
-import { sidebarVisible, toggleSidebar } from '@/workbench/sidebar'
+import { installKeybindings } from '@/workbench/keyboard'
+import { sidebarVisible } from '@/workbench/sidebar'
 import WorkbenchView from '@/workbench/WorkbenchView.vue'
-import type { MenuEntry } from './menuEntries'
+import { buildMenuEntries } from './menuEntries'
 import SidebarFrame from './SidebarFrame.vue'
 import StatusBar from './StatusBar.vue'
 import TitleBar from './TitleBar.vue'
 
 defineProps<{ platformName: string }>()
 
-const menuEntries: readonly MenuEntry[] = [
-  { kind: 'item', id: 'toggle-sidebar', label: 'Toggle Sidebar' },
-  { kind: 'separator' },
-  { kind: 'item', id: 'exit', label: 'Exit' },
-]
+// The menu and the shortcuts both run commands from the registry, through `runCommand`.
+const removeCommands = registerDefaultCommands()
+const removeKeybindings = installKeybindings(window)
+onUnmounted(() => {
+  removeKeybindings()
+  removeCommands()
+})
+
+const menuEntries = computed(() => buildMenuEntries())
 
 // A layout to try splitting and dragging on, until Phase 2 opens real files. The branch is removed
 // from release builds, which start with one empty pane.
 if (import.meta.env.DEV) seedDemoWorkbench()
 
-async function runMenuEntry(id: string): Promise<void> {
-  if (id === 'toggle-sidebar') toggleSidebar()
-  else if (id === 'exit') await (await getHost()).windowControls.close()
+function runMenuEntry(id: string): void {
+  runCommand(id).catch((error: unknown) => {
+    console.error(`Menu command "${id}" failed`, error)
+  })
 }
 </script>
 

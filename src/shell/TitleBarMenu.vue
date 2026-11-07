@@ -31,7 +31,7 @@ const emit = defineEmits<{ select: [id: string] }>()
     <DropdownMenuContent
       align="start"
       :side-offset="0"
-      class="min-w-52"
+      class="min-w-64"
     >
       <template
         v-for="(entry, index) in entries"
@@ -40,6 +40,7 @@ const emit = defineEmits<{ select: [id: string] }>()
         <DropdownMenuSeparator v-if="entry.kind === 'separator'" />
         <DropdownMenuItem
           v-else
+          class="whitespace-nowrap"
           :disabled="entry.disabled ?? false"
           @select="emit('select', entry.id)"
         >
