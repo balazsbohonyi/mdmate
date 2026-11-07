@@ -5,7 +5,7 @@ project: mdmate
 phase: climbing
 progress: 11/178
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-07T11:20:00Z
+updated: 2026-11-07T11:35:00Z
 principal_stated_goal: "I want to build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -523,3 +523,8 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 
 - [ ] Ship the Inter font's OFL-1.1 notice with the installer and portable zip, and credit it in the README — the font is bundled from `@fontsource-variable/inter`; waits on P10-T3 to P10-T5.
 - [ ] Check the resolved Rust dependency graph for network crates with `cargo tree --target all` — `no-network` reads direct dependencies only, because the lockfile lists `reqwest` and `hyper` although none is in the Windows build graph; waits on P10-T2, where ISC-20 closes.
+- [ ] Add shadcn-vue components through a small script that runs `shadcn-vue add` and then restores the `ts-nocheck` line, turn off five ESLint rules for `src/components/ui/**/*.vue`, and ignore that folder in Prettier — generated files fail `exactOptionalPropertyTypes` (69 errors), and `pnpm check` should fail on a file without the line; waits on Phase 1, where the first components are added (details in the P0-T9 decisions).
+- [ ] Build the real line-ending state field and make undo restore a deleted line break's old ending — the P0 spike gives it the neighbour's ending; waits on Phase 2, where ISC-3 closes.
+- [ ] Turn the asset protocol on for real (the `protocol-asset` feature, `assetProtocol` enabled with an empty scope) and grow its scope with `allow_directory` when a workspace opens, and divide Tauri drop positions by the pixel ratio in the platform layer — both were tested in P0 (drop positions at 125% scale only); waits on the phases that add images and file drops.
+- [ ] Re-measure with the real live-preview layer, block widgets included: typing against 16 ms, the 3 MB plain-source cutoff, and startup on a fresh WebView2 profile, where ISC-4 may need renegotiating (a bare shell takes 475 ms); then delete `src/perf/throwawayDecorations.ts`; waits on Phase 3.
+- [ ] Decide whether the Windows 11 snap-layout hover flyout is worth answering `WM_NCHITTEST` from Rust — v1 ships custom caption buttons without it, and Win+Z and edge snapping work; waits on the owner.
