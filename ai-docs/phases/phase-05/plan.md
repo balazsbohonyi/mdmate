@@ -42,6 +42,6 @@ Pasting a URL over a selection creates a link. `allowMultipleSelections` stays o
 
 ## P5-T7: Drag selected text
 
-CM6's own text drag does not work while native file drops are on (P0-T9), so build it on pointer events. Pressing on a non-empty selection starts the drag, a drop caret follows the pointer through `posAtCoords`, and releasing moves the text in one transaction with `userEvent: "move.drop"`. Esc cancels, dropping inside the selection does nothing, and the editor scrolls when the pointer nears its edge.
+CM6's own text drag does not work while native file drops are on (P0-T9), so it is built on pointer events. A spike already exists in `src/editor/textDrag.ts` with 15 tests, and it passed 11 trusted-input cases and a 12-step by-hand sitting in the real WebView2 (P0 decisions, "Drag-to-move spike"). Start from it: add `textDrag()` to the shared extensions in `createState`, then deal with what the spike left out, which is line endings carried with moved text, live-preview hidden syntax and block widgets as drop targets, 125% display scale, and the cost on a 3 MB file.
 
 **Done when:** the move and undo tests pass, and a drag works in the real app with native drops on.

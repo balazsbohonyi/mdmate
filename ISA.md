@@ -5,7 +5,7 @@ project: mdmate
 phase: climbing
 progress: 11/181
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-07T12:10:00Z
+updated: 2026-11-07T13:20:00Z
 principal_stated_goal: "I want to build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -509,6 +509,7 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - 2026-11-07: Chose the asset protocol with a scope that grows at runtime for images, over a custom protocol. Tested in the real WebView2: a folder is blocked until it is allowed, then loads, including names with spaces and accents.
 - 2026-11-07: Kept every strict TypeScript flag and mark generated shadcn-vue files with ts-nocheck and a reason, since all 69 type errors come from exactOptionalPropertyTypes in generated code. Never run shadcn-vue init here, because it rewrites tokens.css.
 - 2026-11-07: Kept drag-to-move for selected text in v1, on the owner's call. CM6's own text drag does not work while native file drops are on (tested by hand), and the file paths from native drops matter more, so it is built on pointer events like tab and tree dragging (ISC-177 to ISC-179).
+- 2026-11-07: Drag-to-move spike passed in the real WebView2: 15 unit tests, 11 of 11 trusted-input cases, and the owner's 12-step by-hand sitting, with a real file drop working while it was active and no browser drag event ever firing. ISC-177 to ISC-179 stay open until P5-T7 builds it into the app. The spike did not cover 125% display scale, line endings in moved text, or live-preview widgets.
 - 2026-11-07: Tauri drop positions are physical pixels (tested at 125% scale), so the platform layer divides them by the pixel ratio before anything hit-tests.
 - 2026-11-07: Shipping custom caption buttons without the Windows 11 snap layout hover flyout, which needs the OS to see a real caption button. Win+Z and edge snapping work on the undecorated window (tested by hand).
 
@@ -531,7 +532,7 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - [ ] Ship the Inter font's OFL-1.1 notice with the installer and portable zip, and credit it in the README — the font is bundled from `@fontsource-variable/inter`; waits on P10-T3 to P10-T5.
 - [ ] Check the resolved Rust dependency graph for network crates with `cargo tree --target all` — `no-network` reads direct dependencies only, because the lockfile lists `reqwest` and `hyper` although none is in the Windows build graph; waits on P10-T2, where ISC-20 closes.
 - [ ] Add shadcn-vue components through a small script that runs `shadcn-vue add` and then restores the `ts-nocheck` line, turn off five ESLint rules for `src/components/ui/**/*.vue`, and ignore that folder in Prettier — generated files fail `exactOptionalPropertyTypes` (69 errors), and `pnpm check` should fail on a file without the line; waits on Phase 1, where the first components are added (details in the P0-T9 decisions).
-- [ ] Build the real line-ending state field and make undo restore a deleted line break's old ending — the P0 spike gives it the neighbour's ending; waits on Phase 2, where ISC-3 closes.
+- [ ] Build the real line-ending state field and make undo restore a deleted line break's old ending, and keep each break's ending when a selection with line breaks is moved by drag — the P0 spike gives such breaks the neighbour's ending; waits on Phase 2, where ISC-3 closes.
 - [ ] Turn the asset protocol on for real (the `protocol-asset` feature, `assetProtocol` enabled with an empty scope) and grow its scope with `allow_directory` when a workspace opens, and divide Tauri drop positions by the pixel ratio in the platform layer — both were tested in P0 (drop positions at 125% scale only); waits on the phases that add images and file drops.
 - [ ] Re-measure with the real live-preview layer, block widgets included: typing against 16 ms, the 3 MB plain-source cutoff, and startup on a fresh WebView2 profile, against the 1000 ms of ISC-4 (a bare shell takes 475 ms); then delete `src/perf/throwawayDecorations.ts`; waits on Phase 3.
 - [ ] Decide whether the Windows 11 snap-layout hover flyout is worth answering `WM_NCHITTEST` from Rust — v1 ships custom caption buttons without it, and Win+Z and edge snapping work; waits on the owner.

@@ -65,7 +65,7 @@ For each task:
 - CM6 normalizes line endings to a newline. Keep each line break's original ending in a state field beside the text and join them back on save. Do not keep the carriage return in the text with a newline `lineSeparator`: it keeps the bytes, but the Markdown parser then misses tables and hard breaks (P0-T9).
 - mdmate's own saves fire the file watcher. Record the hash of what we wrote and ignore that event.
 - A second launch's `mdmate file.md` resolves against that launch's working directory.
-- Tauri drop positions are physical pixels: divide by `devicePixelRatio` before hit-testing. CM6 text drag does not work while native drops are on, so drag-to-move for selected text is built on pointer events (P0-T9, P5-T7).
+- Tauri drop positions are physical pixels: divide by `devicePixelRatio` before hit-testing. CM6 text drag does not work while native drops are on, so drag-to-move for selected text is built on pointer events (spike in `src/editor/textDrag.ts`, P0-T9, P5-T7).
 - Keep `dragDropEnabled` at `true`, because native drops carry real file paths. Build tab, tree and split dragging on pointer events, since HTML5 drag needs that setting off on Windows.
 - Use `pnpm tauri`; `cargo tauri` is not installed.
 - Pin Tauri plugins to major 2 and `notify` to a stable release. crates.io defaults currently resolve to prereleases.
