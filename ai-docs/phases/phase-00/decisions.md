@@ -41,3 +41,11 @@ Deviations from the plan and choices it left open. Numbers carry the OS they cam
 - **The count was checked independently of the script.** `rg` found 179 claim lines, 1 container, 9 checked and 178 rows, which gives the same 178 leaf claims, 9 closed and 178 rows the script reports.
 - **Not checked, because the standard does not list it:** that every closed claim has a `## Verification` stub. That stays a rule of the task-end review.
 - **No claim closes here.** The task supports ISC-22, so `progress` stays at 9/178.
+
+## P0-T5
+
+- **The workflow is written and committed but T5 stays open.** Its done-when is "all jobs green on a pushed branch", and pushing needs the owner's go-ahead. ISC-10 and ISC-11 stay open with it. After a push, check the run, fix whatever macOS or Linux reports, then tick T5 and close both claims.
+- **What was checked locally:** `@action-validator/cli` accepts the workflow against the GitHub Actions schema and rejects a file with an unknown key. That proves the syntax and not the run. The platform stubs for macOS and Linux have never been compiled.
+- **Jobs.** `windows` runs `pnpm check`, `pnpm check:rust`, `pnpm test:web` and `pnpm test:rust`. `compile` runs `cargo check` on macOS and Linux. The Linux job installs the package list from the Tauri v2 prerequisites page (verified 2026-11-07), including `libwebkit2gtk-4.1-dev`.
+- **Actions are pinned to major tags** (checkout v7, setup-node v7, pnpm/action-setup v6, rust-cache v2, rust-toolchain stable) as of 2026-11-07, with read-only token permissions.
+- **Expect CRLF on the Windows runner.** Git there checks out CRLF by default; Prettier, `check-arch`, `check-isa` and `cargo fmt` all accept it, and fixtures are `-text`.
