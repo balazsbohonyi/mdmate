@@ -1,0 +1,2 @@
+# Keep fixture bytes exact on every OS and git setting.
+tests/fixtures/** -text

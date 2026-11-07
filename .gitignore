@@ -1,0 +1,50 @@
+# Dependencies and build output
+node_modules/
+dist/
+dist-ssr/
+coverage/
+.vite/
+*.tsbuildinfo
+
+# Tauri and Rust (Cargo.lock stays tracked)
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# Secrets and local overrides
+.env
+.env.*
+!.env.example
+*.local
+
+# Logs
+logs/
+*.log
+
+# Generated test data and results
+tests/fixtures/generated/
+perf-results/
+
+# Portable mode data from local runs
+/data/
+*.portable
+
+# Editors and OS
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.sw?
+.DS_Store
+Thumbs.db
+
+# Agent tooling
+.claude/settings.local.json
+.claude/worktrees/
+.checkpoint-state.json
+.temp/
+
+# graphify
+.graphify/
+graphify-out/
+.graphify_*.json
+.graphify_python
