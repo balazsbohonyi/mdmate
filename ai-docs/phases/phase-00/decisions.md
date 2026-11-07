@@ -208,7 +208,7 @@ The owner put drag-to-move back in v1, so a spike ran in the lab before Phase 5.
 - **By hand (`pnpm perf lab-drag`), 12 steps, all yes.** Same-line move, the drop caret, a move to another line, one Ctrl+Z undoing the whole move, a span across lines, autoscroll at the bottom edge landing where the caret was, Esc, release over the area outside the box, release outside the whole window (the drag is gone when the mouse comes back), click collapsing the selection, and a real file from Explorer dropped on a zone while the extension was active (3 enter and drop pairs, each with one path). It felt smooth, and the owner's note was "everything just worked". The page counted 10 moves and **0** browser drag events.
 - **Decision: the approach is confirmed.** ISC-177 to ISC-179 stay open, since the claims close in P5-T7 against the real app. P5-T7 starts from this file.
 - **Not covered, and P5-T7 has to handle or decide:**
-  - Display scale. The by-hand session reported `devicePixelRatio` 1 (the T9 lab had 1.25), so fractional scrolling and coordinates at 125% are untested.
+  - Display scale. The by-hand session ran on the external monitor at scale 1 (`devicePixelRatio` 1), while the T9 lab ran on the laptop screen at 1.25. So fractional scrolling and coordinates at 125% are untested for this extension.
   - Line endings. A move is a deletion plus an insertion, so a moved block of CRLF lines would take its new neighbours' endings in a mixed file. Phase 2's real field has to carry endings with moved text (a unit test pins the shape of the change).
   - Live preview. Dropping into or out of hidden syntax, tables, images and other block widgets is unchecked; it waits on Phases 3 and 4.
   - Large files. Drag cost on a 3 MB document is unmeasured.
