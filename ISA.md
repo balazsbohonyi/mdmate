@@ -502,6 +502,7 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - 2026-11-07: refined: ISC-12 widened from `invoke` to all `@tauri-apps` imports, so the browser mock stays complete.
 - 2026-11-07: refined: ISC-47 moved from a manual run to a scripted kill and restore.
 - 2026-11-07: refined: added ISC-171 to ISC-176, since phase plans held behaviors no claim covered.
+- 2026-11-07: refined: ISC-7 is judged on the main-thread work a key causes (handling it, plus the next frame's style, layout and paint). Key to frame adds an idle wait of up to one frame, which no editor can remove, so it is printed and never judged.
 
 ## Verification
 

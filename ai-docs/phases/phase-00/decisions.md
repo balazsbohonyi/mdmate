@@ -59,3 +59,43 @@ Deviations from the plan and choices it left open. Numbers carry the OS they cam
 - **The UTF-8 BOM, UTF-16 LE and UTF-16 BE files hold the same text**, and the test decodes each and compares it. The Latin-1 file uses only characters Latin-1 can encode, and the test confirms it fails strict UTF-8.
 - **`hostile.md` names only `.invalid` hosts and `example.com`**, plus one local path (`file:///C:/Windows/System32/calc.exe`) that would open Calculator at worst. A test checks every host. Each script and handler payload sets `document.title`, so a leak would show. Never open this file in a browser.
 - **Line endings:** `.gitattributes` marks the folder `-text` (checked with `git check-attr`), and Prettier ignores `tests/fixtures/`.
+
+## P0-T7
+
+- **`pnpm perf <scenario...|all>` builds the release app and measures it on the real WebView2.** It launches the app once per run, the page times itself, Rust writes the result and the app quits. Output goes to `perf-results/` as JSON, labeled Windows, with the CPU, WebView2 version, commit, clock resolution, CPU idle before each launch and every raw sample. Scenarios: `startup`, `open-1mb`, `tab-switch`, `typing-1mb`, plus `typing-1mb-trusted` as a cross-check. Each run has 2 uncounted warm-up launches, then 5 counted ones.
+- **Files cross IPC as raw bytes.** `read_file` returns `tauri::ipc::Response` and the page gets an `ArrayBuffer`. Rust tests prove every byte survives (BOM, CRLF, a lone CR, a Latin-1 byte, a NUL) and that a 10 MB file reads. It reads any path until Phase 2 limits it to the open workspace.
+- **No perf code ships.** The Rust commands sit behind the Cargo feature `perf`, and the front-end driver and bridge behind `VITE_MDMATE_PERF`. A normal `pnpm build` has 23 modules against 52, no 504 kB CodeMirror chunk and none of the perf command names (searched in `dist/`). `pnpm check:rust` lints both feature sets, so the perf code cannot rot.
+- **The repeatability rule was fixed before the first run:** a number repeats when every one of 5 runs is within 10% of the median or within 1 ms of it, whichever is wider. 1 ms is the clock resolution. `tests/scripts/perfStats.test.ts` pins it.
+- **What each number means.**
+  - *Startup* is process spawn to a frame with the editor in it, on a window that is shown and focused. It is a floor: the shell plus a CodeMirror editor, with no sidebar, tabs or settings.
+  - *Open* is the invoke call to the frame after the state is shown: IPC read, decode, build state, show, paint.
+  - *Tab switch* is `view.setState` between two 1 MB documents to the frame.
+  - *Typing* is the main-thread work one key causes: handling it and updating the editor, plus the next frame's style, layout and paint. Key to frame is printed too, but it adds an idle wait of up to 16.7 ms, so it is never judged.
+- **Typing is measured two ways.** In `dispatch` mode the page inserts each character itself. In `trusted` mode real key events arrive through WebView2's DevTools port and the clock starts at the event's own timestamp. I did not use OS-level key injection, because it types into whichever window has focus.
+- **Four flaws in my own measurement, fixed before the final runs.**
+  1. Keys 50 ms apart are almost exactly three frames, so every key hit the same point of the frame cycle. The gap now has a random extra of up to one frame.
+  2. Key to frame included the idle wait for the frame, so it could never go under about 16 ms. The headline is now work per key.
+  3. The window-shown time was stamped when the wait ended, not when the window showed. It is now a `performance.mark`.
+  4. The runner crashed when Windows could not start PowerShell for cleanup, under memory pressure. It now notes it and carries on.
+- **Attempts, all under the same rule.** Attempt 1 (6 opens, 40 switches, 1 warm-up) failed startup (480 ms, runs 431 to 498), open (21 ms, 19 to 29) and tab switch (9.4 ms, 8.7 to 10.7). Attempt 2 raised the samples to 16 opens and 120 switches, and only tab switch failed (8.9 ms, 8.1 to 10.8). Its run 1 was slower across the whole distribution, and startup showed the same slow first run, so launches warm up. Attempt 3 used 2 warm-up launches and tab switch passed (9.4 ms, 8.9 to 9.8). The rule never changed. The other four scenarios were last run with 1 warm-up and pass anyway.
+- **Baseline, plain CodeMirror 6 with the Markdown parser and no decorations (Windows 11, Ryzen 7 8840HS, WebView2 156.0.4314.58, 60 Hz, release build):**
+
+  | Scenario | Median of 5 runs | Range | Target | Repeatable |
+  |---|---|---|---|---|
+  | Startup, launch to editable | 418.9 ms | 410.9 to 445.3 | 500 | yes |
+  | Open 1 MB, warm | 17.0 ms | 16.8 to 17.8 | 100 | yes |
+  | Open 1 MB, first of the run | 47.0 ms | 45.8 to 51.5 | 100 | |
+  | Tab switch, p95 | 9.4 ms | 8.9 to 9.8 | 50 | yes |
+  | Typing, work per key, p95 (dispatch) | 4.7 ms | 4.6 to 4.9 | 16 | yes |
+  | Typing, work per key, p95 (trusted keys) | 5.0 ms | 4.9 to 5.2 | 16 | yes |
+
+- **Where the time goes.**
+  - Startup: spawn to Rust 12 ms, Rust to page start 274 ms (WebView2 starting), page start to app mounted 66 ms, then the window shows after 60 ms and the editor mounts after 52 ms, in parallel. WebView2 is two thirds of the total.
+  - Open: IPC read 9.4 ms, decode 1.1, build state 1.4, show 0.5, paint 4.6. The IPC read scales with size, so it would be near 90 ms at 10 MB (not measured).
+  - Typing p95: 3.7 ms for the update and 1.3 ms for the frame.
+- **What these numbers do not cover.**
+  - Paint stops at the main thread. GPU and compositor time after that is not measured.
+  - Dispatch mode leaves out the OS and browser input path. Trusted mode includes the DevTools to page hop, not the OS to browser hop.
+  - Only a warm WebView2 profile was timed. A first launch on a fresh profile or after a reboot is not, and T9 owns that question.
+  - The runs use two flags: `--disable-features=CalculateNativeWinOcclusion`, so a covered window is not throttled, and, for trusted typing only, a DevTools port.
+  - Other apps were open (VS Code, the Riftle launcher). CPU was 89% to 98% idle before every counted run, frames arrived every 16.7 ms and no run left a process behind.

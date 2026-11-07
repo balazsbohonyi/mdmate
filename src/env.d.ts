@@ -7,3 +7,8 @@ declare module '*.vue' {
   const component: DefineComponent<object, object, unknown>
   export default component
 }
+
+interface ImportMetaEnv {
+  /** Set to `1` by `pnpm perf`. A normal build leaves it unset, so the perf driver drops out. */
+  readonly VITE_MDMATE_PERF?: string
+}

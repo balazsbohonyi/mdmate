@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { reportWindowShown } from '@/lib/lifecycle'
 import { getHost } from '@/platform'
 
 const platformName = ref('')
@@ -20,6 +21,7 @@ onMounted(async () => {
   platformName.value = await host.platformName()
   await afterPaint()
   await host.showWindow()
+  reportWindowShown()
 })
 </script>
 

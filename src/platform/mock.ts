@@ -9,4 +9,7 @@ export const mockHost: Host = {
   showWindow() {
     return Promise.resolve()
   },
+  readFile() {
+    return Promise.reject(new Error('Reading files needs the desktop app.'))
+  },
 }
