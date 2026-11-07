@@ -2,6 +2,7 @@ import { createState, createView } from '@/editor/create'
 import { windowShown } from '@/lib/lifecycle'
 import type { ScenarioContext, ScenarioOutput } from './params'
 import { epochNow, framePresented, mountEditorHost } from './support'
+import { throwawayDecorations } from './throwawayDecorations'
 
 /** Epoch ms of a `performance.mark`, or 0 when it is missing. */
 function markEpoch(name: string): number {
@@ -16,7 +17,10 @@ function markEpoch(name: string): number {
  * This is the floor. The real app adds its sidebar, tabs and settings in later phases.
  */
 export async function startup(ctx: ScenarioContext): Promise<ScenarioOutput> {
-  const view = createView(mountEditorHost(), createState('# Untitled\n\nStart typing.\n'))
+  const view = createView(
+    mountEditorHost(),
+    createState('# Untitled\n\nStart typing.\n', throwawayDecorations(ctx.params)),
+  )
   view.focus()
   const editorMountedMs = epochNow()
 

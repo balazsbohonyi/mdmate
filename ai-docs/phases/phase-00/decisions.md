@@ -99,3 +99,26 @@ Deviations from the plan and choices it left open. Numbers carry the OS they cam
   - Only a warm WebView2 profile was timed. A first launch on a fresh profile or after a reboot is not, and T9 owns that question.
   - The runs use two flags: `--disable-features=CalculateNativeWinOcclusion`, so a covered window is not throttled, and, for trusted typing only, a DevTools port.
   - Other apps were open (VS Code, the Riftle launcher). CPU was 89% to 98% idle before every counted run, frames arrived every 16.7 ms and no run left a process behind.
+
+## P0-T8
+
+- **Kill rule: did not fire.** With live decorations on, typing on the 1 MB fixture costs 5.0 ms per key at p95 (5.5 ms with real key events), against 16 ms. The slowest single key in any counted run was 10.7 ms. Profiling was not needed, since the rule only asks for it when 16 ms cannot be held. Phase 3 can start on this question.
+- **The decorations are throwaway and small** (`src/perf/throwawayDecorations.ts`, switched on with `--set decorations=1`). They style headings by level, mark strong, emphasis and inline code, hide the syntax marks (`#`, `*`, backticks) except where the caret touches, and rebuild on a change to the document, viewport, selection or parse tree, over `visibleRanges` only. They have no block widgets (tables, images, frontmatter, fences), links or lists. The real Phase 3 layer does more, so these numbers show the room it starts with, not what it will cost.
+- **They did render.** After each decorated run, a probe reads the page. At the typing caret it found 21 strong, 17 emphasis and 18 code elements and 2 styled heading lines in view, and no strong element still showing its `**`. The `open-1mb` scenario ends at the top of the file, where nothing is formatted, so its decorated number is a lower bound. The probe does not check that marks come back when the caret enters them.
+- **Same executable, same protocol.** Plain and decorated runs use one release build and differ only in a runtime switch. Each has 2 uncounted warm-up launches and 5 counted runs, judged by the repeatability rule from P0-T7, unchanged.
+
+  | Scenario (ms, median of 5, range) | Plain | Decorated | Target |
+  |---|---|---|---|
+  | Startup, launch to editable | 429.3 (398 to 439) | 424.4 (423 to 432) | 500 |
+  | Open 1 MB, warm | 16.7 (16.6 to 17.1) | 20.2 (20.0 to 21.1) | 100 |
+  | Tab switch, p95 | 7.9 (7.7 to 8.7) | 11.1 (10.7 to 11.3) | 50 |
+  | Typing, work per key p95 (dispatch) | 4.8 (4.6 to 5.0) | 5.0 (5.0 to 5.6) | 16 |
+  | Typing, work per key p95 (real key events) | 5.2 (4.9 to 5.5) | 5.5 (5.4 to 5.9) | 16 |
+  | Open 10 MB, warm | 87.3 (86.8 to 88.5) | 125.3 (117.7 to 126.7) | 100 |
+  | Typing 10 MB, work per key p95 | 13.2 (12.4 to 13.7) | 14.4 (13.8 to 14.8) | 16 |
+
+- **The 10 MB open gap is mostly not the decorations.** The extra 38 ms sits in the IPC read stage (57.7 ms plain, 93.7 ms decorated), which decorations never touch, and the runner warned that the CPU was under 85% idle before one run. Read 10 MB open as 90 to 125 ms until it is measured again on a quiet machine.
+- **At 10 MB the document size is the cost, not the live preview.** The editor update alone takes 12.1 ms at p95 with no decorations, 12.9 ms with them. Plain p99 is 15.5 ms, decorated 17.5 ms, so some keys pass 16 ms. That is the evidence for the size cutoff question in P0-T9.
+- **One attempt failed the repeatability rule.** The first decorated dispatch run (median 5.2 ms, range 4.8 to 6.2) came from a matrix that the system stopped for low memory. The rerun passed (above). I report both because the first one ran under memory pressure, and neither comes near 16 ms.
+- **Throwaway code stays for now.** The plan says to throw it away, but the Phase 3 check needs the same scenarios with the real layer, and this file is the hook to swap it into. It lives only under `src/perf` and loads only when `VITE_MDMATE_PERF` is set. A normal `pnpm build` has none of it (searched `dist/` for its class names, the probe and the ready flag). Delete it when the real layer lands.
+- **What this does not cover.** Block widgets, which are the likely expensive part. Documents shaped differently from the realistic fixture. GPU time after the main thread. A caret inside a hidden-mark span. Phase 3 measures those against the same scenarios and the same 16 ms.

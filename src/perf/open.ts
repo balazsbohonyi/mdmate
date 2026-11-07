@@ -1,5 +1,6 @@
 import { createState, createView } from '@/editor/create'
 import type { ScenarioContext, ScenarioOutput } from './params'
+import { throwawayDecorations } from './throwawayDecorations'
 import { decodeUtf8, framePresented, mountEditorHost, sleep } from './support'
 
 /**
@@ -7,9 +8,13 @@ import { decodeUtf8, framePresented, mountEditorHost, sleep } from './support'
  * them, build the state, show it, and wait for the frame. The first open of the run is the cold
  * one; the harness reports it apart from the rest.
  */
-export async function open(ctx: ScenarioContext): Promise<ScenarioOutput> {
-  const path = ctx.fixture('realistic-1mb.md')
-  const empty = createState('')
+export async function open(
+  ctx: ScenarioContext,
+  fixture = 'realistic-1mb.md',
+): Promise<ScenarioOutput> {
+  const extensions = throwawayDecorations(ctx.params)
+  const path = ctx.fixture(fixture)
+  const empty = createState('', extensions)
   const view = createView(mountEditorHost(), empty)
   await framePresented()
 
@@ -27,7 +32,7 @@ export async function open(ctx: ScenarioContext): Promise<ScenarioOutput> {
     const t1 = performance.now()
     const text = decodeUtf8(bytes)
     const t2 = performance.now()
-    const state = createState(text)
+    const state = createState(text, extensions)
     const t3 = performance.now()
     view.setState(state)
     const t4 = performance.now()

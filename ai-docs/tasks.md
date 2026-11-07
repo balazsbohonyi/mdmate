@@ -11,7 +11,7 @@ Mark `[x]` only when the task's "Done when" in its phase plan holds. Each task l
 - [ ] P0-T5: Add CI for gates and macOS and Linux compiles — closes ISC-10, ISC-11 (workflow written; needs a pushed green run)
 - [x] P0-T6: Generate test fixtures — supports all fixture probes
 - [x] P0-T7: Build the perf harness and raw IPC file read — supports ISC-4 to ISC-7
-- [ ] P0-T8: Measure the baseline with throwaway decorations — supports ISC-4, ISC-5, ISC-7
+- [x] P0-T8: Measure the baseline with throwaway decorations — supports ISC-4, ISC-5, ISC-7
 - [ ] P0-T9: Answer the fog questions — resolves `## Not yet specified` entries
 
 ## Phase 1: Workbench ([plan](phases/phase-01/plan.md))

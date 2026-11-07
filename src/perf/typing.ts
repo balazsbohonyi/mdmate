@@ -11,6 +11,7 @@ import {
   sleep,
   waitUntil,
 } from './support'
+import { throwawayDecorations } from './throwawayDecorations'
 
 export type TypingMode =
   /** The page inserts each character with `view.dispatch`. No OS or browser input path. */
@@ -51,10 +52,14 @@ const letter = (i: number): string => String.fromCharCode(97 + (i % 26))
  * trusted: the harness sends real key events, so the work starts at the event's own timestamp
  * and also covers delivery of the key to the page.
  */
-export async function typing(ctx: ScenarioContext, mode: TypingMode): Promise<ScenarioOutput> {
+export async function typing(
+  ctx: ScenarioContext,
+  mode: TypingMode,
+  fixture = 'realistic-1mb.md',
+): Promise<ScenarioOutput> {
   const { warmupKeys, keys, keyIntervalMs } = ctx.params
   const total = warmupKeys + keys
-  const text = decodeUtf8(await ctx.host.readFile(ctx.fixture('realistic-1mb.md')))
+  const text = decodeUtf8(await ctx.host.readFile(ctx.fixture(fixture)))
 
   const workMs: number[] = []
   const latencyMs: number[] = []
@@ -76,7 +81,10 @@ export async function typing(ctx: ScenarioContext, mode: TypingMode): Promise<Sc
     })
   })
 
-  const view = createView(mountEditorHost(), createState(text, watchKeys))
+  const view = createView(
+    mountEditorHost(),
+    createState(text, [watchKeys, throwawayDecorations(ctx.params)]),
+  )
   const caret = pickCaret(view.state.doc)
   view.dispatch({
     selection: { anchor: caret },

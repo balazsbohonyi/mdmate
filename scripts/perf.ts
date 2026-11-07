@@ -66,6 +66,19 @@ function typingMetrics({ report }: RunData): Record<string, number> {
   }
 }
 
+function openMetrics({ report }: RunData): Record<string, number> {
+  const warm = (name: string) => median(q(report, name).slice(1))
+  return {
+    'warm open, median': warm('totalMs'),
+    'cold open (first)': at(q(report, 'totalMs'), 0),
+    'warm: IPC read': warm('ipcMs'),
+    'warm: decode': warm('decodeMs'),
+    'warm: build state': warm('stateMs'),
+    'warm: show': warm('showMs'),
+    'warm: paint': warm('paintMs'),
+  }
+}
+
 const SPECS: Record<string, Spec> = {
   startup: {
     claim: 'ISC-4',
@@ -91,18 +104,21 @@ const SPECS: Record<string, Spec> = {
     page: 'open-1mb',
     headlineName: 'warm open, median',
     targetMs: 100,
-    metrics({ report }) {
-      const warm = (name: string) => median(q(report, name).slice(1))
-      return {
-        'warm open, median': warm('totalMs'),
-        'cold open (first)': at(q(report, 'totalMs'), 0),
-        'warm: IPC read': warm('ipcMs'),
-        'warm: decode': warm('decodeMs'),
-        'warm: build state': warm('stateMs'),
-        'warm: show': warm('showMs'),
-        'warm: paint': warm('paintMs'),
-      }
-    },
+    metrics: openMetrics,
+  },
+  'open-10mb': {
+    claim: 'fog: size cutoff',
+    page: 'open-10mb',
+    headlineName: 'warm open, median',
+    targetMs: 100,
+    metrics: openMetrics,
+  },
+  'typing-10mb': {
+    claim: 'fog: size cutoff',
+    page: 'typing-10mb',
+    headlineName: 'work per key, p95',
+    targetMs: 16,
+    metrics: typingMetrics,
   },
   'tab-switch': {
     claim: 'ISC-6',
@@ -166,7 +182,11 @@ function parseArgs(argv: string[]) {
   }
   if (!Number.isInteger(runs) || runs < 1) fail('--runs needs a whole number of 1 or more')
   if (!Number.isInteger(warmups) || warmups < 0) fail('--warmups needs a whole number of 0 or more')
-  const chosen = names.includes('all') ? Object.keys(SPECS) : names
+  // `all` is the five scenarios behind ISC-4 to ISC-7. The 10 MB ones are for the size-cutoff
+  // question and are named on purpose.
+  const chosen = names.includes('all')
+    ? Object.keys(SPECS).filter((key) => !SPECS[key]?.claim.startsWith('fog'))
+    : names
   if (chosen.length === 0 || chosen.some((name) => !(name in SPECS))) {
     fail(`name a scenario: ${Object.keys(SPECS).join(', ')}, or all`)
   }
@@ -348,7 +368,8 @@ async function measure(
 ) {
   const spec = SPECS[name]
   if (!spec) fail(`unknown scenario ${name}`)
-  console.log(`\n== ${name} (${spec.claim}) ==`)
+  const decorated = params.decorations === 1
+  console.log(`\n== ${name} (${spec.claim})${decorated ? ', decorations on' : ''} ==`)
 
   const profileExisted = existsSync(PROFILE)
   const warmup: RunData[] = []
@@ -383,7 +404,7 @@ async function measure(
   }
   const within = (headline?.median ?? Number.POSITIVE_INFINITY) <= spec.targetMs
   console.log(
-    `\n[Windows] ${spec.headlineName}: ${fmt(headline?.median ?? Number.NaN)} ms against a target of ${String(spec.targetMs)} ms -> ${within ? 'within target' : 'OVER target'}`,
+    `\n[Windows${decorated ? ', decorations on' : ''}] ${spec.headlineName}: ${fmt(headline?.median ?? Number.NaN)} ms against a target of ${String(spec.targetMs)} ms -> ${within ? 'within target' : 'OVER target'}`,
   )
   console.log(
     `repeatable across ${String(runs)} runs (every run within ${String(REPEATABILITY_RULE.percent)}% or ${String(REPEATABILITY_RULE.floorMs)} ms of the median): ${headline?.repeatable ? 'yes' : 'NO'}`,
@@ -396,12 +417,13 @@ async function measure(
     console.log(`note: ${String(leftovers)} WebView2 process(es) outlived the app and were stopped`)
 
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..*/, '').replace('T', '-')
-  const file = join(RESULTS, `${name}-${stamp}.json`)
+  const file = join(RESULTS, `${name}${decorated ? '-decorated' : ''}-${stamp}.json`)
   writeFileSync(
     file,
     JSON.stringify(
       {
         label: 'Windows',
+        decorations: decorated,
         scenario: name,
         claim: spec.claim,
         headline: {

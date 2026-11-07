@@ -12,6 +12,7 @@ import {
 import { startup } from './startup'
 import { framePresented, measureFrameCadence, snapshotEnv } from './support'
 import { tabSwitch } from './tabSwitch'
+import { probeDecorations } from './throwawayDecorations'
 import { typing } from './typing'
 
 const scenarios: Record<string, (ctx: ScenarioContext) => Promise<ScenarioOutput>> = {
@@ -20,6 +21,8 @@ const scenarios: Record<string, (ctx: ScenarioContext) => Promise<ScenarioOutput
   'tab-switch': tabSwitch,
   'typing-1mb': (ctx) => typing(ctx, 'dispatch'),
   'typing-1mb-trusted': (ctx) => typing(ctx, 'trusted'),
+  'open-10mb': (ctx) => open(ctx, 'realistic-10mb.md'),
+  'typing-10mb': (ctx) => typing(ctx, 'dispatch', 'realistic-10mb.md'),
 }
 
 /**
@@ -61,6 +64,7 @@ export async function runPerf(): Promise<void> {
     // Startup times the wait for the window itself, so it is measured before any check.
     const env = config.scenario === 'startup' ? undefined : await checkWindow()
     const output = await run(ctx)
+    if (ctx.params.decorations === 1) Object.assign(output.values, probeDecorations())
     report = { scenario: config.scenario, ok: true, env: env ?? snapshotEnv(), ...output }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

@@ -1,6 +1,7 @@
 import type { EditorState } from '@codemirror/state'
 import { createState, createView } from '@/editor/create'
 import type { ScenarioContext, ScenarioOutput } from './params'
+import { throwawayDecorations } from './throwawayDecorations'
 import { decodeUtf8, framePresented, mountEditorHost, sleep } from './support'
 
 /**
@@ -13,7 +14,11 @@ export async function tabSwitch(ctx: ScenarioContext): Promise<ScenarioOutput> {
     ctx.host.readFile(ctx.fixture('realistic-1mb.md')),
     ctx.host.readFile(ctx.fixture('tables-heavy-1mb.md')),
   ])
-  const tabs: EditorState[] = [createState(decodeUtf8(a)), createState(decodeUtf8(b))]
+  const extensions = throwawayDecorations(ctx.params)
+  const tabs: EditorState[] = [
+    createState(decodeUtf8(a), extensions),
+    createState(decodeUtf8(b), extensions),
+  ]
   const view = createView(mountEditorHost(), tabs[0] ?? createState(''))
   await framePresented()
 

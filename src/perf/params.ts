@@ -11,6 +11,8 @@ export interface PerfParams {
   keys: number
   warmupKeys: number
   keyIntervalMs: number
+  /** 1 turns on the throwaway live-preview decorations (P0-T8); 0 is plain CodeMirror. */
+  decorations: number
 }
 
 export const DEFAULT_PARAMS: PerfParams = {
@@ -22,6 +24,7 @@ export const DEFAULT_PARAMS: PerfParams = {
   keys: 300,
   warmupKeys: 30,
   keyIntervalMs: 50,
+  decorations: 0,
 }
 
 /** What a scenario hands back. The harness computes every statistic from these raw numbers. */

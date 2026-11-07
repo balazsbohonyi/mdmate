@@ -503,6 +503,7 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - 2026-11-07: refined: ISC-47 moved from a manual run to a scripted kill and restore.
 - 2026-11-07: refined: added ISC-171 to ISC-176, since phase plans held behaviors no claim covered.
 - 2026-11-07: refined: ISC-7 is judged on the main-thread work a key causes (handling it, plus the next frame's style, layout and paint). Key to frame adds an idle wait of up to one frame, which no editor can remove, so it is printed and never judged.
+- 2026-11-07: Kill rule checked in P0-T8, and it did not fire. Throwaway live-preview decorations hold typing at 5.0 ms p95 per key (5.5 ms with real key events) on the 1 MB fixture, against 16 ms. They cover inline marks only; Phase 3 measures the real layer, block widgets included, with the same scenarios.
 
 ## Verification
 
