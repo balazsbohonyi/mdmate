@@ -61,3 +61,36 @@ pub(crate) async fn perf_report(app: tauri::AppHandle, json: String) -> Result<(
     app.exit(0);
     Ok(())
 }
+
+/// P0 lab: grows the asset protocol scope while the app runs, which is what opening a folder
+/// would need to do for the images inside it.
+#[tauri::command]
+pub(crate) fn perf_allow_directory(app: tauri::AppHandle, path: String) -> Result<(), AppError> {
+    use tauri::Manager;
+    app.asset_protocol_scope()
+        .allow_directory(path, true)
+        .map_err(|error| AppError::Task(error.to_string()))
+}
+
+/// P0 lab: a custom maximize button, to see whether Windows 11 snap layouts appear for it.
+#[tauri::command]
+pub(crate) fn perf_toggle_maximize(window: tauri::WebviewWindow) -> Result<(), AppError> {
+    let maximized = window
+        .is_maximized()
+        .map_err(|error| AppError::Task(error.to_string()))?;
+    let result = if maximized {
+        window.unmaximize()
+    } else {
+        window.maximize()
+    };
+    result.map_err(|error| AppError::Task(error.to_string()))
+}
+
+/// P0 lab: starts an OS window drag from the page's own title bar, to see whether the window
+/// then snaps to screen edges.
+#[tauri::command]
+pub(crate) fn perf_start_dragging(window: tauri::WebviewWindow) -> Result<(), AppError> {
+    window
+        .start_dragging()
+        .map_err(|error| AppError::Task(error.to_string()))
+}

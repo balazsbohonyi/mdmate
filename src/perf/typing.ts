@@ -83,7 +83,9 @@ export async function typing(
 
   const view = createView(
     mountEditorHost(),
-    createState(text, [watchKeys, throwawayDecorations(ctx.params)]),
+    createState(text, [watchKeys, throwawayDecorations(ctx.params)], {
+      parser: ctx.params.parser !== 0,
+    }),
   )
   const caret = pickCaret(view.state.doc)
   view.dispatch({

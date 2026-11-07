@@ -1,5 +1,8 @@
 import { windowShown } from '@/lib/lifecycle'
 import { getHost } from '@/platform'
+import { assetScope } from './assetScope'
+import { SIZES_MB } from './params'
+import { labByHand } from './lab'
 import { open } from './open'
 import {
   DEFAULT_PARAMS,
@@ -15,14 +18,26 @@ import { tabSwitch } from './tabSwitch'
 import { probeDecorations } from './throwawayDecorations'
 import { typing } from './typing'
 
+/** The size-cutoff scenarios: open and type in a generated document of each size, in MB. */
+function sizedScenarios(): Record<string, (ctx: ScenarioContext) => Promise<ScenarioOutput>> {
+  const out: Record<string, (ctx: ScenarioContext) => Promise<ScenarioOutput>> = {}
+  for (const mb of SIZES_MB) {
+    const file = `realistic-${String(mb)}mb.md`
+    out[`open-${String(mb)}mb`] = (ctx) => open(ctx, file)
+    out[`typing-${String(mb)}mb`] = (ctx) => typing(ctx, 'dispatch', file)
+  }
+  return out
+}
+
 const scenarios: Record<string, (ctx: ScenarioContext) => Promise<ScenarioOutput>> = {
   startup,
   'open-1mb': open,
   'tab-switch': tabSwitch,
   'typing-1mb': (ctx) => typing(ctx, 'dispatch'),
   'typing-1mb-trusted': (ctx) => typing(ctx, 'trusted'),
-  'open-10mb': (ctx) => open(ctx, 'realistic-10mb.md'),
-  'typing-10mb': (ctx) => typing(ctx, 'dispatch', 'realistic-10mb.md'),
+  ...sizedScenarios(),
+  'asset-scope': assetScope,
+  lab: labByHand,
 }
 
 /**

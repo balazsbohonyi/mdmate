@@ -122,3 +122,73 @@ Deviations from the plan and choices it left open. Numbers carry the OS they cam
 - **One attempt failed the repeatability rule.** The first decorated dispatch run (median 5.2 ms, range 4.8 to 6.2) came from a matrix that the system stopped for low memory. The rerun passed (above). I report both because the first one ran under memory pressure, and neither comes near 16 ms.
 - **Throwaway code stays for now.** The plan says to throw it away, but the Phase 3 check needs the same scenarios with the real layer, and this file is the hook to swap it into. It lives only under `src/perf` and loads only when `VITE_MDMATE_PERF` is set. A normal `pnpm build` has none of it (searched `dist/` for its class names, the probe and the ready flag). Delete it when the real layer lands.
 - **What this does not cover.** Block widgets, which are the likely expensive part. Documents shaped differently from the realistic fixture. GPU time after the main thread. A caret inside a hidden-mark span. Phase 3 measures those against the same scenarios and the same 16 ms.
+
+## P0-T9
+
+Each question below was a `fog:` entry in the ISA. All numbers are Windows 11, Ryzen 7 8840HS, WebView2 156.0.4314.58, release build, medians of 5 runs unless a range is shown.
+
+### Size cutoff: files above 3 MB open as plain source
+
+- **Decision: the cutoff is 3 MB, provisional.** Above it a file opens as plain source: no Markdown parser, no highlighting, no live preview, and a notice. Phase 3 measures the real live-preview layer against the same scenarios and may lower the number.
+- **The Markdown parser is the cost, not the decorations.** Typing, with the throwaway decorations on (work per key, ms):
+
+  | Size | p95 | p99 | Slowest key |
+  |---|---|---|---|
+  | 1 MB | 5.0 | 6.1 | 7.5 |
+  | 2 MB | 6.0 | 6.8 | 7.8 |
+  | 3 MB | 7.5 | 8.2 | 9.3 |
+  | 5 MB | 12.4 and 12.6 | 15.1 and 15.2 | 16.8 and 18.1 |
+  | 10 MB | 14.4 | 17.5 | 20.5 |
+
+- **Plain source is cheap at any size measured.** At 10 MB with no parser, typing costs 1.9 ms at p95 (p99 2.1, slowest 2.7), against 13.2 ms with the parser and no decorations. Opening 10 MB without the parser takes 91.3 ms, of which the IPC read is 63.8 ms, so open time starts to break the 100 ms target near 10 MB whatever the mode.
+- **Why 3 MB and not 5 MB.** At 3 MB the p99 is 8.2 ms, half the budget, which leaves room for a live-preview layer that does more than the throwaway one. At 5 MB the p99 is already at the budget with nothing left over: plain 5 MB typing is 12.4 ms (12.2 to 13.3, repeatable), and decorated 5 MB failed the repeatability rule twice (12.4 with a range of 12.1 to 13.9, then 12.6 with 12.1 to 16.3). Between 3 and 5 MB the cost rises faster than the size does, which is another reason to stay on the cheap side.
+- **`createState` takes `{ parser: false }`** for this mode. The fixture generator now also writes 2, 3 and 5 MB documents, and `pnpm perf typing-3mb` style scenarios exist for 2, 3, 5 and 10 MB. ISC-8 now names the 3 MB cutoff.
+
+### Mixed line endings: normalized text with the endings kept beside it
+
+- **Decision: the text in the editor uses `\n` only, and each line break's original ending (`\r\n`, `\n` or `\r`) lives in a state field that follows every edit.** On save the endings are joined back. Uniform files are the same case with one repeated ending.
+- **Rejected: `EditorState.lineSeparator.of("\n")` with the `\r` kept in the text.** It keeps every byte, but the Markdown parser stops seeing tables and hard breaks when a `\r` ends each line, so the document renders wrong. Typing at the end of a CRLF line also lands after the `\r`, which breaks the pair. `tests/editor/lineEndings.test.ts` pins both facts, and the parser one fails on purpose if a parser update ever fixes it.
+- **The spike passes 15 tests**: exact bytes back for mixed, all-CRLF, all-LF, old-Mac and empty text; a parser tree for mixed endings equal to the LF tree; the endings above and below an edit unchanged through 500 seeded random edits; and a break made by Enter takes the ending of the line it split. I broke the spike on purpose in a scratch copy and the property test failed, so the test can fail.
+- **Known limit for Phase 2:** undoing the deletion of a line break gives the break the neighbour's ending, not its old one. That line was edited, so ISC-3 holds, but a byte-exact undo needs the removed endings stored in the history. ISC-3 stays open until Phase 2 builds the real one; its test row now points at the web test.
+
+### WebView2 cold start: 500 ms holds for now, with little room
+
+- **A bare shell with the editor takes 429 ms to be editable on a warm profile (398 to 439) and 475 ms on the first launch with a fresh profile (458 to 507, five fresh profiles).** One of five first launches passed 500 ms.
+- **Most of it is WebView2 starting.** Rust's `main` to page start takes 274 to 339 ms, and the app cannot shorten that. The first launch after install pays the fresh-profile price once.
+- **ISC-4 keeps 500 ms for now.** The real window adds a sidebar, tabs and settings to this bare shell, so the margin on a first launch is about 25 ms before any of that. Phase 3 measures the real UI on a fresh profile. If it does not fit, the options are to show the window sooner with the shell and fill it in, or to define the 500 ms on a warm profile; that renegotiation takes the Phase 3 number as evidence. A true cold start after a reboot cannot be reproduced on demand, so it is not measured.
+
+### Asset protocol: the scope grows at runtime, no custom protocol needed
+
+- **Decision: images load through the asset protocol, and opening a workspace calls `app.asset_protocol_scope().allow_directory(folder, true)`.**
+- **Tested in the real WebView2** (`pnpm perf asset-scope`): a PNG is blocked before its folder is allowed and loads after, with the same URL. Files with a space and an accent in the name load, so does a nested folder, and a second folder stays blocked until its own call. Calling it twice, for two folders, works.
+- **What it needs:** the Cargo feature `protocol-asset` on `tauri` and `assetProtocol` enabled in `tauri.conf.json` with an empty scope. The CSP already allows `asset:` and `http://asset.localhost` for images. The lab used a config override and a perf-only feature so the shipped config did not change.
+- **Not tested:** removing a folder from the scope when a workspace closes, and `asset:` for media other than images.
+
+### Generated shadcn-vue components: they fail `exactOptionalPropertyTypes`, so mark them
+
+- **A Sonnet subagent checked in a scratch copy** (shadcn-vue 2.9.0, reka-ui 2.11.0, vue 3.5.45, typescript 6.0.3, vue-tsc 3.3.14). It added button, dialog, dropdown-menu, context-menu, tabs, input, select, switch, tooltip, popover, scroll-area, separator, command and resizable, which came to 106 files. I checked the error counts against its log.
+- **`vue-tsc` fails with 69 errors in 69 files, all from `exactOptionalPropertyTypes`** (67 of TS2379, 2 of TS2769). Vue's `defineProps<T>()` turns an optional prop into `x: X | undefined`, and Reka UI's own props are `x?: X`, so passing one to the other is rejected. With only that flag off, `vue-tsc` passes, so `strict`, `noUncheckedIndexedAccess`, `verbatimModuleSyntax` and `erasableSyntaxOnly` are fine.
+- **Decision: keep every flag on and mark each generated file with `// @ts-nocheck -- generated by shadcn-vue, fails exactOptionalPropertyTypes`** as the first line of its script block. Turning the flag off project-wide would loosen our own code to suit generated code. Excluding the folder does not work, because a file that is imported is checked anyway (7 errors came back once the app imported a dialog). A line at the top is verified to clear the errors and to satisfy the suppressions-need-reasons rule. It is lost when a component is re-added, so Phase 1 adds a small script that runs `shadcn-vue add` and then restores the line; `pnpm check` fails on a file without it, so a forgotten step shows up.
+- **ESLint and Prettier also flag generated files.** 25 ESLint errors in 5 rules (`vue/require-default-prop`, `prefer-optional-chain`, `prefer-function-type`, `no-unnecessary-type-assertion`, `no-base-to-string`) go away by turning those rules off for `src/components/ui/**/*.vue`, and 102 files fail Prettier until `src/components/ui/` is in `.prettierignore`. Both fixes were verified in the scratch copy and survive regeneration. The components alone cause no `check-arch` violation.
+- **Never run `shadcn-vue init` in this repo.** It rewrote `tokens.css` with a remote Google Fonts import (which `no-network` rejects), swapped Inter for Geist and turned the dark background into a different color. `add` alone left those files alone. Not verified: whether `add` installs `reka-ui` on its own.
+
+### Text drag in the editor: it does not work while native file drops are on
+
+- **Result (by hand, `pnpm perf lab`, real WebView2 with `dragDropEnabled` left at its default `true`):** pressing on selected text and dragging it fired `dragstart` three times, but `dragenter`, `dragover` and `drop` never reached the page, and the text did not move. The window accepts native file drops, and on Windows that setting swallows the browser's own drag events.
+- **Decision: v1 has no drag-to-move for selected text.** Cut and paste do the job. If it is wanted later, it gets built on pointer events, the same way tab and tree dragging are. `dragDropEnabled` stays `true`, because native drops carry the real file paths (see the earlier decision on pointer-based dragging). Dropping files from Explorer is unaffected: ISC-156 works through Tauri's drop events, tested below.
+
+### Drop positions are physical pixels
+
+- **Result (display at 125%, `devicePixelRatio` 1.25):** a file dropped on box A was reported at (191, 335), and dividing by the pixel ratio hit box A while using the numbers as they came hit another element. A file dropped on box B was reported at (1183, 839), which is outside the 767 px wide page, and dividing hit box B. So the positions are physical pixels.
+- **Decision: the platform layer divides drop positions by `devicePixelRatio` before anything hit-tests, so the rest of the app only sees CSS pixels.** Tested at 125% only. Other scales, and a second monitor with a different scale, are not tested.
+
+### Snap layouts: Win+Z and edge snapping work, the hover flyout does not
+
+- **Result (by hand, undecorated window with a custom maximize button):** hovering the button for 2 seconds showed no snap layout flyout. Win+Z showed the snap layouts. Dragging our own title bar (started with `start_dragging`) to the top edge previewed a maximize, and to the left edge previewed a half-screen snap.
+- **Decision: ship custom caption buttons without the hover flyout.** Windows only shows it for a button it recognizes as a caption button, which an HTML button inside WebView2 is not. ISC-26 stands (minimize, maximize and close work). Getting the flyout means answering `WM_NCHITTEST` from Rust, which a later phase can take on if the owner wants it.
+- **Not verified:** whether `data-tauri-drag-region` behaves like `start_dragging`, and what permission the real title bar needs (the lab used its own Rust command, so it did not touch capabilities).
+
+### What else this task added
+
+- **Lab code, all behind the `perf` feature and `VITE_MDMATE_PERF`:** `pnpm perf asset-scope` (automatic) and `pnpm perf lab` (by hand). A normal build has none of it.
+- **The perf runner builds with a config override** (`perf-results/tauri.perf.conf.json`) that turns the asset protocol on for the lab build only. The shipped config is unchanged, and `perf = ["tauri/protocol-asset"]` in `Cargo.toml` is the only feature change.

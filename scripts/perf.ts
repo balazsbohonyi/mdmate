@@ -9,11 +9,19 @@
  * A window opens for every run. Leave the mouse and keyboard alone, and keep the window uncovered.
  */
 import { execFileSync, spawn, spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
 import { createServer } from 'node:net'
 import os from 'node:os'
 import { join, resolve } from 'node:path'
-import { DEFAULT_PARAMS, type PerfParams, type PerfReport } from '../src/perf/params.ts'
+import { DEFAULT_PARAMS, SIZES_MB, type PerfParams, type PerfReport } from '../src/perf/params.ts'
 import { driveTyping, sleep } from './lib/cdp.ts'
 import { REPEATABILITY_RULE, median, repeatability, summarize } from './lib/perfStats.ts'
 
@@ -41,6 +49,10 @@ interface Spec {
   targetMs: number
   /** Real key events from the DevTools port instead of in-page dispatch. */
   trusted?: boolean
+  /** A pass/fail check run once, not a timing: the page's values and notes are printed as they are. */
+  check?: boolean
+  /** How long a launch may take. Checks that need a person get longer. */
+  timeoutMs?: number
   /** Every number worth printing for one run, headline first. */
   metrics(run: RunData): Record<string, number>
 }
@@ -79,6 +91,29 @@ function openMetrics({ report }: RunData): Record<string, number> {
   }
 }
 
+/** Open and type scenarios at each size the cutoff question needs. */
+function sizedSpecs(): Record<string, Spec> {
+  const out: Record<string, Spec> = {}
+  for (const mb of SIZES_MB) {
+    const size = `${String(mb)}mb`
+    out[`open-${size}`] = {
+      claim: 'fog: size cutoff',
+      page: `open-${size}`,
+      headlineName: 'warm open, median',
+      targetMs: 100,
+      metrics: openMetrics,
+    }
+    out[`typing-${size}`] = {
+      claim: 'fog: size cutoff',
+      page: `typing-${size}`,
+      headlineName: 'work per key, p95',
+      targetMs: 16,
+      metrics: typingMetrics,
+    }
+  }
+  return out
+}
+
 const SPECS: Record<string, Spec> = {
   startup: {
     claim: 'ISC-4',
@@ -106,12 +141,23 @@ const SPECS: Record<string, Spec> = {
     targetMs: 100,
     metrics: openMetrics,
   },
-  'open-10mb': {
-    claim: 'fog: size cutoff',
-    page: 'open-10mb',
-    headlineName: 'warm open, median',
-    targetMs: 100,
-    metrics: openMetrics,
+  ...sizedSpecs(),
+  'asset-scope': {
+    claim: 'fog: asset protocol scope',
+    page: 'asset-scope',
+    headlineName: '',
+    targetMs: 0,
+    check: true,
+    metrics: () => ({}),
+  },
+  lab: {
+    claim: 'fog: text drag, drop units, snap layouts',
+    page: 'lab',
+    headlineName: '',
+    targetMs: 0,
+    check: true,
+    timeoutMs: 20 * 60_000,
+    metrics: () => ({}),
   },
   'typing-10mb': {
     claim: 'fog: size cutoff',
@@ -196,13 +242,33 @@ function parseArgs(argv: string[]) {
 function build(): void {
   console.log('perf: building the release app with the perf driver (the first build is slow)...')
   // A constant command line; the shell is there because pnpm is a .cmd file on Windows.
-  const result = spawnSync('pnpm tauri build --features perf --no-bundle', {
-    cwd: ROOT,
-    stdio: 'inherit',
-    shell: true,
-    env: { ...process.env, VITE_MDMATE_PERF: '1' },
-  })
-  if (result.status !== 0) fail('the release build failed')
+  // The asset protocol is off in the real config. The lab turns it on for this build only, so the
+  // question "can its scope grow at runtime" can be tested without changing the app's config.
+  mkdirSync(RESULTS, { recursive: true })
+  writeFileSync(
+    join(RESULTS, 'tauri.perf.conf.json'),
+    JSON.stringify({ app: { security: { assetProtocol: { enable: true, scope: [] } } } }),
+  )
+  // With the asset protocol on in the config, the Tauri CLI adds the `protocol-asset` feature to the
+  // main `tauri` dependency in Cargo.toml. Shipped builds must not carry it, and the Rust build
+  // script rejects the mismatch, so the file is put back whatever the build does.
+  const manifest = join(ROOT, 'src-tauri', 'Cargo.toml')
+  const original = readFileSync(manifest, 'utf8')
+  let status: number | null
+  try {
+    status = spawnSync(
+      'pnpm tauri build --features perf --no-bundle --config perf-results/tauri.perf.conf.json',
+      {
+        cwd: ROOT,
+        stdio: 'inherit',
+        shell: true,
+        env: { ...process.env, VITE_MDMATE_PERF: '1' },
+      },
+    ).status
+  } finally {
+    writeFileSync(manifest, original)
+  }
+  if (status !== 0) fail('the release build failed')
 }
 
 function git(...args: string[]): string {
@@ -331,7 +397,7 @@ async function launch(spec: Spec, params: PerfParams, label: string): Promise<Ru
     },
   })
   const exited = new Promise<number | null>((done) => child.once('exit', (code) => done(code)))
-  const timer = setTimeout(() => child.kill(), RUN_TIMEOUT_MS)
+  const timer = setTimeout(() => child.kill(), spec.timeoutMs ?? RUN_TIMEOUT_MS)
 
   let driverError: Error | undefined
   if (port) {
@@ -355,6 +421,49 @@ async function launch(spec: Spec, params: PerfParams, label: string): Promise<Ru
   const report = JSON.parse(readFileSync(outFile, 'utf8')) as PerfReport
   if (!report.ok) fail(`the page reported a failure: ${report.error ?? 'unknown'}`)
   return { spawnMs, exitMs, exitCode, stragglers, idlePct, report }
+}
+
+/** Two folders of small PNGs for the asset-scope check, one with a space and an accent in a name. */
+function prepareAssetLab(): void {
+  const png = join(ROOT, 'src-tauri', 'icons', '32x32.png')
+  const lab = join(RESULTS, 'asset-lab')
+  rmSync(lab, { recursive: true, force: true })
+  for (const dir of ['a', join('a', 'nested'), 'b']) mkdirSync(join(lab, dir), { recursive: true })
+  for (const file of [
+    join('a', 'plain.png'),
+    join('a', 'with space é.png'),
+    join('a', 'nested', 'deep.png'),
+    join('b', 'plain.png'),
+  ]) {
+    copyFileSync(png, join(lab, file))
+  }
+}
+
+/** Runs a pass/fail scenario once and prints what the page found. */
+async function runCheck(name: string, params: PerfParams, info: ReturnType<typeof system>) {
+  const spec = SPECS[name]
+  if (!spec) fail(`unknown scenario ${name}`)
+  console.log(`
+== ${name} (${spec.claim}) ==`)
+  if (name === 'asset-scope') prepareAssetLab()
+  if (name === 'lab') {
+    console.log('A window opens. Follow the three steps in it, then press "Finish and save".')
+  }
+  const run = await launch(spec, params, 'check')
+  for (const [key, value] of Object.entries(run.report.values))
+    console.log(`  ${key}: ${String(value)}`)
+  if (run.report.notes) console.log(JSON.stringify(run.report.notes, null, 2))
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..*/, '').replace('T', '-')
+  const file = join(RESULTS, `${name}-${stamp}.json`)
+  writeFileSync(
+    file,
+    JSON.stringify(
+      { label: 'Windows', scenario: name, claim: spec.claim, system: info, run },
+      null,
+      2,
+    ),
+  )
+  console.log(`wrote ${file}`)
 }
 
 const fmt = (n: number) => (Number.isFinite(n) ? n.toFixed(n < 10 ? 2 : 1) : 'n/a')
@@ -475,7 +584,10 @@ async function main(): Promise<void> {
     )
   }
 
-  for (const name of chosen) await measure(name, runs, warmups, params, info)
+  for (const name of chosen) {
+    if (SPECS[name]?.check) await runCheck(name, params, info)
+    else await measure(name, runs, warmups, params, info)
+  }
 }
 
 await main()

@@ -13,6 +13,8 @@ export interface PerfParams {
   keyIntervalMs: number
   /** 1 turns on the throwaway live-preview decorations (P0-T8); 0 is plain CodeMirror. */
   decorations: number
+  /** 0 opens documents as plain source, with no Markdown parser (P0-T9 size cutoff). */
+  parser: number
 }
 
 export const DEFAULT_PARAMS: PerfParams = {
@@ -25,6 +27,7 @@ export const DEFAULT_PARAMS: PerfParams = {
   warmupKeys: 30,
   keyIntervalMs: 50,
   decorations: 0,
+  parser: 1,
 }
 
 /** What a scenario hands back. The harness computes every statistic from these raw numbers. */
@@ -33,6 +36,8 @@ export interface ScenarioOutput {
   samples: Record<string, number[]>
   /** Named single values: wall-clock marks in epoch ms, counts and sizes. */
   values: Record<string, number>
+  /** Free-form findings, for the scenarios a person drives. */
+  notes?: Record<string, unknown>
 }
 
 export interface ScenarioContext {
@@ -61,3 +66,6 @@ export interface PerfReport extends ScenarioOutput {
   error?: string
   env: PageEnv
 }
+
+/** Sizes, in MB, of the generated documents behind the size-cutoff scenarios. */
+export const SIZES_MB = [2, 3, 5, 10] as const

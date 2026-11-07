@@ -20,7 +20,10 @@ pub fn run() {
         commands::platform_name,
         commands::read_file,
         commands::perf::perf_config,
-        commands::perf::perf_report
+        commands::perf::perf_report,
+        commands::perf::perf_allow_directory,
+        commands::perf::perf_toggle_maximize,
+        commands::perf::perf_start_dragging
     ]);
     #[cfg(not(feature = "perf"))]
     let builder = builder.invoke_handler(tauri::generate_handler![

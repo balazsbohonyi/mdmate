@@ -14,7 +14,7 @@ export async function open(
 ): Promise<ScenarioOutput> {
   const extensions = throwawayDecorations(ctx.params)
   const path = ctx.fixture(fixture)
-  const empty = createState('', extensions)
+  const empty = createState('', extensions, { parser: ctx.params.parser !== 0 })
   const view = createView(mountEditorHost(), empty)
   await framePresented()
 
@@ -32,7 +32,7 @@ export async function open(
     const t1 = performance.now()
     const text = decodeUtf8(bytes)
     const t2 = performance.now()
-    const state = createState(text, extensions)
+    const state = createState(text, extensions, { parser: ctx.params.parser !== 0 })
     const t3 = performance.now()
     view.setState(state)
     const t4 = performance.now()

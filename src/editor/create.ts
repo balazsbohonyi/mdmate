@@ -15,18 +15,30 @@ const frame = EditorView.theme({
   '.cm-content': { caretColor: 'var(--foreground)' },
 })
 
-/** What every document gets. Live preview joins it in Phase 3. */
-const base: Extension = [
+/** What every document gets, with or without the Markdown parser. */
+const common: Extension = [
   history(),
   keymap.of([...defaultKeymap, ...historyKeymap]),
-  markdown(),
-  syntaxHighlighting(defaultHighlightStyle),
   EditorView.lineWrapping,
   frame,
 ]
+const withParser: Extension = [common, markdown(), syntaxHighlighting(defaultHighlightStyle)]
+
+export interface StateOptions {
+  /**
+   * False gives plain source: no Markdown parser and no highlighting, which is what a file above
+   * the size cutoff opens as. Live preview joins the parser in Phase 3.
+   */
+  parser?: boolean
+}
 
 /** A document's state: its text, undo history and extensions. One per open file. */
-export function createState(doc: string, extensions: Extension = []): EditorState {
+export function createState(
+  doc: string,
+  extensions: Extension = [],
+  options: StateOptions = {},
+): EditorState {
+  const base = options.parser === false ? common : withParser
   return EditorState.create({ doc, extensions: [base, extensions] })
 }
 

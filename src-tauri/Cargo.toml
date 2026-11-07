@@ -21,8 +21,9 @@ tauri = { version = "2", features = [] }
 thiserror = "2"
 
 [features]
-# Compiles the perf-harness commands. Only `pnpm perf` turns this on; shipped builds leave it off.
-perf = []
+# Compiles the perf-harness commands and the asset protocol they test. Only `pnpm perf` turns this
+# on; shipped builds leave it off.
+perf = ["tauri/protocol-asset"]
 
 [lints.rust]
 unsafe_code = "deny" # platform/ modules opt in locally

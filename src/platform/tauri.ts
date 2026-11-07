@@ -1,4 +1,5 @@
-import { invoke } from '@tauri-apps/api/core'
+import { convertFileSrc, invoke } from '@tauri-apps/api/core'
+import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import type { Host, PerfConfig, PerfHost } from './host'
 
@@ -9,6 +10,32 @@ const perfBridge: PerfHost = {
   },
   async report(json) {
     await invoke('perf_report', { json })
+  },
+  assetUrl(path) {
+    return convertFileSrc(path)
+  },
+  async allowAssetDirectory(path) {
+    await invoke('perf_allow_directory', { path })
+  },
+  async toggleMaximize() {
+    await invoke('perf_toggle_maximize')
+  },
+  async startDragging() {
+    await invoke('perf_start_dragging')
+  },
+  async onDragDrop(handler) {
+    return getCurrentWebview().onDragDropEvent((event) => {
+      const payload = event.payload
+      if (payload.type === 'leave') handler({ type: 'leave' })
+      else if (payload.type === 'over') handler({ type: 'over', position: payload.position })
+      else {
+        handler({
+          type: payload.type,
+          position: payload.position,
+          paths: payload.paths,
+        })
+      }
+    })
   },
 }
 

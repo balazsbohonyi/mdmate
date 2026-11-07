@@ -364,6 +364,18 @@ export function generate(out) {
     Buffer.from(realisticDocument({ seed: 1, bytes: MIB }), 'utf8'),
   )
   files.set(
+    'generated/realistic-2mb.md',
+    Buffer.from(realisticDocument({ seed: 2020, bytes: 2 * MIB }), 'utf8'),
+  )
+  files.set(
+    'generated/realistic-3mb.md',
+    Buffer.from(realisticDocument({ seed: 3030, bytes: 3 * MIB }), 'utf8'),
+  )
+  files.set(
+    'generated/realistic-5mb.md',
+    Buffer.from(realisticDocument({ seed: 5, bytes: 5 * MIB }), 'utf8'),
+  )
+  files.set(
     'generated/realistic-10mb.md',
     Buffer.from(realisticDocument({ seed: 10, bytes: 10 * MIB }), 'utf8'),
   )

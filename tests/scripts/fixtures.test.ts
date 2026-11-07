@@ -19,6 +19,9 @@ const expected = [
   'latin1.md',
   'hostile.md',
   'generated/realistic-1mb.md',
+  'generated/realistic-2mb.md',
+  'generated/realistic-3mb.md',
+  'generated/realistic-5mb.md',
   'generated/realistic-10mb.md',
   'generated/tables-heavy-1mb.md',
   'generated/code-heavy-1mb.md',
@@ -74,6 +77,12 @@ describe('fixtures.mjs', () => {
     const size = (name: string) => statSync(join(first, name)).size
     expect(size('generated/realistic-1mb.md')).toBeGreaterThanOrEqual(MIB)
     expect(size('generated/realistic-1mb.md')).toBeLessThan(1.1 * MIB)
+    expect(size('generated/realistic-2mb.md')).toBeGreaterThanOrEqual(2 * MIB)
+    expect(size('generated/realistic-2mb.md')).toBeLessThan(2.1 * MIB)
+    expect(size('generated/realistic-3mb.md')).toBeGreaterThanOrEqual(3 * MIB)
+    expect(size('generated/realistic-3mb.md')).toBeLessThan(3.1 * MIB)
+    expect(size('generated/realistic-5mb.md')).toBeGreaterThanOrEqual(5 * MIB)
+    expect(size('generated/realistic-5mb.md')).toBeLessThan(5.1 * MIB)
     expect(size('generated/realistic-10mb.md')).toBeGreaterThanOrEqual(10 * MIB)
     expect(size('generated/realistic-10mb.md')).toBeLessThan(10.2 * MIB)
     expect(size('generated/tables-heavy-1mb.md')).toBeGreaterThanOrEqual(MIB)

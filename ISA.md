@@ -61,14 +61,6 @@ You double-click a README and it is on screen before you have finished looking a
 
 ## Not yet specified
 
-- fog: what size cutoff drops a file to plain source — needs P0 measurements of decoration cost.
-- fog: which mechanism keeps mixed line endings intact — needs P0 testing of `lineSeparator: "\n"` with a kept `\r`.
-- fog: is 500 ms reachable given WebView2 cold start — needs a P0 measurement; ISC-4 may need renegotiating with evidence.
-- fog: can the asset protocol scope grow at runtime, or do images need a custom protocol — needs a P0 test.
-- fog: does CM6's own text drag work with native drop enabled — needs a P0 test.
-- fog: are Tauri drop positions physical pixels — needs a P0 test.
-- fog: do Windows 11 snap layouts work on a custom maximize button — needs a P0 test.
-- fog: do generated shadcn-vue components pass the strict TypeScript flags — needs a P0 `vue-tsc` run.
 - fog: what hot-exit journal interval balances safety and disk writes — needs P2 measurement.
 
 ## Test Strategy
@@ -79,7 +71,7 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 |---|---|---|---|---|---|---|---|
 | ISC-1 | bash | hash before and after save across all fixtures | identical | pnpm test:rust roundtrip_unedited | derived: byte-exact | critical | |
 | ISC-2 | bash | property test: random edits leave bytes outside the range unchanged | 1000 runs | pnpm test:rust edit_isolation | derived: byte-exact | critical | |
-| ISC-3 | bash | edit a mixed-EOL fixture, compare untouched lines | identical | pnpm test:rust mixed_eol | derived: byte-exact | | |
+| ISC-3 | bash | edit a mixed-EOL fixture, compare untouched lines | identical | pnpm test:web tests/editor/lineEndings.test.ts | derived: byte-exact | | |
 | ISC-4 | bash | launch to editable time, release build | under 500 ms | pnpm perf startup | derived: fast | critical | |
 | ISC-5 | bash | open 1 MB fixture, release build | under 100 ms | pnpm perf open-1mb | derived: fast | critical | |
 | ISC-6 | bash | tab switch, release build | under 50 ms | pnpm perf tab-switch | derived: fast | | |
@@ -268,7 +260,7 @@ Why: these promises hold everywhere, and any single feature could quietly break 
 - [ ] ISC-5: A 1 MB Markdown file opens within 100 ms.
 - [ ] ISC-6: Switching tabs completes within 50 ms.
 - [ ] ISC-7: Typing stays under 16 ms per key on the 1 MB fixture.
-- [ ] ISC-8: Files above the measured cutoff open as plain source with a notice.
+- [ ] ISC-8: Files above 3 MB open as plain source with a notice.
 - [x] ISC-9: `cfg(windows)` and `target_os` appear only inside `platform/`.
 - [ ] ISC-10: `cargo check` passes on macOS in CI.
 - [ ] ISC-11: `cargo check` passes on Linux in CI.
@@ -504,6 +496,14 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - 2026-11-07: refined: added ISC-171 to ISC-176, since phase plans held behaviors no claim covered.
 - 2026-11-07: refined: ISC-7 is judged on the main-thread work a key causes (handling it, plus the next frame's style, layout and paint). Key to frame adds an idle wait of up to one frame, which no editor can remove, so it is printed and never judged.
 - 2026-11-07: Kill rule checked in P0-T8, and it did not fire. Throwaway live-preview decorations hold typing at 5.0 ms p95 per key (5.5 ms with real key events) on the 1 MB fixture, against 16 ms. They cover inline marks only; Phase 3 measures the real layer, block widgets included, with the same scenarios.
+- 2026-11-07: Chose 3 MB as the plain-source cutoff. The Markdown parser is what slows typing (p99 8.2 ms at 3 MB and 15 ms at 5 MB, against 16), and plain source types at 1.9 ms even at 10 MB. Provisional until Phase 3 measures the real live-preview layer.
+- 2026-11-07: Chose normalized text with the line endings kept beside it, over keeping the carriage return in the text. The second keeps every byte, but the Markdown parser then misses tables and hard breaks.
+- 2026-11-07: Kept 500 ms for ISC-4 for now. A bare shell with an editor is editable in 429 ms on a warm profile and 475 ms on a first launch with a fresh profile, so Phase 3 measures the real UI and may renegotiate with that number.
+- 2026-11-07: Chose the asset protocol with a scope that grows at runtime for images, over a custom protocol. Tested in the real WebView2: a folder is blocked until it is allowed, then loads, including names with spaces and accents.
+- 2026-11-07: Kept every strict TypeScript flag and mark generated shadcn-vue files with ts-nocheck and a reason, since all 69 type errors come from exactOptionalPropertyTypes in generated code. Never run shadcn-vue init here, because it rewrites tokens.css.
+- 2026-11-07: Dropped drag-to-move for selected text from v1. CM6's own text drag does not work while native file drops are on (tested by hand), and the file paths from native drops matter more. Cut and paste cover it.
+- 2026-11-07: Tauri drop positions are physical pixels (tested at 125% scale), so the platform layer divides them by the pixel ratio before anything hit-tests.
+- 2026-11-07: Shipping custom caption buttons without the Windows 11 snap layout hover flyout, which needs the OS to see a real caption button. Win+Z and edge snapping work on the undecorated window (tested by hand).
 
 ## Verification
 

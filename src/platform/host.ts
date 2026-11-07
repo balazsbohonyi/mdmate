@@ -8,11 +8,28 @@ export interface PerfConfig {
   rustStartedMs: number
 }
 
+/** A file drag over the window, as the OS reports it. Positions are what Tauri hands over. */
+export interface PerfDragDrop {
+  type: 'enter' | 'over' | 'drop' | 'leave'
+  position?: { x: number; y: number }
+  paths?: string[]
+}
+
 /** The bridge to the harness. Only perf builds have one. */
 export interface PerfHost {
   config(): Promise<PerfConfig>
   /** Hands the result to the harness, which quits the app. */
   report(json: string): Promise<void>
+  /** P0 lab: the URL that serves a local file through the asset protocol. */
+  assetUrl(path: string): string
+  /** P0 lab: grows the asset protocol scope while the app runs. */
+  allowAssetDirectory(path: string): Promise<void>
+  /** P0 lab: maximizes or restores the window. */
+  toggleMaximize(): Promise<void>
+  /** P0 lab: starts an OS window drag from the page's own title bar. */
+  startDragging(): Promise<void>
+  /** P0 lab: file drag events from the OS. Returns the function that stops listening. */
+  onDragDrop(handler: (event: PerfDragDrop) => void): Promise<() => void>
 }
 
 /** Everything the UI needs from the machine. Implemented once per runtime. */
