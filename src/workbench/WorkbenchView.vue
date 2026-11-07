@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import SplitNodeView from './SplitNodeView.vue'
 import { workbenchLayout } from './store'
+import TabDragLayer from './TabDragLayer.vue'
 </script>
 
 <template>
@@ -9,5 +10,6 @@ import { workbenchLayout } from './store'
       :node="workbenchLayout.root"
       :active-pane="workbenchLayout.activePane"
     />
+    <TabDragLayer />
   </div>
 </template>

@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 20/181
+progress: 23/181
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-07T13:50:00Z
+updated: 2026-11-07T13:22:46Z
 principal_stated_goal: "I want to build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -292,13 +292,13 @@ Why: a dense keyboard-driven layout you can rearrange freely is what separates t
 - [x] ISC-29: Split down creates stacked panes.
 - [x] ISC-30: Splits nest three levels in mixed directions.
 - [x] ISC-31: Closing a pane's last tab removes that pane.
-- [ ] ISC-32: Dragging a tab moves it to another pane.
-- [ ] ISC-33: Dragging a tab to a pane edge creates a split.
+- [x] ISC-32: Dragging a tab moves it to another pane.
+- [x] ISC-33: Dragging a tab to a pane edge creates a split.
 - [x] ISC-34: Dragging a split handle resizes the adjacent panes.
 - [ ] ISC-35: A keyboard shortcut toggles the sidebar.
 - [ ] ISC-171: A keyboard shortcut splits the active pane right.
 - [ ] ISC-172: A keyboard shortcut splits the active pane down.
-- [ ] ISC-176: Dragging a tab within a strip reorders it.
+- [x] ISC-176: Dragging a tab within a strip reorders it.
 
 ### F2 · Reliable documents
 Why: nobody trusts an editor twice after it loses their words, so no action here may lose work.
@@ -542,6 +542,9 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-30: the same file builds `row(column([a] row([c] [d])) [b])`, three levels in mixed directions, with every invariant holding, plus 300 seeded random sequences of 60 operations each that stay valid, keep exactly the open tabs, and round-trip through serialize (P1-T3).
 - ISC-34: in `pnpm dev` (Claude in Chrome) trusted drags on three split handles of a three-level layout resized the panes (the left pane went from 648 to 465 px), the saved sizes matched the DOM, no pane or group node was torn down during a drag, nothing moved 600 ms later, a structural change rebuilt the group from the saved sizes, and arrow keys on a focused handle resized and saved too (P1-T4).
 - ISC-31: the same file removes a pane when its last tab closes, gives its space to the previous sibling (or the next if it was first), collapses a split left with one child, and fails when either collapse is removed (P1-T3).
+- ISC-176: trusted drag in `pnpm dev` (Claude in Chrome) took README.md along its strip to after the last tab and the strip went from README, notes, ideas to notes, ideas, README; the same drag with a real OS mouse in the `pnpm tauri dev` window did the same, with the insertion bar drawn 2 px wide at the right border and the dragged tab dimmed; neither run fired a `dragstart` or `selectstart` or left text selected; `tests/workbench/tabDropTarget.test.ts` fixes the index rule and fails when the threshold, the release-time re-aim or the inclusive border are broken (P1-T5).
+- ISC-32: trusted drag in `pnpm dev` moved notes.md from the top-left pane into the bottom-right pane (it landed last and active, the source kept its other tabs), and the same move with a real OS mouse in `pnpm tauri dev` gave the same result (P1-T5).
+- ISC-33: trusted drag in `pnpm dev` of ideas.md onto the right edge of the top-right pane made a new pane beside it (648 px split into 323 and 323); in `pnpm tauri dev` a real OS mouse did the same, the preview covered exactly the right half of the pane (214.75 by 297.5 px) while the button was held, and a real Escape press mid-drag removed the overlay and left the layout untouched after release (P1-T5).
 
 ## Remaining Work
 

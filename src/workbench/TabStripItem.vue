@@ -6,12 +6,21 @@ const {
   tab,
   active,
   focused = true,
+  dragging = false,
 } = defineProps<{
   tab: TabInfo
   active: boolean
   focused?: boolean
+  dragging?: boolean
 }>()
-const emit = defineEmits<{ select: []; close: [] }>()
+const emit = defineEmits<{ select: []; close: []; press: [event: PointerEvent] }>()
+
+/** Only a plain primary-button press by mouse or pen can start a drag. */
+function onPointerDown(event: PointerEvent): void {
+  if (event.button !== 0 || event.pointerType === 'touch') return
+  if (event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return
+  emit('press', event)
+}
 </script>
 
 <template>
@@ -20,15 +29,19 @@ const emit = defineEmits<{ select: []; close: [] }>()
     :aria-selected="active"
     :title="tab.title"
     :data-tab-id="tab.id"
-    class="group flex min-w-24 max-w-56 cursor-default items-center gap-2 border-t-2 pr-1.5 pl-3 text-chrome"
-    :class="
+    class="group flex min-w-24 max-w-56 cursor-default items-center gap-2 border-t-2 pr-1.5 pl-3 text-chrome select-none"
+    :class="[
       active
         ? [
             'bg-tab-active text-tab-active-foreground',
             focused ? 'border-primary' : 'border-muted-foreground/40',
           ]
-        : 'border-transparent text-tab-foreground hover:bg-accent/40'
-    "
+        : 'border-transparent text-tab-foreground hover:bg-accent/40',
+      dragging ? 'opacity-50' : '',
+    ]"
+    @pointerdown="onPointerDown"
+    @mousedown.prevent
+    @dragstart.prevent
     @click="emit('select')"
   >
     <span class="truncate">{{ tab.title }}</span>
@@ -38,6 +51,7 @@ const emit = defineEmits<{ select: []; close: [] }>()
       tabindex="-1"
       class="ml-auto flex size-5 shrink-0 items-center justify-center rounded-sm opacity-0 group-hover:opacity-100 hover:bg-accent"
       :class="{ 'opacity-100': active }"
+      @pointerdown.stop
       @click.stop="emit('close')"
     >
       <X
