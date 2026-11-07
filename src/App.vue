@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { reportWindowShown } from '@/lib/lifecycle'
 import { getHost } from '@/platform'
+import AppShell from '@/shell/AppShell.vue'
 
 const platformName = ref('')
 
@@ -26,9 +27,5 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main
-    class="flex h-screen w-screen items-center justify-center bg-background text-sm text-muted-foreground"
-  >
-    <span>mdmate on {{ platformName }}</span>
-  </main>
+  <AppShell :platform-name="platformName" />
 </template>

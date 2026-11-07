@@ -5,6 +5,7 @@ node_modules/
 perf-results/
 pnpm-lock.yaml
 src-tauri/
+src/components/ui/
 tests/fixtures/
 
 # Prose and project records

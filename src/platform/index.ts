@@ -1,6 +1,6 @@
 import type { Host } from './host'
 
-export type { Host, PerfConfig, PerfDragDrop, PerfHost } from './host'
+export type { Host, PerfConfig, PerfDragDrop, PerfHost, WindowControls } from './host'
 
 let host: Promise<Host> | undefined
 

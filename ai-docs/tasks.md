@@ -17,7 +17,7 @@ Mark `[x]` only when the task's "Done when" in its phase plan holds. Each task l
 ## Phase 1: Workbench ([plan](phases/phase-01/plan.md))
 
 - [x] P1-T1: Design tokens and built-in theme files — closes ISC-14
-- [ ] P1-T2: App shell with titlebar, sidebar frame and status bar — closes ISC-25, ISC-26, ISC-27
+- [x] P1-T2: App shell with titlebar, sidebar frame and status bar — closes ISC-25, ISC-26, ISC-27
 - [ ] P1-T3: Split tree model — closes ISC-28, ISC-29, ISC-30, ISC-31
 - [ ] P1-T4: Pane rendering and resize handles — closes ISC-34
 - [ ] P1-T5: Pointer-based tab dragging — closes ISC-32, ISC-33, ISC-176
