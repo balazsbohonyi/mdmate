@@ -3,6 +3,7 @@ import { markdown } from '@codemirror/lang-markdown'
 import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { EditorState, type EditorSelection, type Extension, type Text } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
+import { livePreview } from './livePreview'
 
 /** Fills its parent and scrolls inside itself, in the app's own colors. */
 const frame = EditorView.theme({
@@ -30,6 +31,8 @@ export interface StateOptions {
    * the size cutoff opens as. Live preview joins the parser in Phase 3.
    */
   parser?: boolean
+  /** True adds live preview. It needs the parser, so plain source never gets it. Off by default here. */
+  preview?: boolean
 }
 
 /** A document's state: its text, undo history and extensions. One per open file. */
@@ -38,8 +41,12 @@ export function createState(
   extensions: Extension = [],
   options: StateOptions = {},
 ): EditorState {
-  const base = options.parser === false ? common : withParser
-  return EditorState.create({ doc, extensions: [base, extensions] })
+  const parsing = options.parser !== false
+  const preview = parsing && options.preview === true ? livePreview() : []
+  return EditorState.create({
+    doc,
+    extensions: [parsing ? withParser : common, preview, extensions],
+  })
 }
 
 /**
@@ -68,8 +75,11 @@ export interface FollowerOptions {
  * `followerSync` (passed in `extensions`), which sends its edits to the master.
  */
 export function createFollowerState(options: FollowerOptions): EditorState {
+  // Live preview rides with the parser, so a tab that opens as plain source gets neither.
   const parsing: Extension =
-    options.parser === false ? [] : [markdown(), syntaxHighlighting(defaultHighlightStyle)]
+    options.parser === false
+      ? []
+      : [markdown(), syntaxHighlighting(defaultHighlightStyle), livePreview()]
   return EditorState.create({
     doc: options.doc,
     ...(options.selection === undefined ? {} : { selection: options.selection }),

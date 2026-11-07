@@ -1,0 +1,39 @@
+# Phase 3 decisions
+
+Deviations from the plan and choices it left open. Numbers carry the OS they came from.
+
+## Checking the UI (all of Phase 3)
+
+- **Two places, every UI claim.** Claude in Chrome on `pnpm dev` (mock host), and the real app: `cargo run --features perf` from `src-tauri` against the same Vite server, `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`, `MDMATE_DATA_DIR` pointing at a temp folder so the real session is never touched, trusted key and mouse events and screenshots over the DevTools port. Files are opened through `perf_grant_file` and the page's own store.
+- **Reading the editor from outside.** This CodeMirror version keeps its view on `document.querySelector('.cm-content').cmTile.view` (older ones used `cmView`). The check scripts live in the session's scratchpad, not in the repo.
+- **Rust tests never touch real files**, as in Phase 2.
+
+## Dependencies added in Phase 3
+
+| Package | Version | Why |
+|---|---|---|
+| `jsdom` (dev) | 31.0.0 | A DOM for Vitest, so a test can build a real `EditorView`, read the page it draws and press `moveByChar`. It is used per file (`// @vitest-environment jsdom`), so the other tests still run in Node. It has no layout, so vertical moves and anything that needs measuring stay browser and real-window checks. |
+
+No new crates and no new Tauri permissions in this phase so far.
+
+## P3-T1: Inline layer and headings
+
+- **One pure function says what the layer does.** `scanPreview(state, ranges)` (`src/editor/livePreview/scan.ts`) reads the syntax tree over the ranges and returns plain items: `hide`, `mark` and `line`. The `ViewPlugin` scans `view.visibleRanges` and turns the items into decorations. The atomic ranges and the transaction filter of P3-T4 will scan around the caret with the same function, so what is drawn, what is atomic and what a selection may not enter cannot drift apart, and a test reads the answer from a plain `EditorState` with no view. Parked followers have no view, so anything that must hold for them has to work from state too.
+- **Reveal rule.** An inline element shows its syntax when any selection range touches it, edges included (`from <= element.to && to >= element.from`). A block marker shows when a range touches its line. The test fixes both edges (position 0 and the end of the line reveal, the first position of the next line does not).
+- **Headings.** ATX headings get a line style per level, and hide the hashes plus the blanks after them. A closing run (`## Title ##`) hides with the blank before it. A bare `#` stays, because hiding it would leave an empty line. **Setext headings** (`Title` over `=====`) get the line style, and the underline stays visible and muted: hiding it would leave an empty line with nothing to land the arrow keys on. This is my choice, not in the plan.
+- **Wired inside the parser branch.** `createFollowerState` adds the layer next to the Markdown parser, so a tab that opens as plain source gets neither. Without a parser there is no tree, so the layer would do nothing there anyway: putting it on the plain path on purpose did not fail the view test, which is why that test instead breaks the size decision itself (`Document` ignoring `isLargeFile`), and that one fails. `createState` (standalone editors, the perf scenarios) takes `preview: true`, off by default.
+- **The perf scenarios run the real layer.** `throwawayDecorations.ts` is deleted. The `decorations` knob became `preview` (default 1; `--set preview=0` is the plain-CodeMirror baseline, written to files with `-nopreview`). Scenarios that open through `Document` (open, tab switch) now always have the layer, as the app does. Runs with preview on add `probePreview()` counts to their values.
+- **ISC-63 and how it was first done wrong.** The first scenario timed single scans with a clock that ticks in tenths of a millisecond, so every median came out 0 and the run "passed" with a null ratio. The second compared two different fixtures, which showed different content (12 items against 4) and failed on the work, not the size. The final one builds the 10 MB document as the 1 MB fixture ten times, so both views show the same text, one deep inside a tree ten times as big, times batches of 500 scans, requires the same item count, fails on a zero median, and includes a control that scans the whole document, which must be at least 3 times slower at 10 MB or the check could not tell flat from not flat. The harness exits non-zero when the scenario sets `checkFailed`.
+  - Result (release app, Windows 11, Ryzen 7 8840HS, WebView2 157, 3 rounds): middle 14.2 µs at 1 MB against 13.8 µs at 10 MB (0.97), late 17.6 against 19.6 µs (1.11), limit 20%. Control: 2.6 ms and 24 ms (9.2 times).
+  - **Not checked:** the layer is headings only, so a scan does little work (4 to 12 items). The claim is rerun with the full layer in P3-T6. The 10 MB document here is repeated text, not the generated `realistic-10mb.md` (whose viewport shows different content); the real 10 MB fixture is not measured for this claim. The tree was forced to parse to the end of the viewport first; how long the app takes to parse that far after opening a 10 MB file is a separate cost (it is above the 3 MiB cutoff in the app anyway).
+- **Mutation proofs (the code broken on purpose, then restored):**
+  - Edge-inclusive touch made exclusive: 1 test fails (the caret-on-the-edge test).
+  - A bare `#` hidden: 1 fails.
+  - The blank after the hashes left visible: 13 fail.
+  - `Document` ignoring the size cutoff: the large-file view test fails.
+  - Layer added to the plain-source path: nothing fails (see above), recorded rather than hidden.
+  - The restored code passes all 20 heading tests and the 6 view tests.
+- **Checked in Claude in Chrome (`pnpm dev`):** README.md opens with its heading hash shown while the caret is on it, and the hash is gone after clicking into the paragraph below.
+- **Checked in the real window** (debug build against the Vite server, DevTools port): a file with three headings, a `#hashtag` line and a `## Second ##` heading. With the caret away every heading line shows its text only (`First heading`, `Second heading`, `Third`) with the heading line classes, the `#hashtag` line is untouched; with the caret on line 1 it shows `# First heading`. Screenshot taken.
+- **Not checked:** headings inside lists and block quotes (lists and quotes arrive in T3), a heading while an IME composition is active, and how it looks in the light theme. The text is monospace; the preview does not change the editor font, which is outside every Phase 3 claim.
+- **The Vite server I started is still running.** I stopped the background task, but its `node` process survived and an attempt to stop it by process id was refused, so I left it. The next tasks need it for the browser checks anyway; it must be stopped before the startup measurement in P3-T6.

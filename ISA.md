@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 48/181
+progress: 50/181
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-07T18:19:16Z
+updated: 2026-11-07T21:01:18Z
 principal_stated_goal: "I want to build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -322,7 +322,7 @@ Why: nobody trusts an editor twice after it loses their words, so no action here
 ### F3 · Inline live preview
 Why: this is the reason mdmate exists; you read the rendered page and edit it in place, with syntax only where you are working.
 
-- [ ] ISC-50: Headings render without `#` markers away from the caret.
+- [x] ISC-50: Headings render without `#` markers away from the caret.
 - [ ] ISC-51: [container] Emphasis renders with hidden markers.
   - [ ] ISC-51.1: Bold renders with hidden markers.
   - [ ] ISC-51.2: Italic renders with hidden markers.
@@ -338,7 +338,7 @@ Why: this is the reason mdmate exists; you read the rendered page and edit it in
 - [ ] ISC-60: Anti: vertical arrow keys never skip a line.
 - [ ] ISC-61: A per-pane toggle shows raw source.
 - [ ] ISC-62: Copying a selection copies raw Markdown.
-- [ ] ISC-63: Decoration time stays flat between 1 MB and 10 MB files.
+- [x] ISC-63: Decoration time stays flat between 1 MB and 10 MB files.
 
 ### F4 · Block preview
 Why: documents mix prose with tables, images and code, and a page full of raw syntax blocks breaks the illusion.
@@ -581,11 +581,13 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-49: Real app run (`cargo run --features perf`, 11 checks scripted over the DevTools port): typed text, then an OS close request (`CloseMainWindow`) and then the title bar's Close button, 100 ms after typing and inside the journal interval; both ended the app with no prompt and the next start held the text typed in those 100 ms, still marked edited. The close handler flushes the journal before quitting (src-tauri/src/lib.rs, src/documents/session.ts) (P2-T6).
 - ISC-5: `pnpm perf open-1mb` (release app, real WebView2, 5 runs after 2 warm-ups): a 1 MB file opened the way the app does (openFile in Rust, Document, tab state, show, frame) takes 20.8 ms warm (20.0 to 21.0, repeatable) and 48.7 ms on the first open of a run, against 100 ms (src/perf/open.ts) (P2-T7).
 - ISC-8: `pnpm test:web tests/documents/largeFile.test.ts`: a file one byte above 3 MiB, a 5 MB file and a multi-byte file above 3 MiB on disk open as plain source (no parser, `plainSource` set, notice text); exactly 3 MiB and 1 MB keep the parser; a large file edits and saves byte for byte and stays plain when its unsaved edits are restored. `>=` fails 2 tests, a 5 MiB cutoff 5, ignoring size 4, counting characters 1. Real window: realistic-5mb.md shows the notice and no highlighting (src/documents/largeFile.ts, src/documents/document.ts) (P2-T7).
+- ISC-50: `pnpm test:web tests/editor/headings.test.ts` (20 tests: hashes and the blank after them hidden away from the caret, shown with the caret on the line edges included, closing hashes, bare `#`, `#tag`, code fences, Setext) and `tests/editor/livePreviewView.test.ts` (jsdom view: hashes leave the DOM and come back with the caret; a file above 3 MiB gets no preview). Broken on purpose: edge-inclusive touch made exclusive fails 1, a bare `#` hidden fails 1, the blank left visible fails 13, the size cutoff ignored fails the view test. Seen in Claude in Chrome on `pnpm dev` and in the real window (`cargo run --features perf`, DevTools port): `# First heading` shows as `First heading` away and with its hash on the caret line (src/editor/livePreview/scan.ts) (P3-T1).
+- ISC-63: `pnpm perf decorations-scale` (release app, real WebView2, 3 rounds): the same viewport text scanned in the 1 MB fixture and inside a 10 MB document made of it ten times, 14.2 against 13.8 µs in the middle (ratio 0.97) and 17.6 against 19.6 µs near the end (1.11), same item counts, limit 20%. The control, a scan of the whole document, takes 2.6 ms at 1 MB and 24 ms at 10 MB (9.2 times), so the check can fail. Headings only; rerun with the full layer in P3-T6 (src/perf/decorationScale.ts) (P3-T1).
 
 ## Remaining Work
 
 - [ ] Ship the Inter font's OFL-1.1 notice with the installer and portable zip, and credit it in the README — the font is bundled from `@fontsource-variable/inter`; waits on P10-T3 to P10-T5.
 - [ ] Check the resolved Rust dependency graph for network crates with `cargo tree --target all` — `no-network` reads direct dependencies only, because the lockfile lists `reqwest` and `hyper` although none is in the Windows build graph; waits on P10-T2, where ISC-20 closes.
 - [ ] Turn the asset protocol on for real (the `protocol-asset` feature, `assetProtocol` enabled with an empty scope) and grow its scope with `allow_directory` when a workspace opens, and divide Tauri drop positions by the pixel ratio in the platform layer — both were tested in P0 (drop positions at 125% scale only); waits on the phases that add images and file drops.
-- [ ] Re-measure with the real live-preview layer, block widgets included: typing against 16 ms, the 3 MB plain-source cutoff, and startup on a fresh WebView2 profile, against the 1000 ms of ISC-4 (a bare shell takes 475 ms); then delete `src/perf/throwawayDecorations.ts`; waits on Phase 3. A miss triggers the Speed gate in Constraints.
+- [ ] Re-measure with the real live-preview layer, block widgets included: typing against 16 ms, the 3 MB plain-source cutoff, and startup on a fresh WebView2 profile, against the 1000 ms of ISC-4 (a bare shell takes 475 ms); `src/perf/throwawayDecorations.ts` is gone (P3-T1); waits on P3-T6. A miss triggers the Speed gate in Constraints.
 - [ ] Decide whether the Windows 11 snap-layout hover flyout is worth answering `WM_NCHITTEST` from Rust — v1 ships custom caption buttons without it, and Win+Z and edge snapping work; waits on the owner.
