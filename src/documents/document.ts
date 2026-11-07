@@ -2,6 +2,7 @@ import { redo, undo } from '@codemirror/commands'
 import {
   ChangeSet,
   Compartment,
+  EditorSelection,
   EditorState,
   Transaction,
   type Extension,
@@ -68,6 +69,14 @@ export interface DocumentOptions {
   readonly parser?: boolean
   /** Extensions every view of this document gets, such as live preview. */
   readonly extensions?: Extension
+  /** Called whenever something a session snapshot holds may have changed: text, caret, saved state. */
+  readonly touched?: () => void
+}
+
+/** Where a caret is, as the session stores it. */
+export interface Caret {
+  readonly anchor: number
+  readonly head: number
 }
 
 /**
@@ -89,6 +98,9 @@ export class Document implements FollowerHost {
   readonly #followers = new Map<string, Follower>()
   readonly #options: DocumentOptions
   readonly #changed: (doc: Document) => void
+  readonly #touched: () => void
+  /** Carets restored from a session, for tabs whose follower does not exist yet. */
+  readonly #seeds = new Map<string, EditorSelection>()
 
   constructor(opened: OpenedFile, changed: (doc: Document) => void, options: DocumentOptions = {}) {
     this.id = opened.id
@@ -97,6 +109,7 @@ export class Document implements FollowerHost {
     this.readOnly = opened.readOnly
     this.diskHash = opened.hash
     this.#changed = changed
+    this.#touched = options.touched ?? (() => undefined)
     this.#options = options
     this.#master = createMasterState(opened.text, [
       lineEndingsFor(opened.endings),
@@ -126,7 +139,7 @@ export class Document implements FollowerHost {
       follower = new Follower(tabId, this, (link) =>
         createFollowerState({
           doc: this.#master.doc,
-          selection: this.#master.selection,
+          selection: this.#seeds.get(tabId) ?? this.#master.selection,
           parser: this.#options.parser,
           extensions: [
             followerSync(link),
@@ -136,8 +149,30 @@ export class Document implements FollowerHost {
         }),
       )
       this.#followers.set(tabId, follower)
+      this.#seeds.delete(tabId)
     }
     return follower
+  }
+
+  /** Where the caret of a tab is: in its follower once that exists, otherwise where it was seeded. */
+  caretOf(tabId: string): Caret {
+    const follower = this.#followers.get(tabId)
+    const { anchor, head } = (
+      follower?.state.selection ??
+      this.#seeds.get(tabId) ??
+      this.#master.selection
+    ).main
+    return { anchor, head }
+  }
+
+  /** Sets where a tab's caret will be when its follower is made. Positions are clamped to the text. */
+  seedCaret(tabId: string, caret: Caret): void {
+    const length = this.#master.doc.length
+    const clamp = (position: number): number => Math.max(0, Math.min(length, position))
+    const selection = EditorSelection.single(clamp(caret.anchor), clamp(caret.head))
+    const follower = this.#followers.get(tabId)
+    if (follower === undefined) this.#seeds.set(tabId, selection)
+    else follower.dispatch({ selection })
   }
 
   /** Drops a tab's follower. The document, and its undo history, stay. */
@@ -171,6 +206,7 @@ export class Document implements FollowerHost {
         if (follower !== origin) follower.receive(tr.changes)
       }
     }
+    this.#touched()
     this.#refreshDirty()
   }
 
@@ -198,8 +234,19 @@ export class Document implements FollowerHost {
       if (follower === origin) follower.receive(step.changes, step.newSelection)
       else follower.receive(step.changes)
     }
+    this.#touched()
     this.#refreshDirty()
     return true
+  }
+
+  /**
+   * Shows what an earlier run left unsaved. `disk` is the file as it is now; `buffer` is the text
+   * and endings the user had. The document then holds the buffer and counts as edited from the disk's
+   * content, so it is clean when the two happen to be equal and edited otherwise.
+   */
+  restoreBuffer(disk: OpenedFile, buffer: { text: string; endings: Endings }): void {
+    this.reload({ ...disk, text: buffer.text, endings: buffer.endings })
+    this.adoptDisk(disk)
   }
 
   /** The text and endings right now, for a save. */
@@ -212,6 +259,7 @@ export class Document implements FollowerHost {
   markSaved(snapshot: Snapshot, saved: SavedFile): void {
     this.#saved = { doc: snapshot.doc, endings: snapshot.endings }
     this.diskHash = saved.hash
+    this.#touched()
     this.#refreshDirty()
   }
 
@@ -240,6 +288,7 @@ export class Document implements FollowerHost {
     if (changes !== null) {
       for (const follower of this.#followers.values()) follower.receive(changes)
     }
+    this.#touched()
     this.#refreshDirty()
   }
 
@@ -253,6 +302,7 @@ export class Document implements FollowerHost {
     this.#saved = { doc: theirs.doc, endings: endingsOf(theirs) }
     this.diskHash = opened.hash
     this.#applyReadOnly(opened.readOnly)
+    this.#touched()
     this.#refreshDirty()
   }
 

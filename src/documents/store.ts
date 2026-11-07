@@ -1,5 +1,5 @@
 import { computed, shallowRef } from 'vue'
-import { getHost } from '@/platform'
+import { getHost, type OpenedFile } from '@/platform'
 import { findPane } from '@/workbench/splitTree'
 import {
   closeTabById,
@@ -36,6 +36,22 @@ function publish(doc: Document): void {
 
 export function documentById(id: number): Document | undefined {
   return documents.get(id)
+}
+
+/** Every open document. */
+export function allDocuments(): Document[] {
+  return [...documents.values()]
+}
+
+let touchListener: (() => void) | undefined
+
+/** Calls `listener` whenever a document's text, caret or saved state may have changed. One listener. */
+export function onDocumentsTouched(listener: (() => void) | undefined): void {
+  touchListener = listener
+}
+
+function touched(): void {
+  touchListener?.()
 }
 
 /** The follower a tab shows, made on first use. */
@@ -85,18 +101,30 @@ function tabToFocus(docId: number): TabId | undefined {
 }
 
 /**
+ * Opens a file as a document, with no tab. A file that is already open comes back as the document
+ * it is; `opened` is then what the file holds now, which the caller can compare with the
+ * document's own idea of it. A session restore uses this to build tabs itself.
+ */
+export async function openDocument(
+  path: string,
+): Promise<{ doc: Document; opened: OpenedFile; isNew: boolean }> {
+  const host = await getHost()
+  const opened = await host.openFile(path)
+  const existing = documents.get(opened.id)
+  if (existing !== undefined) return { doc: existing, opened, isNew: false }
+  const doc = new Document(opened, publish, { touched })
+  documents.set(doc.id, doc)
+  publish(doc)
+  return { doc, opened, isNew: true }
+}
+
+/**
  * Opens a file in a tab. A file that is already open is not opened twice: its tab is focused
  * instead. Works with or without a workspace folder, since a file the user chose needs neither.
  */
 export async function openPath(path: string): Promise<TabId> {
-  const host = await getHost()
-  const opened = await host.openFile(path)
-  let doc = documents.get(opened.id)
-  if (doc === undefined) {
-    doc = new Document(opened, publish)
-    documents.set(doc.id, doc)
-    publish(doc)
-  } else {
+  const { doc, opened, isNew } = await openDocument(path)
+  if (!isNew) {
     // The file may have changed since this document last read it, with no event to say so (the
     // watcher missed it, or it is not running). The host keeps what it recorded; the page decides.
     const present = doc

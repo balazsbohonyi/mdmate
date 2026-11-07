@@ -57,6 +57,14 @@ export interface MockHost extends Host {
    * file system drops one. The next save still notices the file changed.
    */
   withoutEvents(run: () => void): void
+  /** The session snapshot the page last wrote, or null before the first write. */
+  session: string | null
+  /** Text the page asked to keep because it could not put it back in a tab. */
+  readonly recovered: { name: string; text: string }[]
+  /** Pretends the user closed the window: asks the page to flush and quit. False when no page listens. */
+  requestClose(): boolean
+  /** How many times the page ended the app. */
+  quits: number
 }
 
 export interface MockHostOptions {
@@ -88,6 +96,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
   let nextId = 0
   let listener: ((change: DiskChange) => void) | undefined
   let deaf = false
+  let closeListener: (() => void) | undefined
 
   function describe(id: number, doc: Open, raw: string): OpenedFile {
     const { text, endings } = splitRaw(raw)
@@ -129,6 +138,32 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     files,
     openDocuments() {
       return new Map([...open].map(([id, doc]) => [id, doc.path]))
+    },
+    session: null,
+    recovered: [],
+    quits: 0,
+    requestClose() {
+      closeListener?.()
+      return closeListener !== undefined
+    },
+    loadSession() {
+      return Promise.resolve(host.session)
+    },
+    writeSession(json) {
+      host.session = json
+      return Promise.resolve()
+    },
+    recoverBuffer(name, text) {
+      host.recovered.push({ name, text })
+      return Promise.resolve(`/recovered/${name}-${String(host.recovered.length)}.md`)
+    },
+    watchClose(onClose) {
+      closeListener = onClose
+      return Promise.resolve()
+    },
+    quitApp() {
+      host.quits++
+      return Promise.resolve()
     },
     withoutEvents(run) {
       deaf = true

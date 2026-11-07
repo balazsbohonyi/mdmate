@@ -12,6 +12,12 @@ const perfBridge: PerfHost = {
   async report(json) {
     await invoke('perf_report', { json })
   },
+  async ready(json) {
+    await invoke('perf_ready', { json })
+  },
+  async grantFile(path) {
+    await invoke('perf_grant_file', { path })
+  },
   assetUrl(path) {
     return convertFileSrc(path)
   },
@@ -91,6 +97,23 @@ export const tauriHost: Host = {
   },
   async reloadDocument(id) {
     return openedFromFrame(decodeFrame(await invoke<ArrayBuffer>('reload_document', { id })))
+  },
+  async loadSession() {
+    return invoke<string | null>('session_load')
+  },
+  async writeSession(json) {
+    await invoke('session_write', new TextEncoder().encode(json))
+  },
+  async recoverBuffer(name, text) {
+    return invoke<string>('session_recover', { name, text })
+  },
+  async watchClose(onClose) {
+    const channel = new Channel<null>()
+    channel.onmessage = onClose
+    await invoke('watch_close', { onClose: channel })
+  },
+  async quitApp() {
+    await invoke('quit_app')
   },
   async watchChanges(onChange) {
     const channel = new Channel<DiskChange>()

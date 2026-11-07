@@ -72,6 +72,19 @@ pub(crate) async fn perf_report(app: tauri::AppHandle, json: String) -> Result<(
     Ok(())
 }
 
+/// Like `perf_report`, but the app keeps running, so a harness can kill it where it stands. The
+/// crash-restore scenario reports here once its edits are journaled.
+#[tauri::command]
+pub(crate) async fn perf_ready(json: String) -> Result<(), AppError> {
+    let out = std::env::var_os("MDMATE_PERF_OUT")
+        .map(PathBuf::from)
+        .ok_or_else(|| AppError::Task("MDMATE_PERF_OUT is not set".into()))?;
+    tauri::async_runtime::spawn_blocking(move || std::fs::write(out, json))
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))??;
+    Ok(())
+}
+
 /// Lets the page open a file without the native dialog, which no harness can drive. The path comes
 /// from whoever launched the perf build and is the only thing it gains access to.
 #[tauri::command]

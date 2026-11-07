@@ -33,6 +33,50 @@ export function uniformEndings(dominant: EndingCode = LF): Endings {
   return { dominant, at: [], codes: [] }
 }
 
+/**
+ * Reads endings from data that came off disk, or returns null when they are not valid for a text
+ * with `breaks` line breaks. Same rules as Rust's frame decoder: indices ascending and in range,
+ * and no exception equal to the dominant ending.
+ */
+export function readEndings(value: unknown, breaks: number): Endings | null {
+  if (typeof value !== 'object' || value === null) return null
+  const { dominant, at, codes } = value as Record<string, unknown>
+  if (typeof dominant !== 'number' || !isEndingCode(dominant)) return null
+  if (!Array.isArray(at) || !Array.isArray(codes) || at.length !== codes.length) return null
+  const indices: number[] = []
+  const exceptions: EndingCode[] = []
+  let previous = -1
+  for (let i = 0; i < at.length; i++) {
+    const index: unknown = at[i]
+    const code: unknown = codes[i]
+    if (typeof index !== 'number' || !Number.isInteger(index)) return null
+    if (index <= previous || index >= breaks) return null
+    if (typeof code !== 'number' || !isEndingCode(code) || code === dominant) return null
+    indices.push(index)
+    exceptions.push(code)
+    previous = index
+  }
+  return { dominant, at: indices, codes: exceptions }
+}
+
+/** Puts the endings back into text whose only break is `\n`, like Rust's join. Assumes the endings are valid for it. */
+export function joinWithEndings(text: string, endings: Endings): string {
+  const lines = text.split('\n')
+  let next = 0
+  let out = ''
+  lines.forEach((line, index) => {
+    out += line
+    if (index === lines.length - 1) return
+    let code = endings.dominant
+    if (endings.at[next] === index) {
+      code = endings.codes[next] ?? endings.dominant
+      next++
+    }
+    out += ENDING_TEXT[code]
+  })
+  return out
+}
+
 export function endingsEqual(a: Endings, b: Endings): boolean {
   if (a === b) return true
   if (a.dominant !== b.dominant || a.at.length !== b.at.length) return false

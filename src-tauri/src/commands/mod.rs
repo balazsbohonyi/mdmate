@@ -9,6 +9,7 @@ use crate::access::display_path;
 use crate::documents::{self, AppState};
 use crate::error::AppError;
 use crate::platform::{self, Platform as _};
+use crate::session::{self, CloseHook, SessionStore};
 use crate::workspace::watch::DiskChange;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -150,4 +151,68 @@ pub(crate) fn watch_changes(
         // A page that has gone away has nobody to tell; the next subscription replaces this one.
         let _ = on_event.send(change);
     }))
+}
+
+/// Writes the page's snapshot of the session (layout, tabs, carets, unsaved buffers) to the data
+/// folder. The body is the snapshot's JSON as raw UTF-8, so a large buffer is not escaped a second
+/// time on its way through the invoke layer. Rust adds the paths of the documents it has open.
+#[tauri::command]
+pub(crate) async fn session_write(
+    state: State<'_, Arc<AppState>>,
+    store: State<'_, Arc<SessionStore>>,
+    request: tauri::ipc::Request<'_>,
+) -> Result<(), AppError> {
+    let tauri::ipc::InvokeBody::Raw(body) = request.body() else {
+        return Err(AppError::Invalid("the body must be raw bytes".into()));
+    };
+    let body = body.clone();
+    let (state, store) = (state.inner().clone(), store.inner().clone());
+    tauri::async_runtime::spawn_blocking(move || {
+        let json = std::str::from_utf8(&body)
+            .map_err(|error| AppError::Invalid(format!("the snapshot is not UTF-8: {error}")))?;
+        session::write(&state, &store, json)
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Returns the last run's snapshot, or nothing on a first start, and grants the files that run
+/// had open so the page can open them again.
+#[tauri::command]
+pub(crate) async fn session_load(
+    state: State<'_, Arc<AppState>>,
+    store: State<'_, Arc<SessionStore>>,
+) -> Result<Option<String>, AppError> {
+    let (state, store) = (state.inner().clone(), store.inner().clone());
+    tauri::async_runtime::spawn_blocking(move || session::load(&state, &store))
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))
+}
+
+/// Keeps text that could not be put back in a tab, in a file of its own. Returns where it went.
+#[tauri::command]
+pub(crate) async fn session_recover(
+    store: State<'_, Arc<SessionStore>>,
+    name: String,
+    text: String,
+) -> Result<String, AppError> {
+    let store = store.inner().clone();
+    let path = tauri::async_runtime::spawn_blocking(move || store.recover(&name, &text))
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))??;
+    Ok(display_path(&path))
+}
+
+/// The page calls this once at startup. When the window is asked to close, the page is told over
+/// `on_close` and ends the app with `quit_app` after writing the session. A second call replaces
+/// the channel.
+#[tauri::command]
+pub(crate) fn watch_close(hook: State<'_, Arc<CloseHook>>, on_close: Channel<()>) {
+    hook.set(Box::new(move || on_close.send(()).is_ok()));
+}
+
+/// Ends the app. The page calls it once the session is written.
+#[tauri::command]
+pub(crate) fn quit_app(app: tauri::AppHandle) {
+    app.exit(0);
 }

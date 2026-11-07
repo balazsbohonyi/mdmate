@@ -22,6 +22,10 @@ export interface PerfHost {
   config(): Promise<PerfConfig>
   /** Hands the result to the harness, which quits the app. */
   report(json: string): Promise<void>
+  /** Hands a result to the harness and keeps running, so the harness can kill the app where it stands. */
+  ready(json: string): Promise<void>
+  /** Lets the page open a file without the native dialog. */
+  grantFile(path: string): Promise<void>
   /** P0 lab: the URL that serves a local file through the asset protocol. */
   assetUrl(path: string): string
   /** P0 lab: grows the asset protocol scope while the app runs. */
@@ -115,6 +119,19 @@ export interface Host {
    * Returns the function that stops listening. Only one listener is live at a time.
    */
   watchChanges(onChange: (change: DiskChange) => void): Promise<() => void>
+  /** The last run's session snapshot as the JSON text the page wrote, or null on a first start. Grants the files that run had open. */
+  loadSession(): Promise<string | null>
+  /** Replaces the session snapshot on disk. Resolves once it is safely written. */
+  writeSession(json: string): Promise<void>
+  /** Keeps text that could not be put back in a tab, in a file of its own. Resolves to where it went. */
+  recoverBuffer(name: string, text: string): Promise<string>
+  /**
+   * Calls `onClose` when the user closes the window, instead of the window closing. The page then
+   * writes the session and calls `quitApp`. Only one listener is live at a time.
+   */
+  watchClose(onClose: () => void): Promise<void>
+  /** Ends the app. */
+  quitApp(): Promise<void>
   /** Present only where the harness can drive the app. */
   readonly perf?: PerfHost
 }

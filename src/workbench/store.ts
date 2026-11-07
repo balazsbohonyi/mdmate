@@ -134,6 +134,24 @@ export function splitActivePane(direction: Direction, shown?: TabRecord): void {
   change((state) => splitPane(state, state.activePane, direction, 'after', tabs))
 }
 
+/**
+ * Replaces the whole workbench with a layout read from a saved session and the tabs it names.
+ * Every tab in the layout must have a record. New tabs get ids after the highest one restored.
+ */
+export function restoreWorkbench(restored: Layout, tabs: ReadonlyMap<TabId, TabRecord>): void {
+  const open = new Set(allTabs(restored))
+  for (const id of open) {
+    if (!tabs.has(id)) throw new Error(`restoring a layout: tab ${id} has no record`)
+  }
+  records.clear()
+  for (const id of open) {
+    const record = tabs.get(id)
+    if (record !== undefined) records.set(id, record)
+  }
+  tabCounter = Math.max(0, ...[...open].map((id) => Number(/^tab-(\d+)$/.exec(id)?.[1] ?? 0)))
+  layout.value = restored
+}
+
 /** Starts over with one empty pane. Tests use it. */
 export function resetWorkbench(): void {
   layout.value = createLayout()
