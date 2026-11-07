@@ -103,6 +103,7 @@ Deviations from the plan and choices it left open. Numbers carry the OS they cam
 
 ## P0-T8
 
+- **Superseded:** the kill rule below is replaced by the Speed gate in the ISA Constraints, which covers ISC-4 to ISC-7 and applies from Phase 3 on.
 - **Kill rule: did not fire.** With live decorations on, typing on the 1 MB fixture costs 5.0 ms per key at p95 (5.5 ms with real key events), against 16 ms. The slowest single key in any counted run was 10.7 ms. Profiling was not needed, since the rule only asks for it when 16 ms cannot be held. Phase 3 can start on this question.
 - **The decorations are throwaway and small** (`src/perf/throwawayDecorations.ts`, switched on with `--set decorations=1`). They style headings by level, mark strong, emphasis and inline code, hide the syntax marks (`#`, `*`, backticks) except where the caret touches, and rebuild on a change to the document, viewport, selection or parse tree, over `visibleRanges` only. They have no block widgets (tables, images, frontmatter, fences), links or lists. The real Phase 3 layer does more, so these numbers show the room it starts with, not what it will cost.
 - **They did render.** After each decorated run, a probe reads the page. At the typing caret it found 21 strong, 17 emphasis and 18 code elements and 2 styled heading lines in view, and no strong element still showing its `**`. The `open-1mb` scenario ends at the top of the file, where nothing is formatted, so its decorated number is a lower bound. The probe does not check that marks come back when the caret enters them.

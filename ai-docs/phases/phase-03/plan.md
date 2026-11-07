@@ -36,4 +36,4 @@ Add a per-pane raw source toggle through a `Compartment`. Copy always yields raw
 
 Rerun all perf scenarios with preview on.
 
-**Done when:** typing and startup meet their targets, or the kill rule fires.
+**Done when:** typing (ISC-7) and startup (ISC-4) meet their targets with preview on, and ISC-5 and ISC-6 still do. If one misses, the Speed gate in the ISA applies: stop, report the numbers and the cause, and wait for the owner. The 3 MiB plain-source cutoff is re-measured here too, and any change to it is the owner's call.

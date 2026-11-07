@@ -54,6 +54,7 @@ You double-click a README and it is on screen before you have finished looking a
 - All OS-specific code lives behind `src-tauri/src/platform/`.
 - All file access goes through our own Rust commands.
 - Windows 11 ships first, on WebView2.
+- **Speed gate.** Four speed claims are gates: ISC-4 (startup 1000 ms), ISC-5 (open 1 MB, 100 ms), ISC-6 (tab switch, 50 ms) and ISC-7 (typing p95 16 ms on the 1 MB fixture). When a gate is measured and missed in the release build, the work stops at that task. Profile once to find the cost, then write the numbers and the cause in the phase's `decisions.md` and hand them to the owner, who decides between a fix, a lower feature scope (such as a lower plain-source cutoff) or a new target. A gate is never loosened, skipped or re-measured under easier conditions to make it pass. Only the owner closes a missed gate, with the decision recorded in Decisions.
 
 ## Goal
 
@@ -586,5 +587,5 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - [ ] Ship the Inter font's OFL-1.1 notice with the installer and portable zip, and credit it in the README — the font is bundled from `@fontsource-variable/inter`; waits on P10-T3 to P10-T5.
 - [ ] Check the resolved Rust dependency graph for network crates with `cargo tree --target all` — `no-network` reads direct dependencies only, because the lockfile lists `reqwest` and `hyper` although none is in the Windows build graph; waits on P10-T2, where ISC-20 closes.
 - [ ] Turn the asset protocol on for real (the `protocol-asset` feature, `assetProtocol` enabled with an empty scope) and grow its scope with `allow_directory` when a workspace opens, and divide Tauri drop positions by the pixel ratio in the platform layer — both were tested in P0 (drop positions at 125% scale only); waits on the phases that add images and file drops.
-- [ ] Re-measure with the real live-preview layer, block widgets included: typing against 16 ms, the 3 MB plain-source cutoff, and startup on a fresh WebView2 profile, against the 1000 ms of ISC-4 (a bare shell takes 475 ms); then delete `src/perf/throwawayDecorations.ts`; waits on Phase 3.
+- [ ] Re-measure with the real live-preview layer, block widgets included: typing against 16 ms, the 3 MB plain-source cutoff, and startup on a fresh WebView2 profile, against the 1000 ms of ISC-4 (a bare shell takes 475 ms); then delete `src/perf/throwawayDecorations.ts`; waits on Phase 3. A miss triggers the Speed gate in Constraints.
 - [ ] Decide whether the Windows 11 snap-layout hover flyout is worth answering `WM_NCHITTEST` from Rust — v1 ships custom caption buttons without it, and Win+Z and edge snapping work; waits on the owner.
