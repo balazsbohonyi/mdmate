@@ -502,3 +502,7 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - 2026-11-07: refined: ISC-12 widened from `invoke` to all `@tauri-apps` imports, so the browser mock stays complete.
 - 2026-11-07: refined: ISC-47 moved from a manual run to a scripted kill and restore.
 - 2026-11-07: refined: added ISC-171 to ISC-176, since phase plans held behaviors no claim covered.
+
+## Remaining Work
+
+- [ ] Ship the Inter font's OFL-1.1 notice with the installer and portable zip, and credit it in the README — the font is bundled from `@fontsource-variable/inter`; waits on P10-T3 to P10-T5.
