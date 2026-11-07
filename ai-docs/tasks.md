@@ -4,15 +4,15 @@ Mark `[x]` only when the task's "Done when" in its phase plan holds. Each task l
 
 ## Phase 0: Spike and scaffold ([plan](phases/phase-00/plan.md))
 
-- [ ] P0-T1: Scaffold Tauri, Vue, Tailwind and shadcn-vue — closes ISC-169
-- [ ] P0-T2: Add lint, type and format configs with both gates — closes ISC-22, ISC-23
-- [ ] P0-T3: Build `scripts/check-arch.mjs` — closes ISC-9, ISC-12, ISC-13, ISC-21, ISC-24, ISC-73
-- [ ] P0-T4: Build `scripts/check-isa.mjs` — supports ISC-22
-- [ ] P0-T5: Add CI for gates and macOS and Linux compiles — closes ISC-10, ISC-11
-- [ ] P0-T6: Generate test fixtures — supports all fixture probes
-- [ ] P0-T7: Build the perf harness and raw IPC file read — supports ISC-4 to ISC-7
-- [ ] P0-T8: Measure the baseline with throwaway decorations — supports ISC-4, ISC-5, ISC-7
-- [ ] P0-T9: Answer the fog questions — resolves `## Not yet specified` entries
+- [x] P0-T1: Scaffold Tauri, Vue, Tailwind and shadcn-vue (ISC-169 closes in P0-T3, see decisions)
+- [x] P0-T2: Add lint, type and format configs with both gates — closes ISC-22, ISC-23
+- [x] P0-T3: Build `scripts/check-arch.mjs` — closes ISC-9, ISC-12, ISC-13, ISC-21, ISC-24, ISC-73 (and ISC-169, see decisions)
+- [x] P0-T4: Build `scripts/check-isa.mjs` — supports ISC-22
+- [x] P0-T5: Add CI for gates and macOS and Linux compiles — closes ISC-10, ISC-11
+- [x] P0-T6: Generate test fixtures — supports all fixture probes
+- [x] P0-T7: Build the perf harness and raw IPC file read — supports ISC-4 to ISC-7
+- [x] P0-T8: Measure the baseline with throwaway decorations — supports ISC-4, ISC-5, ISC-7
+- [x] P0-T9: Answer the fog questions — resolves `## Not yet specified` entries
 
 ## Phase 1: Workbench ([plan](phases/phase-01/plan.md))
 
@@ -57,6 +57,7 @@ Mark `[x]` only when the task's "Done when" in its phase plan holds. Each task l
 - [ ] P5-T4: Format commands — closes ISC-83, ISC-84, ISC-85, ISC-86, ISC-87, ISC-88, ISC-89
 - [ ] P5-T5: List editing — closes ISC-90, ISC-91, ISC-92, ISC-93, ISC-94
 - [ ] P5-T6: Smart paste and single selection — closes ISC-95, ISC-96
+- [ ] P5-T7: Drag selected text — closes ISC-177, ISC-178, ISC-179 (spike passed in P0, see decisions)
 
 ## Phase 6: Workspace ([plan](phases/phase-06/plan.md))
 

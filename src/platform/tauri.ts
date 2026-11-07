@@ -1,0 +1,55 @@
+import { convertFileSrc, invoke } from '@tauri-apps/api/core'
+import { getCurrentWebview } from '@tauri-apps/api/webview'
+import { getCurrentWindow } from '@tauri-apps/api/window'
+import type { Host, PerfConfig, PerfHost } from './host'
+
+/** The Rust commands behind this exist only in `--features perf` builds. */
+const perfBridge: PerfHost = {
+  async config() {
+    return invoke<PerfConfig>('perf_config')
+  },
+  async report(json) {
+    await invoke('perf_report', { json })
+  },
+  assetUrl(path) {
+    return convertFileSrc(path)
+  },
+  async allowAssetDirectory(path) {
+    await invoke('perf_allow_directory', { path })
+  },
+  async toggleMaximize() {
+    await invoke('perf_toggle_maximize')
+  },
+  async startDragging() {
+    await invoke('perf_start_dragging')
+  },
+  async onDragDrop(handler) {
+    return getCurrentWebview().onDragDropEvent((event) => {
+      const payload = event.payload
+      if (payload.type === 'leave') handler({ type: 'leave' })
+      else if (payload.type === 'over') handler({ type: 'over', position: payload.position })
+      else {
+        handler({
+          type: payload.type,
+          position: payload.position,
+          paths: payload.paths,
+        })
+      }
+    })
+  },
+}
+
+export const tauriHost: Host = {
+  kind: 'tauri',
+  async platformName() {
+    return invoke<string>('platform_name')
+  },
+  async showWindow() {
+    await getCurrentWindow().show()
+  },
+  async readFile(path) {
+    return invoke<ArrayBuffer>('read_file', { path })
+  },
+  // Only `pnpm perf` sets the flag. A normal build drops the bridge and its command names.
+  ...(import.meta.env.VITE_MDMATE_PERF ? { perf: perfBridge } : {}),
+}

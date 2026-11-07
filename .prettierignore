@@ -1,0 +1,16 @@
+# Not frontend source, or generated
+dist/
+coverage/
+node_modules/
+perf-results/
+pnpm-lock.yaml
+src-tauri/
+tests/fixtures/
+
+# Prose and project records
+ai-docs/
+AGENTS.md
+CLAUDE.md
+ISA.md
+LICENSE
+components.json

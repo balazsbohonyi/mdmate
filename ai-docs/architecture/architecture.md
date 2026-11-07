@@ -1,6 +1,6 @@
 # Architecture
 
-Keep this current: any change to structure or data flow updates this file in the same change. Everything here is planned; no app code exists yet.
+Keep this current: any change to structure or data flow updates this file in the same change. Phase 0 built the layout below as a skeleton; later phases fill it in.
 
 ## Overview
 
@@ -39,6 +39,7 @@ mdmate/
 │  ├─ workbench/      Split tree model, panes, tabs, pointer drag, commands
 │  ├─ features/       tree, quick-open, palette, search, outline, settings, image-viewer
 │  ├─ components/ui/  shadcn-vue
+│  ├─ lib/            shadcn-vue utilities
 │  └─ styles/         tokens.css, built-in themes
 ├─ src-tauri/src/
 │  ├─ commands/       Thin handlers, no logic
