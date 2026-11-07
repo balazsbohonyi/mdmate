@@ -3,6 +3,7 @@ import { docMeta } from '@/documents/meta'
 import {
   activeDocument,
   documentOfTab,
+  followerOfTab,
   openFromDialog,
   openPath,
   pendingClose,
@@ -35,11 +36,11 @@ let picks: string[][]
 
 const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
-/** Types into a document the way a view would hand its result back. */
+/** Types into a tab's view of a document, as a user would. */
 function edit(tabId: string, changes: { from: number; to?: number; insert?: string }): void {
-  const doc = documentOfTab(tabId)
-  if (doc === undefined) throw new Error(`no document in ${tabId}`)
-  doc.setState(doc.state.update({ changes }).state)
+  const follower = followerOfTab(tabId)
+  if (follower === undefined) throw new Error(`no document in ${tabId}`)
+  follower.dispatch({ changes })
 }
 
 beforeEach(() => {
@@ -75,7 +76,7 @@ afterEach(() => {
 describe('opening a file', () => {
   it('puts its content in a tab named after the file', async () => {
     const tab = await openPath('C:/notes/a.md')
-    expect(documentOfTab(tab)?.state.doc.toString()).toBe('# A\n\nfirst\n')
+    expect(documentOfTab(tab)?.master.doc.toString()).toBe('# A\n\nfirst\n')
     expect(tabInfo(tab)).toMatchObject({ title: 'a.md', dirty: false, kind: 'markdown' })
     expect(workbenchLayout.value.activePane).toBe(panesOf(workbenchLayout.value)[0]?.id)
     expect(findPane(workbenchLayout.value, workbenchLayout.value.activePane)?.activeTab).toBe(tab)
@@ -85,7 +86,7 @@ describe('opening a file', () => {
     // No workspace exists in this host: the file stands alone, as when launched from Explorer.
     expect(host.files.paths()).toContain('C:/notes/a.md')
     const tab = await openPath('C:/notes/b.md')
-    expect(documentOfTab(tab)?.state.doc.toString()).toBe('# B\n')
+    expect(documentOfTab(tab)?.master.doc.toString()).toBe('# B\n')
     expect(docMeta(documentOfTab(tab)?.id ?? -1)?.path).toBe('C:/notes/b.md')
   })
 
@@ -204,7 +205,7 @@ describe('saving', () => {
     const mixed = await openPath('C:/notes/mixed.md')
     const mixedDoc = documentOfTab(mixed)
     if (mixedDoc === undefined) throw new Error('no document')
-    expect(endingsOf(mixedDoc.state)).toEqual({ dominant: 0, at: [1, 2], codes: [1, 2] })
+    expect(endingsOf(mixedDoc.master)).toEqual({ dominant: 0, at: [1, 2], codes: [1, 2] })
     edit(mixed, { from: 0, insert: '>' })
     await runCommand(COMMAND_IDS.save)
     expect(host.files.read('C:/notes/mixed.md')).toBe('>lf\ncrlf\r\ncr\rlast')

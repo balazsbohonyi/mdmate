@@ -53,7 +53,7 @@ function startDrag(id: string, event: PointerEvent): void {
         />
         <div class="min-h-0 flex-1">
           <EditorHost
-            :doc-id="activeDocId"
+            :tab-id="pane.activeTab"
             :active="active"
           />
         </div>

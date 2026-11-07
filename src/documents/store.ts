@@ -12,6 +12,7 @@ import {
 } from '@/workbench/store'
 import type { TabId } from '@/workbench/splitTree'
 import { Document } from './document'
+import type { Follower } from './follower'
 import { clearDocMeta, docMeta, patchDocMeta, removeDocMeta, setDocMeta } from './meta'
 
 /**
@@ -34,6 +35,11 @@ function publish(doc: Document): void {
 
 export function documentById(id: number): Document | undefined {
   return documents.get(id)
+}
+
+/** The follower a tab shows, made on first use. */
+export function followerOfTab(tabId: TabId): Follower | undefined {
+  return documentOfTab(tabId)?.followerFor(tabId)
 }
 
 /** The document shown by a tab, if any. */
@@ -193,7 +199,8 @@ function release(docId: number): void {
     })
 }
 
-onTabClosed((_tabId, record) => {
+onTabClosed((tabId, record) => {
+  documents.get(record.docId)?.closeFollower(tabId)
   release(record.docId)
 })
 

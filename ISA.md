@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 33/181
+progress: 38/181
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-07T16:00:09Z
+updated: 2026-11-07T16:16:31Z
 principal_stated_goal: "I want to build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -261,7 +261,7 @@ Why: these promises hold everywhere, and any single feature could quietly break 
 - [ ] ISC-3: Mixed line-ending files keep each untouched line's ending after an edit.
 - [ ] ISC-4: The release app is usable within 1000 ms of launch.
 - [ ] ISC-5: A 1 MB Markdown file opens within 100 ms.
-- [ ] ISC-6: Switching tabs completes within 50 ms.
+- [x] ISC-6: Switching tabs completes within 50 ms.
 - [ ] ISC-7: Typing stays under 16 ms per key on the 1 MB fixture.
 - [ ] ISC-8: Files above 3 MB open as plain source with a notice.
 - [x] ISC-9: `cfg(windows)` and `target_os` appear only inside `platform/`.
@@ -305,12 +305,12 @@ Why: nobody trusts an editor twice after it loses their words, so no action here
 
 - [x] ISC-36: Opening a file loads its content into a tab.
 - [x] ISC-37: Ctrl+S writes edits to disk.
-- [ ] ISC-38: Tabs with unsaved edits show a dirty marker.
+- [x] ISC-38: Tabs with unsaved edits show a dirty marker.
 - [x] ISC-39: Files in unsupported encodings open read-only with a notice.
 - [x] ISC-40: Anti: a failed save never damages the original file.
-- [ ] ISC-41: An edit in one pane appears in another pane showing that file.
-- [ ] ISC-42: Undo from either pane reverts the last edit.
-- [ ] ISC-43: Closing a pane keeps the document's undo history.
+- [x] ISC-41: An edit in one pane appears in another pane showing that file.
+- [x] ISC-42: Undo from either pane reverts the last edit.
+- [x] ISC-43: Closing a pane keeps the document's undo history.
 - [ ] ISC-44: A disk change reloads a clean tab.
 - [ ] ISC-45: A disk change on an edited tab raises a conflict choice.
 - [ ] ISC-46: Anti: mdmate's own save triggers no reload or conflict.
@@ -524,6 +524,7 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - 2026-11-07: Chose a path policy where the page can read and save only files Rust saw the user choose, or files inside an open workspace folder, compared with symlinks resolved. The page has no command that grants access. Saves go by a Rust-issued document id, never by a path.
 - 2026-11-07: refined: the P0 decision (newline-only text, endings in a state field) supersedes the Phase 2 plan line "Set `EditorState.lineSeparator` from the file" and the matching architecture bullet. `lineSeparator` stays at its default.
 - 2026-11-07: 2026-11-07: Kept open documents in a plain map with a small reactive record for the chrome, and made closing the last tab of an edited document ask first, in a banner inside the pane instead of a modal. Why: rule one keeps editor objects out of Vue, and closing the app never prompts because hot exit keeps the edits (ISC-49). Easy to change if the owner prefers a modal.
+- 2026-11-07: 2026-11-07: Gave each tab a follower state and kept undo history on one headless master per document. Parked tabs only note changes and apply them as one change when shown. Why: closing a pane never loses history (ISC-43), and typing in one pane does not make every parked tab parse. Selection undo (Mod-u) is not bound on followers.
 
 ## Verification
 
@@ -560,6 +561,11 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-37: `pnpm test:rust save_writes_edits` writes edits in every supported encoding and leaves the other lines' endings alone (src-tauri/src/fs/mod.rs); `pnpm test:web tests/documents/open.test.ts` presses Ctrl+S on a clean and on an edited document: one host save with the right bytes, and the key taken from the page both times. In the browser Ctrl+S cleared the dirty dot and wrote the file, and a mixed LF, CRLF and CR file came back byte for byte with one character added. Not run through the real window's Rust path, because the desktop was locked; see decisions (P2-T2).
 - ISC-98: `pnpm test:web tests/documents/open.test.ts` opens a file with no folder and no root anywhere in the store; `pnpm test:rust access` shows Rust allows the files the user chose and not their neighbours, and in the real app a file nobody chose is refused with `not-allowed` (src-tauri/src/access.rs) (P2-T2).
 - ISC-174: `pnpm test:web tests/documents/open.test.ts` opens one path twice, once in another spelling, and once from a different pane: each time the existing tab is focused, in the pane that holds it, and no second tab appears (src/documents/store.ts) (P2-T2).
+- ISC-6: `pnpm perf tab-switch` (release build, Windows, five runs): switch p95 11.2 ms (runs 9.4 to 11.7) against 50 ms, median 7.7 ms; half the switches also apply a change made in another pane (median 6.9 ms, the rest 8.2 ms). The harness calls the spread not repeatable by its 10% rule and notes the CPU was busy before three runs, but every run is under 12 ms, four times inside the target (src/perf/tabSwitch.ts, src/documents/follower.ts) (P2-T3).
+- ISC-38: Claude in Chrome on `pnpm dev` (Interceptor is not set up here, see the Phase 1 decisions): typing in a clean tab puts a dot after its name in every pane that shows the file, and saving or undoing back to the saved text clears it; screenshot ss_8342t9l8v shows the dot after an edit (src/workbench/TabStripItem.vue) (P2-T3).
+- ISC-41: `pnpm test:web tests/documents/sync.test.ts`: a master with two followers, an edit in either shows in the other and in the master; a parked follower catches up with one applied change; 150 seeded random runs of 40 steps keep every follower equal to the master. In the browser, text typed in the right pane showed in the left (src/documents/document.ts, src/documents/follower.ts) (P2-T3).
+- ISC-42: `pnpm test:web tests/documents/sync.test.ts`: undo from the follower that did not make the edit reverts it in every follower and the master, edits from both followers undo in order, quick typing undoes as one step, and the caret goes where the edit was made. In the browser, Ctrl+Z in the left pane reverted what was typed in the right (P2-T3).
+- ISC-43: `pnpm test:web tests/documents/sync.test.ts`: after the follower that made two edits is closed, another follower undoes both and redoes one; closing every follower and opening a new one keeps the history. In the browser, closing the right pane's tab and pressing Ctrl+Z in the left reverted its edit (P2-T3).
 
 ## Remaining Work
 

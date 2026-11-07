@@ -199,6 +199,8 @@ const SPECS: Record<string, Spec> = {
         'switch, p95': total.p95,
         'switch, median': total.p50,
         'switch, max': total.max,
+        'switch, median, plain': summarize(q(report, 'plainMs')).p50,
+        'switch, median, with a change made elsewhere': summarize(q(report, 'pendingMs')).p50,
         'synchronous part, median': summarize(q(report, 'syncMs')).p50,
       }
     },
