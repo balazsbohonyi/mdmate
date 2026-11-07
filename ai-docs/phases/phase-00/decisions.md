@@ -49,6 +49,7 @@ Deviations from the plan and choices it left open. Numbers carry the OS they cam
 - **Jobs.** `windows` runs `pnpm check`, `pnpm check:rust`, `pnpm test:web` and `pnpm test:rust`. `compile` runs `cargo check` on macOS and Linux. The Linux job installs the package list from the Tauri v2 prerequisites page (verified 2026-11-07), including `libwebkit2gtk-4.1-dev`.
 - **Actions are pinned to major tags** (checkout v7, setup-node v7, pnpm/action-setup v6, rust-cache v2, rust-toolchain stable) as of 2026-11-07, with read-only token permissions.
 - **Expect CRLF on the Windows runner.** Git there checks out CRLF by default; Prettier, `check-arch`, `check-isa` and `cargo fmt` all accept it, and fixtures are `-text`.
+- **Closed after the first push (2026-11-07).** The first pushed run was green on all three jobs (https://github.com/balazsbohonyi/mdmate/actions/runs/42367038816): `windows` ran all four gates in 5 m 26 s, and `cargo check` passed on macOS and Linux. The macOS and Linux platform stubs compiled for the first time there, with no fixes needed. ISC-10 and ISC-11 are closed on that run.
 
 ## P0-T6
 

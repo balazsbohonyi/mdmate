@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 9/178
+progress: 11/178
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-07T01:30:00Z
+updated: 2026-11-07T11:20:00Z
 principal_stated_goal: "I want to build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -262,8 +262,8 @@ Why: these promises hold everywhere, and any single feature could quietly break 
 - [ ] ISC-7: Typing stays under 16 ms per key on the 1 MB fixture.
 - [ ] ISC-8: Files above 3 MB open as plain source with a notice.
 - [x] ISC-9: `cfg(windows)` and `target_os` appear only inside `platform/`.
-- [ ] ISC-10: `cargo check` passes on macOS in CI.
-- [ ] ISC-11: `cargo check` passes on Linux in CI.
+- [x] ISC-10: `cargo check` passes on macOS in CI.
+- [x] ISC-11: `cargo check` passes on Linux in CI.
 - [x] ISC-12: `@tauri-apps` imports appear only inside `src/platform/`.
 - [x] ISC-13: `src/editor/` imports nothing from Vue.
 - [ ] ISC-14: No hard-coded colors exist outside token files.
@@ -516,6 +516,8 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-24: `node scripts/check-arch.mjs suppressions-have-reasons` passes on the repo and fails on planted violations (tests/scripts/checkArch.test.ts, P0-T3).
 - ISC-73: `node scripts/check-arch.mjs no-math-mermaid` passes on the repo and fails on planted violations (tests/scripts/checkArch.test.ts, P0-T3).
 - ISC-169: `node scripts/check-arch.mjs license-mit` passes on the repo and fails on planted violations (tests/scripts/checkArch.test.ts, P0-T3).
+- ISC-10: `cargo check --manifest-path src-tauri/Cargo.toml` exits 0 in the `compile (macos-latest)` CI job (https://github.com/balazsbohonyi/mdmate/actions/runs/42367038816, commit 7f77396, P0-T5).
+- ISC-11: `cargo check --manifest-path src-tauri/Cargo.toml` exits 0 in the `compile (ubuntu-latest)` CI job (https://github.com/balazsbohonyi/mdmate/actions/runs/42367038816, commit 7f77396, P0-T5).
 
 ## Remaining Work
 
