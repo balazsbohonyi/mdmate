@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 15/181
+progress: 19/181
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-07T13:05:00Z
+updated: 2026-11-07T13:15:00Z
 principal_stated_goal: "I want to build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -288,10 +288,10 @@ Why: a dense keyboard-driven layout you can rearrange freely is what separates t
 - [x] ISC-25: Antecedent: first launch shows titlebar, sidebar, tabs and status bar together.
 - [x] ISC-26: Titlebar controls minimize, maximize and close the window.
 - [x] ISC-27: Anti: launch never shows a white frame.
-- [ ] ISC-28: Split right creates side-by-side panes.
-- [ ] ISC-29: Split down creates stacked panes.
-- [ ] ISC-30: Splits nest three levels in mixed directions.
-- [ ] ISC-31: Closing a pane's last tab removes that pane.
+- [x] ISC-28: Split right creates side-by-side panes.
+- [x] ISC-29: Split down creates stacked panes.
+- [x] ISC-30: Splits nest three levels in mixed directions.
+- [x] ISC-31: Closing a pane's last tab removes that pane.
 - [ ] ISC-32: Dragging a tab moves it to another pane.
 - [ ] ISC-33: Dragging a tab to a pane edge creates a split.
 - [ ] ISC-34: Dragging a split handle resizes the adjacent panes.
@@ -517,6 +517,8 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - 2026-11-07: refined: ISC-26 and ISC-27 moved from `manual` to `screenshot`. Both can be driven and read by tools on the real window: trusted clicks with the OS window state read back, and a 60 fps screen recording scanned frame by frame.
 - 2026-11-07: Launch frames are checked at 60 fps (frames 17 ms apart), so a white flash shorter than about two frames can slip through. A control window that was white for about 100 ms was caught; one that lived 43 ms was not.
 - 2026-11-07: Startup with the full shell is 435 ms median on a warm profile (5 runs, every run within 10%), against 1000 ms. The bare shell took 429 to 475 ms, so the title bar, tab strip, sidebar frame and status bar cost almost nothing.
+- 2026-11-07: Closing the last tab of the only pane leaves that pane empty, instead of removing it. ISC-31 holds for every pane that has a sibling; removing the last pane would leave no workbench to open a file into.
+- 2026-11-07: Split sizes are percentages that always add up to 100, and every split node carries an id so a view can key it and a resize can name it. Moving a tab to the pane it is already in, and dropping the only tab of a pane on that pane's own edge, change nothing beyond order.
 
 ## Verification
 
@@ -535,6 +537,10 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-25: title bar, sidebar, tab strip and status bar all render (32, 240, 34 and 24 px, measured from the DOM) in the real `pnpm tauri dev` window (screenshot over the DevTools port) and in `pnpm dev` (Claude in Chrome); flipping the root to the light theme, or overriding `--sidebar` and `--statusbar`, restyled the matching regions (P1-T2).
 - ISC-26: in the real app, trusted clicks on the caption buttons minimized (`IsIconic` true), maximized (`IsZoomed` true, icon swapped to Restore), restored, and closed (process exited); double-clicking the drag region toggled maximize; a real mouse drag on it moved the window by exactly the dragged distance (P1-T2).
 - ISC-27: 8 of 8 launches of the release build, recorded at 60 fps (about 58 to 59 delivered, worst gap 34 ms), had 0 frames with more than 20% near-white pixels in the window rectangle, and the window first appeared as the dark UI mid-fade; a control white window of about 100 ms was caught as 2 frames (P1-T2).
+- ISC-28: `pnpm test:web tests/workbench/splitTree.test.ts` splits right into two side-by-side panes at 50/50, makes the new pane active, joins an existing row instead of nesting, and fails when the same-direction merge is removed (55 tests, P1-T3).
+- ISC-29: the same file splits down into two stacked panes at 50/50, and nests a column inside a row when the pane is already in a row (P1-T3).
+- ISC-30: the same file builds `row(column([a] row([c] [d])) [b])`, three levels in mixed directions, with every invariant holding, plus 300 seeded random sequences of 60 operations each that stay valid, keep exactly the open tabs, and round-trip through serialize (P1-T3).
+- ISC-31: the same file removes a pane when its last tab closes, gives its space to the previous sibling (or the next if it was first), collapses a split left with one child, and fails when either collapse is removed (P1-T3).
 
 ## Remaining Work
 
