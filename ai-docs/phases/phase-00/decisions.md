@@ -33,3 +33,11 @@ Deviations from the plan and choices it left open. Numbers carry the OS they cam
 - **`no-hard-coded-colors` checks hex literals and color functions** (`rgb()`, `oklch()` and the rest). Named colors and Tailwind palette classes are not checked, so a class like `bg-red-500` passes.
 - **`no-os-cfg-outside-platform` ignores comments and string literals.** A `'"'` character literal could confuse its string stripping; none exists in the code.
 - **`suppressions-have-reasons` skips `scripts/check-arch.mjs` and `tests/scripts/`,** because they contain the suppression syntax as test data.
+
+## P0-T4
+
+- **`scripts/check-isa.mjs` runs last in `pnpm check`.** It fails on a wrong `progress` total or closed count, a duplicate claim ID, a duplicate Test Strategy row, a leaf claim with no row, and a row with no leaf claim. `tests/scripts/checkIsa.test.ts` plants each one.
+- **A leaf claim is any claim in `## Features` that is not a `[container]` parent or a `[DROPPED ...]` tombstone.** Containers and tombstones need no row and a row for one is an orphan, which matches `ai-docs/standards/isa.md`.
+- **The count was checked independently of the script.** `rg` found 179 claim lines, 1 container, 9 checked and 178 rows, which gives the same 178 leaf claims, 9 closed and 178 rows the script reports.
+- **Not checked, because the standard does not list it:** that every closed claim has a `## Verification` stub. That stays a rule of the task-end review.
+- **No claim closes here.** The task supports ISC-22, so `progress` stays at 9/178.

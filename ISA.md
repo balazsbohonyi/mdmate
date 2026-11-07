@@ -505,7 +505,7 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 
 ## Verification
 
-- ISC-22: `pnpm check` exits 0 on the scaffold, and fails on a planted type error, `any` misuse and bad format (P0-T2).
+- ISC-22: `pnpm check` (vue-tsc, ESLint, Prettier, check-arch, check-isa) exits 0, and fails on a planted type error, `any` misuse, bad format, an arch violation and a wrong ISA count (P0-T2 to P0-T4).
 - ISC-23: `pnpm check:rust` exits 0 on the scaffold with no `dist/`, and fails on a planted `unwrap` and bad format (P0-T2).
 - ISC-9: `node scripts/check-arch.mjs no-os-cfg-outside-platform` passes on the repo and fails on planted violations (tests/scripts/checkArch.test.ts, P0-T3).
 - ISC-12: `node scripts/check-arch.mjs tauri-only-in-platform` passes on the repo and fails on planted violations (tests/scripts/checkArch.test.ts, P0-T3).
