@@ -85,6 +85,16 @@ describe('autolinks and bare URLs', () => {
     expect(markedText(state, items)).toContain('cm-md-link: http://auto.com')
   })
 
+  it('shows the angle brackets with the caret anywhere in the autolink, edges included', () => {
+    const doc = 'a <http://auto.com> b'
+    for (const caret of [2, 3, 10, 18, 19]) {
+      expect(hidden(scanAll(stateOf(doc, caret))), `caret at ${String(caret)}`).toEqual([])
+    }
+    for (const caret of [1, 20]) {
+      expect(hidden(scanAll(stateOf(doc, caret))), `caret at ${String(caret)}`).toHaveLength(2)
+    }
+  })
+
   it('styles a bare URL and hides nothing', () => {
     const state = away('see http://bare.com now')
     const items = scanAll(state)

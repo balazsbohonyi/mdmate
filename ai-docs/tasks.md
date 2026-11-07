@@ -38,7 +38,7 @@ Mark `[x]` only when the task's "Done when" in its phase plan holds. Each task l
 - [x] P3-T1: Inline layer and headings — closes ISC-50, ISC-63
 - [x] P3-T2: Emphasis and inline code — closes ISC-51.1, ISC-51.2, ISC-51.3, ISC-52
 - [x] P3-T3: Links, lists, blockquotes and rules — closes ISC-53, ISC-54, ISC-55, ISC-56
-- [ ] P3-T4: Caret reveal — closes ISC-57, ISC-58, ISC-59, ISC-60
+- [x] P3-T4: Caret reveal — closes ISC-57, ISC-58, ISC-59, ISC-60
 - [ ] P3-T5: Source toggle and raw copy — closes ISC-61, ISC-62
 - [ ] P3-T6: Typing and startup targets with preview on — closes ISC-4, ISC-7
 

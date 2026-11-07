@@ -171,6 +171,26 @@ const SPECS: Record<string, Spec> = {
     check: true,
     metrics: () => ({}),
   },
+  reveal: {
+    claim: 'ISC-58',
+    page: 'reveal',
+    headlineName: 'work per leave, p95',
+    targetMs: 16,
+    metrics({ report }) {
+      const leave = summarize(q(report, 'leaveWorkMs'))
+      const enter = summarize(q(report, 'enterWorkMs'))
+      return {
+        'work per leave, p95': leave.p95,
+        'work per leave, median': leave.p50,
+        'work per leave, p99': leave.p99,
+        'work per leave, max': leave.max,
+        'of which update, p95': summarize(q(report, 'leaveUpdateMs')).p95,
+        'of which frame render, p95': summarize(q(report, 'leaveRenderMs')).p95,
+        'work per enter, p95': enter.p95,
+        'work per enter, max': enter.max,
+      }
+    },
+  },
   'asset-scope': {
     claim: 'fog: asset protocol scope',
     page: 'asset-scope',

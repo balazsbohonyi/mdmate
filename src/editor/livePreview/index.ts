@@ -11,9 +11,9 @@ import { syntaxTree } from '@codemirror/language'
 import type { Extension, Range } from '@codemirror/state'
 import {
   Decoration,
+  EditorView,
   ViewPlugin,
   type DecorationSet,
-  type EditorView,
   type ViewUpdate,
 } from '@codemirror/view'
 import { previewTheme } from './theme'
@@ -50,15 +50,32 @@ export function decorationsFor(items: readonly PreviewItem[]): DecorationSet {
   return Decoration.set(ranges, true)
 }
 
-function build(view: EditorView): DecorationSet {
-  return decorationsFor(scanPreview(view.state, view.visibleRanges))
+/**
+ * Only the hidden ranges, as their own set. `atomicRanges` makes every range in a set one step for
+ * the caret, so it must not get the marks over whole bold words or link text.
+ */
+export function hiddenFor(items: readonly PreviewItem[]): DecorationSet {
+  const ranges: Range<Decoration>[] = []
+  for (const item of items) {
+    if (item.type === 'hide') ranges.push(hide.range(item.from, item.to))
+  }
+  return Decoration.set(ranges, true)
 }
 
 class PreviewPlugin {
   decorations: DecorationSet
+  hidden: DecorationSet
 
   constructor(view: EditorView) {
-    this.decorations = build(view)
+    this.decorations = Decoration.none
+    this.hidden = Decoration.none
+    this.build(view)
+  }
+
+  build(view: EditorView): void {
+    const items = scanPreview(view.state, view.visibleRanges)
+    this.decorations = decorationsFor(items)
+    this.hidden = hiddenFor(items)
   }
 
   update(update: ViewUpdate): void {
@@ -68,7 +85,7 @@ class PreviewPlugin {
       update.selectionSet ||
       syntaxTree(update.startState) !== syntaxTree(update.state)
     ) {
-      this.decorations = build(update.view)
+      this.build(update.view)
     }
   }
 }
@@ -77,9 +94,15 @@ const plugin = ViewPlugin.fromClass(PreviewPlugin, {
   decorations: (instance) => instance.decorations,
 })
 
-/** The inline live-preview layer, with its theme. */
-export function livePreview(): Extension {
-  return [previewTheme, plugin]
+/** Hidden syntax is one step for the caret, so a move never lands strictly inside it. */
+const atomic = EditorView.atomicRanges.of((view) => view.plugin(plugin)?.hidden ?? Decoration.none)
+
+/**
+ * The inline live-preview layer, with its theme. `atomic: false` leaves the caret motion to
+ * CodeMirror alone, which the walk test uses to show that atomic ranges change nothing today.
+ */
+export function livePreview(options: { atomic?: boolean } = {}): Extension {
+  return options.atomic === false ? [previewTheme, plugin] : [previewTheme, plugin, atomic]
 }
 
 export { scanPreview, type PreviewItem } from './scan'

@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 58/181
+progress: 62/181
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-07T21:50:00Z
+updated: 2026-11-07T22:20:00Z
 principal_stated_goal: "I want to build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -332,10 +332,10 @@ Why: this is the reason mdmate exists; you read the rendered page and edit it in
 - [x] ISC-54: List markers render styled.
 - [x] ISC-55: Blockquotes render styled.
 - [x] ISC-56: Horizontal rules render as lines.
-- [ ] ISC-57: A caret inside an inline element reveals only that element's syntax.
-- [ ] ISC-58: Syntax hides again within 16 ms of the caret leaving.
-- [ ] ISC-59: Anti: the caret never sticks inside hidden syntax.
-- [ ] ISC-60: Anti: vertical arrow keys never skip a line.
+- [x] ISC-57: A caret inside an inline element reveals only that element's syntax.
+- [x] ISC-58: Syntax hides again within 16 ms of the caret leaving.
+- [x] ISC-59: Anti: the caret never sticks inside hidden syntax.
+- [x] ISC-60: Anti: vertical arrow keys never skip a line.
 - [ ] ISC-61: A per-pane toggle shows raw source.
 - [ ] ISC-62: Copying a selection copies raw Markdown.
 - [x] ISC-63: Decoration time stays flat between 1 MB and 10 MB files.
@@ -591,6 +591,10 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-54: `pnpm test:web tests/editor/lists.test.ts`: `-`, `*`, `+`, `1.` and `2)` markers, nested and task items included, get the marker style and stay in the text; a dash or number inside a sentence is not a marker. With the style removed 2 tests fail. Seen in the real window (dim markers, text unchanged) (P3-T3).
 - ISC-55: `pnpm test:web tests/editor/blockquotes.test.ts`: every line of a quote is styled exactly once (nested quotes and a lazy continuation line included), each `>` and the blank after it hides away from the caret, only the caret line shows its markers, a marker with nothing after it stays. Breaking the code (lines styled twice, empty marker hidden, caret ignored, blank left visible) fails 1, 1, 2 and 4 tests. Seen in the real window with a bar on the left of the quote (P3-T3).
 - ISC-56: `pnpm test:web tests/editor/rules.test.ts`: `---`, `***`, `___` and `- - -` get the rule line style and hide their text, the caret line shows its text, a setext underline and dashes inside text are not rules. With the hiding removed 2 tests fail, with the caret ignored 2 fail. Seen in the real window: a line across the pane, `---` back with the caret on it (P3-T3).
+- ISC-57: `pnpm test:web tests/editor/reveal.test.ts` (critical): with the caret in one of two bold spans only that span shows its markers, on the scan and on the page a real view draws, in the dispatch that moves the caret; either edge of the span reveals it and one position away does not; the four kinds of element on one line reveal one at a time; block markers show for the caret line only; a selection across both spans reveals both; two carets reveal two spans (with the multiple-selection facet on, which the app does not enable yet). Breaking the rule (a touch reveals the whole line, a touch reveals the whole paragraph, edges excluded, never revealed) fails 10, 10, 1 and 9 tests (src/editor/livePreview/scan.ts) (P3-T4).
+- ISC-58: `pnpm perf reveal` on the release app (Windows 11, Ryzen 7 8840HS, WebView2 157), 5 runs of 80 moves each: leaving a bold span in a 392-character formatted line costs a p95 of 3.7 ms of main-thread work (2.0 ms the update, 1.7 ms the frame), max 4.6 ms; entering is 3.9 ms p95. Limit 16 ms. Every move is read back from the line's own DOM and the run fails if the syntax is in the wrong state (0 wrong in all 5 runs) (src/perf/reveal.ts) (P3-T4).
+- ISC-59: `pnpm test:web tests/editor/caretWalk.test.ts`: real caret commands (char and word moves both ways, shift-extend) walk every position of the eight fixtures and seeded windows of the seven generated ones, plus one document of every element and edge case, with a check after each step that the head moved and that no selection end lies strictly inside a hidden range. Shrinking one reveal span (emphasis, heading, quote, link, rule) fails the walk each time; an atomic set that held the marks too fails the with-and-without comparison. Seen the same on 36 real ArrowDown presses in Chrome (P3-T4).
+- ISC-60: the real window (debug app, DevTools port, trusted key events): ArrowDown from the first line to the last and ArrowUp back over a 37-line document of every element, the 368-line `lf.md` fixture and a 17-line one never skipped a line, never stuck and left the text unchanged (469 and 457 presses for `lf.md`, which wraps). In Claude in Chrome on `pnpm dev`, 36 ArrowDown presses over the 33-line document visited lines 2 to 33 in order (P3-T4).
 
 ## Remaining Work
 
