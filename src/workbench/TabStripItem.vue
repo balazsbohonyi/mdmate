@@ -2,7 +2,15 @@
 import { X } from '@lucide/vue'
 import type { TabInfo } from './tabs'
 
-const { tab, active } = defineProps<{ tab: TabInfo; active: boolean }>()
+const {
+  tab,
+  active,
+  focused = true,
+} = defineProps<{
+  tab: TabInfo
+  active: boolean
+  focused?: boolean
+}>()
 const emit = defineEmits<{ select: []; close: [] }>()
 </script>
 
@@ -11,10 +19,14 @@ const emit = defineEmits<{ select: []; close: [] }>()
     role="tab"
     :aria-selected="active"
     :title="tab.title"
+    :data-tab-id="tab.id"
     class="group flex min-w-24 max-w-56 cursor-default items-center gap-2 border-t-2 pr-1.5 pl-3 text-chrome"
     :class="
       active
-        ? 'border-primary bg-tab-active text-tab-active-foreground'
+        ? [
+            'bg-tab-active text-tab-active-foreground',
+            focused ? 'border-primary' : 'border-muted-foreground/40',
+          ]
         : 'border-transparent text-tab-foreground hover:bg-accent/40'
     "
     @click="emit('select')"

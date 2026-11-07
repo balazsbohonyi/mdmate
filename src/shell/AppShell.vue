@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { getHost } from '@/platform'
+import { seedDemoWorkbench } from '@/workbench/devSeed'
 import { sidebarVisible, toggleSidebar } from '@/workbench/sidebar'
-import type { TabInfo } from '@/workbench/tabs'
-import TabStrip from '@/workbench/TabStrip.vue'
+import WorkbenchView from '@/workbench/WorkbenchView.vue'
 import type { MenuEntry } from './menuEntries'
 import SidebarFrame from './SidebarFrame.vue'
 import StatusBar from './StatusBar.vue'
@@ -16,8 +16,9 @@ const menuEntries: readonly MenuEntry[] = [
   { kind: 'item', id: 'exit', label: 'Exit' },
 ]
 
-// A stand-in until P1-T4 renders real panes from the split tree.
-const placeholderTabs: readonly TabInfo[] = [{ id: 'welcome', title: 'Welcome' }]
+// A layout to try splitting and dragging on, until Phase 2 opens real files. The branch is removed
+// from release builds, which start with one empty pane.
+if (import.meta.env.DEV) seedDemoWorkbench()
 
 async function runMenuEntry(id: string): Promise<void> {
   if (id === 'toggle-sidebar') toggleSidebar()
@@ -34,13 +35,7 @@ async function runMenuEntry(id: string): Promise<void> {
     <div class="flex min-h-0 flex-1">
       <SidebarFrame v-if="sidebarVisible" />
       <main class="flex min-w-0 flex-1 flex-col">
-        <TabStrip
-          :tabs="placeholderTabs"
-          active-id="welcome"
-        />
-        <div class="flex flex-1 items-center justify-center text-muted-foreground">
-          Open a file to start writing.
-        </div>
+        <WorkbenchView />
       </main>
     </div>
     <StatusBar :platform-name="platformName" />

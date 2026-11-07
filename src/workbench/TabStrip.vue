@@ -2,7 +2,12 @@
 import TabStripItem from './TabStripItem.vue'
 import type { TabInfo } from './tabs'
 
-defineProps<{ tabs: readonly TabInfo[]; activeId: string | null }>()
+/** `focused` is true when this strip's pane is the active pane. */
+const { focused = true } = defineProps<{
+  tabs: readonly TabInfo[]
+  activeId: string | null
+  focused?: boolean
+}>()
 const emit = defineEmits<{ select: [id: string]; close: [id: string] }>()
 </script>
 
@@ -16,6 +21,7 @@ const emit = defineEmits<{ select: [id: string]; close: [id: string] }>()
       :key="tab.id"
       :tab="tab"
       :active="tab.id === activeId"
+      :focused="focused"
       @select="emit('select', tab.id)"
       @close="emit('close', tab.id)"
     />
