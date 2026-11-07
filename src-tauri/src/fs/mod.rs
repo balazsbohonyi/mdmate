@@ -429,12 +429,14 @@ mod tests {
             "utf16le.md" | "utf16be.md" => {
                 let big = name == "utf16be.md";
                 let units: Vec<u16> = bytes[2..]
-                    .chunks_exact(2)
-                    .map(|p| {
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|&p| {
                         if big {
-                            u16::from_be_bytes([p[0], p[1]])
+                            u16::from_be_bytes(p)
                         } else {
-                            u16::from_le_bytes([p[0], p[1]])
+                            u16::from_le_bytes(p)
                         }
                     })
                     .collect();

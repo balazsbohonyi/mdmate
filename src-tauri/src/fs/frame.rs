@@ -95,7 +95,7 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<Frame<'_>, AppError> {
         .get(pairs_start..pairs_end)
         .ok_or_else(|| invalid("exceptions cut short"))?;
     let mut exceptions = Vec::with_capacity(count);
-    for pair in pair_bytes.chunks_exact(8) {
+    for pair in pair_bytes.as_chunks::<8>().0 {
         let word = |at: usize| {
             <[u8; 4]>::try_from(&pair[at..at + 4])
                 .map(u32::from_le_bytes)

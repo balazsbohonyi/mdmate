@@ -95,13 +95,15 @@ fn unsupported(bytes: &[u8]) -> Decoded {
 }
 
 fn units(bytes: &[u8], encoding: Encoding) -> impl Iterator<Item = u16> + '_ {
-    bytes.chunks_exact(2).map(move |pair| {
-        let pair = [pair[0], pair[1]];
-        match encoding {
+    // A trailing odd byte is left out here; `decode_utf16` rejects odd lengths before this runs.
+    bytes
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(move |&pair| match encoding {
             Encoding::Utf16Be => u16::from_be_bytes(pair),
             _ => u16::from_le_bytes(pair),
-        }
-    })
+        })
 }
 
 /// `None` for an odd byte count or a lone surrogate, which could not be written back.
