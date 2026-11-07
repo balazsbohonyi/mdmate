@@ -44,7 +44,9 @@ mdmate/
 │  └─ styles/         tokens.css (fonts, sizes, Tailwind map), themes/dark.css and light.css (every color)
 ├─ src-tauri/src/
 │  ├─ commands/       Thin handlers, no logic
-│  ├─ fs/             Read, atomic write, encoding, EOL detection
+│  ├─ access.rs       Which paths the page may read: files the user chose, plus workspace roots
+│  ├─ documents.rs    Open documents by id, and the open, save and close operations on them
+│  ├─ fs/             Raw frame, encoding, line endings (eol), atomic write, round-trip guard
 │  ├─ workspace/      Lazy tree, watcher, file index
 │  ├─ search/         Streaming folder search
 │  ├─ links/          Link guard, scan, rewrite
@@ -75,7 +77,7 @@ sequenceDiagram
 
 - Undo lives on the master, so closing a pane never loses history.
 - Switching tabs swaps state with `view.setState`, which keeps tabs cheap.
-- `EditorState.lineSeparator` matches the file's own line ending.
+- The text in every state uses `\n` only. Each line break's original ending (`\r\n`, `\n` or `\r`) lives in a state field on the master, and Rust joins them back on save. `EditorState.lineSeparator` stays at its default, because keeping `\r` in the text hides tables and hard breaks from the Markdown parser.
 
 ## Live preview
 
@@ -93,6 +95,10 @@ CM6 parsing is budgeted and can stop on huge files, so whole-document features, 
 ## Files and IPC
 
 - File reads return `tauri::ipc::Response`, and writes send raw bytes, avoiding JSON.
+- A document crosses IPC as one raw frame in both directions: a JSON header, the line-ending exceptions as `u32` pairs, then the text with `\n` as its only break (layout in `src-tauri/src/fs/frame.rs`). Rust decodes and encodes; the page never sees a BOM, a UTF-16 byte or a `\r`.
+- The page opens a file and gets a document id, then saves by that id. It never names a path to write to.
+- Rust allows a path only if it saw the user choose it (the open dialog, a restored session) or it lies inside an open workspace folder. Paths are compared with symlinks resolved, and network paths are refused. The page has no command that grants access.
+- A file that would not decode and encode back to the same bytes opens read-only, as does any encoding other than UTF-8 and UTF-16 with a BOM.
 - Saves write a temp file in the same folder, then rename.
 - Each save records its hash, so the watcher can ignore mdmate's own writes.
 - Search, watcher and rewrite results stream over `Channel`.

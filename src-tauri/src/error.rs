@@ -8,6 +8,18 @@ pub(crate) enum AppError {
     Io(#[from] std::io::Error),
     #[error("a background task failed: {0}")]
     Task(String),
+    /// The page asked for a path it was never given access to.
+    #[error("access to {0} is not allowed")]
+    NotAllowed(String),
+    /// The request is malformed: a bad frame, bad line endings, a missing header.
+    #[error("invalid request: {0}")]
+    Invalid(String),
+    /// A save for a document the app cannot write back byte for byte.
+    #[error("the document is read-only: {0}")]
+    ReadOnly(String),
+    /// A document id that is not open.
+    #[error("no open document has id {0}")]
+    NotOpen(u32),
 }
 
 impl AppError {
@@ -20,6 +32,10 @@ impl AppError {
                 _ => "io",
             },
             Self::Task(_) => "task",
+            Self::NotAllowed(_) => "not-allowed",
+            Self::Invalid(_) => "invalid",
+            Self::ReadOnly(_) => "read-only",
+            Self::NotOpen(_) => "not-open",
         }
     }
 }
@@ -45,6 +61,10 @@ mod tests {
         assert_eq!(kind(ErrorKind::PermissionDenied), "permission-denied");
         assert_eq!(kind(ErrorKind::TimedOut), "io");
         assert_eq!(AppError::Task("x".into()).kind(), "task");
+        assert_eq!(AppError::NotAllowed("x".into()).kind(), "not-allowed");
+        assert_eq!(AppError::Invalid("x".into()).kind(), "invalid");
+        assert_eq!(AppError::ReadOnly("x".into()).kind(), "read-only");
+        assert_eq!(AppError::NotOpen(1).kind(), "not-open");
     }
 
     #[test]

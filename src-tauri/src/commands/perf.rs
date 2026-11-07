@@ -1,6 +1,7 @@
 //! Commands only the perf harness uses. They compile with `--features perf`, which `pnpm perf`
 //! turns on, so a shipped build holds none of this.
 
+use crate::documents::AppState;
 use crate::error::AppError;
 use serde::Serialize;
 use std::path::PathBuf;
@@ -21,6 +22,15 @@ fn now_ms() -> u64 {
 /// Records when Rust first ran. Call it as early as possible in `run`.
 pub(crate) fn mark_started() {
     STARTED_MS.get_or_init(now_ms);
+}
+
+/// The harness reads fixtures by path, so its fixtures folder counts as an open workspace. Only a
+/// perf build does this, and the folder comes from the environment the harness launched us with.
+pub(crate) fn allow_fixtures(state: &AppState) {
+    if let Some(dir) = std::env::var_os("MDMATE_PERF_FIXTURES") {
+        // A missing folder just leaves the harness unable to read fixtures, which it will report.
+        let _ = state.access().grant_root(std::path::Path::new(&dir));
+    }
 }
 
 /// What the harness asked this run to do, read from the environment it launched us with.

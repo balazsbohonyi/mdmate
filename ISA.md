@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 26/181
+progress: 29/181
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-07T13:34:49Z
+updated: 2026-11-07T15:37:30Z
 principal_stated_goal: "I want to build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -256,7 +256,7 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 ### F0 · Cross-cutting
 Why: these promises hold everywhere, and any single feature could quietly break them.
 
-- [ ] ISC-1: Anti: saving an unedited file never changes a byte.
+- [x] ISC-1: Anti: saving an unedited file never changes a byte.
 - [ ] ISC-2: Anti: an edit never changes bytes outside its range.
 - [ ] ISC-3: Mixed line-ending files keep each untouched line's ending after an edit.
 - [ ] ISC-4: The release app is usable within 1000 ms of launch.
@@ -306,8 +306,8 @@ Why: nobody trusts an editor twice after it loses their words, so no action here
 - [ ] ISC-36: Opening a file loads its content into a tab.
 - [ ] ISC-37: Ctrl+S writes edits to disk.
 - [ ] ISC-38: Tabs with unsaved edits show a dirty marker.
-- [ ] ISC-39: Files in unsupported encodings open read-only with a notice.
-- [ ] ISC-40: Anti: a failed save never damages the original file.
+- [x] ISC-39: Files in unsupported encodings open read-only with a notice.
+- [x] ISC-40: Anti: a failed save never damages the original file.
 - [ ] ISC-41: An edit in one pane appears in another pane showing that file.
 - [ ] ISC-42: Undo from either pane reverts the last edit.
 - [ ] ISC-43: Closing a pane keeps the document's undo history.
@@ -519,6 +519,10 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - 2026-11-07: Startup with the full shell is 435 ms median on a warm profile (5 runs, every run within 10%), against 1000 ms. The bare shell took 429 to 475 ms, so the title bar, tab strip, sidebar frame and status bar cost almost nothing.
 - 2026-11-07: Closing the last tab of the only pane leaves that pane empty, instead of removing it. ISC-31 holds for every pane that has a sibling; removing the last pane would leave no workbench to open a file into.
 - 2026-11-07: Split sizes are percentages that always add up to 100, and every split node carries an id so a view can key it and a resize can name it. Moving a tab to the pane it is already in, and dropping the only tab of a pane on that pane's own edge, change nothing beyond order.
+- 2026-11-07: Chose Rust for the whole byte transform (decode, split off the line endings, join, encode) and a raw frame of header, ending exceptions and newline-only text over IPC in both directions. The ISC-1 and ISC-2 probes are Rust tests, so the code that touches bytes has to be Rust; the page owns the text and the ending of each break.
+- 2026-11-07: Chose `rfd` directly for the open dialog over `tauri-plugin-dialog`, since the plugin pulls `tauri-plugin-fs` into the build graph and ISC-21 says that crate is absent.
+- 2026-11-07: Chose a path policy where the page can read and save only files Rust saw the user choose, or files inside an open workspace folder, compared with symlinks resolved. The page has no command that grants access. Saves go by a Rust-issued document id, never by a path.
+- 2026-11-07: refined: the P0 decision (newline-only text, endings in a state field) supersedes the Phase 2 plan line "Set `EditorState.lineSeparator` from the file" and the matching architecture bullet. `lineSeparator` stays at its default.
 
 ## Verification
 
@@ -548,6 +552,9 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-35: Ctrl+Shift+B hid and showed the sidebar as a trusted key press in `pnpm dev` (Claude in Chrome: panes moved from x 240 to 0 and back, the menu item did the same) and as a real OS key press in the `pnpm tauri dev` window (240 to 0 and back); the keydown was taken from the page (`defaultPrevented` true); `tests/workbench/defaultCommands.test.ts` runs the shortcut against the real store (P1-T6).
 - ISC-171: Alt+Shift+2 split a lone 1296 px pane into two columns of 648 px in `pnpm dev`, and an 860 px pane into 430 and 430 in `pnpm tauri dev` with real OS keys, the new pane becoming the active one; the menu item gave the same split in `pnpm dev`, and unit tests show that AltGr (Ctrl+Alt+2) does not trigger it (P1-T6).
 - ISC-172: Alt+Shift+8 split the active pane into two rows, 367 and 367 px high in `pnpm dev` and 332 and 332 px in `pnpm tauri dev` with real OS keys; after the split right of ISC-171, the active pane became a column inside that row (P1-T6).
+- ISC-1: `pnpm test:rust roundtrip_unedited` reads every fixture (8 committed, 7 generated up to 10 MB), splits it into text and endings, joins and encodes it again, and gets identical bytes and hash, also through a temp-folder save; 3000 seeded random byte strings in four shapes do the same or open read-only (src-tauri/src/fs/mod.rs). Broken on purpose twice (`join` ignoring the exceptions, `encode` dropping the BOM), the fixture tests fail. The page half is checked in P2-T2 (P2-T1).
+- ISC-39: `pnpm test:rust unsupported_encoding`: the Latin-1 fixture, broken UTF-8 and broken UTF-16 open as `unsupported-encoding` with their text shown, and a save for them is refused with `read-only` (src-tauri/src/fs/mod.rs, src-tauri/src/documents.rs). The notice itself is drawn in P2-T2 (P2-T1).
+- ISC-40: `pnpm test:rust atomic_save`: a failure injected after the temp file is flushed and before the rename leaves the original bytes untouched and no temp file behind, for an existing and a missing target; a failed rename onto a folder does the same. Writing straight to the target instead makes two of them fail (src-tauri/src/fs/atomic.rs, P2-T1).
 
 ## Remaining Work
 
