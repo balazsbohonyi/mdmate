@@ -20,6 +20,13 @@ pub(crate) enum AppError {
     /// A document id that is not open.
     #[error("no open document has id {0}")]
     NotOpen(u32),
+    /// The file on disk is no longer what the document last read or wrote, so a save would
+    /// overwrite a change someone else made.
+    #[error("the file changed on disk since it was opened or last saved")]
+    DiskChanged,
+    /// The file watcher could not start.
+    #[error("could not watch files: {0}")]
+    Watch(String),
 }
 
 impl AppError {
@@ -36,6 +43,8 @@ impl AppError {
             Self::Invalid(_) => "invalid",
             Self::ReadOnly(_) => "read-only",
             Self::NotOpen(_) => "not-open",
+            Self::DiskChanged => "disk-changed",
+            Self::Watch(_) => "watch",
         }
     }
 }
@@ -65,6 +74,8 @@ mod tests {
         assert_eq!(AppError::Invalid("x".into()).kind(), "invalid");
         assert_eq!(AppError::ReadOnly("x".into()).kind(), "read-only");
         assert_eq!(AppError::NotOpen(1).kind(), "not-open");
+        assert_eq!(AppError::DiskChanged.kind(), "disk-changed");
+        assert_eq!(AppError::Watch("x".into()).kind(), "watch");
     }
 
     #[test]

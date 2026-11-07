@@ -16,6 +16,12 @@ export interface DocMeta {
   readonly readOnly: ReadOnlyReason | null
   /** The last save failed with this message, or null. */
   readonly saveError: string | null
+  /**
+   * The file changed on disk while the document has edits the disk does not have, and the user has
+   * not said which to keep. `'save'` when the app found out by refusing a save, so that keeping
+   * the edits goes on to save them.
+   */
+  readonly conflict: 'disk' | 'save' | null
 }
 
 const metas = shallowReactive(new Map<number, DocMeta>())

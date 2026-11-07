@@ -73,6 +73,17 @@ export interface SavedFile {
   readonly size: number
 }
 
+/**
+ * A change another program made to the file of an open document. Never raised for the app's own
+ * saves: Rust compares the content on disk with what the document last read or wrote.
+ */
+export interface DiskChange {
+  /** Rust's id for the document. */
+  readonly id: number
+  /** Hash of the content now on disk, 32 hex digits. */
+  readonly hash: string
+}
+
 /** Everything the UI needs from the machine. Implemented once per runtime. */
 export interface Host {
   readonly kind: 'tauri' | 'browser'
@@ -94,6 +105,16 @@ export interface Host {
   saveFile(id: number, text: string, endings: Endings): Promise<SavedFile>
   /** Tells Rust the document has no tab left. */
   closeDocument(id: number): Promise<void>
+  /**
+   * Reads an open document's file again. Rust then counts the document as in step with what it
+   * read, so the page decides what to do with it: show it, or only remember it as the disk's.
+   */
+  reloadDocument(id: number): Promise<OpenedFile>
+  /**
+   * Calls `onChange` for each change another program makes to the file of an open document.
+   * Returns the function that stops listening. Only one listener is live at a time.
+   */
+  watchChanges(onChange: (change: DiskChange) => void): Promise<() => void>
   /** Present only where the harness can drive the app. */
   readonly perf?: PerfHost
 }

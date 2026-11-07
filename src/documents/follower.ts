@@ -2,6 +2,7 @@ import type {
   ChangeSet,
   EditorSelection,
   EditorState,
+  StateEffect,
   Transaction,
   TransactionSpec,
 } from '@codemirror/state'
@@ -96,6 +97,16 @@ export class Follower implements FollowerLink {
       }).state
     } else {
       this.#pending = this.#pending === null ? changes : this.#pending.compose(changes)
+    }
+  }
+
+  /** Applies a setting change the document made, such as the file turning read-only. */
+  reconfigure(effect: StateEffect<unknown>): void {
+    const annotations = syncAnnotation.of(true)
+    if (this.#view !== null) {
+      this.#view.dispatch({ effects: effect, annotations })
+    } else {
+      this.#state = this.state.update({ effects: effect, annotations }).state
     }
   }
 

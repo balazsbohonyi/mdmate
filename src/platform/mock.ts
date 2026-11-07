@@ -1,6 +1,6 @@
 import type { Endings } from '@/lib/endings'
-import type { Host, OpenedFile, ReadOnlyReason, WindowControls } from './host'
-import { joinRaw, MockFiles, mockHash, splitRaw } from './mockFiles'
+import type { DiskChange, Host, OpenedFile, ReadOnlyReason, WindowControls } from './host'
+import { joinRaw, MockFiles, mockHash, pathKey, splitRaw } from './mockFiles'
 
 /**
  * Window controls for the browser. Maximize flips a flag so the title bar's icon can be seen
@@ -52,6 +52,11 @@ export interface MockHost extends Host {
   readonly files: MockFiles
   /** Document ids the host has open, with their paths. */
   openDocuments(): ReadonlyMap<number, string>
+  /**
+   * Runs `run` with the watcher deaf, so a change it makes to `files` raises no event, as when a
+   * file system drops one. The next save still notices the file changed.
+   */
+  withoutEvents(run: () => void): void
 }
 
 export interface MockHostOptions {
@@ -69,14 +74,69 @@ export interface MockHostOptions {
 export function createMockHost(options: MockHostOptions = {}): MockHost {
   const files = new MockFiles(options.files)
   const ids = new Map<string, number>()
-  const open = new Map<number, { path: string; readOnly: ReadOnlyReason | null }>()
+  /**
+   * What Rust remembers about an open document. `known` is the hash of the content it is in step
+   * with, and `reported` the hash of an outside change the page was already told about.
+   */
+  interface Open {
+    path: string
+    readOnly: ReadOnlyReason | null
+    known: string
+    reported: string | null
+  }
+  const open = new Map<number, Open>()
   let nextId = 0
+  let listener: ((change: DiskChange) => void) | undefined
+  let deaf = false
+
+  function describe(id: number, doc: Open, raw: string): OpenedFile {
+    const { text, endings } = splitRaw(raw)
+    return {
+      id,
+      path: doc.path,
+      name: doc.path.split('/').pop() ?? doc.path,
+      encoding: doc.readOnly === 'unsupported-encoding' ? 'unsupported' : 'utf-8',
+      bom: false,
+      readOnly: doc.readOnly,
+      size: new TextEncoder().encode(raw).length,
+      hash: mockHash(raw),
+      text,
+      endings,
+    }
+  }
+
+  /** What the real watcher does with a file system event: say so only about news. */
+  function deliver(path: string): void {
+    if (deaf) return
+    const key = pathKey(path)
+    for (const [id, doc] of open) {
+      if (pathKey(doc.path) !== key) continue
+      const raw = files.read(doc.path)
+      if (raw === undefined) continue // a vanished file says nothing; the tab keeps its text
+      const hash = mockHash(raw)
+      if (hash === doc.known) {
+        doc.reported = null
+      } else if (doc.reported !== hash) {
+        doc.reported = hash
+        listener?.({ id, hash })
+      }
+    }
+  }
+  files.onChange(deliver)
 
   const host: MockHost = {
     kind: 'browser',
     files,
     openDocuments() {
       return new Map([...open].map(([id, doc]) => [id, doc.path]))
+    },
+    withoutEvents(run) {
+      deaf = true
+      try {
+        run()
+      } finally {
+        deaf = false
+      }
     },
     platformName() {
       return Promise.resolve('browser')
@@ -105,22 +165,16 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
         id = ++nextId
         ids.set(key, id)
       }
-      const unsupported = files.isUnsupported(canonical)
-      const readOnly: ReadOnlyReason | null = unsupported ? 'unsupported-encoding' : null
-      open.set(id, { path: canonical, readOnly })
-      const { text, endings } = splitRaw(raw)
-      return Promise.resolve({
-        id,
-        path: canonical,
-        name: canonical.split('/').pop() ?? canonical,
-        encoding: unsupported ? 'unsupported' : 'utf-8',
-        bom: false,
-        readOnly,
-        size: new TextEncoder().encode(raw).length,
-        hash: mockHash(raw),
-        text,
-        endings,
-      })
+      // Like Rust: a file that is already open keeps what the host recorded for it. The page holds
+      // the text it read earlier, and decides what the fresh content means.
+      const existing = open.get(id)
+      if (existing !== undefined) return Promise.resolve(describe(id, existing, raw))
+      const readOnly: ReadOnlyReason | null = files.isUnsupported(canonical)
+        ? 'unsupported-encoding'
+        : null
+      const doc: Open = { path: canonical, readOnly, known: mockHash(raw), reported: null }
+      open.set(id, doc)
+      return Promise.resolve(describe(id, doc, raw))
     },
     saveFile(id: number, text: string, endings: Endings) {
       const doc = open.get(id)
@@ -128,13 +182,42 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
       if (doc.readOnly !== null) {
         return Promise.reject(hostError('read-only', 'the document is read-only'))
       }
+      // Like Rust: a file that changed since the document last read or wrote it is not overwritten.
+      const current = files.read(doc.path)
+      if (current !== undefined && mockHash(current) !== doc.known) {
+        return Promise.reject(
+          hostError('disk-changed', 'the file changed on disk since it was opened or last saved'),
+        )
+      }
       const raw = joinRaw(text, endings)
+      const hash = mockHash(raw)
+      // Recorded before the write, so the event the write raises is recognized as our own.
+      doc.known = hash
+      doc.reported = null
       files.write(doc.path, raw)
-      return Promise.resolve({ hash: mockHash(raw), size: new TextEncoder().encode(raw).length })
+      return Promise.resolve({ hash, size: new TextEncoder().encode(raw).length })
     },
     closeDocument(id) {
       open.delete(id)
       return Promise.resolve()
+    },
+    reloadDocument(id) {
+      const doc = open.get(id)
+      if (doc === undefined) return Promise.reject(hostError('not-open', `no open document ${id}`))
+      const raw = files.read(doc.path)
+      if (raw === undefined) {
+        return Promise.reject(hostError('not-found', `${doc.path} does not exist`))
+      }
+      doc.known = mockHash(raw)
+      doc.reported = null
+      doc.readOnly = files.isUnsupported(doc.path) ? 'unsupported-encoding' : null
+      return Promise.resolve(describe(id, doc, raw))
+    },
+    watchChanges(onChange) {
+      listener = onChange
+      return Promise.resolve(() => {
+        if (listener === onChange) listener = undefined
+      })
     },
   }
   return host

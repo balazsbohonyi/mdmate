@@ -13,4 +13,8 @@ impl Platform for Native {
     fn paths_ignore_case(&self) -> bool {
         false
     }
+
+    fn file_is_busy(&self, _error: &std::io::Error) -> bool {
+        false
+    }
 }

@@ -1,5 +1,7 @@
 import { redo, undo } from '@codemirror/commands'
 import {
+  ChangeSet,
+  Compartment,
   EditorState,
   Transaction,
   type Extension,
@@ -18,6 +20,47 @@ export interface Snapshot {
   readonly doc: Text
   readonly endings: Endings
   readonly text: string
+}
+
+/** The read-only setting of the master and of every follower, in a compartment so a reload can change it. */
+const readOnlySetting = new Compartment()
+
+function readOnlyFacet(readOnly: ReadOnlyReason | null): Extension {
+  return readOnlySetting.of(EditorState.readOnly.of(readOnly !== null))
+}
+
+const isHighSurrogate = (unit: number): boolean => unit >= 0xd800 && unit <= 0xdbff
+const isLowSurrogate = (unit: number): boolean => unit >= 0xdc00 && unit <= 0xdfff
+
+/**
+ * The smallest single change that turns `before` into `after`, or null when they are the same.
+ * Keeping it small keeps carets and scroll positions where they were, away from the edit.
+ */
+function smallestChange(
+  before: string,
+  after: string,
+): { from: number; to: number; insert: string } | null {
+  if (before === after) return null
+  const limit = Math.min(before.length, after.length)
+  let from = 0
+  while (from < limit && before.charCodeAt(from) === after.charCodeAt(from)) from++
+  // Never cut between the two halves of one character.
+  if (from > 0 && isHighSurrogate(before.charCodeAt(from - 1))) from--
+  let endBefore = before.length
+  let endAfter = after.length
+  while (
+    endBefore > from &&
+    endAfter > from &&
+    before.charCodeAt(endBefore - 1) === after.charCodeAt(endAfter - 1)
+  ) {
+    endBefore--
+    endAfter--
+  }
+  if (endBefore < before.length && isLowSurrogate(before.charCodeAt(endBefore))) {
+    endBefore++
+    endAfter++
+  }
+  return { from, to: endBefore, insert: after.slice(from, endAfter) }
 }
 
 export interface DocumentOptions {
@@ -57,7 +100,7 @@ export class Document implements FollowerHost {
     this.#options = options
     this.#master = createMasterState(opened.text, [
       lineEndingsFor(opened.endings),
-      EditorState.readOnly.of(opened.readOnly !== null),
+      readOnlyFacet(opened.readOnly),
     ])
     this.#saved = { doc: this.#master.doc, endings: endingsOf(this.#master) }
   }
@@ -87,7 +130,7 @@ export class Document implements FollowerHost {
           parser: this.#options.parser,
           extensions: [
             followerSync(link),
-            EditorState.readOnly.of(this.readOnly !== null),
+            readOnlyFacet(this.readOnly),
             this.#options.extensions ?? [],
           ],
         }),
@@ -170,6 +213,60 @@ export class Document implements FollowerHost {
     this.#saved = { doc: snapshot.doc, endings: snapshot.endings }
     this.diskHash = saved.hash
     this.#refreshDirty()
+  }
+
+  /**
+   * Replaces the document with what is on disk now, for a file another program changed. History
+   * starts over, since its steps describe text that is gone. Every follower gets the difference as
+   * one change, so carets away from it stay put. Edits not yet saved are lost, which is why the
+   * caller only does this for a document with none, or after the user chose it.
+   */
+  reload(opened: OpenedFile): void {
+    const before = this.#master
+    const change = smallestChange(before.doc.toString(), opened.text)
+    const changes =
+      change === null ? null : ChangeSet.of(change, before.doc.length, before.lineBreak)
+    this.#master = createMasterState(opened.text, [
+      lineEndingsFor(opened.endings),
+      readOnlyFacet(opened.readOnly),
+    ])
+    const selection = changes === null ? before.selection : before.selection.map(changes)
+    if (!selection.eq(this.#master.selection)) {
+      this.#master = this.#master.update({ selection }).state
+    }
+    this.#saved = { doc: this.#master.doc, endings: endingsOf(this.#master) }
+    this.diskHash = opened.hash
+    this.#applyReadOnly(opened.readOnly)
+    if (changes !== null) {
+      for (const follower of this.#followers.values()) follower.receive(changes)
+    }
+    this.#refreshDirty()
+  }
+
+  /**
+   * Takes the disk's content as the document's saved baseline without touching its text, for when
+   * the user keeps their edits over a change on disk. The document stays edited as long as its
+   * text differs from the disk's, and the next save replaces the file.
+   */
+  adoptDisk(opened: OpenedFile): void {
+    const theirs = createMasterState(opened.text, [lineEndingsFor(opened.endings)])
+    this.#saved = { doc: theirs.doc, endings: endingsOf(theirs) }
+    this.diskHash = opened.hash
+    this.#applyReadOnly(opened.readOnly)
+    this.#refreshDirty()
+  }
+
+  /** Follows a change in whether the file can be saved, in the master and in every follower. */
+  #applyReadOnly(readOnly: ReadOnlyReason | null): void {
+    if ((this.readOnly !== null) === (readOnly !== null)) {
+      this.readOnly = readOnly
+      return
+    }
+    this.readOnly = readOnly
+    const effect = readOnlySetting.reconfigure(EditorState.readOnly.of(readOnly !== null))
+    this.#master = this.#master.update({ effects: effect }).state
+    for (const follower of this.#followers.values()) follower.reconfigure(effect)
+    this.#changed(this)
   }
 
   #refreshDirty(): void {

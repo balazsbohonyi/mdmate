@@ -22,6 +22,10 @@ pub(crate) trait Platform {
     /// Whether the file system treats `A.md` and `a.md` as one file. Two spellings of a path must
     /// then count as the same document.
     fn paths_ignore_case(&self) -> bool;
+
+    /// Whether a read failed only because another program has the file locked for a moment, as
+    /// Windows reports while a file is being replaced. Such a read is worth trying again shortly.
+    fn file_is_busy(&self, error: &std::io::Error) -> bool;
 }
 
 /// The implementation for this OS.

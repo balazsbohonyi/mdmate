@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 40/181
+progress: 43/181
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-07T16:34:36Z
+updated: 2026-11-07T17:04:18Z
 principal_stated_goal: "I want to build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -311,9 +311,9 @@ Why: nobody trusts an editor twice after it loses their words, so no action here
 - [x] ISC-41: An edit in one pane appears in another pane showing that file.
 - [x] ISC-42: Undo from either pane reverts the last edit.
 - [x] ISC-43: Closing a pane keeps the document's undo history.
-- [ ] ISC-44: A disk change reloads a clean tab.
-- [ ] ISC-45: A disk change on an edited tab raises a conflict choice.
-- [ ] ISC-46: Anti: mdmate's own save triggers no reload or conflict.
+- [x] ISC-44: A disk change reloads a clean tab.
+- [x] ISC-45: A disk change on an edited tab raises a conflict choice.
+- [x] ISC-46: Anti: mdmate's own save triggers no reload or conflict.
 - [ ] ISC-47: A force-kill loses nothing up to the last journal write.
 - [ ] ISC-48: A restart restores tabs and split layout.
 - [ ] ISC-49: Anti: closing the app with unsaved edits shows no prompt.
@@ -526,6 +526,8 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - 2026-11-07: 2026-11-07: Kept open documents in a plain map with a small reactive record for the chrome, and made closing the last tab of an edited document ask first, in a banner inside the pane instead of a modal. Why: rule one keeps editor objects out of Vue, and closing the app never prompts because hot exit keeps the edits (ISC-49). Easy to change if the owner prefers a modal.
 - 2026-11-07: 2026-11-07: Gave each tab a follower state and kept undo history on one headless master per document. Parked tabs only note changes and apply them as one change when shown. Why: closing a pane never loses history (ISC-43), and typing in one pane does not make every parked tab parse. Selection undo (Mod-u) is not bound on followers.
 - 2026-11-07: 2026-11-07: Recognised a move by the shape of its change, one deletion and one insertion of the same text, instead of an effect carried from the follower. Why: the master receives only the change set, the undo and redo of a move have the same shape, and moving text is a move whoever does it. Two cursors that delete and type the same newlines look like a move too, which only changes the endings of the breaks typed there.
+- 2026-11-07: Decided what counts as an outside change by content, not by event: Rust keeps the hash each document last read or wrote and reports only a different one. Why: one save raises several events, notify can lose some, and the app's own write must be recognised; one comparison handles all three. A save records its hash before it writes, because the watcher thread can see the new file before the save returns.
+- 2026-11-07: Made opening a file that is already open leave Rust's record alone, and the page treats a different hash as an outside change. Why: refreshing the record made the host believe the page was current while it still held the old text, which would let a save overwrite a change the page never saw.
 
 ## Verification
 
@@ -569,6 +571,9 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-43: `pnpm test:web tests/documents/sync.test.ts`: after the follower that made two edits is closed, another follower undoes both and redoes one; closing every follower and opening a new one keeps the history. In the browser, closing the right pane's tab and pressing Ctrl+Z in the left reverted its edit (P2-T3).
 - ISC-2: `pnpm test:rust edit_isolation`: 1000 random files (UTF-8, UTF-8 with a BOM, UTF-16 in both orders, every ending), 982 of them given one edit at a random range; the bytes before the range and after it are the file's own and the middle is the new text. Breaking join two ways (ignoring every ending exception, or putting one a break late) fails it on run 0 (src-tauri/src/fs/mod.rs, src-tauri/src/fs/eol.rs) (P2-T4).
 - ISC-3: `pnpm test:web tests/editor/lineEndings.test.ts`: on the 367-line mixed-eol fixture, appending to, splitting, joining and deleting each line leaves every other line's raw bytes identical and undo puts the whole file back; 300 random runs of 40 steps (edits, two-change edits, drags, undo, redo) match a plain reference model after every step and undoing a whole run gives back the opened bytes. Four deliberate breaks of the field fail 6, 4, 4 and 14 tests (src/editor/lineEndings.ts) (P2-T4).
+- ISC-44: `pnpm test:web tests/documents/external.test.ts`: a write to an open file with a clean tab replaces its text and line endings, keeps a caret away from the change where it was, starts the undo history over, follows a file turning read-only into every editor, and applies the later of two writes that overlap one read; a file that vanishes changes nothing. Breaking the reload fails 9 tests, the per-document ordering 1, the fresh history 3. Also seen in the real window with a real file write and a rename-style replace (src/documents/store.ts, src/documents/document.ts) (P2-T5).
+- ISC-45: `pnpm test:web tests/documents/external.test.ts`: a write to a tab with edits raises a conflict and leaves its text, its edited mark and the file alone; saving is refused until Keep mine (keeps the edits, next save replaces the file) or Load theirs (shows the file, drops the edits); the host itself still refuses a save over the new file; a change no event reported is found by the save or by opening the file again. Reading an edited tab anyway fails 1 test, a save that ignores a pending conflict 1, typing overwritten during a read 1. Real window: banner shown, Keep mine and Load theirs clicked (src/documents/store.ts) (P2-T5).
+- ISC-46: `pnpm test:rust own_save_ignored`: the watcher's event delivered after the save, delivered before the save returns (through Stage::AfterRename) and from the running notify watcher reports no change. Recording the hash after the write instead of before fails the before-return test, and a watcher that stops comparing with the recorded hash fails five. Real window: Ctrl+S left the editor state the same object with no banner (src-tauri/src/documents.rs, src-tauri/src/workspace/watch.rs) (P2-T5).
 
 ## Remaining Work
 

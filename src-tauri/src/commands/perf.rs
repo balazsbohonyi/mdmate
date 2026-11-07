@@ -72,6 +72,17 @@ pub(crate) async fn perf_report(app: tauri::AppHandle, json: String) -> Result<(
     Ok(())
 }
 
+/// Lets the page open a file without the native dialog, which no harness can drive. The path comes
+/// from whoever launched the perf build and is the only thing it gains access to.
+#[tauri::command]
+pub(crate) fn perf_grant_file(
+    state: tauri::State<'_, std::sync::Arc<AppState>>,
+    path: String,
+) -> Result<(), AppError> {
+    state.access().grant_file(std::path::Path::new(&path))?;
+    Ok(())
+}
+
 /// P0 lab: grows the asset protocol scope while the app runs, which is what opening a folder
 /// would need to do for the images inside it.
 #[tauri::command]

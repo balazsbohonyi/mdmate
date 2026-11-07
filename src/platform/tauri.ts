@@ -1,8 +1,8 @@
-import { convertFileSrc, invoke } from '@tauri-apps/api/core'
+import { Channel, convertFileSrc, invoke } from '@tauri-apps/api/core'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { decodeFrame, encodeFrame, openedFromFrame } from './frame'
-import type { Host, PerfConfig, PerfHost, SavedFile } from './host'
+import type { DiskChange, Host, PerfConfig, PerfHost, SavedFile } from './host'
 
 /** The Rust commands behind this exist only in `--features perf` builds. */
 const perfBridge: PerfHost = {
@@ -88,6 +88,18 @@ export const tauriHost: Host = {
   },
   async closeDocument(id) {
     await invoke('close_document', { id })
+  },
+  async reloadDocument(id) {
+    return openedFromFrame(decodeFrame(await invoke<ArrayBuffer>('reload_document', { id })))
+  },
+  async watchChanges(onChange) {
+    const channel = new Channel<DiskChange>()
+    channel.onmessage = onChange
+    await invoke('watch_changes', { onEvent: channel })
+    // Rust keeps one channel, and subscribing again replaces it, so stopping only mutes this one.
+    return () => {
+      channel.onmessage = () => undefined
+    }
   },
   // Only `pnpm perf` sets the flag. A normal build drops the bridge and its command names.
   ...(import.meta.env.VITE_MDMATE_PERF ? { perf: perfBridge } : {}),

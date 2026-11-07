@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { watchDisk } from '@/documents/store'
 import { reportWindowShown } from '@/lib/lifecycle'
 import { getHost } from '@/platform'
 import AppShell from '@/shell/AppShell.vue'
@@ -23,6 +24,8 @@ onMounted(async () => {
   await afterPaint()
   await host.showWindow()
   reportWindowShown()
+  // After the window is up, so it does not count against startup. It reports its own failure.
+  void watchDisk()
 })
 </script>
 

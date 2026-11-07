@@ -5,13 +5,14 @@
 
 use crate::access::{Access, Resolved, display_path};
 use crate::error::AppError;
-use crate::fs::document::{Opened, ReadOnlyReason};
+use crate::fs::document::{Opened, ReadOnlyReason, content_hash};
 use crate::fs::encoding::Format;
 use crate::fs::{self, Saved, atomic, frame};
+use crate::workspace::watch::{DiskChange, Watcher};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 
 /// What Rust remembers about an open document.
 #[derive(Clone, Debug)]
@@ -22,6 +23,9 @@ pub(crate) struct DocEntry {
     pub(crate) format: Option<Format>,
     /// The hash of the content last read from or written to disk. The watcher compares with it.
     pub(crate) known_hash: u128,
+    /// The hash of a change from outside that the page was already told about, so one change is
+    /// reported once however many events the file system raises for it.
+    pub(crate) reported_hash: Option<u128>,
 }
 
 #[derive(Debug, Default)]
@@ -32,21 +36,21 @@ pub(crate) struct Documents {
 }
 
 impl Documents {
-    /// Adds a document, or refreshes it when the same file is already open. Returns its id.
+    /// Adds a document and returns its id. A file that is already open keeps its entry as it is:
+    /// the page still holds the text it read earlier, and the recorded hash and format describe
+    /// that text. The page sees the new content in the frame and decides what it means.
     pub(crate) fn register(
         &mut self,
         resolved: &Resolved,
         format: Option<Format>,
         hash: u128,
     ) -> u32 {
-        let id = match self.by_key.get(&resolved.key) {
-            Some(&id) => id,
-            None => {
-                self.next_id += 1;
-                self.by_key.insert(resolved.key.clone(), self.next_id);
-                self.next_id
-            }
-        };
+        if let Some(&id) = self.by_key.get(&resolved.key) {
+            return id;
+        }
+        self.next_id += 1;
+        let id = self.next_id;
+        self.by_key.insert(resolved.key.clone(), id);
         self.by_id.insert(
             id,
             DocEntry {
@@ -54,6 +58,7 @@ impl Documents {
                 key: resolved.key.clone(),
                 format,
                 known_hash: hash,
+                reported_hash: None,
             },
         );
         id
@@ -63,9 +68,20 @@ impl Documents {
         self.by_id.get(&id)
     }
 
+    pub(crate) fn get_mut(&mut self, id: u32) -> Option<&mut DocEntry> {
+        self.by_id.get_mut(&id)
+    }
+
+    /// Every open document with its id.
+    pub(crate) fn entries(&self) -> impl Iterator<Item = (u32, &DocEntry)> {
+        self.by_id.iter().map(|(&id, entry)| (id, entry))
+    }
+
+    /// Records the content now on disk as the one the document is in step with.
     pub(crate) fn set_known_hash(&mut self, id: u32, hash: u128) {
         if let Some(entry) = self.by_id.get_mut(&id) {
             entry.known_hash = hash;
+            entry.reported_hash = None;
         }
     }
 
@@ -79,16 +95,61 @@ impl Documents {
 /// Everything the commands share. Held in Tauri's managed state.
 #[derive(Debug)]
 pub(crate) struct AppState {
+    ignore_case: bool,
     access: Mutex<Access>,
     documents: Mutex<Documents>,
+    /// Started when the page first asks for changes; see [`AppState::start_watcher`].
+    watcher: OnceLock<Watcher>,
 }
 
 impl AppState {
     pub(crate) fn new(ignore_case: bool) -> Self {
         Self {
+            ignore_case,
             access: Mutex::new(Access::new(ignore_case)),
             documents: Mutex::new(Documents::default()),
+            watcher: OnceLock::new(),
         }
+    }
+
+    /// A path as the watcher compares it: the way people read it, lower-cased where the file
+    /// system ignores case. Event paths and document paths both go through this.
+    pub(crate) fn spelling_key(&self, path: &Path) -> String {
+        let text = display_path(path);
+        if self.ignore_case {
+            text.to_lowercase()
+        } else {
+            text
+        }
+    }
+
+    /// Starts watching the folders of the open documents, and sends every change another program
+    /// makes to `sink`. Called again, it only replaces the sink, so a page that reloads does not
+    /// start a second watcher.
+    pub(crate) fn start_watcher(
+        self: &Arc<Self>,
+        sink: Box<dyn Fn(DiskChange) + Send + Sync>,
+    ) -> Result<(), AppError> {
+        if let Some(watcher) = self.watcher.get() {
+            watcher.set_sink(sink);
+            return Ok(());
+        }
+        let watcher = Watcher::start(self, sink)?;
+        let open: Vec<(u32, PathBuf)> = self
+            .documents()
+            .entries()
+            .map(|(id, entry)| (id, entry.path.clone()))
+            .collect();
+        for (id, path) in open {
+            watcher.watch(id, &path);
+        }
+        // Losing the race to another call leaves that one's watcher in place, which is fine.
+        let _ = self.watcher.set(watcher);
+        Ok(())
+    }
+
+    pub(crate) fn watcher(&self) -> Option<&Watcher> {
+        self.watcher.get()
     }
 
     // A thread that panicked while holding a lock must not take the whole app down with it, so a
@@ -117,6 +178,34 @@ pub(crate) fn open_document(state: &AppState, path: &Path) -> Result<Vec<u8>, Ap
     let id = state
         .documents()
         .register(&resolved, opened.format, opened.hash);
+    if let Some(watcher) = state.watcher() {
+        watcher.watch(id, &resolved.path);
+    }
+    Ok(open_frame(id, &resolved, &opened))
+}
+
+/// Reads an open document's file again, for when the page asks for what is on disk now. The
+/// document is then in step with that content, so the watcher stays quiet about it. The page
+/// decides whether to show it (load theirs) or only to remember it (keep mine).
+pub(crate) fn reload_document(state: &AppState, id: u32) -> Result<Vec<u8>, AppError> {
+    let entry = state
+        .documents()
+        .get(id)
+        .cloned()
+        .ok_or(AppError::NotOpen(id))?;
+    let opened = fs::open_path(&entry.path)?;
+    {
+        let mut documents = state.documents();
+        // The document may have closed while the file was read.
+        let current = documents.get_mut(id).ok_or(AppError::NotOpen(id))?;
+        current.format = opened.format;
+        current.known_hash = opened.hash;
+        current.reported_hash = None;
+    }
+    let resolved = Resolved {
+        path: entry.path,
+        key: entry.key,
+    };
     Ok(open_frame(id, &resolved, &opened))
 }
 
@@ -177,14 +266,48 @@ pub(crate) fn save_document_with(
         ));
     };
     let frame = frame::decode(body)?;
-    let saved = fs::save_path_with(&entry.path, frame.text, &frame.endings, format, hook)?;
-    // Record what we just wrote, so the watcher's event for it is recognized and ignored.
-    state.documents().set_known_hash(id, saved.hash);
-    Ok(saved)
+    let recorded = std::cell::Cell::new(None);
+    let saved = fs::save_path_guarded(
+        &entry.path,
+        frame.text,
+        &frame.endings,
+        format,
+        |hash| {
+            // Saving over a file that changed behind the app's back would lose that change, so it
+            // is refused and the page asks the user. A file that cannot be read (it is gone, or
+            // locked) is not a reason to refuse: the save recreates it or fails on its own.
+            if let Ok(current) = fs::read_bytes_settled(&entry.path)
+                && content_hash(&current) != entry.known_hash
+            {
+                return Err(AppError::DiskChanged);
+            }
+            // The watcher can see the new file before this function returns, and must find the
+            // hash it is looking for already recorded. So it is recorded before the write, and put
+            // back if the write fails.
+            state.documents().set_known_hash(id, hash);
+            recorded.set(Some(hash));
+            Ok(())
+        },
+        hook,
+    );
+    // The write failed after the hash went in: the file is as it was, so the record goes back too.
+    // Only if nothing else has moved it on in the meantime.
+    if saved.is_err()
+        && let Some(hash) = recorded.get()
+        && let Some(current) = state.documents().get_mut(id)
+        && current.known_hash == hash
+    {
+        current.known_hash = entry.known_hash;
+        current.reported_hash = entry.reported_hash;
+    }
+    saved
 }
 
 /// Forgets a document. Its tab is gone, so it no longer needs watching or saving.
 pub(crate) fn close_document(state: &AppState, id: u32) {
+    if let Some(watcher) = state.watcher() {
+        watcher.unwatch(id);
+    }
     state.documents().remove(id);
 }
 
@@ -338,6 +461,70 @@ mod tests {
         assert_eq!(error.kind(), "io");
         assert_eq!(std::fs::read(&path).expect("readable"), b"one\r\ntwo\r\n");
         assert_eq!(state.documents().get(id).map(|e| e.known_hash), before);
+    }
+
+    /// Opens `a.md` (with "one\r\ntwo\r\n" in it) and returns the state, the id and the path.
+    fn opened_a(dir: &Path) -> (AppState, u32, PathBuf) {
+        let state = state_with(dir, &["a.md"]);
+        let path = dir.join("a.md");
+        state.access().grant_file(&path).expect("grants");
+        let bytes = open_document(&state, &path).expect("opens");
+        let frame = frame::decode(&bytes).expect("a frame");
+        let id = u32::try_from(frame.header.get("id").and_then(Value::as_u64).expect("id"))
+            .expect("small");
+        (state, id, path)
+    }
+
+    #[test]
+    fn a_save_over_a_file_that_changed_behind_our_back_is_refused() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let (state, id, path) = opened_a(dir.path());
+        let known = state.documents().get(id).map(|e| e.known_hash);
+        std::fs::write(&path, b"theirs\r\n").expect("written by another program");
+
+        let error = save_document(&state, id, &edit_frame("mine\n")).expect_err("refused");
+
+        assert_eq!(error.kind(), "disk-changed");
+        assert_eq!(std::fs::read(&path).expect("readable"), b"theirs\r\n");
+        assert_eq!(state.documents().get(id).map(|e| e.known_hash), known);
+
+        // Once the page has taken a look at what is on disk, the save goes through.
+        reload_document(&state, id).expect("reloads");
+        save_document(&state, id, &edit_frame("mine\n")).expect("saves");
+        assert_eq!(std::fs::read(&path).expect("readable"), b"mine\r\n");
+    }
+
+    #[test]
+    fn opening_an_open_file_again_does_not_make_the_page_look_current() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let (state, id, path) = opened_a(dir.path());
+        let known = state.documents().get(id).map(|e| e.known_hash);
+        std::fs::write(&path, b"theirs\r\n").expect("written by another program");
+
+        let bytes = open_document(&state, &path).expect("opens again");
+        let frame = frame::decode(&bytes).expect("a frame");
+
+        assert_eq!(
+            frame.header.get("id").and_then(Value::as_u64),
+            Some(u64::from(id))
+        );
+        assert_eq!(
+            frame.text, "theirs\n",
+            "the frame carries what is on disk now"
+        );
+        assert_eq!(state.documents().get(id).map(|e| e.known_hash), known);
+        // The page still holds the old text, so a save from it must not overwrite the new file.
+        let error = save_document(&state, id, &edit_frame("mine\n")).expect_err("refused");
+        assert_eq!(error.kind(), "disk-changed");
+    }
+
+    #[test]
+    fn a_save_recreates_a_file_that_was_deleted() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let (state, id, path) = opened_a(dir.path());
+        std::fs::remove_file(&path).expect("removed");
+        save_document(&state, id, &edit_frame("back\n")).expect("saves");
+        assert_eq!(std::fs::read(&path).expect("readable"), b"back\r\n");
     }
 
     #[test]

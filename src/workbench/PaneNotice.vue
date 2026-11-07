@@ -1,12 +1,19 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { docMeta } from '@/documents/meta'
-import { pendingClose, resolvePendingClose } from '@/documents/store'
+import { pendingClose, resolveConflict, resolvePendingClose } from '@/documents/store'
 
 const { docId, tabId } = defineProps<{ docId: number; tabId: string }>()
 
 const meta = computed(() => docMeta(docId))
 const closing = computed(() => pendingClose.value?.tabId === tabId)
+const conflict = computed(() => meta.value?.conflict ?? null)
+
+function settle(choice: 'mine' | 'theirs'): void {
+  resolveConflict(docId, choice).catch((error: unknown) => {
+    console.error('Could not settle the conflict', error)
+  })
+}
 
 function resolve(choice: 'save' | 'discard' | 'cancel'): void {
   resolvePendingClose(choice).catch((error: unknown) => {
@@ -53,7 +60,31 @@ function resolve(choice: 'save' | 'discard' | 'cancel'): void {
     </button>
   </div>
   <div
-    v-else-if="meta?.readOnly"
+    v-if="conflict !== null"
+    role="alert"
+    data-testid="conflict-notice"
+    class="flex shrink-0 items-center gap-3 border-b border-border bg-muted px-3 py-1.5 text-chrome"
+  >
+    <span class="min-w-0 flex-1 truncate">
+      {{ meta?.name }} changed on disk, and you have edits the disk does not have.
+    </span>
+    <button
+      type="button"
+      class="rounded-sm px-2 py-0.5 hover:bg-accent"
+      @click="settle('mine')"
+    >
+      Keep mine
+    </button>
+    <button
+      type="button"
+      class="rounded-sm px-2 py-0.5 hover:bg-accent"
+      @click="settle('theirs')"
+    >
+      Load theirs
+    </button>
+  </div>
+  <div
+    v-if="!closing && conflict === null && meta?.readOnly"
     role="status"
     class="shrink-0 border-b border-border bg-muted px-3 py-1.5 text-chrome"
   >
@@ -65,7 +96,7 @@ function resolve(choice: 'save' | 'discard' | 'cancel'): void {
     }}
   </div>
   <div
-    v-else-if="meta?.saveError"
+    v-else-if="!closing && conflict === null && meta?.saveError"
     role="alert"
     class="shrink-0 border-b border-border bg-muted px-3 py-1.5 text-chrome text-destructive"
   >

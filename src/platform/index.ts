@@ -1,6 +1,7 @@
 import type { Host } from './host'
 
 export type {
+  DiskChange,
   Host,
   OpenedFile,
   PerfConfig,

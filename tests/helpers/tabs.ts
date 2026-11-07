@@ -15,6 +15,7 @@ export function namedDoc(name: string): TabRecord {
     dirty: false,
     readOnly: null,
     saveError: null,
+    conflict: null,
   })
   return { kind: 'markdown', docId: id }
 }

@@ -33,8 +33,11 @@ pub fn run() {
         commands::open_file,
         commands::save_file,
         commands::close_document,
+        commands::reload_document,
+        commands::watch_changes,
         commands::perf::perf_config,
         commands::perf::perf_report,
+        commands::perf::perf_grant_file,
         commands::perf::perf_allow_directory,
         commands::perf::perf_toggle_maximize,
         commands::perf::perf_start_dragging
@@ -46,7 +49,9 @@ pub fn run() {
         commands::pick_files,
         commands::open_file,
         commands::save_file,
-        commands::close_document
+        commands::close_document,
+        commands::reload_document,
+        commands::watch_changes
     ]);
     builder
         .run(tauri::generate_context!())

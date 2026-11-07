@@ -11,6 +11,10 @@ use std::sync::atomic::{AtomicU32, Ordering};
 pub(crate) enum Stage {
     /// The temp file is fully written and flushed; the rename has not happened.
     BeforeRename,
+    /// The rename is done and the new bytes are the file. What the hook returns is ignored, since
+    /// the file has already been replaced. Tests use this stage to act as another thread that
+    /// sees the new file before the save has returned.
+    AfterRename,
 }
 
 static COUNTER: AtomicU32 = AtomicU32::new(0);
@@ -65,6 +69,7 @@ fn write_then_swap(
     }
     hook(Stage::BeforeRename)?;
     std::fs::rename(temp, target)?;
+    let _ = hook(Stage::AfterRename);
     Ok(())
 }
 
@@ -116,6 +121,7 @@ mod tests {
 
         let error = write_atomic_with(&path, b"half-written replacement", |stage| match stage {
             Stage::BeforeRename => Err(std::io::Error::other("injected failure")),
+            Stage::AfterRename => Ok(()),
         })
         .expect_err("the hook makes the save fail");
 

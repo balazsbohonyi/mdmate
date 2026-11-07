@@ -7,6 +7,7 @@ pub(crate) mod eol;
 pub(crate) mod frame;
 
 use crate::error::AppError;
+use crate::platform::{self, Platform as _};
 use document::{Opened, content_hash, open_bytes, save_bytes};
 use encoding::Format;
 use eol::Endings;
@@ -17,9 +18,25 @@ pub(crate) fn read_bytes(path: &Path) -> Result<Vec<u8>, AppError> {
     Ok(std::fs::read(path)?)
 }
 
+/// Reads a file that another program may be in the middle of replacing. A few short retries ride
+/// out the moment it is locked; a file that is not there fails at once.
+pub(crate) fn read_bytes_settled(path: &Path) -> Result<Vec<u8>, AppError> {
+    let mut attempt = 0;
+    loop {
+        match std::fs::read(path) {
+            Ok(bytes) => return Ok(bytes),
+            Err(error) if attempt < 5 && platform::current().file_is_busy(&error) => {
+                attempt += 1;
+                std::thread::sleep(std::time::Duration::from_millis(40));
+            }
+            Err(error) => return Err(error.into()),
+        }
+    }
+}
+
 /// Reads a file and turns it into an editable document.
 pub(crate) fn open_path(path: &Path) -> Result<Opened, AppError> {
-    Ok(open_bytes(&read_bytes(path)?))
+    Ok(open_bytes(&read_bytes_settled(path)?))
 }
 
 /// What a save wrote.
@@ -31,8 +48,34 @@ pub(crate) struct Saved {
 }
 
 /// Joins the endings back, encodes the way the file was, and writes with a temp file and rename.
-/// `hook` can make the write fail just before the rename; tests use it, production passes one that
-/// never fails.
+///
+/// `before_write` gets the hash of the bytes about to be written, after they are made and before
+/// anything touches the file. It can refuse the save, and it is where the caller records the hash
+/// so that the file watcher, which may see the new file before this function returns, already
+/// knows it is the app's own write.
+///
+/// `hook` can make the write fail just before the rename, or run just after it; tests use it,
+/// production passes one that never fails.
+pub(crate) fn save_path_guarded(
+    path: &Path,
+    text: &str,
+    endings: &Endings,
+    format: Format,
+    before_write: impl FnOnce(u128) -> Result<(), AppError>,
+    hook: impl Fn(atomic::Stage) -> std::io::Result<()>,
+) -> Result<Saved, AppError> {
+    let bytes = save_bytes(text, endings, format)?;
+    let hash = content_hash(&bytes);
+    before_write(hash)?;
+    atomic::write_atomic_with(path, &bytes, hook)?;
+    Ok(Saved {
+        hash,
+        size: u64::try_from(bytes.len()).unwrap_or(u64::MAX),
+    })
+}
+
+/// [`save_path_guarded`] with nothing to check first.
+#[cfg(test)]
 pub(crate) fn save_path_with(
     path: &Path,
     text: &str,
@@ -40,12 +83,7 @@ pub(crate) fn save_path_with(
     format: Format,
     hook: impl Fn(atomic::Stage) -> std::io::Result<()>,
 ) -> Result<Saved, AppError> {
-    let bytes = save_bytes(text, endings, format)?;
-    atomic::write_atomic_with(path, &bytes, hook)?;
-    Ok(Saved {
-        hash: content_hash(&bytes),
-        size: u64::try_from(bytes.len()).unwrap_or(u64::MAX),
-    })
+    save_path_guarded(path, text, endings, format, |_| Ok(()), hook)
 }
 
 #[cfg(test)]

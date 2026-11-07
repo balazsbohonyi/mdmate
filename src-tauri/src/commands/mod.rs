@@ -9,9 +9,11 @@ use crate::access::display_path;
 use crate::documents::{self, AppState};
 use crate::error::AppError;
 use crate::platform::{self, Platform as _};
+use crate::workspace::watch::DiskChange;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::State;
+use tauri::ipc::Channel;
 
 /// Reports the OS name from the platform layer.
 #[tauri::command]
@@ -120,4 +122,32 @@ pub(crate) async fn save_file(
 #[tauri::command]
 pub(crate) fn close_document(state: State<'_, Arc<AppState>>, id: u32) {
     documents::close_document(&state, id);
+}
+
+/// Reads an open document's file again and returns it as a frame, like `open_file`. The document
+/// is then in step with what is on disk, so no change is reported for it.
+#[tauri::command]
+pub(crate) async fn reload_document(
+    state: State<'_, Arc<AppState>>,
+    id: u32,
+) -> Result<tauri::ipc::Response, AppError> {
+    let state = state.inner().clone();
+    let frame =
+        tauri::async_runtime::spawn_blocking(move || documents::reload_document(&state, id))
+            .await
+            .map_err(|error| AppError::Task(error.to_string()))??;
+    Ok(tauri::ipc::Response::new(frame))
+}
+
+/// Starts telling the page about every change another program makes to a file it has open. The
+/// page calls this once at startup; calling it again replaces the channel.
+#[tauri::command]
+pub(crate) fn watch_changes(
+    state: State<'_, Arc<AppState>>,
+    on_event: Channel<DiskChange>,
+) -> Result<(), AppError> {
+    state.start_watcher(Box::new(move |change| {
+        // A page that has gone away has nobody to tell; the next subscription replaces this one.
+        let _ = on_event.send(change);
+    }))
 }
