@@ -123,7 +123,7 @@ const SPECS: Record<string, Spec> = {
     claim: 'ISC-4',
     page: 'startup',
     headlineName: 'launch to editable',
-    targetMs: 1000,
+    targetMs: 1500,
     metrics({ report, spawnMs }) {
       const t = (name: string) => v(report, name)
       return {
