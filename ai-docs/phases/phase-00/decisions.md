@@ -49,3 +49,13 @@ Deviations from the plan and choices it left open. Numbers carry the OS they cam
 - **Jobs.** `windows` runs `pnpm check`, `pnpm check:rust`, `pnpm test:web` and `pnpm test:rust`. `compile` runs `cargo check` on macOS and Linux. The Linux job installs the package list from the Tauri v2 prerequisites page (verified 2026-11-07), including `libwebkit2gtk-4.1-dev`.
 - **Actions are pinned to major tags** (checkout v7, setup-node v7, pnpm/action-setup v6, rust-cache v2, rust-toolchain stable) as of 2026-11-07, with read-only token permissions.
 - **Expect CRLF on the Windows runner.** Git there checks out CRLF by default; Prettier, `check-arch`, `check-isa` and `cargo fmt` all accept it, and fixtures are `-text`.
+
+## P0-T6
+
+- **`pnpm fixtures` writes every fixture, and the output is the same bytes on every run.** The script uses a seeded generator (mulberry32) and no clock. `tests/scripts/fixtures.test.ts` generates twice into temp folders and compares hashes.
+- **The 8 small fixtures are committed (115 KB in total); the 4 large ones are generated.** The large ones are 1 MB and 10 MB realistic Markdown, a table-heavy 1 MB file and a code-heavy file, all in `tests/fixtures/generated/`, which git ignores. A test checks the committed small files against the generator, so a hand edit shows up as a failure.
+- **The code-heavy file is 1.38 MB, not 1.0.** It contains blocks of up to 20,000 lines, and the test requires at least one block of 5,000 lines or more. Perf scenarios that need exactly 1 MB use `realistic-1mb.md`.
+- **Realistic structure** means frontmatter, headings 1 to 4, paragraphs with bold, italic, code, strikethrough, relative links, reference links and autolinks, lists, task lists, quotes, tables, fenced code in 8 languages, images, rules and reference definitions. About 17% of words draw from a non-ASCII list.
+- **The UTF-8 BOM, UTF-16 LE and UTF-16 BE files hold the same text**, and the test decodes each and compares it. The Latin-1 file uses only characters Latin-1 can encode, and the test confirms it fails strict UTF-8.
+- **`hostile.md` names only `.invalid` hosts and `example.com`**, plus one local path (`file:///C:/Windows/System32/calc.exe`) that would open Calculator at worst. A test checks every host. Each script and handler payload sets `document.title`, so a leak would show. Never open this file in a browser.
+- **Line endings:** `.gitattributes` marks the folder `-text` (checked with `git check-attr`), and Prettier ignores `tests/fixtures/`.
