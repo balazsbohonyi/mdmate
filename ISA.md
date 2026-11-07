@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 29/181
+progress: 33/181
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-07T15:37:30Z
+updated: 2026-11-07T16:00:09Z
 principal_stated_goal: "I want to build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -303,8 +303,8 @@ Why: a dense keyboard-driven layout you can rearrange freely is what separates t
 ### F2 · Reliable documents
 Why: nobody trusts an editor twice after it loses their words, so no action here may lose work.
 
-- [ ] ISC-36: Opening a file loads its content into a tab.
-- [ ] ISC-37: Ctrl+S writes edits to disk.
+- [x] ISC-36: Opening a file loads its content into a tab.
+- [x] ISC-37: Ctrl+S writes edits to disk.
 - [ ] ISC-38: Tabs with unsaved edits show a dirty marker.
 - [x] ISC-39: Files in unsupported encodings open read-only with a notice.
 - [x] ISC-40: Anti: a failed save never damages the original file.
@@ -317,7 +317,7 @@ Why: nobody trusts an editor twice after it loses their words, so no action here
 - [ ] ISC-47: A force-kill loses nothing up to the last journal write.
 - [ ] ISC-48: A restart restores tabs and split layout.
 - [ ] ISC-49: Anti: closing the app with unsaved edits shows no prompt.
-- [ ] ISC-174: Opening an already open file focuses its tab.
+- [x] ISC-174: Opening an already open file focuses its tab.
 
 ### F3 · Inline live preview
 Why: this is the reason mdmate exists; you read the rendered page and edit it in place, with syntax only where you are working.
@@ -392,7 +392,7 @@ Why: formatting should stay in your fingers, so writing never stops for syntax.
 Why: Markdown lives among other files, so the sidebar must manage them and renames must never strand a link.
 
 - [ ] ISC-97: Multiple root folders show in the tree.
-- [ ] ISC-98: A loose file opens without any root folder.
+- [x] ISC-98: A loose file opens without any root folder.
 - [ ] ISC-99: A 10,000-entry folder renders under 200 rows.
 - [ ] ISC-100: The tree creates a new file.
 - [ ] ISC-101: The tree renames a file.
@@ -523,6 +523,7 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - 2026-11-07: Chose `rfd` directly for the open dialog over `tauri-plugin-dialog`, since the plugin pulls `tauri-plugin-fs` into the build graph and ISC-21 says that crate is absent.
 - 2026-11-07: Chose a path policy where the page can read and save only files Rust saw the user choose, or files inside an open workspace folder, compared with symlinks resolved. The page has no command that grants access. Saves go by a Rust-issued document id, never by a path.
 - 2026-11-07: refined: the P0 decision (newline-only text, endings in a state field) supersedes the Phase 2 plan line "Set `EditorState.lineSeparator` from the file" and the matching architecture bullet. `lineSeparator` stays at its default.
+- 2026-11-07: 2026-11-07: Kept open documents in a plain map with a small reactive record for the chrome, and made closing the last tab of an edited document ask first, in a banner inside the pane instead of a modal. Why: rule one keeps editor objects out of Vue, and closing the app never prompts because hot exit keeps the edits (ISC-49). Easy to change if the owner prefers a modal.
 
 ## Verification
 
@@ -555,6 +556,10 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-1: `pnpm test:rust roundtrip_unedited` reads every fixture (8 committed, 7 generated up to 10 MB), splits it into text and endings, joins and encodes it again, and gets identical bytes and hash, also through a temp-folder save; 3000 seeded random byte strings in four shapes do the same or open read-only (src-tauri/src/fs/mod.rs). Broken on purpose twice (`join` ignoring the exceptions, `encode` dropping the BOM), the fixture tests fail. The page half is checked in P2-T2 (P2-T1).
 - ISC-39: `pnpm test:rust unsupported_encoding`: the Latin-1 fixture, broken UTF-8 and broken UTF-16 open as `unsupported-encoding` with their text shown, and a save for them is refused with `read-only` (src-tauri/src/fs/mod.rs, src-tauri/src/documents.rs). The notice itself is drawn in P2-T2 (P2-T1).
 - ISC-40: `pnpm test:rust atomic_save`: a failure injected after the temp file is flushed and before the rename leaves the original bytes untouched and no temp file behind, for an existing and a missing target; a failed rename onto a folder does the same. Writing straight to the target instead makes two of them fail (src-tauri/src/fs/atomic.rs, P2-T1).
+- ISC-36: `pnpm test:web tests/documents/open.test.ts`: a file opened through the mock host shows its content in a new tab named after the file; the dialog opens several files, a cancelled dialog opens none, and a file that fails is named while the others still open. In the browser (Claude in Chrome on pnpm dev) Ctrl+O put README.md and notes.md in tabs with their text and the path in the status bar (src/documents/store.ts) (P2-T2).
+- ISC-37: `pnpm test:rust save_writes_edits` writes edits in every supported encoding and leaves the other lines' endings alone (src-tauri/src/fs/mod.rs); `pnpm test:web tests/documents/open.test.ts` presses Ctrl+S on a clean and on an edited document: one host save with the right bytes, and the key taken from the page both times. In the browser Ctrl+S cleared the dirty dot and wrote the file, and a mixed LF, CRLF and CR file came back byte for byte with one character added. Not run through the real window's Rust path, because the desktop was locked; see decisions (P2-T2).
+- ISC-98: `pnpm test:web tests/documents/open.test.ts` opens a file with no folder and no root anywhere in the store; `pnpm test:rust access` shows Rust allows the files the user chose and not their neighbours, and in the real app a file nobody chose is refused with `not-allowed` (src-tauri/src/access.rs) (P2-T2).
+- ISC-174: `pnpm test:web tests/documents/open.test.ts` opens one path twice, once in another spelling, and once from a different pane: each time the existing tab is focused, in the pane that holds it, and no second tab appears (src/documents/store.ts) (P2-T2).
 
 ## Remaining Work
 

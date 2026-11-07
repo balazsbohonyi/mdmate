@@ -1,3 +1,5 @@
+import type { Endings } from '@/lib/endings'
+
 /** What the perf harness asked this run to do. Mirrors the Rust `PerfConfig`. */
 export interface PerfConfig {
   scenario: string
@@ -43,6 +45,34 @@ export interface WindowControls {
   onMaximizedChange(handler: (maximized: boolean) => void): Promise<() => void>
 }
 
+/** Why a document cannot be saved. Mirrors the Rust `ReadOnlyReason`. */
+export type ReadOnlyReason = 'unsupported-encoding' | 'not-round-trippable'
+
+/** A file as Rust opened it: decoded text with a plain newline as its only break, and the ending of every break. */
+export interface OpenedFile {
+  /** Rust's id for the open document. Saves and closes name the document by it. */
+  readonly id: number
+  /** The path as people read it, with symlinks resolved. */
+  readonly path: string
+  readonly name: string
+  readonly encoding: 'utf-8' | 'utf-16le' | 'utf-16be' | 'unsupported'
+  readonly bom: boolean
+  readonly readOnly: ReadOnlyReason | null
+  /** The size on disk, in bytes. */
+  readonly size: number
+  /** Hash of the bytes as read, 32 hex digits. */
+  readonly hash: string
+  readonly text: string
+  readonly endings: Endings
+}
+
+/** What a save wrote. */
+export interface SavedFile {
+  /** Hash of the bytes now on disk. */
+  readonly hash: string
+  readonly size: number
+}
+
 /** Everything the UI needs from the machine. Implemented once per runtime. */
 export interface Host {
   readonly kind: 'tauri' | 'browser'
@@ -53,6 +83,17 @@ export interface Host {
   readonly windowControls: WindowControls
   /** A file's bytes, untouched. They cross as raw binary, never as JSON. */
   readFile(path: string): Promise<ArrayBuffer>
+  /**
+   * Shows the open dialog and returns the files chosen, which is also what lets Rust open them.
+   * Empty when the user cancels.
+   */
+  pickFiles(): Promise<string[]>
+  /** Opens a file the user chose. Opening the same file again returns the same document id. */
+  openFile(path: string): Promise<OpenedFile>
+  /** Writes the text and endings into an open document, by its id. */
+  saveFile(id: number, text: string, endings: Endings): Promise<SavedFile>
+  /** Tells Rust the document has no tab left. */
+  closeDocument(id: number): Promise<void>
   /** Present only where the harness can drive the app. */
   readonly perf?: PerfHost
 }

@@ -1,7 +1,8 @@
 import { convertFileSrc, invoke } from '@tauri-apps/api/core'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import type { Host, PerfConfig, PerfHost } from './host'
+import { decodeFrame, encodeFrame, openedFromFrame } from './frame'
+import type { Host, PerfConfig, PerfHost, SavedFile } from './host'
 
 /** The Rust commands behind this exist only in `--features perf` builds. */
 const perfBridge: PerfHost = {
@@ -72,6 +73,21 @@ export const tauriHost: Host = {
   },
   async readFile(path) {
     return invoke<ArrayBuffer>('read_file', { path })
+  },
+  async pickFiles() {
+    return invoke<string[]>('pick_files')
+  },
+  async openFile(path) {
+    return openedFromFrame(decodeFrame(await invoke<ArrayBuffer>('open_file', { path })))
+  },
+  async saveFile(id, text, endings) {
+    // The body is the frame; the id is a plain number, so the header stays ASCII.
+    return invoke<SavedFile>('save_file', encodeFrame({}, endings, text), {
+      headers: { 'x-document-id': String(id) },
+    })
+  },
+  async closeDocument(id) {
+    await invoke('close_document', { id })
   },
   // Only `pnpm perf` sets the flag. A normal build drops the bridge and its command names.
   ...(import.meta.env.VITE_MDMATE_PERF ? { perf: perfBridge } : {}),

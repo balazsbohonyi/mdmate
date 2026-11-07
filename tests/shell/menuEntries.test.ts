@@ -10,7 +10,8 @@ import { clearCommands, runCommand } from '@/workbench/commands'
 import { COMMAND_IDS, registerDefaultCommands } from '@/workbench/defaultCommands'
 import { installKeybindings } from '@/workbench/keyboard'
 import { panesOf } from '@/workbench/splitTree'
-import { openNewTab, resetWorkbench, workbenchLayout } from '@/workbench/store'
+import { resetWorkbench, workbenchLayout } from '@/workbench/store'
+import { openNewTab } from '../helpers/tabs'
 
 let removeCommands: () => void
 
@@ -30,6 +31,22 @@ describe('the app menu', () => {
   it('lists the commands in order with separators, labels and shortcuts from the registry', () => {
     openNewTab('a.md')
     expect(buildMenuEntries('other')).toEqual([
+      {
+        kind: 'item',
+        id: COMMAND_IDS.open,
+        label: 'Open...',
+        shortcut: 'Ctrl+O',
+        disabled: false,
+      },
+      {
+        kind: 'item',
+        id: COMMAND_IDS.save,
+        label: 'Save',
+        shortcut: 'Ctrl+S',
+        // Nothing is edited, so there is nothing to save.
+        disabled: true,
+      },
+      { kind: 'separator' },
       {
         kind: 'item',
         id: COMMAND_IDS.splitRight,
@@ -68,17 +85,17 @@ describe('the app menu', () => {
     const shortcuts = buildMenuEntries('mac').flatMap((entry) =>
       entry.kind === 'item' && entry.shortcut !== undefined ? [entry.shortcut] : [],
     )
-    expect(shortcuts).toEqual(['⌥⇧2', '⌥⇧8', '⌘W', '⇧⌘B'])
+    expect(shortcuts).toEqual(['⌘O', '⌘S', '⌥⇧2', '⌥⇧8', '⌘W', '⇧⌘B'])
   })
 
-  it('greys out Close Tab while there is no tab, and only that', () => {
+  it('greys out Close Tab while there is no tab, and Save while nothing is edited', () => {
     const disabled = () =>
       buildMenuEntries('other').flatMap((entry) =>
         entry.kind === 'item' && entry.disabled === true ? [entry.id] : [],
       )
-    expect(disabled()).toEqual([COMMAND_IDS.closeTab])
+    expect(disabled()).toEqual([COMMAND_IDS.save, COMMAND_IDS.closeTab])
     openNewTab('a.md')
-    expect(disabled()).toEqual([])
+    expect(disabled()).toEqual([COMMAND_IDS.save])
   })
 
   it('leaves out a command that is not registered', () => {

@@ -108,7 +108,7 @@ impl Access {
         {
             Ok(resolved)
         } else {
-            Err(AppError::NotAllowed(resolved.path.display().to_string()))
+            Err(AppError::NotAllowed(display_path(&resolved.path)))
         }
     }
 }
@@ -156,6 +156,8 @@ mod tests {
         let access = Access::new(false);
         let error = access.check(&path).expect_err("never granted");
         assert_eq!(error.kind(), "not-allowed");
+        // The page shows this text, so it must not carry Windows' verbatim `\\?\` prefix.
+        assert!(!error.to_string().contains(r"\\?\"), "{error}");
     }
 
     #[test]

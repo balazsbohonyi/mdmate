@@ -143,6 +143,27 @@ mod tests {
         assert_eq!(frame.text, "a\nb\n\u{1F600}");
     }
 
+    /// The same bytes are pinned in `tests/platform/frame.test.ts`, so the two halves cannot drift.
+    #[test]
+    fn the_bytes_match_what_the_page_expects() {
+        let endings = Endings {
+            dominant: Ending::CrLf,
+            exceptions: vec![(1, Ending::Lf)],
+        };
+        let mut expected = vec![43, 0, 0, 0];
+        expected.extend_from_slice(br#"{"dominant":1,"exceptions":1,"name":"a.md"}"#);
+        expected.push(0); // pads the 47 bytes so far to 48
+        expected.extend_from_slice(&[1, 0, 0, 0, 0, 0, 0, 0]);
+        expected.extend_from_slice(b"x\ny");
+        assert_eq!(encode(header_named("a.md"), &endings, "x\ny"), expected);
+    }
+
+    fn header_named(name: &str) -> Map<String, Value> {
+        let mut map = Map::new();
+        map.insert("name".into(), name.into());
+        map
+    }
+
     #[test]
     fn the_pairs_start_on_a_four_byte_boundary_whatever_the_header_length() {
         for name in ["", "a", "ab", "abc", "abcd", "abcde"] {

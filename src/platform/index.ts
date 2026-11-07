@@ -1,6 +1,15 @@
 import type { Host } from './host'
 
-export type { Host, PerfConfig, PerfDragDrop, PerfHost, WindowControls } from './host'
+export type {
+  Host,
+  OpenedFile,
+  PerfConfig,
+  PerfDragDrop,
+  PerfHost,
+  ReadOnlyReason,
+  SavedFile,
+  WindowControls,
+} from './host'
 
 let host: Promise<Host> | undefined
 
@@ -21,4 +30,9 @@ async function loadHost(): Promise<Host> {
 export function getHost(): Promise<Host> {
   host ??= loadHost()
   return host
+}
+
+/** Replaces the host, so a test can hand the app a host with files it controls. */
+export function setHost(replacement: Host | undefined): void {
+  host = replacement === undefined ? undefined : Promise.resolve(replacement)
 }
