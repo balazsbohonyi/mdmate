@@ -10,6 +10,7 @@ import {
   type Text,
 } from '@codemirror/state'
 import { createFollowerState, createMasterState } from '@/editor/create'
+import { isLargeFile } from './largeFile'
 import { endingsOf, lineEndingsFor } from '@/editor/lineEndings'
 import { carriedAnnotations, followerSync } from '@/editor/sync'
 import { endingsEqual, type Endings } from '@/lib/endings'
@@ -90,6 +91,8 @@ export class Document implements FollowerHost {
   path: string
   name: string
   readOnly: ReadOnlyReason | null
+  /** True when the file is above the size cutoff and its tabs show plain source, with no parser. */
+  readonly plainSource: boolean
   /** Hash of the bytes last read from or written to disk. */
   diskHash: string
   #master: EditorState
@@ -110,7 +113,10 @@ export class Document implements FollowerHost {
     this.diskHash = opened.hash
     this.#changed = changed
     this.#touched = options.touched ?? (() => undefined)
-    this.#options = options
+    // An explicit choice wins (the perf scenarios make one); otherwise the file's size decides.
+    const parser = options.parser ?? !isLargeFile(opened.size)
+    this.plainSource = !parser
+    this.#options = { ...options, parser }
     this.#master = createMasterState(opened.text, [
       lineEndingsFor(opened.endings),
       readOnlyFacet(opened.readOnly),

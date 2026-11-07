@@ -88,9 +88,8 @@ function openMetrics({ report }: RunData): Record<string, number> {
   return {
     'warm open, median': warm('totalMs'),
     'cold open (first)': at(q(report, 'totalMs'), 0),
-    'warm: IPC read': warm('ipcMs'),
-    'warm: decode': warm('decodeMs'),
-    'warm: build state': warm('stateMs'),
+    'warm: Rust open and IPC': warm('openMs'),
+    'warm: build document and tab': warm('documentMs'),
     'warm: show': warm('showMs'),
     'warm: paint': warm('paintMs'),
   }

@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 46/181
+progress: 48/181
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-07T17:44:28Z
+updated: 2026-11-07T18:19:16Z
 principal_stated_goal: "I want to build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -259,10 +259,10 @@ Why: these promises hold everywhere, and any single feature could quietly break 
 - [x] ISC-2: Anti: an edit never changes bytes outside its range.
 - [x] ISC-3: Mixed line-ending files keep each untouched line's ending after an edit.
 - [ ] ISC-4: The release app is usable within 1000 ms of launch.
-- [ ] ISC-5: A 1 MB Markdown file opens within 100 ms.
+- [x] ISC-5: A 1 MB Markdown file opens within 100 ms.
 - [x] ISC-6: Switching tabs completes within 50 ms.
 - [ ] ISC-7: Typing stays under 16 ms per key on the 1 MB fixture.
-- [ ] ISC-8: Files above 3 MB open as plain source with a notice.
+- [x] ISC-8: Files above 3 MB open as plain source with a notice.
 - [x] ISC-9: `cfg(windows)` and `target_os` appear only inside `platform/`.
 - [x] ISC-10: `cargo check` passes on macOS in CI.
 - [x] ISC-11: `cargo check` passes on Linux in CI.
@@ -528,6 +528,7 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - 2026-11-07: Decided what counts as an outside change by content, not by event: Rust keeps the hash each document last read or wrote and reports only a different one. Why: one save raises several events, notify can lose some, and the app's own write must be recognised; one comparison handles all three. A save records its hash before it writes, because the watcher thread can see the new file before the save returns.
 - 2026-11-07: Made opening a file that is already open leave Rust's record alone, and the page treats a different hash as an outside change. Why: refreshing the record made the host believe the page was current while it still held the old text, which would let a save overwrite a change the page never saw.
 - 2026-11-07: Hot exit writes `session.json` (layout, tabs, carets, unsaved buffers) one journal interval after a change and once on close; the interval is 1000 ms. Why: a write costs the page about one late frame at 1 MB (5 ms to build, 26 ms to confirm) and two at 4 MB, so 1000 ms means at most 1 frame in 60 while typing and at most a second of typing lost to a force-kill. Measured in P2-T6 (`pnpm perf journal-cost`); easy to change in `JOURNAL_INTERVAL_MS` if the owner wants fewer writes or less to lose.
+- 2026-11-07: Applied the P0 cutoff: files above 3 MiB open as plain source with a notice, decided once when the document opens by the size on disk. Why: the parser is what makes typing slow at size (P0-T9), and the same rule covers restored sessions. Known limit: a file that grows past the cutoff while open keeps the parser until reopened.
 
 ## Verification
 
@@ -577,6 +578,8 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-47: `pnpm perf crash-restore` (release app, real WebView2): edits in three files, one with mixed line endings and one of 1 MB, journaled on its own 911 to 931 ms after the last edit, the app killed with TerminateProcess, started again the normal way; layout, edited marks, carets and the SHA-256 of the bytes a save would write all equal. With one letter of the saved session changed in between (`--corrupt`) the mixed-endings tab's SHA-256 differs and the run fails, so the check can fail. Real window with real typing: killed after one interval, restored, Ctrl+S wrote the typed text with every ending kept (src/documents/session.ts, src-tauri/src/session/mod.rs) (P2-T6).
 - ISC-48: `pnpm test:web tests/documents/session.test.ts`: a written session restores to a layout equal to the one saved, with splits, sizes, tab order and the active tab and pane; carets (including in tabs never shown), unsaved edits with mixed endings, buffers for a changed or missing file, damaged endings and layouts, the one-write-at-a-time journal and the close flush are covered. Breaking one write at a time fails 2 tests, skip-identical 1, close without flush 3, interval 0 2, unvalidated endings 1 (src/documents/session.ts, src/workbench/store.ts restoreWorkbench) (P2-T6).
 - ISC-49: Real app run (`cargo run --features perf`, 11 checks scripted over the DevTools port): typed text, then an OS close request (`CloseMainWindow`) and then the title bar's Close button, 100 ms after typing and inside the journal interval; both ended the app with no prompt and the next start held the text typed in those 100 ms, still marked edited. The close handler flushes the journal before quitting (src-tauri/src/lib.rs, src/documents/session.ts) (P2-T6).
+- ISC-5: `pnpm perf open-1mb` (release app, real WebView2, 5 runs after 2 warm-ups): a 1 MB file opened the way the app does (openFile in Rust, Document, tab state, show, frame) takes 20.8 ms warm (20.0 to 21.0, repeatable) and 48.7 ms on the first open of a run, against 100 ms (src/perf/open.ts) (P2-T7).
+- ISC-8: `pnpm test:web tests/documents/largeFile.test.ts`: a file one byte above 3 MiB, a 5 MB file and a multi-byte file above 3 MiB on disk open as plain source (no parser, `plainSource` set, notice text); exactly 3 MiB and 1 MB keep the parser; a large file edits and saves byte for byte and stays plain when its unsaved edits are restored. `>=` fails 2 tests, a 5 MiB cutoff 5, ignoring size 4, counting characters 1. Real window: realistic-5mb.md shows the notice and no highlighting (src/documents/largeFile.ts, src/documents/document.ts) (P2-T7).
 
 ## Remaining Work
 

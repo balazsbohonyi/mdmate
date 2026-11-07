@@ -14,6 +14,7 @@ export function namedDoc(name: string): TabRecord {
     path: `/test/${name}`,
     dirty: false,
     readOnly: null,
+    plainSource: false,
     saveError: null,
     conflict: null,
   })

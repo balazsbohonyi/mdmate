@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { docMeta } from '@/documents/meta'
+import { LARGE_FILE_NOTICE } from '@/documents/largeFile'
 import { pendingClose, resolveConflict, resolvePendingClose } from '@/documents/store'
 
 const { docId, tabId } = defineProps<{ docId: number; tabId: string }>()
@@ -82,6 +83,14 @@ function resolve(choice: 'save' | 'discard' | 'cancel'): void {
     >
       Load theirs
     </button>
+  </div>
+  <div
+    v-if="!closing && meta?.plainSource"
+    role="status"
+    data-testid="large-file-notice"
+    class="shrink-0 border-b border-border bg-muted px-3 py-1.5 text-chrome"
+  >
+    {{ LARGE_FILE_NOTICE }}
   </div>
   <div
     v-if="!closing && conflict === null && meta?.readOnly"

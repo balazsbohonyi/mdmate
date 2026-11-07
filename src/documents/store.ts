@@ -29,6 +29,7 @@ function publish(doc: Document): void {
     path: doc.path,
     dirty: doc.dirty,
     readOnly: doc.readOnly,
+    plainSource: doc.plainSource,
     saveError: docMeta(doc.id)?.saveError ?? null,
     conflict: docMeta(doc.id)?.conflict ?? null,
   })

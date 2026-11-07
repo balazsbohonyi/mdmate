@@ -173,3 +173,26 @@ Deviations from the plan and choices it left open. Numbers carry the OS they cam
   - Two instances of the app share one data folder, and the last one to write wins. Nothing stops a second instance yet; it needs a single-instance guard, which is a window-management decision for a later phase.
   - A force-kill loses what was typed after the last journal write (about a second) and nothing else.
   - **Not checked:** the native Open dialog; a crash while a write is in flight (the rename is the one saves use and is tested stage by stage there, but a real power cut was not); Windows shutdown or logoff closing the app (the close handler is the same one, but I did not log off).
+
+## P2-T7: Large files and open speed
+
+- **What it does.** A file above 3 MiB (3,145,728 bytes) opens as plain source: its tabs get no Markdown parser and no highlighting, and the pane shows "Plain text: files above 3 MB open without live preview or highlighting, so typing stays fast." This applies the cutoff decided in P0-T9. Live preview joins the parser in Phase 3, and the cutoff stays provisional until then.
+- **Where the rule lives.** `src/documents/largeFile.ts` holds the number and the notice text. `Document` decides once, when it is made: an explicit `parser` option wins (the perf scenarios use it), otherwise the file's size on disk decides. The choice is published as `plainSource` in the document's chrome record, and `PaneNotice` shows the notice for it.
+- **Bytes, and exactly 3 MiB is not above.** The test is on the size on disk, not the character count: 1.1 million `€` is 3.3 MB on disk and opens plain. A file of exactly 3 MiB keeps the parser; one byte more does not. "MB" is MiB because the P0 fixtures are sized that way (`realistic-3mb.md` is 406 bytes above 3 MiB, so it now opens plain, while P0 measured it with the parser).
+- **Known limit.** The mode is fixed when the document opens. A file that grows past the cutoff through an outside edit while open keeps the parser until it is closed and opened again. A restored session reopens files first, so a large file's unsaved buffer comes back plain.
+- **Open speed (ISC-5), measured in the release app (`pnpm perf open-1mb`, 5 runs after 2 warm-up launches, 16 opens each).** The scenario now opens the way the app does: `openFile` in Rust (read, decode, frame, IPC), then `Document`, the tab's state, `show`, and the frame. The document is closed in Rust between opens.
+
+  | Step | Median |
+  |---|---|
+  | Rust open and IPC | 13.5 ms |
+  | Build document and tab | 1.6 ms |
+  | Show | 0.5 ms |
+  | Paint | 4.5 ms |
+  | **Warm open** | **20.8 ms** (20.0 to 21.0, repeatable) |
+  | First open of a run | 48.7 ms |
+
+  Target 100 ms: met, with the cold open also under it.
+- **Tab switch (ISC-6) re-measured on the same build.** `tab-switch` already ran through `Document` and `Follower`, so it needed no change. It reports 9.2 ms at p95 against 50 ms (median 7.1 ms, max 10.3 ms), repeatable.
+- **Proof the tests can fail.** `pnpm test:web tests/documents/largeFile.test.ts` has 10 tests. `>=` instead of `>` fails 2, a 5 MiB cutoff fails 5, ignoring the size fails 4, and counting characters instead of bytes fails 1.
+- **Checked in the browser (Claude in Chrome on `pnpm dev`):** a 4 MB file opened with the notice above its text and no highlighting; a small file in the same window showed no notice.
+- **Checked in the real window (`cargo run --features perf`, DevTools port):** `realistic-5mb.md` opened with the notice shown and no token spans in the editor (no highlighting); `lf.md` opened in the same window with no notice. Typing in a large file and the native Open dialog were not exercised here.
