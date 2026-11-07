@@ -42,7 +42,14 @@ export const classes = {
   emphasis: 'cm-md-em',
   strike: 'cm-md-strike',
   code: 'cm-md-code',
+  link: 'cm-md-link',
+  listMark: 'cm-md-list-mark',
+  quote: 'cm-md-quote',
+  rule: 'cm-md-hr',
 } as const
+
+/** Nodes that carry their own address, so a URL inside them is not a bare URL. */
+const addressed = new Set(['Link', 'Image', 'Autolink', 'LinkReference'])
 
 /** The inline elements that wrap their text in marks, with the node that is each mark. */
 const wrapped: Record<string, { class: string; mark: string }> = {
@@ -76,6 +83,16 @@ function blanksBefore(state: EditorState, to: number, limit: number): number {
   return limit + n
 }
 
+/** Hides `[from, to]` one line at a time, so no hidden range spans a line break. */
+function hideLines(state: EditorState, items: PreviewItem[], from: number, to: number): void {
+  for (let at = from; at < to;) {
+    const line = state.doc.lineAt(at)
+    const end = Math.min(to, line.to)
+    if (end > at) items.push({ type: 'hide', from: at, to: end })
+    at = line.to + 1
+  }
+}
+
 /**
  * Every preview item for the nodes that overlap `ranges`, for the selection the state holds.
  * Items come back in no particular order; CodeMirror sorts them when it builds a set.
@@ -88,6 +105,8 @@ export function scanPreview(
   const selection = state.selection.ranges
   const doc = state.doc
   const tree = syntaxTree(state)
+  /** Starts of the lines a block quote already styled, so a nested quote adds nothing twice. */
+  const quoted = new Set<number>()
 
   for (const { from, to } of ranges) {
     tree.iterate({
@@ -125,6 +144,78 @@ export function scanPreview(
             items.push({ type: 'line', from: doc.line(n).from, class: classes.heading(level) })
           }
           items.push({ type: 'line', from: last.from, class: classes.setextUnderline })
+          return
+        }
+
+        if (name === 'Link') {
+          // `[text](target)`, `[text][label]` and `[text]`: the text stays, the rest hides.
+          items.push({ type: 'mark', from: node.from, to: node.to, class: classes.link })
+          if (touched(selection, node.from, node.to)) return
+          // The first mark opens the text, the second closes it; anything after is the target.
+          const marks: { from: number; to: number }[] = []
+          for (let child = node.node.firstChild; child; child = child.nextSibling) {
+            if (child.name === 'LinkMark') marks.push({ from: child.from, to: child.to })
+          }
+          const [open, close] = marks
+          // No text means nothing would be left to see or to put the caret on.
+          if (open === undefined || close === undefined || close.from <= open.to) return
+          hideLines(state, items, open.from, open.to)
+          hideLines(state, items, close.from, node.to)
+          return
+        }
+
+        if (name === 'Autolink') {
+          for (let child = node.node.firstChild; child; child = child.nextSibling) {
+            if (child.name === 'URL')
+              items.push({ type: 'mark', from: child.from, to: child.to, class: classes.link })
+          }
+          if (touched(selection, node.from, node.to)) return
+          for (let child = node.node.firstChild; child; child = child.nextSibling) {
+            if (child.name === 'LinkMark')
+              items.push({ type: 'hide', from: child.from, to: child.to })
+          }
+          return
+        }
+
+        if (name === 'URL') {
+          const parent = node.node.parent
+          if (parent === null || !addressed.has(parent.name))
+            items.push({ type: 'mark', from: node.from, to: node.to, class: classes.link })
+          return
+        }
+
+        if (name === 'ListMark') {
+          items.push({ type: 'mark', from: node.from, to: node.to, class: classes.listMark })
+          return
+        }
+
+        if (name === 'Blockquote') {
+          const last = doc.lineAt(node.to).number
+          for (let n = doc.lineAt(node.from).number; n <= last; n++) {
+            const from = doc.line(n).from
+            // A nested quote covers lines its parent already styled.
+            if (!quoted.has(from)) {
+              quoted.add(from)
+              items.push({ type: 'line', from, class: classes.quote })
+            }
+          }
+          return
+        }
+
+        if (name === 'QuoteMark') {
+          const line = doc.lineAt(node.from)
+          if (touched(selection, line.from, line.to)) return
+          const end = skipBlanks(state, node.to, line.to)
+          // A marker with nothing after it stays, so the line keeps something to land on.
+          if (end < line.to) items.push({ type: 'hide', from: node.from, to: end })
+          return
+        }
+
+        if (name === 'HorizontalRule') {
+          const line = doc.lineAt(node.from)
+          items.push({ type: 'line', from: line.from, class: classes.rule })
+          if (!touched(selection, line.from, line.to))
+            items.push({ type: 'hide', from: node.from, to: node.to })
           return
         }
 

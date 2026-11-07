@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 54/181
+progress: 58/181
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-07T21:18:00Z
+updated: 2026-11-07T21:50:00Z
 principal_stated_goal: "I want to build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -328,10 +328,10 @@ Why: this is the reason mdmate exists; you read the rendered page and edit it in
   - [x] ISC-51.2: Italic renders with hidden markers.
   - [x] ISC-51.3: Strikethrough renders with hidden markers.
 - [x] ISC-52: Inline code renders with hidden backticks.
-- [ ] ISC-53: Links render as text with the target hidden.
-- [ ] ISC-54: List markers render styled.
-- [ ] ISC-55: Blockquotes render styled.
-- [ ] ISC-56: Horizontal rules render as lines.
+- [x] ISC-53: Links render as text with the target hidden.
+- [x] ISC-54: List markers render styled.
+- [x] ISC-55: Blockquotes render styled.
+- [x] ISC-56: Horizontal rules render as lines.
 - [ ] ISC-57: A caret inside an inline element reveals only that element's syntax.
 - [ ] ISC-58: Syntax hides again within 16 ms of the caret leaving.
 - [ ] ISC-59: Anti: the caret never sticks inside hidden syntax.
@@ -587,6 +587,10 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-51.2: the same file: `*` and `_` hidden, snake_case_word left alone, nested italic reveals its outer bold. With the italic node left out of the scan 4 tests fail. In the real window the caret inside `*italic*` of `**bold with *italic* inside**` showed both pairs (P3-T2).
 - ISC-51.3: the same file: `~~` hidden, a single tilde left alone, which needs the GFM parser, since `markdown()` alone has no strikethrough (`tests/editor/markdownSupport.test.ts` pins both). With the wrong mark name 2 tests fail (P3-T2).
 - ISC-52: `pnpm test:web tests/editor/inlineCode.test.ts`: backticks hidden, longer fences hidden with an inner backtick kept, shown with the caret in the span, unclosed and fenced code untouched. With the code mark left out 4 tests fail. Seen in Chrome and the real window: `and code in one line` with the backticks back when the caret is in it (P3-T2).
+- ISC-53: `pnpm test:web tests/editor/links.test.ts`: inline, reference and shortcut links keep their text and hide the opening bracket and the whole target, a link with no text, an image and a reference definition are left alone, an autolink hides its angle brackets, a bare URL is only styled, nothing hidden spans a line break, and the caret anywhere in the link (edges included) shows all of it. Breaking the code on purpose (caret ignored, one hidden range across lines, empty link hidden, URL rule widened, autolink brackets kept) fails 3, 1, 1, 2 and 1 tests. Seen in the real window: `Read the docs or http://auto.example.com...` with the caret elsewhere, the full `[docs](http://example.com/docs "Docs")` with the caret in it (src/editor/livePreview/scan.ts) (P3-T3).
+- ISC-54: `pnpm test:web tests/editor/lists.test.ts`: `-`, `*`, `+`, `1.` and `2)` markers, nested and task items included, get the marker style and stay in the text; a dash or number inside a sentence is not a marker. With the style removed 2 tests fail. Seen in the real window (dim markers, text unchanged) (P3-T3).
+- ISC-55: `pnpm test:web tests/editor/blockquotes.test.ts`: every line of a quote is styled exactly once (nested quotes and a lazy continuation line included), each `>` and the blank after it hides away from the caret, only the caret line shows its markers, a marker with nothing after it stays. Breaking the code (lines styled twice, empty marker hidden, caret ignored, blank left visible) fails 1, 1, 2 and 4 tests. Seen in the real window with a bar on the left of the quote (P3-T3).
+- ISC-56: `pnpm test:web tests/editor/rules.test.ts`: `---`, `***`, `___` and `- - -` get the rule line style and hide their text, the caret line shows its text, a setext underline and dashes inside text are not rules. With the hiding removed 2 tests fail, with the caret ignored 2 fail. Seen in the real window: a line across the pane, `---` back with the caret on it (P3-T3).
 
 ## Remaining Work
 

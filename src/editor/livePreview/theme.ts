@@ -26,4 +26,19 @@ export const previewTheme = EditorView.baseTheme({
     backgroundColor: 'var(--syntax-code-background)',
     borderRadius: 'var(--radius)',
   },
+  // The default highlight style colors and underlines the pieces of a link itself, so the span
+  // sets both on its children too.
+  '.cm-md-link, .cm-md-link span': {
+    color: 'var(--syntax-link)',
+    textDecoration: 'underline',
+    textUnderlineOffset: '2px',
+  },
+  '.cm-md-list-mark': { color: 'var(--syntax-marker)', fontWeight: '700' },
+  '.cm-md-quote': {
+    color: 'var(--syntax-quote)',
+    borderLeft: '3px solid var(--syntax-quote)',
+    paddingLeft: '0.75em',
+  },
+  // A rule is an empty line with a bottom border; its `---` shows over it only on the caret line.
+  '.cm-md-hr': { borderBottom: '1px solid var(--border)' },
 })
