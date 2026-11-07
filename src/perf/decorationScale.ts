@@ -20,8 +20,9 @@ const ROUNDS = 3
  * ISC-63: the two sizes' decoration time must agree to within this share. It was 0.2 with headings
  * only. With the full layer the scan late in a 10 MB file runs about 20% slower than in a 1 MB one
  * (1.16 to 1.28 in six runs, 40 against 48 microseconds), the cost of finding a place in a tree ten
- * times as big, while a whole view update stays level. The owner moved the limit to 0.35 on
- * 2026-11-08. The control below, which grows tenfold, is what keeps this from passing a real
+ * times as big, while a whole view update stays level. The owner allowed raising it if repeat
+ * runs agreed; 0.35 was chosen on 2026-11-08 (worst clean run 1.28) and awaits the owner's
+ * confirmation. The control below, which grows tenfold, is what keeps this from passing a real
  * slope.
  */
 const TOLERANCE = 0.35
