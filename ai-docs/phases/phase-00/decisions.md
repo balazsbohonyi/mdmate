@@ -22,3 +22,14 @@ Deviations from the plan and choices it left open. Numbers carry the OS they cam
 - **Prettier skips `ai-docs/`, `ISA.md`, `AGENTS.md`, `src-tauri/` and fixtures.** Rust formatting belongs to `cargo fmt`.
 - **Proved each gate can fail.** A planted type error in a `.vue` file, an `any` use, bad formatting, a Rust `unwrap` and bad Rust formatting each made the matching gate exit non-zero; the clean tree exits 0.
 - **The macOS and Linux platform stubs are not compiled here.** Only the Windows build ran on this machine, so ISC-10 and ISC-11 wait for CI.
+
+## P0-T3
+
+- **All 11 rules are in `scripts/check-arch.mjs` and run in `pnpm check`.** `tests/scripts/checkArch.test.ts` runs the real CLI against temporary trees: each rule accepts a clean tree and fails every planted violation (67 tests). A planted case that only passes because the rule is blind would show as a passing test, so each case also asserts the rule's FAIL line.
+- **Closes ISC-9, 12, 13, 21, 24, 73 and 169.** ISC-169 was listed under T1 but its probe is `license-mit`, so it closes here.
+- **Rules built now whose claims close later:** `no-hard-coded-colors` (ISC-14, P1-T1), `no-unsafe-html` and `no-network` (ISC-15 and ISC-20, P10-T2), `languages-lazy` (ISC-71, P4-T4). They pass today because there is little code to violate them; the planted tests are what show they can fail.
+- **`languages-lazy` reads source, not the build.** It fails on a static import of a language parser. The bundle inspection in ISC-71's probe joins the rule at P4-T4, when parsers exist to inspect.
+- **`no-network` reads direct dependencies and the production CSP only.** `Cargo.lock` lists `reqwest` and `hyper`, but `cargo tree -i reqwest` finds nothing for this Windows build. The dev CSP is skipped, because it must allow the Vite dev server. Checking the full graph is under Remaining Work in the ISA.
+- **`no-hard-coded-colors` checks hex literals and color functions** (`rgb()`, `oklch()` and the rest). Named colors and Tailwind palette classes are not checked, so a class like `bg-red-500` passes.
+- **`no-os-cfg-outside-platform` ignores comments and string literals.** A `'"'` character literal could confuse its string stripping; none exists in the code.
+- **`suppressions-have-reasons` skips `scripts/check-arch.mjs` and `tests/scripts/`,** because they contain the suppression syntax as test data.

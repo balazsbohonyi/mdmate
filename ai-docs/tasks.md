@@ -6,7 +6,7 @@ Mark `[x]` only when the task's "Done when" in its phase plan holds. Each task l
 
 - [x] P0-T1: Scaffold Tauri, Vue, Tailwind and shadcn-vue (ISC-169 closes in P0-T3, see decisions)
 - [x] P0-T2: Add lint, type and format configs with both gates — closes ISC-22, ISC-23
-- [ ] P0-T3: Build `scripts/check-arch.mjs` — closes ISC-9, ISC-12, ISC-13, ISC-21, ISC-24, ISC-73
+- [x] P0-T3: Build `scripts/check-arch.mjs` — closes ISC-9, ISC-12, ISC-13, ISC-21, ISC-24, ISC-73 (and ISC-169, see decisions)
 - [ ] P0-T4: Build `scripts/check-isa.mjs` — supports ISC-22
 - [ ] P0-T5: Add CI for gates and macOS and Linux compiles — closes ISC-10, ISC-11
 - [ ] P0-T6: Generate test fixtures — supports all fixture probes

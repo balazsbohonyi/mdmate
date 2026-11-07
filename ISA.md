@@ -3,7 +3,7 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 2/178
+progress: 9/178
 started: 2026-11-07T00:30:52Z
 updated: 2026-11-07T01:30:00Z
 principal_stated_goal: "I want to build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
@@ -269,11 +269,11 @@ Why: these promises hold everywhere, and any single feature could quietly break 
 - [ ] ISC-6: Switching tabs completes within 50 ms.
 - [ ] ISC-7: Typing stays under 16 ms per key on the 1 MB fixture.
 - [ ] ISC-8: Files above the measured cutoff open as plain source with a notice.
-- [ ] ISC-9: `cfg(windows)` and `target_os` appear only inside `platform/`.
+- [x] ISC-9: `cfg(windows)` and `target_os` appear only inside `platform/`.
 - [ ] ISC-10: `cargo check` passes on macOS in CI.
 - [ ] ISC-11: `cargo check` passes on Linux in CI.
-- [ ] ISC-12: `@tauri-apps` imports appear only inside `src/platform/`.
-- [ ] ISC-13: `src/editor/` imports nothing from Vue.
+- [x] ISC-12: `@tauri-apps` imports appear only inside `src/platform/`.
+- [x] ISC-13: `src/editor/` imports nothing from Vue.
 - [ ] ISC-14: No hard-coded colors exist outside token files.
 - [ ] ISC-15: Anti: `innerHTML` and `v-html` never receive document content.
 - [ ] ISC-16: The opener refuses every scheme except `http`, `https` and `mailto`.
@@ -281,10 +281,10 @@ Why: these promises hold everywhere, and any single feature could quietly break 
 - [ ] ISC-18: Default-app opens ask first unless the file is Markdown or an image.
 - [ ] ISC-19: Anti: the hostile fixture causes no code run, launch or SMB attempt.
 - [ ] ISC-20: Anti: the app makes no network request except document images.
-- [ ] ISC-21: Anti: `tauri-plugin-fs` is absent from the dependencies.
+- [x] ISC-21: Anti: `tauri-plugin-fs` is absent from the dependencies.
 - [x] ISC-22: `pnpm check` exits 0.
 - [x] ISC-23: `pnpm check:rust` exits 0.
-- [ ] ISC-24: Anti: no lint suppression lacks a reason comment.
+- [x] ISC-24: Anti: no lint suppression lacks a reason comment.
 - [ ] ISC-173: Anti: an opened workspace can never supply a theme file.
 
 ### F1 · Sublime workbench
@@ -357,7 +357,7 @@ Why: documents mix prose with tables, images and code, and a page full of raw sy
 - [ ] ISC-70: Fenced code highlights using token colors.
 - [ ] ISC-71: Language parsers stay out of the entry bundle.
 - [ ] ISC-72: Anti: late-rendering widgets never shift the scroll position.
-- [ ] ISC-73: Anti: `katex` and `mermaid` are absent from v1 dependencies.
+- [x] ISC-73: Anti: `katex` and `mermaid` are absent from v1 dependencies.
 
 ### F5 · Link navigation
 Why: documentation is a web of files, so following a link has to cost one gesture and be undoable.
@@ -482,7 +482,7 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - [ ] ISC-166: `pnpm tauri build` produces an NSIS installer.
 - [ ] ISC-167: The portable zip runs from any folder.
 - [ ] ISC-168: A version tag publishes a GitHub Release with both artifacts.
-- [ ] ISC-169: The repo carries an MIT `LICENSE`.
+- [x] ISC-169: The repo carries an MIT `LICENSE`.
 - [ ] ISC-170: The README lets a stranger install and use mdmate.
 
 ## Decisions
@@ -507,7 +507,15 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 
 - ISC-22: `pnpm check` exits 0 on the scaffold, and fails on a planted type error, `any` misuse and bad format (P0-T2).
 - ISC-23: `pnpm check:rust` exits 0 on the scaffold with no `dist/`, and fails on a planted `unwrap` and bad format (P0-T2).
+- ISC-9: `node scripts/check-arch.mjs no-os-cfg-outside-platform` passes on the repo and fails on planted violations (tests/scripts/checkArch.test.ts, P0-T3).
+- ISC-12: `node scripts/check-arch.mjs tauri-only-in-platform` passes on the repo and fails on planted violations (tests/scripts/checkArch.test.ts, P0-T3).
+- ISC-13: `node scripts/check-arch.mjs no-vue-in-editor` passes on the repo and fails on planted violations (tests/scripts/checkArch.test.ts, P0-T3).
+- ISC-21: `node scripts/check-arch.mjs no-plugin-fs` passes on the repo and fails on planted violations (tests/scripts/checkArch.test.ts, P0-T3).
+- ISC-24: `node scripts/check-arch.mjs suppressions-have-reasons` passes on the repo and fails on planted violations (tests/scripts/checkArch.test.ts, P0-T3).
+- ISC-73: `node scripts/check-arch.mjs no-math-mermaid` passes on the repo and fails on planted violations (tests/scripts/checkArch.test.ts, P0-T3).
+- ISC-169: `node scripts/check-arch.mjs license-mit` passes on the repo and fails on planted violations (tests/scripts/checkArch.test.ts, P0-T3).
 
 ## Remaining Work
 
 - [ ] Ship the Inter font's OFL-1.1 notice with the installer and portable zip, and credit it in the README — the font is bundled from `@fontsource-variable/inter`; waits on P10-T3 to P10-T5.
+- [ ] Check the resolved Rust dependency graph for network crates with `cargo tree --target all` — `no-network` reads direct dependencies only, because the lockfile lists `reqwest` and `hyper` although none is in the Windows build graph; waits on P10-T2, where ISC-20 closes.
