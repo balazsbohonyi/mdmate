@@ -82,3 +82,25 @@ No new crates and no new Tauri permissions in this phase so far.
 - **Hidden syntax needs no special handling to be copied.** Live preview only hides text, so the selection still spans it; the test proves it byte for byte on three fixtures.
 - **Found by the real window, not by tests:** nothing. The first run of the driver failed on its own expectation (a double UTF-16 decode) and then on state left by the first run (three panes); neither was an app fault. The clipboard bytes were right on the first run.
 - **Not checked:** copy inside a pane in a large (plain-source) file (same filter, no layer), drag-out of a selection to another application, paste behaviour (a paste of mixed endings is normalized by the existing load path, not changed here), and the menu entry in the native macOS menu.
+
+## P3-T6: Typing and startup targets with preview on
+
+Release build, Windows 11, Ryzen 7 8840HS, WebView2 157, commit `c98e4d0`, 5 runs after 2 warm-ups unless noted. Every speed gate passes with the real live-preview layer.
+
+| Claim | Result | Limit |
+|---|---|---|
+| ISC-4 startup | 515 ms (514 to 529) | 1000 ms |
+| ISC-5 open 1 MB | 22.5 ms | 100 ms |
+| ISC-6 tab switch p95 | 16.1 ms | 50 ms |
+| ISC-7 typing p95, 1 MB | 5.8 ms (6.7 ms with trusted keys) | 16 ms |
+| ISC-58 reveal p95 | 4.0 ms | 16 ms |
+| crash-restore | 5 tabs and 3 unsaved buffers back exactly, 104 ms | none |
+
+- **Startup is 515 ms, 10 ms over Phase 2 and 40 over the bare shell.** The time is WebView2 starting (298 ms from Rust main to page start); the app itself is 118 ms to mount and 44 ms to an editor.
+- **Typing grew about 0.8 ms from Phase 0** (5.0 to 5.8 ms p95), the cost of the real layer and the GFM parser over the throwaway decorations. The T2 worry that the GFM parser would raise typing cost is answered: it did, by well under a millisecond.
+- **The 3 MiB cutoff stays.** Typing at 2, 3, 5 and 10 MB: p95 6.0, 8.2, 12.6, 16.5 ms; p99 6.9, 9.0, 13.5, 17.4. The 3 MB fixture is 406 bytes over the cutoff, so it stands for the largest file that keeps the parser: p99 9.0 against 16. 10 MB is over and not repeatable, which is the reason files that big open as plain source.
+- **ISC-63 missed its 20 percent limit with the full layer, then moved to 35 on your call.** Late in the file the scan takes about 48 microseconds at 10 MB against 40 at 1 MB. Six runs: ratios 1.28, 1.27, 1.20, 1.20, 1.16 and one noisy 1.05. The whole view update stays level (0.42 against 0.41 ms) and the work is identical in both files, so I read it as the cost of finding a place in a bigger syntax tree, not a scan that grows with the file. I did not profile it. With 35 percent: worst deviation 14.7 percent, control 8.5 times.
+- **`journal-cost`** (not tied to preview): a 1 MB snapshot builds in 4.9 ms and writes in 25.7 ms with a worst frame gap of 16.8 ms, one frame; at 4 MB the gap is 27.9 ms. The journal interval is unchanged.
+- **`pnpm perf all` also runs `lab-drag`**, a P5 spike that asks a person to answer 12 questions. It recorded all "yes" in this run and I did not answer it; it is not evidence for anything in Phase 3, and `all` stopping on a person is worth fixing when P5 starts.
+- **The first `pnpm perf all` was killed by the system for low memory** during the Rust build and measured nothing; it was rerun after other programs were closed. CPU idle before launch was 73 to 91 percent, below the harness's 85 percent warning in a few runs of reveal, tab-switch and typing; those runs still repeat within 10 percent.
+- **Not checked:** startup on a fresh WebView2 profile (the data directory is fresh each run but the WebView2 profile is the warm one), the light theme, and a file of exactly 3 MiB (the 3 MB fixture is 3,146,134 bytes, 406 over the cutoff, so it is the right size to stand for the largest parsed file).

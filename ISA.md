@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 64/181
+progress: 66/181
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-08T00:30:00Z
+updated: 2026-11-08T01:45:00Z
 principal_stated_goal: "I want to build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -133,7 +133,7 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-60 | screenshot | walk down a decorated document | no line skipped | Interceptor on pnpm dev | literal | | |
 | ISC-61 | bash | toggle one pane | other pane unchanged | pnpm test:web tests/editor/sourceMode.test.ts | literal | | |
 | ISC-62 | bash | copy across hidden syntax | raw Markdown | pnpm test:web tests/editor/copy.test.ts | derived: byte-exact | | |
-| ISC-63 | bash | compare decoration time on 1 MB and 10 MB | within 20 percent | pnpm perf decorations-scale | derived: fast | | deep |
+| ISC-63 | bash | compare decoration time on 1 MB and 10 MB | within 35 percent | pnpm perf decorations-scale | derived: fast | | deep |
 | ISC-64 | screenshot | render the GFM table fixture | table shown | Interceptor on pnpm dev | literal | | |
 | ISC-65 | bash | caret enters table range | widget removed | pnpm test:web tests/editor/table.test.ts | literal | | |
 | ISC-66 | screenshot | render relative image with mock host | image shown | Interceptor on pnpm dev | literal | | |
@@ -259,10 +259,10 @@ Why: these promises hold everywhere, and any single feature could quietly break 
 - [x] ISC-1: Anti: saving an unedited file never changes a byte.
 - [x] ISC-2: Anti: an edit never changes bytes outside its range.
 - [x] ISC-3: Mixed line-ending files keep each untouched line's ending after an edit.
-- [ ] ISC-4: The release app is usable within 1000 ms of launch.
+- [x] ISC-4: The release app is usable within 1000 ms of launch.
 - [x] ISC-5: A 1 MB Markdown file opens within 100 ms.
 - [x] ISC-6: Switching tabs completes within 50 ms.
-- [ ] ISC-7: Typing stays under 16 ms per key on the 1 MB fixture.
+- [x] ISC-7: Typing stays under 16 ms per key on the 1 MB fixture.
 - [x] ISC-8: Files above 3 MB open as plain source with a notice.
 - [x] ISC-9: `cfg(windows)` and `target_os` appear only inside `platform/`.
 - [x] ISC-10: `cargo check` passes on macOS in CI.
@@ -504,6 +504,8 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - 2026-11-07: refined: ISC-7 is judged on the main-thread work a key causes (handling it, plus the next frame's style, layout and paint). Key to frame adds an idle wait of up to one frame, which no editor can remove, so it is printed and never judged.
 - 2026-11-07: Kill rule checked in P0-T8, and it did not fire. Throwaway live-preview decorations hold typing at 5.0 ms p95 per key (5.5 ms with real key events) on the 1 MB fixture, against 16 ms. They cover inline marks only; Phase 3 measures the real layer, block widgets included, with the same scenarios.
 - 2026-11-07: Chose 3 MB as the plain-source cutoff. The Markdown parser is what slows typing (p99 8.2 ms at 3 MB and 15 ms at 5 MB, against 16), and plain source types at 1.9 ms even at 10 MB. Provisional until Phase 3 measures the real live-preview layer.
+- 2026-11-08: Confirmed the 3 MiB cutoff with the real live-preview layer (P3-T6). Typing p95 / p99 in ms: 2 MB 6.0 / 6.9, 3 MB 8.2 / 9.0, 5 MB 12.6 / 13.5, 10 MB 16.5 / 17.4 (over 16, not repeatable). The 3 MB fixture is 3,146,134 bytes, 406 over the 3 MiB cutoff, so that row is the largest size that gets the parser, with p99 9.0 against 16; the number stays. No longer provisional.
+- 2026-11-08: Moved the ISC-63 limit from 20 to 35 percent, on the owner's call, after the full layer missed 20 in four of six runs (late-file ratio 1.28, 1.27, 1.20, 1.20, 1.16, plus one noisy run at 1.05). A scan late in a 10 MB file takes about 48 microseconds against 40 in a 1 MB file, the cost of finding a place in a tree ten times as big; a whole view update stays level (0.42 against 0.41 ms). The run with the new limit: worst deviation 14.7 percent, control 8.5 times. The control that grows with the file is what stops the check passing a real slope.
 - 2026-11-07: Chose normalized text with the line endings kept beside it, over keeping the carriage return in the text. The second keeps every byte, but the Markdown parser then misses tables and hard breaks.
 - 2026-11-07: Raised ISC-4 from 500 ms to 1000 ms, on the owner's call. A bare shell with an editor is editable in 429 ms on a warm profile and 475 ms on a first launch with a fresh profile, mostly WebView2 starting, so 1000 ms leaves room for the real UI. Phase 3 measures it, and 1500 ms is the fallback.
 - 2026-11-07: Chose the asset protocol with a scope that grows at runtime for images, over a custom protocol. Tested in the real WebView2: a folder is blocked until it is allowed, then loads, including names with spaces and accents.
@@ -597,11 +599,13 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-60: the real window (debug app, DevTools port, trusted key events): ArrowDown from the first line to the last and ArrowUp back over a 37-line document of every element, the 368-line `lf.md` fixture and a 17-line one never skipped a line, never stuck and left the text unchanged (469 and 457 presses for `lf.md`, which wraps). In Claude in Chrome on `pnpm dev`, 36 ArrowDown presses over the 33-line document visited lines 2 to 33 in order (P3-T4).
 - ISC-61: `pnpm test:web tests/editor/sourceMode.test.ts` (6 tests, the real `PaneEditor`): toggling one of two panes on the same document shows raw Markdown there and leaves the other rendered; a tab switch inside the toggled pane stays raw; a tab dragged into the other pane comes up in that pane's mode; the toggle changes no text, makes no edit and leaves nothing to undo; plain-source tabs have nothing to switch and break nothing. Four mutations each failed 2 to 4 tests, except routing the switch through the view instead of the follower, which no test can tell apart (same visible result). In the real window (debug app, trusted key events): Alt+Shift+2 split, Ctrl+E turned raw on in the active pane only, Ctrl+E again turned it off (P3-T5).
 - ISC-62: `pnpm test:web tests/editor/copy.test.ts` (8 tests): 300 seeded selections each of `lf.md`, `crlf.md` and `mixed-eol.md`, run through the follower's clipboard output filter, equal the matching slice of the file's raw bytes (over 100 of each crossed a line break and over 100 contained syntax characters); a hand-built file with CRLF, LF and a lone CR checks that a piece starting after the first break takes its own breaks' endings. Five mutations failed 1 to 3 tests each. Real OS clipboard: in the debug app, a real Ctrl+C on a select-all in the rendered pane and in the raw pane each left exactly the file's 97 UTF-16 code units on the Windows clipboard (read back with .NET `Clipboard.GetText()` after seeding it with a stale value), mixed `\r\n`, `\n` and `\r` included (P3-T5).
+- ISC-4: `pnpm perf startup` (release app, WebView2 157, 5 runs after 2 warm-ups, 85 to 88 percent CPU idle): launch to editable 515.2 ms median (513.8 to 529.3, 3 percent spread) against 1000 ms, with live preview on in every editor. Phase 2 ended at 505 ms; Phase 3 added about 10 ms, 40 ms over the bare shell (475 ms). Rust main to page start 298 ms, page start to mounted 118 ms, mounted to editor 44 ms (P3-T6).
+- ISC-7: `pnpm perf typing-1mb` (release app, 5 runs, live preview on, GFM parser): work per key p95 5.8 ms (5.7 to 6.1), p99 6.6, median 3.9, max 8.8, against 16 ms; with trusted key events (`typing-1mb-trusted`) p95 6.7 ms. Phase 0 measured 5.0 ms with a throwaway decoration layer, so the real layer and the GFM parser cost about 0.8 ms (P3-T6).
+- ISC-63 (re-measured with the full layer, P3-T6): six runs against the 20 percent limit missed in four (late-file ratio 1.28, 1.27, 1.20, 1.20, 1.16, and 1.05 in a CPU-noisy run); with the limit at 35 percent the run passes: middle 1.06, late 1.15, control 8.5 times, same item counts in both files.
 
 ## Remaining Work
 
 - [ ] Ship the Inter font's OFL-1.1 notice with the installer and portable zip, and credit it in the README — the font is bundled from `@fontsource-variable/inter`; waits on P10-T3 to P10-T5.
 - [ ] Check the resolved Rust dependency graph for network crates with `cargo tree --target all` — `no-network` reads direct dependencies only, because the lockfile lists `reqwest` and `hyper` although none is in the Windows build graph; waits on P10-T2, where ISC-20 closes.
 - [ ] Turn the asset protocol on for real (the `protocol-asset` feature, `assetProtocol` enabled with an empty scope) and grow its scope with `allow_directory` when a workspace opens, and divide Tauri drop positions by the pixel ratio in the platform layer — both were tested in P0 (drop positions at 125% scale only); waits on the phases that add images and file drops.
-- [ ] Re-measure with the real live-preview layer, block widgets included: typing against 16 ms, the 3 MB plain-source cutoff, and startup on a fresh WebView2 profile, against the 1000 ms of ISC-4 (a bare shell takes 475 ms); `src/perf/throwawayDecorations.ts` is gone (P3-T1); waits on P3-T6. A miss triggers the Speed gate in Constraints.
 - [ ] Decide whether the Windows 11 snap-layout hover flyout is worth answering `WM_NCHITTEST` from Rust — v1 ships custom caption buttons without it, and Win+Z and edge snapping work; waits on the owner.
