@@ -244,7 +244,15 @@ mod tests {
             .and_then(serde_json::Value::as_u64)
             .and_then(|id| u32::try_from(id).ok())
             .expect("an id");
-        (state, id, path)
+        // The path the document stores, which is canonical. The temp folder may be spelled with
+        // 8.3 short names (as on the CI runner), and the watcher only ever sees the stored one.
+        let stored = state
+            .documents()
+            .get(id)
+            .expect("the document")
+            .path
+            .clone();
+        (state, id, stored)
     }
 
     fn edit_frame(text: &str) -> Vec<u8> {
@@ -434,6 +442,13 @@ mod tests {
         state.access().grant_file(&path).expect("grants");
         open_document(&state, &path).expect("opens");
         std::fs::write(&path, b"theirs\n").expect("written");
+        // Use the path the document stores: the temp folder may be spelled with 8.3 short names.
+        let path = state
+            .documents()
+            .entries()
+            .next()
+            .map(|(_, entry)| entry.path.clone())
+            .expect("the document");
         let shouted = PathBuf::from(path.to_string_lossy().to_uppercase());
         assert_eq!(check_path(&state, &shouted).len(), 1);
     }
