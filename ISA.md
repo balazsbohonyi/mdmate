@@ -3,7 +3,7 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 0/178
+progress: 2/178
 started: 2026-11-07T00:30:52Z
 updated: 2026-11-07T01:30:00Z
 principal_stated_goal: "I want to build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
@@ -282,8 +282,8 @@ Why: these promises hold everywhere, and any single feature could quietly break 
 - [ ] ISC-19: Anti: the hostile fixture causes no code run, launch or SMB attempt.
 - [ ] ISC-20: Anti: the app makes no network request except document images.
 - [ ] ISC-21: Anti: `tauri-plugin-fs` is absent from the dependencies.
-- [ ] ISC-22: `pnpm check` exits 0.
-- [ ] ISC-23: `pnpm check:rust` exits 0.
+- [x] ISC-22: `pnpm check` exits 0.
+- [x] ISC-23: `pnpm check:rust` exits 0.
 - [ ] ISC-24: Anti: no lint suppression lacks a reason comment.
 - [ ] ISC-173: Anti: an opened workspace can never supply a theme file.
 
@@ -502,6 +502,11 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - 2026-11-07: refined: ISC-12 widened from `invoke` to all `@tauri-apps` imports, so the browser mock stays complete.
 - 2026-11-07: refined: ISC-47 moved from a manual run to a scripted kill and restore.
 - 2026-11-07: refined: added ISC-171 to ISC-176, since phase plans held behaviors no claim covered.
+
+## Verification
+
+- ISC-22: `pnpm check` exits 0 on the scaffold, and fails on a planted type error, `any` misuse and bad format (P0-T2).
+- ISC-23: `pnpm check:rust` exits 0 on the scaffold with no `dist/`, and fails on a planted `unwrap` and bad format (P0-T2).
 
 ## Remaining Work
 

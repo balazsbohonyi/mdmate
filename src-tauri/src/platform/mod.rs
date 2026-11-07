@@ -24,3 +24,20 @@ pub(crate) trait Platform {
 pub(crate) fn current() -> impl Platform {
     Native
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn current_platform_is_named_after_this_os() {
+        let expected = if cfg!(target_os = "windows") {
+            "windows"
+        } else if cfg!(target_os = "macos") {
+            "macos"
+        } else {
+            "linux"
+        };
+        assert_eq!(current().name(), expected);
+    }
+}
