@@ -1,6 +1,6 @@
-import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { ensureSyntaxTree } from '@codemirror/language'
 import { EditorSelection, EditorState } from '@codemirror/state'
+import { markdownSupport } from '@/editor/markdownSupport'
 import { scanPreview, type PreviewItem } from '@/editor/livePreview/scan'
 
 /** A parsed state with the selection at `caret` (a number, or `[anchor, head]`). The doc is the whole parse. */
@@ -11,7 +11,7 @@ export function stateOf(doc: string, caret: number | [number, number] = doc.leng
   const state = EditorState.create({
     doc,
     selection,
-    extensions: [markdown({ base: markdownLanguage })],
+    extensions: [markdownSupport()],
   })
   // Small documents parse in one go, but a test must never read a half-built tree.
   if (ensureSyntaxTree(state, doc.length, 5000) === null)

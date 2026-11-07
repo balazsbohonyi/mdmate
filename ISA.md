@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 50/181
+progress: 54/181
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-07T21:01:18Z
+updated: 2026-11-07T21:18:00Z
 principal_stated_goal: "I want to build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -323,11 +323,11 @@ Why: nobody trusts an editor twice after it loses their words, so no action here
 Why: this is the reason mdmate exists; you read the rendered page and edit it in place, with syntax only where you are working.
 
 - [x] ISC-50: Headings render without `#` markers away from the caret.
-- [ ] ISC-51: [container] Emphasis renders with hidden markers.
-  - [ ] ISC-51.1: Bold renders with hidden markers.
-  - [ ] ISC-51.2: Italic renders with hidden markers.
-  - [ ] ISC-51.3: Strikethrough renders with hidden markers.
-- [ ] ISC-52: Inline code renders with hidden backticks.
+- [x] ISC-51: [container] Emphasis renders with hidden markers.
+  - [x] ISC-51.1: Bold renders with hidden markers.
+  - [x] ISC-51.2: Italic renders with hidden markers.
+  - [x] ISC-51.3: Strikethrough renders with hidden markers.
+- [x] ISC-52: Inline code renders with hidden backticks.
 - [ ] ISC-53: Links render as text with the target hidden.
 - [ ] ISC-54: List markers render styled.
 - [ ] ISC-55: Blockquotes render styled.
@@ -583,6 +583,10 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-8: `pnpm test:web tests/documents/largeFile.test.ts`: a file one byte above 3 MiB, a 5 MB file and a multi-byte file above 3 MiB on disk open as plain source (no parser, `plainSource` set, notice text); exactly 3 MiB and 1 MB keep the parser; a large file edits and saves byte for byte and stays plain when its unsaved edits are restored. `>=` fails 2 tests, a 5 MiB cutoff 5, ignoring size 4, counting characters 1. Real window: realistic-5mb.md shows the notice and no highlighting (src/documents/largeFile.ts, src/documents/document.ts) (P2-T7).
 - ISC-50: `pnpm test:web tests/editor/headings.test.ts` (20 tests: hashes and the blank after them hidden away from the caret, shown with the caret on the line edges included, closing hashes, bare `#`, `#tag`, code fences, Setext) and `tests/editor/livePreviewView.test.ts` (jsdom view: hashes leave the DOM and come back with the caret; a file above 3 MiB gets no preview). Broken on purpose: edge-inclusive touch made exclusive fails 1, a bare `#` hidden fails 1, the blank left visible fails 13, the size cutoff ignored fails the view test. Seen in Claude in Chrome on `pnpm dev` and in the real window (`cargo run --features perf`, DevTools port): `# First heading` shows as `First heading` away and with its hash on the caret line (src/editor/livePreview/scan.ts) (P3-T1).
 - ISC-63: `pnpm perf decorations-scale` (release app, real WebView2, 3 rounds): the same viewport text scanned in the 1 MB fixture and inside a 10 MB document made of it ten times, 14.2 against 13.8 µs in the middle (ratio 0.97) and 17.6 against 19.6 µs near the end (1.11), same item counts, limit 20%. The control, a scan of the whole document, takes 2.6 ms at 1 MB and 24 ms at 10 MB (9.2 times), so the check can fail. Headings only; rerun with the full layer in P3-T6 (src/perf/decorationScale.ts) (P3-T1).
+- ISC-51.1: `pnpm test:web tests/editor/emphasis.test.ts`: `**` and `__` hidden away from the caret, shown with the caret in the span edges included, only the span the caret is in revealed, unclosed, escaped and spaced markers left alone, never hidden across a line break. Hiding no emphasis markers, or ignoring the caret, fails 4 and 10 tests. Seen in Chrome on `pnpm dev` and in the real window: `Two **bold** words` shows `Two bold words` and `**bold**` only for the span the caret is in (src/editor/livePreview/scan.ts) (P3-T2).
+- ISC-51.2: the same file: `*` and `_` hidden, snake_case_word left alone, nested italic reveals its outer bold. With the italic node left out of the scan 4 tests fail. In the real window the caret inside `*italic*` of `**bold with *italic* inside**` showed both pairs (P3-T2).
+- ISC-51.3: the same file: `~~` hidden, a single tilde left alone, which needs the GFM parser, since `markdown()` alone has no strikethrough (`tests/editor/markdownSupport.test.ts` pins both). With the wrong mark name 2 tests fail (P3-T2).
+- ISC-52: `pnpm test:web tests/editor/inlineCode.test.ts`: backticks hidden, longer fences hidden with an inner backtick kept, shown with the caret in the span, unclosed and fenced code untouched. With the code mark left out 4 tests fail. Seen in Chrome and the real window: `and code in one line` with the backticks back when the caret is in it (P3-T2).
 
 ## Remaining Work
 

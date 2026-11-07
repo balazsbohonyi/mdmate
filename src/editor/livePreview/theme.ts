@@ -16,4 +16,14 @@ export const previewTheme = EditorView.baseTheme({
   '.cm-md-h5': { fontSize: '1em' },
   '.cm-md-h6': { fontSize: '0.95em', color: 'var(--syntax-marker)' },
   '.cm-md-setext-mark': { color: 'var(--syntax-marker)' },
+  '.cm-md-strong': { fontWeight: '700' },
+  '.cm-md-em': { fontStyle: 'italic' },
+  '.cm-md-strike': { textDecoration: 'line-through' },
+  '.cm-md-code': {
+    fontFamily: 'var(--font-mono)',
+    fontSize: '0.92em',
+    color: 'var(--syntax-code)',
+    backgroundColor: 'var(--syntax-code-background)',
+    borderRadius: 'var(--radius)',
+  },
 })

@@ -38,7 +38,19 @@ export type PreviewItem = HideItem | MarkItem | LineItem
 export const classes = {
   heading: (level: number): string => `cm-md-h cm-md-h${String(level)}`,
   setextUnderline: 'cm-md-setext-mark',
+  strong: 'cm-md-strong',
+  emphasis: 'cm-md-em',
+  strike: 'cm-md-strike',
+  code: 'cm-md-code',
 } as const
+
+/** The inline elements that wrap their text in marks, with the node that is each mark. */
+const wrapped: Record<string, { class: string; mark: string }> = {
+  StrongEmphasis: { class: classes.strong, mark: 'EmphasisMark' },
+  Emphasis: { class: classes.emphasis, mark: 'EmphasisMark' },
+  Strikethrough: { class: classes.strike, mark: 'StrikethroughMark' },
+  InlineCode: { class: classes.code, mark: 'CodeMark' },
+}
 
 /** True when any selection range touches `[from, to]`, edges included. */
 export function touched(ranges: readonly SelectionRange[], from: number, to: number): boolean {
@@ -113,6 +125,18 @@ export function scanPreview(
             items.push({ type: 'line', from: doc.line(n).from, class: classes.heading(level) })
           }
           items.push({ type: 'line', from: last.from, class: classes.setextUnderline })
+          return
+        }
+
+        const wrap = wrapped[name]
+        if (wrap !== undefined) {
+          items.push({ type: 'mark', from: node.from, to: node.to, class: wrap.class })
+          // The markers show while the caret is in the element, edges included.
+          if (touched(selection, node.from, node.to)) return
+          for (let child = node.node.firstChild; child; child = child.nextSibling) {
+            if (child.name === wrap.mark)
+              items.push({ type: 'hide', from: child.from, to: child.to })
+          }
         }
       },
     })

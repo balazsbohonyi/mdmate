@@ -1,9 +1,9 @@
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
-import { markdown } from '@codemirror/lang-markdown'
 import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { EditorState, type EditorSelection, type Extension, type Text } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { livePreview } from './livePreview'
+import { markdownSupport } from './markdownSupport'
 
 /** Fills its parent and scrolls inside itself, in the app's own colors. */
 const frame = EditorView.theme({
@@ -23,7 +23,7 @@ const common: Extension = [
   EditorView.lineWrapping,
   frame,
 ]
-const withParser: Extension = [common, markdown(), syntaxHighlighting(defaultHighlightStyle)]
+const withParser: Extension = [common, markdownSupport(), syntaxHighlighting(defaultHighlightStyle)]
 
 export interface StateOptions {
   /**
@@ -79,7 +79,7 @@ export function createFollowerState(options: FollowerOptions): EditorState {
   const parsing: Extension =
     options.parser === false
       ? []
-      : [markdown(), syntaxHighlighting(defaultHighlightStyle), livePreview()]
+      : [markdownSupport(), syntaxHighlighting(defaultHighlightStyle), livePreview()]
   return EditorState.create({
     doc: options.doc,
     ...(options.selection === undefined ? {} : { selection: options.selection }),
