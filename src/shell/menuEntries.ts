@@ -23,6 +23,7 @@ const MENU_LAYOUT: readonly string[] = [
   COMMAND_IDS.closeTab,
   '-',
   COMMAND_IDS.toggleSidebar,
+  COMMAND_IDS.toggleRawSource,
   '-',
   COMMAND_IDS.exit,
 ]

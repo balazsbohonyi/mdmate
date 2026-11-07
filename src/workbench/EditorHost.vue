@@ -1,27 +1,23 @@
 <script setup lang="ts">
-import type { EditorView } from '@codemirror/view'
 import { onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
-import type { Follower } from '@/documents/follower'
 import { followerOfTab } from '@/documents/store'
-import { createView } from '@/editor/create'
+import { PaneEditor } from './paneEditor'
 
-const { tabId, active } = defineProps<{ tabId: string; active: boolean }>()
+const { tabId, active, raw } = defineProps<{ tabId: string; active: boolean; raw: boolean }>()
 const host = useTemplateRef<HTMLElement>('host')
 
-// The view is never reactive: editor objects stay out of Vue's reactivity. It stays for the life
+// The editor is never reactive: editor objects stay out of Vue's reactivity. It stays for the life
 // of the pane, and each tab's state is swapped in with `setState`, which keeps a tab switch cheap.
-let view: EditorView | undefined
-let shown: Follower | undefined
+let editor: PaneEditor | undefined
 
 function show(id: string): void {
   const follower = followerOfTab(id)
   if (follower === undefined || host.value === null) return
-  if (follower === shown) return
-  shown?.park()
-  view ??= createView(host.value, follower.state)
-  follower.show(view)
-  shown = follower
-  if (active) view.focus()
+  if (editor === undefined) {
+    editor = new PaneEditor(host.value)
+    editor.setRaw(raw)
+  }
+  editor.show(follower, active)
 }
 
 onMounted(() => {
@@ -36,14 +32,18 @@ watch(
 watch(
   () => active,
   (isActive) => {
-    if (isActive) view?.focus()
+    if (isActive) editor?.focus()
+  },
+)
+watch(
+  () => raw,
+  (isRaw) => {
+    editor?.setRaw(isRaw)
   },
 )
 onBeforeUnmount(() => {
-  shown?.park()
-  shown = undefined
-  view?.destroy()
-  view = undefined
+  editor?.destroy()
+  editor = undefined
 })
 </script>
 

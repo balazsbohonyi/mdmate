@@ -59,16 +59,21 @@ export function readEndings(value: unknown, breaks: number): Endings | null {
   return { dominant, at: indices, codes: exceptions }
 }
 
-/** Puts the endings back into text whose only break is `\n`, like Rust's join. Assumes the endings are valid for it. */
-export function joinWithEndings(text: string, endings: Endings): string {
+/**
+ * Puts the endings back into text whose only break is `\n`, like Rust's join. Assumes the endings
+ * are valid for it. `firstBreak` is the index, in the whole document, of the first break in `text`,
+ * for text that is a piece of the document.
+ */
+export function joinWithEndings(text: string, endings: Endings, firstBreak = 0): string {
   const lines = text.split('\n')
   let next = 0
+  while (next < endings.at.length && (endings.at[next] ?? 0) < firstBreak) next++
   let out = ''
   lines.forEach((line, index) => {
     out += line
     if (index === lines.length - 1) return
     let code = endings.dominant
-    if (endings.at[next] === index) {
+    if (endings.at[next] === index + firstBreak) {
       code = endings.codes[next] ?? endings.dominant
       next++
     }

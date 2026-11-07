@@ -8,6 +8,7 @@ import { getHost } from '@/platform'
 import { registerCommand, removeCommand } from './commands'
 import { findPane } from './splitTree'
 import { splitActivePane, workbenchLayout } from './store'
+import { toggleRaw } from './rawMode'
 import { toggleSidebar } from './sidebar'
 
 export const COMMAND_IDS = {
@@ -17,6 +18,7 @@ export const COMMAND_IDS = {
   splitDown: 'workbench.splitDown',
   closeTab: 'workbench.closeTab',
   toggleSidebar: 'view.toggleSidebar',
+  toggleRawSource: 'view.toggleRawSource',
   exit: 'app.exit',
 } as const
 
@@ -82,6 +84,16 @@ export function registerDefaultCommands(): () => void {
       title: 'Toggle Sidebar',
       keybinding: 'Mod+Shift+B',
       run: toggleSidebar,
+    }),
+    registerCommand({
+      id: COMMAND_IDS.toggleRawSource,
+      title: 'Toggle Raw Source',
+      keybinding: 'Mod+E',
+      // The mode belongs to the active pane, so it needs a tab to look at.
+      enabled: () => activeTab() !== null,
+      run: () => {
+        toggleRaw(workbenchLayout.value.activePane)
+      },
     }),
     registerCommand({
       id: COMMAND_IDS.exit,

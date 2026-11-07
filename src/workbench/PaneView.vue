@@ -4,6 +4,7 @@ import { requestCloseTab } from '@/documents/store'
 import EditorHost from './EditorHost.vue'
 import PaneNotice from './PaneNotice.vue'
 import type { PaneNode } from './splitTree'
+import { isRaw } from './rawMode'
 import { focusPane, selectTab, tabInfo, tabRecord, tabTitle } from './store'
 import { beginTabDrag, tabDrag } from './tabDrag'
 import TabStrip from './TabStrip.vue'
@@ -55,6 +56,7 @@ function startDrag(id: string, event: PointerEvent): void {
           <EditorHost
             :tab-id="pane.activeTab"
             :active="active"
+            :raw="isRaw(pane.id)"
           />
         </div>
       </template>

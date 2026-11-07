@@ -14,6 +14,7 @@ import {
 } from '@/workbench/commands'
 import { COMMAND_IDS, registerDefaultCommands } from '@/workbench/defaultCommands'
 import { installKeybindings } from '@/workbench/keyboard'
+import { isRaw, resetRawModes } from '@/workbench/rawMode'
 import { sidebarVisible } from '@/workbench/sidebar'
 import { findPane, panesOf, type Layout } from '@/workbench/splitTree'
 import { resetWorkbench, selectTab, tabTitle, workbenchLayout } from '@/workbench/store'
@@ -43,6 +44,7 @@ const keys = {
   splitDown: { key: '*', code: 'Digit8', altKey: true, shiftKey: true },
   closeTab: { key: 'w', code: 'KeyW', ctrlKey: true },
   toggleSidebar: { key: 'B', code: 'KeyB', ctrlKey: true, shiftKey: true },
+  toggleRawSource: { key: 'e', code: 'KeyE', ctrlKey: true },
 }
 
 const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
@@ -69,6 +71,7 @@ afterEach(() => {
   removeCommands()
   clearCommands()
   resetWorkbench()
+  resetRawModes()
 })
 
 describe('the default commands', () => {
@@ -83,6 +86,7 @@ describe('the default commands', () => {
       [COMMAND_IDS.splitDown]: 'Alt+Shift+8',
       [COMMAND_IDS.closeTab]: 'Ctrl+W',
       [COMMAND_IDS.toggleSidebar]: 'Ctrl+Shift+B',
+      [COMMAND_IDS.toggleRawSource]: 'Ctrl+E',
       [COMMAND_IDS.exit]: undefined,
     })
   })
@@ -90,10 +94,10 @@ describe('the default commands', () => {
   it('can be registered a second time before the first is removed, as hot reload does', () => {
     const removeOld = removeCommands
     removeCommands = registerDefaultCommands()
-    expect(listCommands()).toHaveLength(7)
+    expect(listCommands()).toHaveLength(8)
     // The old shell unmounts after the new one has mounted, and removes what it registered.
     removeOld()
-    expect(listCommands()).toHaveLength(7)
+    expect(listCommands()).toHaveLength(8)
     expect(shortcutLabel(COMMAND_IDS.toggleSidebar, 'other')).toBe('Ctrl+Shift+B')
   })
 
@@ -101,7 +105,7 @@ describe('the default commands', () => {
     removeCommands()
     expect(listCommands()).toEqual([])
     removeCommands = registerDefaultCommands()
-    expect(listCommands()).toHaveLength(7)
+    expect(listCommands()).toHaveLength(8)
   })
 })
 
@@ -194,6 +198,29 @@ describe('toggle sidebar', () => {
     keydown(keys.toggleSidebar)
     await settle()
     expect(sidebarVisible.value).toBe(start)
+  })
+})
+
+describe('toggle raw source', () => {
+  it('switches the active pane only, from its shortcut', async () => {
+    openNewTab('a.md')
+    const left = workbenchLayout.value.activePane
+    await runCommand(COMMAND_IDS.splitRight)
+    const right = workbenchLayout.value.activePane
+    expect(right).not.toBe(left)
+
+    keydown(keys.toggleRawSource)
+    await settle()
+    expect([isRaw(left), isRaw(right)]).toEqual([false, true])
+    keydown(keys.toggleRawSource)
+    await settle()
+    expect([isRaw(left), isRaw(right)]).toEqual([false, false])
+  })
+
+  it('is disabled with no tab, and its key does nothing', async () => {
+    expect(getCommand(COMMAND_IDS.toggleRawSource)?.enabled?.()).toBe(false)
+    await expect(runCommand(COMMAND_IDS.toggleRawSource)).resolves.toBe(false)
+    expect(isRaw(workbenchLayout.value.activePane)).toBe(false)
   })
 })
 

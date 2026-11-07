@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 62/181
+progress: 64/181
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-07T22:20:00Z
+updated: 2026-11-08T00:30:00Z
 principal_stated_goal: "I want to build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -336,8 +336,8 @@ Why: this is the reason mdmate exists; you read the rendered page and edit it in
 - [x] ISC-58: Syntax hides again within 16 ms of the caret leaving.
 - [x] ISC-59: Anti: the caret never sticks inside hidden syntax.
 - [x] ISC-60: Anti: vertical arrow keys never skip a line.
-- [ ] ISC-61: A per-pane toggle shows raw source.
-- [ ] ISC-62: Copying a selection copies raw Markdown.
+- [x] ISC-61: A per-pane toggle shows raw source.
+- [x] ISC-62: Copying a selection copies raw Markdown.
 - [x] ISC-63: Decoration time stays flat between 1 MB and 10 MB files.
 
 ### F4 · Block preview
@@ -595,6 +595,8 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-58: `pnpm perf reveal` on the release app (Windows 11, Ryzen 7 8840HS, WebView2 157), 5 runs of 80 moves each: leaving a bold span in a 392-character formatted line costs a p95 of 3.7 ms of main-thread work (2.0 ms the update, 1.7 ms the frame), max 4.6 ms; entering is 3.9 ms p95. Limit 16 ms. Every move is read back from the line's own DOM and the run fails if the syntax is in the wrong state (0 wrong in all 5 runs) (src/perf/reveal.ts) (P3-T4).
 - ISC-59: `pnpm test:web tests/editor/caretWalk.test.ts`: real caret commands (char and word moves both ways, shift-extend) walk every position of the eight fixtures and seeded windows of the seven generated ones, plus one document of every element and edge case, with a check after each step that the head moved and that no selection end lies strictly inside a hidden range. Shrinking one reveal span (emphasis, heading, quote, link, rule) fails the walk each time; an atomic set that held the marks too fails the with-and-without comparison. Seen the same on 36 real ArrowDown presses in Chrome (P3-T4).
 - ISC-60: the real window (debug app, DevTools port, trusted key events): ArrowDown from the first line to the last and ArrowUp back over a 37-line document of every element, the 368-line `lf.md` fixture and a 17-line one never skipped a line, never stuck and left the text unchanged (469 and 457 presses for `lf.md`, which wraps). In Claude in Chrome on `pnpm dev`, 36 ArrowDown presses over the 33-line document visited lines 2 to 33 in order (P3-T4).
+- ISC-61: `pnpm test:web tests/editor/sourceMode.test.ts` (6 tests, the real `PaneEditor`): toggling one of two panes on the same document shows raw Markdown there and leaves the other rendered; a tab switch inside the toggled pane stays raw; a tab dragged into the other pane comes up in that pane's mode; the toggle changes no text, makes no edit and leaves nothing to undo; plain-source tabs have nothing to switch and break nothing. Four mutations each failed 2 to 4 tests, except routing the switch through the view instead of the follower, which no test can tell apart (same visible result). In the real window (debug app, trusted key events): Alt+Shift+2 split, Ctrl+E turned raw on in the active pane only, Ctrl+E again turned it off (P3-T5).
+- ISC-62: `pnpm test:web tests/editor/copy.test.ts` (8 tests): 300 seeded selections each of `lf.md`, `crlf.md` and `mixed-eol.md`, run through the follower's clipboard output filter, equal the matching slice of the file's raw bytes (over 100 of each crossed a line break and over 100 contained syntax characters); a hand-built file with CRLF, LF and a lone CR checks that a piece starting after the first break takes its own breaks' endings. Five mutations failed 1 to 3 tests each. Real OS clipboard: in the debug app, a real Ctrl+C on a select-all in the rendered pane and in the raw pane each left exactly the file's 97 UTF-16 code units on the Windows clipboard (read back with .NET `Clipboard.GetText()` after seeding it with a stale value), mixed `\r\n`, `\n` and `\r` included (P3-T5).
 
 ## Remaining Work
 

@@ -8,12 +8,14 @@ import type {
 } from '@codemirror/state'
 import type { EditorView } from '@codemirror/view'
 import { syncAnnotation, type FollowerLink } from '@/editor/sync'
+import type { Endings } from '@/lib/endings'
 
 /** What a follower needs from the document it follows. */
 export interface FollowerHost {
   forward(origin: Follower, transactions: readonly Transaction[]): void
   undo(origin: Follower): boolean
   redo(origin: Follower): boolean
+  endings(): Endings
 }
 
 /**
@@ -120,5 +122,9 @@ export class Follower implements FollowerLink {
 
   redo(): boolean {
     return this.#host.redo(this)
+  }
+
+  endings(): Endings {
+    return this.#host.endings()
   }
 }
