@@ -47,6 +47,29 @@ export const tauriHost: Host = {
   async showWindow() {
     await getCurrentWindow().show()
   },
+  windowControls: {
+    async minimize() {
+      await getCurrentWindow().minimize()
+    },
+    async toggleMaximize() {
+      await getCurrentWindow().toggleMaximize()
+    },
+    async close() {
+      await getCurrentWindow().close()
+    },
+    isMaximized() {
+      return getCurrentWindow().isMaximized()
+    },
+    onMaximizedChange(handler) {
+      const current = getCurrentWindow()
+      // Maximizing and restoring both resize the window, and `isMaximized` tells them apart.
+      return current.onResized(() => {
+        current.isMaximized().then(handler, (error: unknown) => {
+          console.error('Could not read the window state', error)
+        })
+      })
+    },
+  },
   async readFile(path) {
     return invoke<ArrayBuffer>('read_file', { path })
   },

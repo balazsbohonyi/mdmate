@@ -37,10 +37,11 @@ mdmate/
 │  ├─ editor/         CM6 only: livePreview/, commands/, theme.ts, keymaps
 │  ├─ documents/      Document store, master state, save, conflict, session
 │  ├─ workbench/      Split tree model, panes, tabs, pointer drag, commands
+│  ├─ shell/          App layout: title bar with menu and caption buttons, sidebar frame, status bar
 │  ├─ features/       tree, quick-open, palette, search, outline, settings, image-viewer
-│  ├─ components/ui/  shadcn-vue
+│  ├─ components/ui/  shadcn-vue, added only with `pnpm ui:add` (never edit by hand)
 │  ├─ lib/            shadcn-vue utilities
-│  └─ styles/         tokens.css, built-in themes
+│  └─ styles/         tokens.css (fonts, sizes, Tailwind map), themes/dark.css and light.css (every color)
 ├─ src-tauri/src/
 │  ├─ commands/       Thin handlers, no logic
 │  ├─ fs/             Read, atomic write, encoding, EOL detection

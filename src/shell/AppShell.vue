@@ -1,0 +1,51 @@
+<script setup lang="ts">
+import { computed, onUnmounted } from 'vue'
+import { runCommand } from '@/workbench/commands'
+import { registerDefaultCommands } from '@/workbench/defaultCommands'
+import { seedDemoWorkbench } from '@/workbench/devSeed'
+import { installKeybindings } from '@/workbench/keyboard'
+import { sidebarVisible } from '@/workbench/sidebar'
+import WorkbenchView from '@/workbench/WorkbenchView.vue'
+import { buildMenuEntries } from './menuEntries'
+import SidebarFrame from './SidebarFrame.vue'
+import StatusBar from './StatusBar.vue'
+import TitleBar from './TitleBar.vue'
+
+defineProps<{ platformName: string }>()
+
+// The menu and the shortcuts both run commands from the registry, through `runCommand`.
+const removeCommands = registerDefaultCommands()
+const removeKeybindings = installKeybindings(window)
+onUnmounted(() => {
+  removeKeybindings()
+  removeCommands()
+})
+
+const menuEntries = computed(() => buildMenuEntries())
+
+// A layout to try splitting and dragging on, until Phase 2 opens real files. The branch is removed
+// from release builds, which start with one empty pane.
+if (import.meta.env.DEV) seedDemoWorkbench()
+
+function runMenuEntry(id: string): void {
+  runCommand(id).catch((error: unknown) => {
+    console.error(`Menu command "${id}" failed`, error)
+  })
+}
+</script>
+
+<template>
+  <div class="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
+    <TitleBar
+      :entries="menuEntries"
+      @menu-select="runMenuEntry"
+    />
+    <div class="flex min-h-0 flex-1">
+      <SidebarFrame v-if="sidebarVisible" />
+      <main class="flex min-w-0 flex-1 flex-col">
+        <WorkbenchView />
+      </main>
+    </div>
+    <StatusBar :platform-name="platformName" />
+  </div>
+</template>

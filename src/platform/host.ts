@@ -32,6 +32,17 @@ export interface PerfHost {
   onDragDrop(handler: (event: PerfDragDrop) => void): Promise<() => void>
 }
 
+/** The caption buttons of the custom title bar. The window has no native frame. */
+export interface WindowControls {
+  minimize(): Promise<void>
+  /** Maximizes the window, or restores it when it is already maximized. */
+  toggleMaximize(): Promise<void>
+  close(): Promise<void>
+  isMaximized(): Promise<boolean>
+  /** Tells the handler each time the window is maximized or restored. Returns the stop function. */
+  onMaximizedChange(handler: (maximized: boolean) => void): Promise<() => void>
+}
+
 /** Everything the UI needs from the machine. Implemented once per runtime. */
 export interface Host {
   readonly kind: 'tauri' | 'browser'
@@ -39,6 +50,7 @@ export interface Host {
   platformName(): Promise<string>
   /** Shows the window. It starts hidden so launch never flashes a blank frame. */
   showWindow(): Promise<void>
+  readonly windowControls: WindowControls
   /** A file's bytes, untouched. They cross as raw binary, never as JSON. */
   readFile(path: string): Promise<ArrayBuffer>
   /** Present only where the harness can drive the app. */

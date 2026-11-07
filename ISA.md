@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 11/181
+progress: 26/181
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-07T13:20:00Z
+updated: 2026-11-07T13:34:49Z
 principal_stated_goal: "I want to build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -94,8 +94,8 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-23 | bash | Rust gate | exit 0 | pnpm check:rust | derived: maintainable | | |
 | ISC-24 | bash | scan suppressions for reason comments | 0 missing | node scripts/check-arch.mjs suppressions-have-reasons | derived: maintainable | | |
 | ISC-25 | screenshot | first launch shows all four regions | all visible | Screenshot of pnpm tauri dev | derived: sublime-feel | | |
-| ISC-26 | manual | use each window control | all work | Real app run | derived: sublime-feel | | |
-| ISC-27 | manual | scrub a screen recording of launch | no white frame | Real app run | derived: sublime-feel | | |
+| ISC-26 | screenshot | use each window control | all work | Real app window, clicked over the DevTools port, state read from user32 | derived: sublime-feel | | |
+| ISC-27 | screenshot | scrub a screen recording of launch | no white frame | 60 fps screen recording of the release build, scanned frame by frame | derived: sublime-feel | | |
 | ISC-28 | bash | split tree test, split right | two columns | pnpm test:web tests/workbench/splitTree.test.ts | derived: sublime-feel | | |
 | ISC-29 | bash | split tree test, split down | two rows | pnpm test:web tests/workbench/splitTree.test.ts | derived: sublime-feel | | |
 | ISC-30 | bash | split tree test, three levels mixed | valid tree | pnpm test:web tests/workbench/splitTree.test.ts | derived: sublime-feel | | |
@@ -269,7 +269,7 @@ Why: these promises hold everywhere, and any single feature could quietly break 
 - [x] ISC-11: `cargo check` passes on Linux in CI.
 - [x] ISC-12: `@tauri-apps` imports appear only inside `src/platform/`.
 - [x] ISC-13: `src/editor/` imports nothing from Vue.
-- [ ] ISC-14: No hard-coded colors exist outside token files.
+- [x] ISC-14: No hard-coded colors exist outside token files.
 - [ ] ISC-15: Anti: `innerHTML` and `v-html` never receive document content.
 - [ ] ISC-16: The opener refuses every scheme except `http`, `https` and `mailto`.
 - [ ] ISC-17: Anti: UNC and `file://host/` targets never reach the filesystem.
@@ -285,20 +285,20 @@ Why: these promises hold everywhere, and any single feature could quietly break 
 ### F1 · Sublime workbench
 Why: a dense keyboard-driven layout you can rearrange freely is what separates this from a note app.
 
-- [ ] ISC-25: Antecedent: first launch shows titlebar, sidebar, tabs and status bar together.
-- [ ] ISC-26: Titlebar controls minimize, maximize and close the window.
-- [ ] ISC-27: Anti: launch never shows a white frame.
-- [ ] ISC-28: Split right creates side-by-side panes.
-- [ ] ISC-29: Split down creates stacked panes.
-- [ ] ISC-30: Splits nest three levels in mixed directions.
-- [ ] ISC-31: Closing a pane's last tab removes that pane.
-- [ ] ISC-32: Dragging a tab moves it to another pane.
-- [ ] ISC-33: Dragging a tab to a pane edge creates a split.
-- [ ] ISC-34: Dragging a split handle resizes the adjacent panes.
-- [ ] ISC-35: A keyboard shortcut toggles the sidebar.
-- [ ] ISC-171: A keyboard shortcut splits the active pane right.
-- [ ] ISC-172: A keyboard shortcut splits the active pane down.
-- [ ] ISC-176: Dragging a tab within a strip reorders it.
+- [x] ISC-25: Antecedent: first launch shows titlebar, sidebar, tabs and status bar together.
+- [x] ISC-26: Titlebar controls minimize, maximize and close the window.
+- [x] ISC-27: Anti: launch never shows a white frame.
+- [x] ISC-28: Split right creates side-by-side panes.
+- [x] ISC-29: Split down creates stacked panes.
+- [x] ISC-30: Splits nest three levels in mixed directions.
+- [x] ISC-31: Closing a pane's last tab removes that pane.
+- [x] ISC-32: Dragging a tab moves it to another pane.
+- [x] ISC-33: Dragging a tab to a pane edge creates a split.
+- [x] ISC-34: Dragging a split handle resizes the adjacent panes.
+- [x] ISC-35: A keyboard shortcut toggles the sidebar.
+- [x] ISC-171: A keyboard shortcut splits the active pane right.
+- [x] ISC-172: A keyboard shortcut splits the active pane down.
+- [x] ISC-176: Dragging a tab within a strip reorders it.
 
 ### F2 · Reliable documents
 Why: nobody trusts an editor twice after it loses their words, so no action here may lose work.
@@ -512,6 +512,13 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - 2026-11-07: Drag-to-move spike passed in the real WebView2: 15 unit tests, 11 of 11 trusted-input cases, and the owner's 12-step by-hand sitting, with a real file drop working while it was active and no browser drag event ever firing. ISC-177 to ISC-179 stay open until P5-T7 builds it into the app. The spike did not cover 125% display scale, line endings in moved text, or live-preview widgets.
 - 2026-11-07: Tauri drop positions are physical pixels (tested at 125% scale), so the platform layer divides them by the pixel ratio before anything hit-tests.
 - 2026-11-07: Shipping custom caption buttons without the Windows 11 snap layout hover flyout, which needs the OS to see a real caption button. Win+Z and edge snapping work on the undecorated window (tested by hand).
+- 2026-11-07: refined: the probe for ISC-14 now also catches Tailwind palette classes (`bg-white`, `text-slate-500`), since they are colors no theme file can change. Named CSS colors stay unchecked, because the words are too common in prose and identifiers.
+- 2026-11-07: Chose two original built-in themes, Graphite (dark, `#1d2027` base) and Paper (light), with every color in `src/styles/themes/` and a test for token parity, gamut and contrast. The native window color is the dark background, pinned to `tauri.conf.json` by a test.
+- 2026-11-07: refined: ISC-26 and ISC-27 moved from `manual` to `screenshot`. Both can be driven and read by tools on the real window: trusted clicks with the OS window state read back, and a 60 fps screen recording scanned frame by frame.
+- 2026-11-07: Launch frames are checked at 60 fps (frames 17 ms apart), so a white flash shorter than about two frames can slip through. A control window that was white for about 100 ms was caught; one that lived 43 ms was not.
+- 2026-11-07: Startup with the full shell is 435 ms median on a warm profile (5 runs, every run within 10%), against 1000 ms. The bare shell took 429 to 475 ms, so the title bar, tab strip, sidebar frame and status bar cost almost nothing.
+- 2026-11-07: Closing the last tab of the only pane leaves that pane empty, instead of removing it. ISC-31 holds for every pane that has a sibling; removing the last pane would leave no workbench to open a file into.
+- 2026-11-07: Split sizes are percentages that always add up to 100, and every split node carries an id so a view can key it and a resize can name it. Moving a tab to the pane it is already in, and dropping the only tab of a pane on that pane's own edge, change nothing beyond order.
 
 ## Verification
 
@@ -526,12 +533,26 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-169: `node scripts/check-arch.mjs license-mit` passes on the repo and fails on planted violations (tests/scripts/checkArch.test.ts, P0-T3).
 - ISC-10: `cargo check --manifest-path src-tauri/Cargo.toml` exits 0 in the `compile (macos-latest)` CI job (https://github.com/balazsbohonyi/mdmate/actions/runs/42367038816, commit 7f77396, P0-T5).
 - ISC-11: `cargo check --manifest-path src-tauri/Cargo.toml` exits 0 in the `compile (ubuntu-latest)` CI job (https://github.com/balazsbohonyi/mdmate/actions/runs/42367038816, commit 7f77396, P0-T5).
+- ISC-14: `node scripts/check-arch.mjs no-hard-coded-colors` passes on the repo and fails on planted hex, color functions and Tailwind palette classes (tests/scripts/checkArch.test.ts); all colors sit in `src/styles/themes/` (tests/styles/themes.test.ts); a runtime token change restyled the page in `pnpm dev` (Claude in Chrome) and the real `pnpm tauri dev` window rendered Graphite (P1-T1).
+- ISC-25: title bar, sidebar, tab strip and status bar all render (32, 240, 34 and 24 px, measured from the DOM) in the real `pnpm tauri dev` window (screenshot over the DevTools port) and in `pnpm dev` (Claude in Chrome); flipping the root to the light theme, or overriding `--sidebar` and `--statusbar`, restyled the matching regions (P1-T2).
+- ISC-26: in the real app, trusted clicks on the caption buttons minimized (`IsIconic` true), maximized (`IsZoomed` true, icon swapped to Restore), restored, and closed (process exited); double-clicking the drag region toggled maximize; a real mouse drag on it moved the window by exactly the dragged distance (P1-T2).
+- ISC-27: 8 of 8 launches of the release build, recorded at 60 fps (about 58 to 59 delivered, worst gap 34 ms), had 0 frames with more than 20% near-white pixels in the window rectangle, and the window first appeared as the dark UI mid-fade; a control white window of about 100 ms was caught as 2 frames (P1-T2).
+- ISC-28: `pnpm test:web tests/workbench/splitTree.test.ts` splits right into two side-by-side panes at 50/50, makes the new pane active, joins an existing row instead of nesting, and fails when the same-direction merge is removed (55 tests, P1-T3).
+- ISC-29: the same file splits down into two stacked panes at 50/50, and nests a column inside a row when the pane is already in a row (P1-T3).
+- ISC-30: the same file builds `row(column([a] row([c] [d])) [b])`, three levels in mixed directions, with every invariant holding, plus 300 seeded random sequences of 60 operations each that stay valid, keep exactly the open tabs, and round-trip through serialize (P1-T3).
+- ISC-34: in `pnpm dev` (Claude in Chrome) trusted drags on three split handles of a three-level layout resized the panes (the left pane went from 648 to 465 px), the saved sizes matched the DOM, no pane or group node was torn down during a drag, nothing moved 600 ms later, a structural change rebuilt the group from the saved sizes, and arrow keys on a focused handle resized and saved too (P1-T4).
+- ISC-31: the same file removes a pane when its last tab closes, gives its space to the previous sibling (or the next if it was first), collapses a split left with one child, and fails when either collapse is removed (P1-T3).
+- ISC-176: trusted drag in `pnpm dev` (Claude in Chrome) took README.md along its strip to after the last tab and the strip went from README, notes, ideas to notes, ideas, README; the same drag with a real OS mouse in the `pnpm tauri dev` window did the same, with the insertion bar drawn 2 px wide at the right border and the dragged tab dimmed; neither run fired a `dragstart` or `selectstart` or left text selected; `tests/workbench/tabDropTarget.test.ts` fixes the index rule and fails when the threshold, the release-time re-aim or the inclusive border are broken (P1-T5).
+- ISC-32: trusted drag in `pnpm dev` moved notes.md from the top-left pane into the bottom-right pane (it landed last and active, the source kept its other tabs), and the same move with a real OS mouse in `pnpm tauri dev` gave the same result (P1-T5).
+- ISC-33: trusted drag in `pnpm dev` of ideas.md onto the right edge of the top-right pane made a new pane beside it (648 px split into 323 and 323); in `pnpm tauri dev` a real OS mouse did the same, the preview covered exactly the right half of the pane (214.75 by 297.5 px) while the button was held, and a real Escape press mid-drag removed the overlay and left the layout untouched after release (P1-T5).
+- ISC-35: Ctrl+Shift+B hid and showed the sidebar as a trusted key press in `pnpm dev` (Claude in Chrome: panes moved from x 240 to 0 and back, the menu item did the same) and as a real OS key press in the `pnpm tauri dev` window (240 to 0 and back); the keydown was taken from the page (`defaultPrevented` true); `tests/workbench/defaultCommands.test.ts` runs the shortcut against the real store (P1-T6).
+- ISC-171: Alt+Shift+2 split a lone 1296 px pane into two columns of 648 px in `pnpm dev`, and an 860 px pane into 430 and 430 in `pnpm tauri dev` with real OS keys, the new pane becoming the active one; the menu item gave the same split in `pnpm dev`, and unit tests show that AltGr (Ctrl+Alt+2) does not trigger it (P1-T6).
+- ISC-172: Alt+Shift+8 split the active pane into two rows, 367 and 367 px high in `pnpm dev` and 332 and 332 px in `pnpm tauri dev` with real OS keys; after the split right of ISC-171, the active pane became a column inside that row (P1-T6).
 
 ## Remaining Work
 
 - [ ] Ship the Inter font's OFL-1.1 notice with the installer and portable zip, and credit it in the README — the font is bundled from `@fontsource-variable/inter`; waits on P10-T3 to P10-T5.
 - [ ] Check the resolved Rust dependency graph for network crates with `cargo tree --target all` — `no-network` reads direct dependencies only, because the lockfile lists `reqwest` and `hyper` although none is in the Windows build graph; waits on P10-T2, where ISC-20 closes.
-- [ ] Add shadcn-vue components through a small script that runs `shadcn-vue add` and then restores the `ts-nocheck` line, turn off five ESLint rules for `src/components/ui/**/*.vue`, and ignore that folder in Prettier — generated files fail `exactOptionalPropertyTypes` (69 errors), and `pnpm check` should fail on a file without the line; waits on Phase 1, where the first components are added (details in the P0-T9 decisions).
 - [ ] Build the real line-ending state field and make undo restore a deleted line break's old ending, and keep each break's ending when a selection with line breaks is moved by drag — the P0 spike gives such breaks the neighbour's ending; waits on Phase 2, where ISC-3 closes.
 - [ ] Turn the asset protocol on for real (the `protocol-asset` feature, `assetProtocol` enabled with an empty scope) and grow its scope with `allow_directory` when a workspace opens, and divide Tauri drop positions by the pixel ratio in the platform layer — both were tested in P0 (drop positions at 125% scale only); waits on the phases that add images and file drops.
 - [ ] Re-measure with the real live-preview layer, block widgets included: typing against 16 ms, the 3 MB plain-source cutoff, and startup on a fresh WebView2 profile, against the 1000 ms of ISC-4 (a bare shell takes 475 ms); then delete `src/perf/throwawayDecorations.ts`; waits on Phase 3.
