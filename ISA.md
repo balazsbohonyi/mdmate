@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 11/178
+progress: 11/181
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-07T11:35:00Z
+updated: 2026-11-07T12:10:00Z
 principal_stated_goal: "I want to build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -72,7 +72,7 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-1 | bash | hash before and after save across all fixtures | identical | pnpm test:rust roundtrip_unedited | derived: byte-exact | critical | |
 | ISC-2 | bash | property test: random edits leave bytes outside the range unchanged | 1000 runs | pnpm test:rust edit_isolation | derived: byte-exact | critical | |
 | ISC-3 | bash | edit a mixed-EOL fixture, compare untouched lines | identical | pnpm test:web tests/editor/lineEndings.test.ts | derived: byte-exact | | |
-| ISC-4 | bash | launch to editable time, release build | under 500 ms | pnpm perf startup | derived: fast | critical | |
+| ISC-4 | bash | launch to editable time, release build | under 1000 ms | pnpm perf startup | derived: fast | critical | |
 | ISC-5 | bash | open 1 MB fixture, release build | under 100 ms | pnpm perf open-1mb | derived: fast | critical | |
 | ISC-6 | bash | tab switch, release build | under 50 ms | pnpm perf tab-switch | derived: fast | | |
 | ISC-7 | bash | keystroke latency on 1 MB fixture | p95 under 16 ms | pnpm perf typing-1mb | derived: fast | critical | |
@@ -167,6 +167,9 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-94 | bash | list command test | outdented | pnpm test:web tests/editor/lists.test.ts | derived: quick-editing | | |
 | ISC-95 | bash | paste command test | link created | pnpm test:web tests/editor/paste.test.ts | derived: quick-editing | | |
 | ISC-96 | bash | dispatch two ranges | one range kept | pnpm test:web tests/editor/selection.test.ts | derived: link-navigation | | |
+| ISC-177 | bash | drag a selection to another position in a test view | text moved, selection follows | pnpm test:web tests/editor/textDrag.test.ts | derived: quick-editing | | |
+| ISC-178 | bash | drag a selection, then undo once | original text restored | pnpm test:web tests/editor/textDrag.test.ts | derived: quick-editing | | |
+| ISC-179 | manual | drag selected text in the real app with native drops on | text moves | Review by the owner | derived: quick-editing | | |
 | ISC-97 | bash | workspace test with two roots | both listed | pnpm test:rust multiple_roots | derived: sublime-feel | | |
 | ISC-98 | bash | store test with no roots | tab opens | pnpm test:web tests/documents/open.test.ts | derived: sublime-feel | | |
 | ISC-99 | bash | render 10000 entries | under 200 rows | pnpm test:web tests/features/tree.test.ts | derived: fast | | |
@@ -256,7 +259,7 @@ Why: these promises hold everywhere, and any single feature could quietly break 
 - [ ] ISC-1: Anti: saving an unedited file never changes a byte.
 - [ ] ISC-2: Anti: an edit never changes bytes outside its range.
 - [ ] ISC-3: Mixed line-ending files keep each untouched line's ending after an edit.
-- [ ] ISC-4: The release app is usable within 500 ms of launch.
+- [ ] ISC-4: The release app is usable within 1000 ms of launch.
 - [ ] ISC-5: A 1 MB Markdown file opens within 100 ms.
 - [ ] ISC-6: Switching tabs completes within 50 ms.
 - [ ] ISC-7: Typing stays under 16 ms per key on the 1 MB fixture.
@@ -381,6 +384,9 @@ Why: formatting should stay in your fingers, so writing never stops for syntax.
 - [ ] ISC-94: Shift+Tab outdents a list item.
 - [ ] ISC-95: Pasting a URL over selected text creates a link.
 - [ ] ISC-96: Anti: the editor never holds more than one selection range.
+- [ ] ISC-177: Dragging selected text to another position in the editor moves it.
+- [ ] ISC-178: A text drag undoes in one step.
+- [ ] ISC-179: Text drag works in the real app while the window accepts native file drops.
 
 ### F7 · Workspace
 Why: Markdown lives among other files, so the sidebar must manage them and renames must never strand a link.
@@ -494,14 +500,15 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - 2026-11-07: refined: ISC-12 widened from `invoke` to all `@tauri-apps` imports, so the browser mock stays complete.
 - 2026-11-07: refined: ISC-47 moved from a manual run to a scripted kill and restore.
 - 2026-11-07: refined: added ISC-171 to ISC-176, since phase plans held behaviors no claim covered.
+- 2026-11-07: refined: added ISC-177 to ISC-179 for drag-to-move of selected text, which the owner put back in v1.
 - 2026-11-07: refined: ISC-7 is judged on the main-thread work a key causes (handling it, plus the next frame's style, layout and paint). Key to frame adds an idle wait of up to one frame, which no editor can remove, so it is printed and never judged.
 - 2026-11-07: Kill rule checked in P0-T8, and it did not fire. Throwaway live-preview decorations hold typing at 5.0 ms p95 per key (5.5 ms with real key events) on the 1 MB fixture, against 16 ms. They cover inline marks only; Phase 3 measures the real layer, block widgets included, with the same scenarios.
 - 2026-11-07: Chose 3 MB as the plain-source cutoff. The Markdown parser is what slows typing (p99 8.2 ms at 3 MB and 15 ms at 5 MB, against 16), and plain source types at 1.9 ms even at 10 MB. Provisional until Phase 3 measures the real live-preview layer.
 - 2026-11-07: Chose normalized text with the line endings kept beside it, over keeping the carriage return in the text. The second keeps every byte, but the Markdown parser then misses tables and hard breaks.
-- 2026-11-07: Kept 500 ms for ISC-4 for now. A bare shell with an editor is editable in 429 ms on a warm profile and 475 ms on a first launch with a fresh profile, so Phase 3 measures the real UI and may renegotiate with that number.
+- 2026-11-07: Raised ISC-4 from 500 ms to 1000 ms, on the owner's call. A bare shell with an editor is editable in 429 ms on a warm profile and 475 ms on a first launch with a fresh profile, mostly WebView2 starting, so 1000 ms leaves room for the real UI. Phase 3 measures it, and 1500 ms is the fallback.
 - 2026-11-07: Chose the asset protocol with a scope that grows at runtime for images, over a custom protocol. Tested in the real WebView2: a folder is blocked until it is allowed, then loads, including names with spaces and accents.
 - 2026-11-07: Kept every strict TypeScript flag and mark generated shadcn-vue files with ts-nocheck and a reason, since all 69 type errors come from exactOptionalPropertyTypes in generated code. Never run shadcn-vue init here, because it rewrites tokens.css.
-- 2026-11-07: Dropped drag-to-move for selected text from v1. CM6's own text drag does not work while native file drops are on (tested by hand), and the file paths from native drops matter more. Cut and paste cover it.
+- 2026-11-07: Kept drag-to-move for selected text in v1, on the owner's call. CM6's own text drag does not work while native file drops are on (tested by hand), and the file paths from native drops matter more, so it is built on pointer events like tab and tree dragging (ISC-177 to ISC-179).
 - 2026-11-07: Tauri drop positions are physical pixels (tested at 125% scale), so the platform layer divides them by the pixel ratio before anything hit-tests.
 - 2026-11-07: Shipping custom caption buttons without the Windows 11 snap layout hover flyout, which needs the OS to see a real caption button. Win+Z and edge snapping work on the undecorated window (tested by hand).
 
@@ -526,5 +533,5 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - [ ] Add shadcn-vue components through a small script that runs `shadcn-vue add` and then restores the `ts-nocheck` line, turn off five ESLint rules for `src/components/ui/**/*.vue`, and ignore that folder in Prettier — generated files fail `exactOptionalPropertyTypes` (69 errors), and `pnpm check` should fail on a file without the line; waits on Phase 1, where the first components are added (details in the P0-T9 decisions).
 - [ ] Build the real line-ending state field and make undo restore a deleted line break's old ending — the P0 spike gives it the neighbour's ending; waits on Phase 2, where ISC-3 closes.
 - [ ] Turn the asset protocol on for real (the `protocol-asset` feature, `assetProtocol` enabled with an empty scope) and grow its scope with `allow_directory` when a workspace opens, and divide Tauri drop positions by the pixel ratio in the platform layer — both were tested in P0 (drop positions at 125% scale only); waits on the phases that add images and file drops.
-- [ ] Re-measure with the real live-preview layer, block widgets included: typing against 16 ms, the 3 MB plain-source cutoff, and startup on a fresh WebView2 profile, where ISC-4 may need renegotiating (a bare shell takes 475 ms); then delete `src/perf/throwawayDecorations.ts`; waits on Phase 3.
+- [ ] Re-measure with the real live-preview layer, block widgets included: typing against 16 ms, the 3 MB plain-source cutoff, and startup on a fresh WebView2 profile, against the 1000 ms of ISC-4 (a bare shell takes 475 ms); then delete `src/perf/throwawayDecorations.ts`; waits on Phase 3.
 - [ ] Decide whether the Windows 11 snap-layout hover flyout is worth answering `WM_NCHITTEST` from Rust — v1 ships custom caption buttons without it, and Win+Z and edge snapping work; waits on the owner.

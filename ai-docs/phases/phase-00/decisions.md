@@ -152,11 +152,12 @@ Each question below was a `fog:` entry in the ISA. All numbers are Windows 11, R
 - **The spike passes 15 tests**: exact bytes back for mixed, all-CRLF, all-LF, old-Mac and empty text; a parser tree for mixed endings equal to the LF tree; the endings above and below an edit unchanged through 500 seeded random edits; and a break made by Enter takes the ending of the line it split. I broke the spike on purpose in a scratch copy and the property test failed, so the test can fail.
 - **Known limit for Phase 2:** undoing the deletion of a line break gives the break the neighbour's ending, not its old one. That line was edited, so ISC-3 holds, but a byte-exact undo needs the removed endings stored in the history. ISC-3 stays open until Phase 2 builds the real one; its test row now points at the web test.
 
-### WebView2 cold start: 500 ms holds for now, with little room
+### WebView2 cold start: 429 to 475 ms for a bare shell, and ISC-4 is now 1000 ms
 
 - **A bare shell with the editor takes 429 ms to be editable on a warm profile (398 to 439) and 475 ms on the first launch with a fresh profile (458 to 507, five fresh profiles).** One of five first launches passed 500 ms.
 - **Most of it is WebView2 starting.** Rust's `main` to page start takes 274 to 339 ms, and the app cannot shorten that. The first launch after install pays the fresh-profile price once.
-- **ISC-4 keeps 500 ms for now.** The real window adds a sidebar, tabs and settings to this bare shell, so the margin on a first launch is about 25 ms before any of that. Phase 3 measures the real UI on a fresh profile. If it does not fit, the options are to show the window sooner with the shell and fill it in, or to define the 500 ms on a warm profile; that renegotiation takes the Phase 3 number as evidence. A true cold start after a reboot cannot be reproduced on demand, so it is not measured.
+- **First decision, raised by the owner later the same day (next bullet): ISC-4 keeps 500 ms for now.** The real window adds a sidebar, tabs and settings to this bare shell, so the margin on a first launch was about 25 ms before any of that. A true cold start after a reboot cannot be reproduced on demand, so it is not measured.
+- **Revised by the owner: ISC-4 is now 1000 ms.** It is the time from launching the app to a window you can type in, which is what `pnpm perf startup` measures as launch to editable. A bare shell takes 429 to 475 ms and most of that is WebView2 starting, so 1000 ms leaves room for the sidebar, tabs and settings. Phase 3 measures the real UI on a fresh profile; if it does not fit, 1500 ms is the fallback, and I would stop there, because past 1500 ms the number stops catching regressions.
 
 ### Asset protocol: the scope grows at runtime, no custom protocol needed
 
@@ -176,7 +177,8 @@ Each question below was a `fog:` entry in the ISA. All numbers are Windows 11, R
 ### Text drag in the editor: it does not work while native file drops are on
 
 - **Result (by hand, `pnpm perf lab`, real WebView2 with `dragDropEnabled` left at its default `true`):** pressing on selected text and dragging it fired `dragstart` three times, but `dragenter`, `dragover` and `drop` never reached the page, and the text did not move. The window accepts native file drops, and on Windows that setting swallows the browser's own drag events.
-- **Decision: v1 has no drag-to-move for selected text.** Cut and paste do the job. If it is wanted later, it gets built on pointer events, the same way tab and tree dragging are. `dragDropEnabled` stays `true`, because native drops carry the real file paths (see the earlier decision on pointer-based dragging). Dropping files from Explorer is unaffected: ISC-156 works through Tauri's drop events, tested below.
+- **First decision, reversed by the owner later the same day (next bullet): v1 has no drag-to-move for selected text.** Cut and paste do the job. If it is wanted later, it gets built on pointer events, the same way tab and tree dragging are. `dragDropEnabled` stays `true`, because native drops carry the real file paths. Dropping files from Explorer is unaffected: it works through Tauri's drop events, tested below.
+- **Revised by the owner: drag-to-move for selected text is in v1.** It is built on pointer events, since the browser's own drag cannot work with native drops on. Pressing on a non-empty selection starts it, a drop caret follows the pointer, and releasing moves the text in one undo step. It is planned as P5-T7 and closes ISC-177 to ISC-179. Nothing is built yet; a lab spike can come sooner if wanted.
 
 ### Drop positions are physical pixels
 

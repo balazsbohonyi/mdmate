@@ -39,3 +39,9 @@ Enter continues lists and checkboxes, Enter on an empty item ends the list, and 
 Pasting a URL over a selection creates a link. `allowMultipleSelections` stays off.
 
 **Done when:** paste tests pass, and a second range is never kept.
+
+## P5-T7: Drag selected text
+
+CM6's own text drag does not work while native file drops are on (P0-T9), so build it on pointer events. Pressing on a non-empty selection starts the drag, a drop caret follows the pointer through `posAtCoords`, and releasing moves the text in one transaction with `userEvent: "move.drop"`. Esc cancels, dropping inside the selection does nothing, and the editor scrolls when the pointer nears its edge.
+
+**Done when:** the move and undo tests pass, and a drag works in the real app with native drops on.
