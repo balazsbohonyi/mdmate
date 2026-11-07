@@ -19,7 +19,7 @@ const SENTENCE = 'Select the word DRAG with the mouse, then drag it to the end o
 
 type Answer = 'yes' | 'no' | 'unanswered'
 
-function el<K extends keyof HTMLElementTagNameMap>(
+export function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   css = '',
   text = '',

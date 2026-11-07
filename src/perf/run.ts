@@ -1,6 +1,7 @@
 import { windowShown } from '@/lib/lifecycle'
 import { getHost } from '@/platform'
 import { assetScope } from './assetScope'
+import { dragAuto, dragByHand } from './dragLab'
 import { SIZES_MB } from './params'
 import { labByHand } from './lab'
 import { open } from './open'
@@ -38,6 +39,8 @@ const scenarios: Record<string, (ctx: ScenarioContext) => Promise<ScenarioOutput
   ...sizedScenarios(),
   'asset-scope': assetScope,
   lab: labByHand,
+  'drag-auto': dragAuto,
+  'lab-drag': dragByHand,
 }
 
 /**

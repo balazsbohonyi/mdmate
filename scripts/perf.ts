@@ -22,7 +22,7 @@ import { createServer } from 'node:net'
 import os from 'node:os'
 import { join, resolve } from 'node:path'
 import { DEFAULT_PARAMS, SIZES_MB, type PerfParams, type PerfReport } from '../src/perf/params.ts'
-import { driveTyping, sleep } from './lib/cdp.ts'
+import { driveDrag, driveTyping, sleep } from './lib/cdp.ts'
 import { REPEATABILITY_RULE, median, repeatability, summarize } from './lib/perfStats.ts'
 
 const ROOT = resolve(import.meta.dirname, '..')
@@ -49,6 +49,8 @@ interface Spec {
   targetMs: number
   /** Real key events from the DevTools port instead of in-page dispatch. */
   trusted?: boolean
+  /** Which harness driver plays input into the page. Typing is the default. */
+  driver?: 'drag'
   /** A pass/fail check run once, not a timing: the page's values and notes are printed as they are. */
   check?: boolean
   /** How long a launch may take. Checks that need a person get longer. */
@@ -153,6 +155,26 @@ const SPECS: Record<string, Spec> = {
   lab: {
     claim: 'fog: text drag, drop units, snap layouts',
     page: 'lab',
+    headlineName: '',
+    targetMs: 0,
+    check: true,
+    timeoutMs: 20 * 60_000,
+    metrics: () => ({}),
+  },
+  'drag-auto': {
+    claim: 'P5-T7 spike: drag-to-move with trusted input',
+    page: 'drag-auto',
+    headlineName: '',
+    targetMs: 0,
+    check: true,
+    trusted: true,
+    driver: 'drag',
+    timeoutMs: 4 * 60_000,
+    metrics: () => ({}),
+  },
+  'lab-drag': {
+    claim: 'P5-T7 spike: drag-to-move by hand',
+    page: 'lab-drag',
     headlineName: '',
     targetMs: 0,
     check: true,
@@ -401,10 +423,14 @@ async function launch(spec: Spec, params: PerfParams, label: string): Promise<Ru
 
   let driverError: Error | undefined
   if (port) {
-    driveTyping(port, {
-      total: params.warmupKeys + params.keys,
-      intervalMs: params.keyIntervalMs,
-    }).catch((error: unknown) => {
+    const driving =
+      spec.driver === 'drag'
+        ? driveDrag(port)
+        : driveTyping(port, {
+            total: params.warmupKeys + params.keys,
+            intervalMs: params.keyIntervalMs,
+          })
+    driving.catch((error: unknown) => {
       driverError = error instanceof Error ? error : new Error(String(error))
       child.kill()
     })
@@ -448,6 +474,12 @@ async function runCheck(name: string, params: PerfParams, info: ReturnType<typeo
   if (name === 'asset-scope') prepareAssetLab()
   if (name === 'lab') {
     console.log('A window opens. Follow the three steps in it, then press "Finish and save".')
+  }
+  if (name === 'lab-drag') {
+    console.log('A window opens. Answer the numbered steps in order, then press "Finish and save".')
+  }
+  if (name === 'drag-auto') {
+    console.log('A window opens and the harness drags in it by itself. Do not touch the mouse.')
   }
   const run = await launch(spec, params, 'check')
   for (const [key, value] of Object.entries(run.report.values))

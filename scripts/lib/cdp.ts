@@ -78,10 +78,19 @@ export class Cdp {
     })
   }
 
-  /** Evaluates an expression in the page and returns its value. */
-  async evaluate(expression: string): Promise<unknown> {
-    const reply = (await this.send('Runtime.evaluate', { expression, returnByValue: true })) as {
+  /** Evaluates an expression in the page and returns its value, waiting for a promise if asked. */
+  async evaluate(expression: string, awaitPromise = false): Promise<unknown> {
+    const reply = (await this.send('Runtime.evaluate', {
+      expression,
+      returnByValue: true,
+      awaitPromise,
+    })) as {
       result?: { value?: unknown }
+      exceptionDetails?: { text?: string; exception?: { description?: string } }
+    }
+    if (reply.exceptionDetails) {
+      const { text, exception } = reply.exceptionDetails
+      throw new Error(`the page threw: ${exception?.description ?? text ?? 'unknown error'}`)
     }
     return reply.result?.value
   }
@@ -124,6 +133,96 @@ export async function driveTyping(
       // A random extra gap keeps the keys from lining up with the page's frame clock.
       await sleep(intervalMs + Math.random() * (1000 / 60))
     }
+  } finally {
+    cdp.close()
+  }
+}
+
+/** One step of a mouse or key sequence the page asks the harness to play. */
+export type DragAction =
+  | { t: 'down' | 'move' | 'hover' | 'up'; x: number; y: number }
+  | { t: 'key'; key: string; code: string; vk: number; modifiers?: number }
+  | { t: 'wait'; ms: number }
+
+async function play(cdp: Cdp, actions: readonly DragAction[]): Promise<void> {
+  for (const action of actions) {
+    if (action.t === 'wait') {
+      await sleep(action.ms)
+    } else if (action.t === 'key') {
+      const key = {
+        key: action.key,
+        code: action.code,
+        windowsVirtualKeyCode: action.vk,
+        modifiers: action.modifiers ?? 0,
+      }
+      await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', ...key })
+      await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', ...key })
+    } else if (action.t === 'down') {
+      await cdp.send('Input.dispatchMouseEvent', {
+        type: 'mousePressed',
+        x: action.x,
+        y: action.y,
+        button: 'left',
+        buttons: 1,
+        clickCount: 1,
+      })
+    } else if (action.t === 'move') {
+      await cdp.send('Input.dispatchMouseEvent', {
+        type: 'mouseMoved',
+        x: action.x,
+        y: action.y,
+        button: 'left',
+        buttons: 1,
+      })
+    } else if (action.t === 'hover') {
+      // A move with no button held: after a press, this is what a lost mouse-up looks like.
+      await cdp.send('Input.dispatchMouseEvent', {
+        type: 'mouseMoved',
+        x: action.x,
+        y: action.y,
+        button: 'none',
+        buttons: 0,
+      })
+    } else {
+      await cdp.send('Input.dispatchMouseEvent', {
+        type: 'mouseReleased',
+        x: action.x,
+        y: action.y,
+        button: 'left',
+        buttons: 0,
+        clickCount: 1,
+      })
+    }
+  }
+}
+
+/**
+ * Plays the drag cases the page offers: for each name the page returns a plan of real (trusted)
+ * mouse and key events, the harness sends them through the DevTools port, and the page checks the
+ * result itself. No real cursor moves, so nothing here interrupts the person at the keyboard.
+ */
+export async function driveDrag(port: number): Promise<void> {
+  const cdp = await Cdp.connect(port, 30_000)
+  try {
+    await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: true })
+    const deadline = Date.now() + 60_000
+    while ((await cdp.evaluate('window.__dragReady === true')) !== true) {
+      if (Date.now() > deadline) throw new Error('the page never reported it was ready for drags')
+      await sleep(50)
+    }
+    const names = JSON.parse(
+      String(await cdp.evaluate('JSON.stringify(window.__dragLab.names())')),
+    ) as string[]
+    for (const name of names) {
+      const quoted = JSON.stringify(name)
+      const text = await cdp.evaluate(
+        `window.__dragLab.prepare(${quoted}).then((plan) => JSON.stringify(plan))`,
+        true,
+      )
+      await play(cdp, JSON.parse(String(text)) as DragAction[])
+      await cdp.evaluate(`window.__dragLab.check(${quoted}).then(() => true)`, true)
+    }
+    await cdp.evaluate('window.__dragLab.finish()')
   } finally {
     cdp.close()
   }
