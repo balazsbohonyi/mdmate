@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 38/181
+progress: 40/181
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-07T16:16:31Z
+updated: 2026-11-07T16:34:36Z
 principal_stated_goal: "I want to build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -257,8 +257,8 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 Why: these promises hold everywhere, and any single feature could quietly break them.
 
 - [x] ISC-1: Anti: saving an unedited file never changes a byte.
-- [ ] ISC-2: Anti: an edit never changes bytes outside its range.
-- [ ] ISC-3: Mixed line-ending files keep each untouched line's ending after an edit.
+- [x] ISC-2: Anti: an edit never changes bytes outside its range.
+- [x] ISC-3: Mixed line-ending files keep each untouched line's ending after an edit.
 - [ ] ISC-4: The release app is usable within 1000 ms of launch.
 - [ ] ISC-5: A 1 MB Markdown file opens within 100 ms.
 - [x] ISC-6: Switching tabs completes within 50 ms.
@@ -525,6 +525,7 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - 2026-11-07: refined: the P0 decision (newline-only text, endings in a state field) supersedes the Phase 2 plan line "Set `EditorState.lineSeparator` from the file" and the matching architecture bullet. `lineSeparator` stays at its default.
 - 2026-11-07: 2026-11-07: Kept open documents in a plain map with a small reactive record for the chrome, and made closing the last tab of an edited document ask first, in a banner inside the pane instead of a modal. Why: rule one keeps editor objects out of Vue, and closing the app never prompts because hot exit keeps the edits (ISC-49). Easy to change if the owner prefers a modal.
 - 2026-11-07: 2026-11-07: Gave each tab a follower state and kept undo history on one headless master per document. Parked tabs only note changes and apply them as one change when shown. Why: closing a pane never loses history (ISC-43), and typing in one pane does not make every parked tab parse. Selection undo (Mod-u) is not bound on followers.
+- 2026-11-07: 2026-11-07: Recognised a move by the shape of its change, one deletion and one insertion of the same text, instead of an effect carried from the follower. Why: the master receives only the change set, the undo and redo of a move have the same shape, and moving text is a move whoever does it. Two cursors that delete and type the same newlines look like a move too, which only changes the endings of the breaks typed there.
 
 ## Verification
 
@@ -566,12 +567,13 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-41: `pnpm test:web tests/documents/sync.test.ts`: a master with two followers, an edit in either shows in the other and in the master; a parked follower catches up with one applied change; 150 seeded random runs of 40 steps keep every follower equal to the master. In the browser, text typed in the right pane showed in the left (src/documents/document.ts, src/documents/follower.ts) (P2-T3).
 - ISC-42: `pnpm test:web tests/documents/sync.test.ts`: undo from the follower that did not make the edit reverts it in every follower and the master, edits from both followers undo in order, quick typing undoes as one step, and the caret goes where the edit was made. In the browser, Ctrl+Z in the left pane reverted what was typed in the right (P2-T3).
 - ISC-43: `pnpm test:web tests/documents/sync.test.ts`: after the follower that made two edits is closed, another follower undoes both and redoes one; closing every follower and opening a new one keeps the history. In the browser, closing the right pane's tab and pressing Ctrl+Z in the left reverted its edit (P2-T3).
+- ISC-2: `pnpm test:rust edit_isolation`: 1000 random files (UTF-8, UTF-8 with a BOM, UTF-16 in both orders, every ending), 982 of them given one edit at a random range; the bytes before the range and after it are the file's own and the middle is the new text. Breaking join two ways (ignoring every ending exception, or putting one a break late) fails it on run 0 (src-tauri/src/fs/mod.rs, src-tauri/src/fs/eol.rs) (P2-T4).
+- ISC-3: `pnpm test:web tests/editor/lineEndings.test.ts`: on the 367-line mixed-eol fixture, appending to, splitting, joining and deleting each line leaves every other line's raw bytes identical and undo puts the whole file back; 300 random runs of 40 steps (edits, two-change edits, drags, undo, redo) match a plain reference model after every step and undoing a whole run gives back the opened bytes. Four deliberate breaks of the field fail 6, 4, 4 and 14 tests (src/editor/lineEndings.ts) (P2-T4).
 
 ## Remaining Work
 
 - [ ] Ship the Inter font's OFL-1.1 notice with the installer and portable zip, and credit it in the README — the font is bundled from `@fontsource-variable/inter`; waits on P10-T3 to P10-T5.
 - [ ] Check the resolved Rust dependency graph for network crates with `cargo tree --target all` — `no-network` reads direct dependencies only, because the lockfile lists `reqwest` and `hyper` although none is in the Windows build graph; waits on P10-T2, where ISC-20 closes.
-- [ ] Build the real line-ending state field and make undo restore a deleted line break's old ending, and keep each break's ending when a selection with line breaks is moved by drag — the P0 spike gives such breaks the neighbour's ending; waits on Phase 2, where ISC-3 closes.
 - [ ] Turn the asset protocol on for real (the `protocol-asset` feature, `assetProtocol` enabled with an empty scope) and grow its scope with `allow_directory` when a workspace opens, and divide Tauri drop positions by the pixel ratio in the platform layer — both were tested in P0 (drop positions at 125% scale only); waits on the phases that add images and file drops.
 - [ ] Re-measure with the real live-preview layer, block widgets included: typing against 16 ms, the 3 MB plain-source cutoff, and startup on a fresh WebView2 profile, against the 1000 ms of ISC-4 (a bare shell takes 475 ms); then delete `src/perf/throwawayDecorations.ts`; waits on Phase 3.
 - [ ] Decide whether the Windows 11 snap-layout hover flyout is worth answering `WM_NCHITTEST` from Rust — v1 ships custom caption buttons without it, and Win+Z and edge snapping work; waits on the owner.

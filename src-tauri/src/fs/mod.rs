@@ -196,6 +196,172 @@ mod tests {
         }
     }
 
+    /// The raw text for some `\n`-only text and the ending of each of its breaks, in order.
+    fn raw_of(chars: &[char], ends: &[eol::Ending]) -> String {
+        let mut raw = String::new();
+        let mut next = 0;
+        for &c in chars {
+            if c == '\n' {
+                raw.push_str(ends[next].as_str());
+                next += 1;
+            } else {
+                raw.push(c);
+            }
+        }
+        raw
+    }
+
+    /// Edits the way the page does: replace a range of the `\n`-only text, where the breaks the edit
+    /// adds take the ending of the line they came from and every other break keeps its own. The
+    /// model is a plain list with one ending per break, so it shares nothing with `eol.rs`.
+    #[test]
+    fn edit_isolation_leaves_every_byte_outside_an_edit_unchanged() {
+        let pieces = [
+            "a",
+            "caf\u{e9}",
+            "\u{1F600}",
+            " ",
+            "# h",
+            "\n",
+            "\r\n",
+            "\r",
+            "\u{feff}",
+            "\0",
+        ];
+        let inserts = [
+            "x",
+            "\u{e9}\u{e9}",
+            "\u{1F600}",
+            "",
+            "\n",
+            "a\nb",
+            "\n\n",
+            "q\n",
+            "\u{feff}",
+        ];
+        let formats = [
+            Format {
+                encoding: Encoding::Utf8,
+                bom: false,
+            },
+            Format {
+                encoding: Encoding::Utf8,
+                bom: true,
+            },
+            Format {
+                encoding: Encoding::Utf16Le,
+                bom: true,
+            },
+            Format {
+                encoding: Encoding::Utf16Be,
+                bom: true,
+            },
+        ];
+        let mut rng = Lcg(20_261_108);
+        let mut edited = 0;
+        for run in 0..1000 {
+            let mut raw = String::new();
+            for _ in 0..rng.below(40) {
+                raw.push_str(pieces[rng.below(pieces.len())]);
+            }
+            let bytes = encoding::encode(&raw, formats[rng.below(formats.len())]);
+            let opened = open_bytes(&bytes);
+            // Every file built here is valid text in a supported encoding, so each must open for
+            // editing. One that opens read-only means the round trip is broken.
+            let Some(format) = opened.format else {
+                panic!(
+                    "run {run}: {raw:?} opened read-only: {:?}",
+                    opened.read_only
+                );
+            };
+
+            // The model: the text as characters, and the ending of every break.
+            let chars: Vec<char> = opened.text.chars().collect();
+            let breaks = chars.iter().filter(|&&c| c == '\n').count();
+            let dominant = opened.endings.dominant;
+            let mut ends = vec![dominant; breaks];
+            for &(index, ending) in &opened.endings.exceptions {
+                ends[usize::try_from(index).expect("an index fits")] = ending;
+            }
+            assert!(
+                encoding::encode(&raw_of(&chars, &ends), format) == bytes,
+                "run {run}: the model does not give the file back"
+            );
+
+            // One edit.
+            let from = rng.below(chars.len() + 1);
+            let to = chars.len().min(from + rng.below(6));
+            let insert: Vec<char> = inserts[rng.below(inserts.len())].chars().collect();
+            if from == to && insert.is_empty() {
+                continue;
+            }
+            let first = chars[..from].iter().filter(|&&c| c == '\n').count();
+            let removed = chars[from..to].iter().filter(|&&c| c == '\n').count();
+            let added = insert.iter().filter(|&&c| c == '\n').count();
+            let inherited = ends
+                .get(first)
+                .or_else(|| first.checked_sub(1).and_then(|i| ends.get(i)))
+                .copied()
+                .unwrap_or(dominant);
+
+            let mut new_ends = ends.clone();
+            new_ends.splice(
+                first..first + removed,
+                std::iter::repeat_n(inherited, added),
+            );
+            let mut new_chars = chars[..from].to_vec();
+            new_chars.extend(&insert);
+            new_chars.extend(&chars[to..]);
+            let new_text: String = new_chars.iter().collect();
+            let new_endings = eol::Endings {
+                dominant,
+                exceptions: new_ends
+                    .iter()
+                    .enumerate()
+                    .filter(|&(_, &ending)| ending != dominant)
+                    .map(|(i, &ending)| (u32::try_from(i).expect("an index fits"), ending))
+                    .collect(),
+            };
+
+            // What the file must look like: its own bytes before the edit and after it, and the
+            // new text, with its endings, between them.
+            let bare = Format {
+                bom: false,
+                ..format
+            };
+            let before = encoding::encode(&raw_of(&chars[..from], &ends[..first]), format);
+            let after = encoding::encode(&raw_of(&chars[to..], &ends[first + removed..]), bare);
+            let middle = encoding::encode(&raw_of(&insert, &vec![inherited; added]), bare);
+            assert_eq!(
+                bytes.len(),
+                before.len()
+                    + after.len()
+                    + encoding::encode(
+                        &raw_of(&chars[from..to], &ends[first..first + removed]),
+                        bare
+                    )
+                    .len(),
+                "run {run}: the pieces do not add up to the file"
+            );
+
+            let saved = save_bytes(&new_text, &new_endings, format).expect("saves");
+            assert!(
+                saved[..before.len()] == bytes[..before.len()],
+                "run {run}: bytes before the edit changed"
+            );
+            assert!(
+                saved[saved.len() - after.len()..] == bytes[bytes.len() - after.len()..],
+                "run {run}: bytes after the edit changed"
+            );
+            assert!(
+                saved == [before.as_slice(), middle.as_slice(), after.as_slice()].concat(),
+                "run {run}: the edit itself was written wrong"
+            );
+            edited += 1;
+        }
+        assert!(edited >= 900, "only {edited} of 1000 runs made an edit");
+    }
+
     #[test]
     fn unsupported_encoding_opens_the_latin1_fixture_read_only_with_its_text_shown() {
         let opened = open_path(&fixture("latin1.md")).expect("opens");

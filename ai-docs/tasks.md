@@ -28,7 +28,7 @@ Mark `[x]` only when the task's "Done when" in its phase plan holds. Each task l
 - [x] P2-T1: File layer with encoding detection and atomic save — closes ISC-1, ISC-39, ISC-40 (ISC-37 moves to P2-T2, see decisions)
 - [x] P2-T2: Host interface and open flow — closes ISC-36, ISC-37, ISC-98, ISC-174
 - [x] P2-T3: Master state and follower views — closes ISC-6, ISC-38, ISC-41, ISC-42, ISC-43
-- [ ] P2-T4: Line-ending preservation and edit isolation — closes ISC-2, ISC-3
+- [x] P2-T4: Line-ending preservation and edit isolation — closes ISC-2, ISC-3
 - [ ] P2-T5: Watcher and conflict handling — closes ISC-44, ISC-45, ISC-46
 - [ ] P2-T6: Hot exit and session restore — closes ISC-47, ISC-48, ISC-49
 - [ ] P2-T7: Large-file mode and open speed — closes ISC-5, ISC-8
