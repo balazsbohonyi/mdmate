@@ -213,15 +213,20 @@ rule('no-vue-in-editor', 'src/editor/ imports nothing from Vue', ({ root }) => {
   return violations
 })
 
-// ISC-14 (the claim closes in P1-T1, when the token files exist)
+// ISC-14 (closed in P1-T1)
 rule('no-hard-coded-colors', 'color literals appear only in src/styles/', ({ root }) => {
   const violations = []
   const hex = /(?<![\w&#])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})\b(?!-)/g
   const fn = /\b(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch|color|color-mix)\(/gi
+  // Tailwind's own palette (`bg-white`, `text-slate-500`, `border-black/20`) is a color that no
+  // theme file can change, so it counts as hard-coded too. Named CSS colors (`red`) are not
+  // checked: the word turns up in prose and identifiers far more often than in a color position.
+  const palette =
+    /(?<![\w-])(?:bg|text|border(?:-[xytblrse])?|ring(?:-offset)?|outline|fill|stroke|from|via|to|divide|accent|caret|decoration|shadow|placeholder)-(?:white|black|(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d{2,3})(?![\w-])/g
   for (const file of walk(root, 'src', [...SOURCE_EXTS, '.css'])) {
     if (file.startsWith('src/styles/')) continue
     const text = readText(root, file)
-    for (const pattern of [hex, fn]) {
+    for (const pattern of [hex, fn, palette]) {
       for (const m of text.matchAll(pattern)) {
         const line = lineAt(text, m.index)
         // `<template #default>` is Vue slot syntax, not a color. Only a `#` still inside the
@@ -231,7 +236,10 @@ rule('no-hard-coded-colors', 'color literals appear only in src/styles/', ({ roo
         violations.push({
           file,
           line,
-          message: `color literal "${m[0]}" outside src/styles/; use a design token`,
+          message:
+            pattern === palette
+              ? `Tailwind palette class "${m[0]}" outside src/styles/; use a design token class`
+              : `color literal "${m[0]}" outside src/styles/; use a design token`,
         })
       }
     }

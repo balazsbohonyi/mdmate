@@ -40,7 +40,7 @@ mdmate/
 │  ├─ features/       tree, quick-open, palette, search, outline, settings, image-viewer
 │  ├─ components/ui/  shadcn-vue
 │  ├─ lib/            shadcn-vue utilities
-│  └─ styles/         tokens.css, built-in themes
+│  └─ styles/         tokens.css (fonts, sizes, Tailwind map), themes/dark.css and light.css (every color)
 ├─ src-tauri/src/
 │  ├─ commands/       Thin handlers, no logic
 │  ├─ fs/             Read, atomic write, encoding, EOL detection

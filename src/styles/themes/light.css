@@ -1,0 +1,64 @@
+/*
+ * mdmate Light ("Paper"). Same token names as dark.css.
+ *
+ * Original palette: warm paper surfaces at hue 85, the same mint accent family darkened to keep
+ * contrast on a light page, and syntax colors at lower lightness. Nothing is taken from another
+ * editor's theme. tests/styles/themes.test.ts pins the token names and checks contrast.
+ */
+:root.light {
+  color-scheme: light;
+
+  --background: oklch(0.985 0.004 85);
+  --foreground: oklch(0.25 0.012 262);
+  --card: oklch(0.995 0.003 85);
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.995 0.003 85);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.48 0.08 188);
+  --primary-foreground: oklch(0.985 0.004 85);
+  --secondary: oklch(0.94 0.006 85);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.955 0.005 85);
+  --muted-foreground: oklch(0.46 0.012 262);
+  --accent: oklch(0.92 0.008 85);
+  --accent-foreground: var(--foreground);
+  --destructive: oklch(0.52 0.2 27);
+  --border: oklch(0.88 0.008 85);
+  --input: oklch(0.84 0.01 85);
+  --ring: var(--primary);
+
+  --sidebar: oklch(0.965 0.005 85);
+  --sidebar-foreground: oklch(0.3 0.012 262);
+  --sidebar-accent: oklch(0.93 0.008 85);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: oklch(0.9 0.007 85);
+
+  --titlebar: oklch(0.945 0.006 85);
+  --titlebar-foreground: oklch(0.36 0.012 262);
+  --tabstrip: oklch(0.955 0.006 85);
+  --tab-foreground: oklch(0.44 0.012 262);
+  --tab-active: var(--background);
+  --tab-active-foreground: oklch(0.2 0.012 262);
+  --statusbar: oklch(0.945 0.006 85);
+  --statusbar-foreground: oklch(0.44 0.012 262);
+  --handle: oklch(0.9 0.007 85);
+  --handle-active: var(--primary);
+  --drop-preview: oklch(0.48 0.08 188 / 18%);
+
+  --selection: oklch(0.88 0.06 230);
+  --caret: oklch(0.46 0.08 188);
+  --syntax-heading: oklch(0.48 0.11 60);
+  --syntax-link: oklch(0.48 0.105 240);
+  --syntax-code: oklch(0.46 0.1 150);
+  --syntax-code-background: oklch(0.955 0.005 85);
+  --syntax-quote: oklch(0.46 0.03 262);
+  --syntax-marker: oklch(0.64 0.02 262);
+  --syntax-keyword: oklch(0.48 0.15 310);
+  --syntax-string: oklch(0.46 0.11 145);
+  --syntax-number: oklch(0.5 0.13 50);
+  --syntax-comment: oklch(0.56 0.02 262);
+  --syntax-function: oklch(0.46 0.1 240);
+  --syntax-type: oklch(0.46 0.075 195);
+  --syntax-punctuation: oklch(0.46 0.02 262);
+  --syntax-invalid: oklch(0.5 0.2 27);
+}

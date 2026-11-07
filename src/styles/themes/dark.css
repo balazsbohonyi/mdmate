@@ -1,0 +1,67 @@
+/*
+ * mdmate Dark ("Graphite"). The default theme.
+ *
+ * Original palette: cool slate surfaces at hue 262, one mint accent at hue 182, and syntax colors
+ * spread around the wheel at similar lightness. Nothing is taken from another editor's theme.
+ * Every color the app uses is a token declared here and in light.css, with the same names.
+ * tests/styles/themes.test.ts pins that and checks contrast.
+ */
+:root,
+:root.dark {
+  color-scheme: dark;
+
+  /* Matches backgroundColor in src-tauri/tauri.conf.json, so launch has no color jump. A test pins the pair. */
+  --background: #1d2027;
+  --foreground: oklch(0.9 0.01 262);
+  --card: oklch(0.27 0.014 262);
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.28 0.015 262);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.78 0.11 182);
+  --primary-foreground: oklch(0.2 0.03 190);
+  --secondary: oklch(0.3 0.014 262);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.28 0.013 262);
+  --muted-foreground: oklch(0.72 0.015 262);
+  --accent: oklch(0.32 0.016 262);
+  --accent-foreground: var(--foreground);
+  --destructive: oklch(0.72 0.16 25);
+  --border: oklch(0.33 0.014 262);
+  --input: oklch(0.37 0.015 262);
+  --ring: var(--primary);
+
+  --sidebar: oklch(0.21 0.012 262);
+  --sidebar-foreground: oklch(0.86 0.01 262);
+  --sidebar-accent: oklch(0.3 0.016 262);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: oklch(0.29 0.013 262);
+
+  --titlebar: oklch(0.18 0.012 262);
+  --titlebar-foreground: oklch(0.8 0.012 262);
+  --tabstrip: oklch(0.21 0.012 262);
+  --tab-foreground: oklch(0.72 0.014 262);
+  --tab-active: var(--background);
+  --tab-active-foreground: oklch(0.95 0.008 262);
+  --statusbar: oklch(0.18 0.012 262);
+  --statusbar-foreground: oklch(0.72 0.014 262);
+  --handle: oklch(0.29 0.013 262);
+  --handle-active: var(--primary);
+  --drop-preview: oklch(0.78 0.11 182 / 22%);
+
+  --selection: oklch(0.4 0.07 230);
+  --caret: oklch(0.82 0.11 182);
+  --syntax-heading: oklch(0.83 0.1 80);
+  --syntax-link: oklch(0.78 0.12 235);
+  --syntax-code: oklch(0.8 0.1 150);
+  --syntax-code-background: oklch(0.25 0.013 262);
+  --syntax-quote: oklch(0.74 0.03 262);
+  --syntax-marker: oklch(0.58 0.025 262);
+  --syntax-keyword: oklch(0.78 0.12 310);
+  --syntax-string: oklch(0.8 0.1 140);
+  --syntax-number: oklch(0.8 0.11 55);
+  --syntax-comment: oklch(0.6 0.025 262);
+  --syntax-function: oklch(0.79 0.11 235);
+  --syntax-type: oklch(0.8 0.1 195);
+  --syntax-punctuation: oklch(0.72 0.02 262);
+  --syntax-invalid: oklch(0.72 0.16 25);
+}

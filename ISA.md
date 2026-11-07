@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 11/181
+progress: 12/181
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-07T13:20:00Z
+updated: 2026-11-07T12:35:00Z
 principal_stated_goal: "I want to build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -269,7 +269,7 @@ Why: these promises hold everywhere, and any single feature could quietly break 
 - [x] ISC-11: `cargo check` passes on Linux in CI.
 - [x] ISC-12: `@tauri-apps` imports appear only inside `src/platform/`.
 - [x] ISC-13: `src/editor/` imports nothing from Vue.
-- [ ] ISC-14: No hard-coded colors exist outside token files.
+- [x] ISC-14: No hard-coded colors exist outside token files.
 - [ ] ISC-15: Anti: `innerHTML` and `v-html` never receive document content.
 - [ ] ISC-16: The opener refuses every scheme except `http`, `https` and `mailto`.
 - [ ] ISC-17: Anti: UNC and `file://host/` targets never reach the filesystem.
@@ -512,6 +512,8 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - 2026-11-07: Drag-to-move spike passed in the real WebView2: 15 unit tests, 11 of 11 trusted-input cases, and the owner's 12-step by-hand sitting, with a real file drop working while it was active and no browser drag event ever firing. ISC-177 to ISC-179 stay open until P5-T7 builds it into the app. The spike did not cover 125% display scale, line endings in moved text, or live-preview widgets.
 - 2026-11-07: Tauri drop positions are physical pixels (tested at 125% scale), so the platform layer divides them by the pixel ratio before anything hit-tests.
 - 2026-11-07: Shipping custom caption buttons without the Windows 11 snap layout hover flyout, which needs the OS to see a real caption button. Win+Z and edge snapping work on the undecorated window (tested by hand).
+- 2026-11-07: refined: the probe for ISC-14 now also catches Tailwind palette classes (`bg-white`, `text-slate-500`), since they are colors no theme file can change. Named CSS colors stay unchecked, because the words are too common in prose and identifiers.
+- 2026-11-07: Chose two original built-in themes, Graphite (dark, `#1d2027` base) and Paper (light), with every color in `src/styles/themes/` and a test for token parity, gamut and contrast. The native window color is the dark background, pinned to `tauri.conf.json` by a test.
 
 ## Verification
 
@@ -526,6 +528,7 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-169: `node scripts/check-arch.mjs license-mit` passes on the repo and fails on planted violations (tests/scripts/checkArch.test.ts, P0-T3).
 - ISC-10: `cargo check --manifest-path src-tauri/Cargo.toml` exits 0 in the `compile (macos-latest)` CI job (https://github.com/balazsbohonyi/mdmate/actions/runs/42367038816, commit 7f77396, P0-T5).
 - ISC-11: `cargo check --manifest-path src-tauri/Cargo.toml` exits 0 in the `compile (ubuntu-latest)` CI job (https://github.com/balazsbohonyi/mdmate/actions/runs/42367038816, commit 7f77396, P0-T5).
+- ISC-14: `node scripts/check-arch.mjs no-hard-coded-colors` passes on the repo and fails on planted hex, color functions and Tailwind palette classes (tests/scripts/checkArch.test.ts); all colors sit in `src/styles/themes/` (tests/styles/themes.test.ts); a runtime token change restyled the page in `pnpm dev` (Claude in Chrome) and the real `pnpm tauri dev` window rendered Graphite (P1-T1).
 
 ## Remaining Work
 

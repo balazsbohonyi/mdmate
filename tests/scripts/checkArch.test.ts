@@ -119,9 +119,28 @@ const cases: RuleCase[] = [
       'src/styles/tokens.css': ':root { --background: #1e1f22; color: rgb(0 0 0); }\n',
       'src/App.vue':
         '<template><Comp><template #default><div class="bg-background" /></template></Comp></template>\n',
+      // Token classes, transparent, and words that only look like palette classes.
+      'src/features/tokens.ts':
+        "export const c = 'bg-titlebar text-foreground border-border bg-transparent text-sm shadow-md ring-ring/50 border-t-handle'\n// white-space and a black box are prose, not classes\n",
     },
     planted: {
       'hex in TypeScript': { 'src/features/a.ts': "export const c = '#ff0000'\n" },
+      'palette class bg-white': {
+        'src/App.vue': '<template><div class="flex bg-white" /></template>\n',
+      },
+      'palette class with a shade': {
+        'src/features/c.ts': "export const c = 'text-slate-500'\n",
+      },
+      'palette class with opacity': {
+        'src/features/d.ts': "export const c = 'border-black/20'\n",
+      },
+      'palette class on a single side': {
+        'src/features/e.ts': "export const c = 'border-t-red-500'\n",
+      },
+      'palette class in a template literal': {
+        'src/features/f.ts':
+          'export const c = (on: boolean) => `px-2 ${on ? "bg-emerald-600" : ""}`\n',
+      },
       'arbitrary Tailwind color': {
         'src/App.vue': '<template><div class="bg-[#fff]" /></template>\n',
       },
