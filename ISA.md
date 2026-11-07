@@ -2,10 +2,10 @@
 task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
-phase: scoping
+phase: climbing
 progress: 0/178
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-07T00:41:03Z
+updated: 2026-11-07T01:30:00Z
 principal_stated_goal: "I want to build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2

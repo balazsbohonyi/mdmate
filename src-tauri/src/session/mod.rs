@@ -1,0 +1,1 @@
+//! Hot-exit store.

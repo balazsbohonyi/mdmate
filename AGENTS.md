@@ -2,7 +2,7 @@ This file provides guidance to AI coding agents working in this repository.
 
 ## Project
 
-**Status: planning only. No app code exists yet. Work starts at P0-T1, which creates the scripts and commands named below.**
+**Status: Phase 0, spike and scaffold. See `ai-docs/tasks.md` for what is done.**
 
 mdmate is a fast desktop Markdown editor with Obsidian-style inline editing and a SublimeText look and feel. It ships for Windows first, and is built so macOS and Linux need only new platform implementations.
 

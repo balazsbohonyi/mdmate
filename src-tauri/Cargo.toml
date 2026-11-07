@@ -1,0 +1,36 @@
+[package]
+name = "mdmate"
+version = "0.1.0"
+description = "A fast inline Markdown editor"
+authors = ["Balazs Bohonyi"]
+license = "MIT"
+repository = "https://github.com/balazsbohonyi/mdmate"
+edition = "2024"
+rust-version = "1.90"
+
+[lib]
+name = "mdmate_lib"
+crate-type = ["rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+
+[lints.rust]
+unsafe_code = "deny" # platform/ modules opt in locally
+
+[lints.clippy]
+unwrap_used = "deny"
+print_stdout = "deny"
+dbg_macro = "deny"
+undocumented_unsafe_blocks = "deny"
+await_holding_lock = "deny"
+
+# panic stays "unwind", so a crashed background thread can't lose unsaved typing.
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+strip = true
