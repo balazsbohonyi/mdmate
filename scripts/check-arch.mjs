@@ -6,12 +6,13 @@
  *   node scripts/check-arch.mjs <rule> [<rule>]  run the named rules
  *   node scripts/check-arch.mjs --list           list the rules
  *   node scripts/check-arch.mjs --root <dir>     check another tree (the tests do this)
+ *   node scripts/check-arch.mjs --dist <dir>     also inspect this build (default: <root>/dist)
  *
  * Exit 0 when every selected rule passes, 1 on any violation, 2 on bad usage.
  * Each rule returns violations as { file, line, message }.
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const SKIP_DIRS = new Set(['node_modules', 'target', 'dist', '.git', 'gen', 'generated'])
@@ -517,14 +518,110 @@ rule(
   },
 )
 
-// ISC-71 (the claim closes in P4-T4; bundle inspection joins this rule when parsers exist)
+/**
+ * Packages that parse or highlight one language. `@codemirror/lang-markdown` and `@lezer/markdown`
+ * are not among them: Markdown is what the editor is for.
+ */
+const LANGUAGE_PARSER =
+  /^(?:@codemirror\/lang-(?!markdown$)[\w-]+|@codemirror\/language-data|@codemirror\/legacy-modes(?:\/.+)?|@lezer\/(?!common$|highlight$|lr$|markdown$)[\w-]+|highlight\.js(?:\/.+)?|prismjs(?:\/.+)?|shiki|@shikijs\/.+)$/
+
+/**
+ * The parsers that `@codemirror/lang-markdown` itself imports statically, for the HTML it finds in
+ * Markdown (`lang-html`, which brings `lang-css` and `lang-javascript` with it). They are in the entry
+ * bundle whatever this app does, so the bundle check does not hold them against it. Checked
+ * against the package's own imports on 2026-11-08 (`@codemirror/lang-markdown` 6.5.2).
+ */
+const MARKDOWN_OWN_PARSERS = new Set([
+  '@codemirror/lang-html',
+  '@codemirror/lang-css',
+  '@codemirror/lang-javascript',
+  '@lezer/html',
+  '@lezer/css',
+  '@lezer/javascript',
+])
+
+/** The package a build-map source path belongs to, or null for the app's own files. */
+function packageOfSource(source) {
+  const path = source.replaceAll('\\', '/')
+  const at = path.lastIndexOf('node_modules/')
+  if (at === -1) return null
+  const m = /^((?:@[^/]+\/)?[^/]+)/.exec(path.slice(at + 'node_modules/'.length))
+  return m ? m[1] : null
+}
+
+/**
+ * The files a page loads before any code of its own runs: the entry script, the modulepreload
+ * links, and every chunk those import statically. Chunks reached only by `import()` are not among
+ * them, which is the point.
+ */
+function eagerChunks(distDir) {
+  const html = readFileSync(join(distDir, 'index.html'), 'utf8')
+  const queue = []
+  for (const m of html.matchAll(/<script\b[^>]*\bsrc="([^"]+\.js)"/g)) queue.push(m[1])
+  for (const m of html.matchAll(/<link\b[^>]*rel="modulepreload"[^>]*\bhref="([^"]+\.js)"/g))
+    queue.push(m[1])
+  const seen = new Set()
+  while (queue.length > 0) {
+    const rel = (queue.pop() ?? '').replace(/^\.?\//, '')
+    if (seen.has(rel) || !existsSync(join(distDir, rel))) continue
+    seen.add(rel)
+    const text = readFileSync(join(distDir, rel), 'utf8')
+    for (const m of text.matchAll(
+      /(?:^|[;}\n])\s*(?:import|export)\b[^'"()]*?["']\.\/([^"']+\.js)["']/g,
+    )) {
+      queue.push(`${dirname(rel) === '.' ? '' : `${dirname(rel)}/`}${m[1]}`)
+    }
+  }
+  return [...seen]
+}
+
+/**
+ * ISC-71, the build half: no language parser (beyond the ones Markdown brings) in the chunks the
+ * page loads first. Reads the source maps of those chunks, so the build must have been made with
+ * `vite build --sourcemap`. Returns the problems, or a note saying why nothing was inspected.
+ */
+function inspectBundle(distDir, explicit) {
+  const missing = (message) => ({
+    violations: explicit ? [{ file: distDir, line: 1, message }] : [],
+    note: message,
+  })
+  if (!existsSync(join(distDir, 'index.html')))
+    return missing('no index.html; build with "pnpm exec vite build --sourcemap"')
+  const chunks = eagerChunks(distDir)
+  if (chunks.length === 0) return missing('index.html loads no script')
+  const violations = []
+  for (const chunk of chunks) {
+    const mapPath = join(distDir, `${chunk}.map`)
+    if (!existsSync(mapPath)) {
+      return missing(
+        `${chunk} has no source map; build with "pnpm exec vite build --sourcemap --outDir <dir>"`,
+      )
+    }
+    const map = JSON.parse(readFileSync(mapPath, 'utf8'))
+    const found = new Set()
+    for (const source of map.sources ?? []) {
+      const name = packageOfSource(String(source))
+      if (name !== null && LANGUAGE_PARSER.test(name) && !MARKDOWN_OWN_PARSERS.has(name))
+        found.add(name)
+    }
+    for (const name of [...found].sort()) {
+      violations.push({
+        file: `${basename(distDir)}/${chunk}`,
+        line: 1,
+        message: `"${name}" is in a chunk the page loads first; load it with import() on first use`,
+      })
+    }
+  }
+  return { violations, note: '' }
+}
+
+// ISC-71
 rule(
   'languages-lazy',
-  'language parsers are loaded with dynamic import(), never statically',
-  ({ root }) => {
+  'language parsers are loaded with dynamic import(), never statically, and stay out of the entry bundle',
+  ({ root, dist }) => {
     const violations = []
-    const parser =
-      /^(?:@codemirror\/lang-(?!markdown$)[\w-]+|@codemirror\/language-data|@codemirror\/legacy-modes(?:\/.+)?|@lezer\/(?!common$|highlight$|lr$|markdown$)[\w-]+|highlight\.js(?:\/.+)?|prismjs(?:\/.+)?|shiki|@shikijs\/.+)$/
+    const parser = LANGUAGE_PARSER
     for (const file of walk(root, 'src', SOURCE_EXTS)) {
       const text = readText(root, file)
       for (const { spec, index, kind } of importSpecifiers(text)) {
@@ -536,6 +633,12 @@ rule(
           })
         }
       }
+    }
+    const distDir = dist ?? join(root, 'dist')
+    const bundle = inspectBundle(distDir, dist !== undefined)
+    violations.push(...bundle.violations)
+    if (bundle.note !== '' && bundle.violations.length === 0) {
+      console.log(`note  languages-lazy: build not inspected (${bundle.note})`)
     }
     return violations
   },
@@ -600,6 +703,7 @@ rule('license-mit', 'LICENSE is the MIT text and the manifests say MIT', ({ root
 
 function main(argv) {
   let root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+  let dist
   const names = []
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
@@ -607,6 +711,10 @@ function main(argv) {
       const value = argv[++i]
       if (!value) return usage('--root needs a directory')
       root = resolve(value)
+    } else if (arg === '--dist') {
+      const value = argv[++i]
+      if (!value) return usage('--dist needs a directory')
+      dist = resolve(value)
     } else if (arg === '--list') {
       for (const r of rules) console.log(`${r.name.padEnd(28)} ${r.summary}`)
       return 0
@@ -627,7 +735,7 @@ function main(argv) {
 
   let failed = 0
   for (const r of selected) {
-    const violations = r.check({ root })
+    const violations = r.check({ root, dist })
     if (violations.length === 0) {
       console.log(`ok    ${r.name}`)
       continue
@@ -641,7 +749,7 @@ function main(argv) {
 
 function usage(problem) {
   console.error(
-    `${problem}\nusage: node scripts/check-arch.mjs [--list] [--root <dir>] [<rule> ...]`,
+    `${problem}\nusage: node scripts/check-arch.mjs [--list] [--root <dir>] [--dist <dir>] [<rule> ...]`,
   )
   return 2
 }

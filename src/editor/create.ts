@@ -1,7 +1,8 @@
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
-import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language'
+import { syntaxHighlighting } from '@codemirror/language'
 import { EditorState, type EditorSelection, type Extension, type Text } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
+import { tokenHighlight } from './highlight'
 import { livePreview } from './livePreview'
 import { previewSlot } from './previewMode'
 import { markdownSupport } from './markdownSupport'
@@ -24,7 +25,7 @@ const common: Extension = [
   EditorView.lineWrapping,
   frame,
 ]
-const withParser: Extension = [common, markdownSupport(), syntaxHighlighting(defaultHighlightStyle)]
+const withParser: Extension = [common, markdownSupport(), syntaxHighlighting(tokenHighlight)]
 
 export interface StateOptions {
   /**
@@ -80,7 +81,7 @@ export function createFollowerState(options: FollowerOptions): EditorState {
   const parsing: Extension =
     options.parser === false
       ? []
-      : [markdownSupport(), syntaxHighlighting(defaultHighlightStyle), previewSlot()]
+      : [markdownSupport(), syntaxHighlighting(tokenHighlight), previewSlot()]
   return EditorState.create({
     doc: options.doc,
     ...(options.selection === undefined ? {} : { selection: options.selection }),

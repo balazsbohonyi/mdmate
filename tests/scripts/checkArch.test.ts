@@ -18,6 +18,51 @@ interface RuleCase {
 const script = resolve(import.meta.dirname, '../../scripts/check-arch.mjs')
 const temps: string[] = []
 
+/** Where a package's files sit in a build's source map. */
+const pkgFile = (name: string) => `../node_modules/${name}/dist/index.js`
+
+/**
+ * A fake build: `dist/index.html` loading `assets/index.js` (and `preload`ed chunks), each chunk
+ * with a source map listing the given source paths, and `imports` saying what each chunk imports
+ * statically or with import(). Enough for the bundle half of `languages-lazy` to read.
+ */
+function build(
+  chunks: Record<string, { sources: string[]; static?: string[]; lazy?: string[] }>,
+  preload: string[] = [],
+): Files {
+  const files: Files = {
+    'dist/index.html': `<!doctype html><script type="module" crossorigin src="/assets/index.js"></script>${preload
+      .map((name) => `<link rel="modulepreload" crossorigin href="/assets/${name}.js">`)
+      .join('')}`,
+  }
+  for (const [name, chunk] of Object.entries(chunks)) {
+    const code = [
+      ...(chunk.static ?? []).map((other) => `import{a as b}from"./${other}.js";`),
+      ...(chunk.lazy ?? []).map((other) => `const load=()=>import("./${other}.js");`),
+      'export{};',
+    ].join('\n')
+    files[`dist/assets/${name}.js`] = code
+    files[`dist/assets/${name}.js.map`] = JSON.stringify({ version: 3, sources: chunk.sources })
+  }
+  return files
+}
+
+const MARKDOWN_SOURCES = [
+  'src/main.ts',
+  pkgFile('@codemirror/view'),
+  pkgFile('@codemirror/lang-markdown'),
+  pkgFile('@codemirror/lang-html'),
+  pkgFile('@codemirror/lang-css'),
+  pkgFile('@codemirror/lang-javascript'),
+  pkgFile('@lezer/html'),
+]
+const PYTHON = pkgFile('@codemirror/lang-python')
+
+const cleanBuild = build({
+  index: { sources: MARKDOWN_SOURCES, lazy: ['python'] },
+  python: { sources: [PYTHON, pkgFile('@codemirror/language-data')] },
+})
+
 function run(args: string[], files?: Files) {
   const finalArgs = [...args]
   if (files) {
@@ -296,8 +341,53 @@ const cases: RuleCase[] = [
     clean: {
       'src/editor/a.ts':
         "import { markdown } from '@codemirror/lang-markdown'\nexport const load = () => import('@codemirror/lang-python')\nvoid markdown\n",
+      ...cleanBuild,
     },
     planted: {
+      'a parser in the entry chunk': build({
+        index: { sources: [...MARKDOWN_SOURCES, PYTHON] },
+      }),
+      'the language list in the entry chunk': build({
+        index: { sources: [...MARKDOWN_SOURCES, pkgFile('@codemirror/language-data')] },
+      }),
+      'a legacy mode in the entry chunk': build({
+        index: { sources: [...MARKDOWN_SOURCES, pkgFile('@codemirror/legacy-modes')] },
+      }),
+      'a parser in a preloaded chunk': build(
+        {
+          index: { sources: MARKDOWN_SOURCES },
+          shared: { sources: [PYTHON] },
+        },
+        ['shared'],
+      ),
+      'a parser in a chunk the entry imports statically': build({
+        index: { sources: MARKDOWN_SOURCES, static: ['shared'] },
+        shared: { sources: [pkgFile('@lezer/rust')] },
+      }),
+      'a parser in a chunk imported statically by a preloaded chunk': build(
+        {
+          index: { sources: MARKDOWN_SOURCES },
+          shared: { sources: MARKDOWN_SOURCES, static: ['deep'] },
+          deep: { sources: [PYTHON] },
+        },
+        ['shared'],
+      ),
+      'a parser at a pnpm store path': build({
+        index: {
+          sources: [
+            ...MARKDOWN_SOURCES,
+            '../node_modules/.pnpm/@codemirror+lang-rust@6.0.1/node_modules/@codemirror/lang-rust/dist/index.js',
+          ],
+        },
+      }),
+      'a parser at a Windows path': build({
+        index: {
+          sources: [
+            ...MARKDOWN_SOURCES,
+            'D:\\app\\node_modules\\@codemirror\\lang-python\\dist\\index.js',
+          ],
+        },
+      }),
       'static parser import': {
         'src/editor/a.ts': "import { python } from '@codemirror/lang-python'\nvoid python\n",
       },
@@ -386,6 +476,64 @@ describe('check-arch command line', () => {
 
   it('rejects an unknown rule with exit code 2', () => {
     expect(run(['no-such-rule']).status).toBe(2)
+  })
+
+  describe('--dist', () => {
+    /** Writes a fake build into a temp dir of its own and returns the dir holding `dist`. */
+    function buildDir(files: Files): string {
+      const dir = mkdtempSync(join(tmpdir(), 'check-arch-dist-'))
+      temps.push(dir)
+      for (const [rel, body] of Object.entries(files)) {
+        if (body === null) continue
+        const path = join(dir, rel)
+        mkdirSync(dirname(path), { recursive: true })
+        writeFileSync(path, body)
+      }
+      return dir
+    }
+    const empty = { 'src/a.ts': 'export {}\n' }
+
+    it('checks the build it is given, wherever it is', () => {
+      const dir = buildDir(build({ index: { sources: [...MARKDOWN_SOURCES, PYTHON] } }))
+      const result = run(['languages-lazy', '--dist', join(dir, 'dist')], empty)
+      expect(result.status).toBe(1)
+      expect(result.out).toContain('@codemirror/lang-python')
+      expect(result.out).toContain('assets/index.js')
+    })
+
+    it('accepts a clean build it is given', () => {
+      const dir = buildDir(cleanBuild)
+      const result = run(['languages-lazy', '--dist', join(dir, 'dist')], empty)
+      expect(result.out).toContain('ok    languages-lazy')
+      expect(result.status).toBe(0)
+    })
+
+    it('fails when the build it is given has no source maps, rather than passing unchecked', () => {
+      const dir = buildDir({ ...cleanBuild, 'dist/assets/index.js.map': null })
+      const result = run(['languages-lazy', '--dist', join(dir, 'dist')], empty)
+      expect(result.status).toBe(1)
+      expect(result.out).toContain('no source map')
+    })
+
+    it('fails when the build it is given does not exist', () => {
+      const dir = buildDir({})
+      const result = run(['languages-lazy', '--dist', join(dir, 'dist')], empty)
+      expect(result.status).toBe(1)
+    })
+
+    it('says so, and still passes, when the default build has no source maps', () => {
+      const result = run(['languages-lazy'], {
+        ...empty,
+        ...cleanBuild,
+        'dist/assets/index.js.map': null,
+      })
+      expect(result.status).toBe(0)
+      expect(result.out).toContain('build not inspected')
+    })
+
+    it('needs a directory', () => {
+      expect(run(['languages-lazy', '--dist']).status).toBe(2)
+    })
   })
 
   it('passes every rule on this repository', () => {

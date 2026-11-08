@@ -257,5 +257,6 @@ describe('atomic ranges', () => {
       const without = walk(mount(doc, false), cursorCharRight, 0, doc.length, name)
       expect(withAtomic).toEqual(without)
     }
-  })
+    // Four caret walks over two documents take about 4.8 s here, so the default 5 s is a coin toss.
+  }, 60_000)
 })
