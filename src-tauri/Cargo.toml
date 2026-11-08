@@ -20,14 +20,14 @@ notify = "8"
 rfd = { version = "0.17", default-features = false, features = ["common-controls-v6", "gtk3"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["protocol-asset"] }
 thiserror = "2"
 xxhash-rust = { version = "0.8.19", features = ["xxh3"] }
 
 [features]
-# Compiles the perf-harness commands and the asset protocol they test. Only `pnpm perf` turns this
-# on; shipped builds leave it off.
-perf = ["tauri/protocol-asset"]
+# Compiles the perf-harness commands. Only `pnpm perf` turns this on; shipped builds leave it off.
+# The asset protocol is not part of it: images next to a document need it in every build.
+perf = []
 
 [lints.rust]
 unsafe_code = "deny" # platform/ modules opt in locally

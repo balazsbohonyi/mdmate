@@ -6,6 +6,7 @@
  */
 import { syntaxTree } from '@codemirror/language'
 import type { EditorState, Text } from '@codemirror/state'
+import { imageContext, resolveImageAddress, type ImageAddress } from './image'
 
 type Tree = ReturnType<typeof syntaxTree>
 type SyntaxNode = Tree['topNode']
@@ -43,7 +44,27 @@ export interface TableItem {
   readonly source: string
 }
 
-export type BlockItem = TableItem
+/**
+ * An image drawn in place of its Markdown. `block` is true when it is alone on its line, and then
+ * `from` and `to` are that whole line; otherwise it is drawn inside the text and the range is
+ * the image's own.
+ */
+export interface ImageItem {
+  readonly kind: 'image'
+  readonly from: number
+  readonly to: number
+  readonly block: boolean
+  readonly alt: string
+  readonly title: string | null
+  /** What the address in the document allows. */
+  readonly image: ImageAddress
+  /** What the webview loads, or null when the address is refused. */
+  readonly src: string | null
+  /** The Markdown the widget stands for. */
+  readonly source: string
+}
+
+export type BlockItem = TableItem | ImageItem
 
 /** True when any selection range touches `[from, to]`, edges included. */
 export function touchesRange(
@@ -209,6 +230,49 @@ function tableItem(state: EditorState, node: SyntaxNode): TableItem | null {
   }
 }
 
+/** The text inside the quotes or parentheses of a link title. */
+function titleText(raw: string): string {
+  return raw.length >= 2 ? raw.slice(1, -1) : raw
+}
+
+function imageItem(state: EditorState, node: SyntaxNode): ImageItem | null {
+  const doc = state.doc
+  let url: SyntaxNode | null = null
+  let title: SyntaxNode | null = null
+  for (let child = node.firstChild; child; child = child.nextSibling) {
+    if (child.name === 'URL') url = child
+    else if (child.name === 'LinkTitle') title = child
+  }
+  // `![alt][ref]` has no address of its own; it stays Markdown.
+  if (url === null) return null
+  const context = state.facet(imageContext)
+  const image = resolveImageAddress(doc.sliceString(url.from, url.to), context?.folder() ?? null)
+  const src =
+    image.kind === 'local'
+      ? (context?.url(image.path) ?? null)
+      : image.kind === 'remote'
+        ? image.url
+        : null
+  const inner = innerRange(node)
+  const line = doc.lineAt(node.from)
+  const alone =
+    doc.lineAt(node.to).number === line.number &&
+    doc.sliceString(line.from, line.to).trim() === doc.sliceString(node.from, node.to)
+  const from = alone ? line.from : node.from
+  const to = alone ? line.to : node.to
+  return {
+    kind: 'image',
+    from,
+    to,
+    block: alone,
+    alt: doc.sliceString(inner.from, inner.to),
+    title: title === null ? null : titleText(doc.sliceString(title.from, title.to)),
+    image,
+    src,
+    source: doc.sliceString(from, to),
+  }
+}
+
 /**
  * Every block item for the nodes that overlap `ranges`. A node that starts before a range is still
  * returned whole, so a rescan of part of a table gives the whole table.
@@ -221,11 +285,22 @@ export function scanBlocks(
   const seen = new Set<number>()
   const tree = syntaxTree(state)
   for (const { from, to } of ranges) {
+    // True while inside a top-level paragraph, the only place images are drawn.
+    let inParagraph = false
     tree.iterate({
       from,
       to,
       enter(node) {
         if (node.name === 'Document') return
+        if (inParagraph) {
+          if (node.name !== 'Image') return
+          if (!seen.has(node.from)) {
+            seen.add(node.from)
+            const item = imageItem(state, node.node)
+            if (item !== null) items.push(item)
+          }
+          return false
+        }
         // Blocks are top-level: inside a list or a quote the line prefix would be lost.
         if (node.node.parent?.name !== 'Document') return false
         if (node.name === 'Table') {
@@ -236,7 +311,14 @@ export function scanBlocks(
           }
           return false
         }
-        return
+        if (node.name === 'Paragraph') {
+          inParagraph = true
+          return
+        }
+        return false
+      },
+      leave(node) {
+        if (node.name === 'Paragraph' && node.node.parent?.name === 'Document') inParagraph = false
       },
     })
   }

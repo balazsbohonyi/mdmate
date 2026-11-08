@@ -5,7 +5,7 @@
 #[cfg(feature = "perf")]
 pub(crate) mod perf;
 
-use crate::access::display_path;
+use crate::access::{self, display_path};
 use crate::documents::{self, AppState};
 use crate::error::AppError;
 use crate::platform::{self, Platform as _};
@@ -71,16 +71,38 @@ pub(crate) async fn pick_files(
 /// Opens a file and returns its document frame: header, line endings and text with a plain newline as its only break.
 #[tauri::command]
 pub(crate) async fn open_file(
+    app: tauri::AppHandle,
     state: State<'_, Arc<AppState>>,
     path: String,
 ) -> Result<tauri::ipc::Response, AppError> {
     let state = state.inner().clone();
-    let frame = tauri::async_runtime::spawn_blocking(move || {
-        documents::open_document(&state, &PathBuf::from(path))
+    let (frame, images) = tauri::async_runtime::spawn_blocking(move || {
+        let path = PathBuf::from(path);
+        let frame = documents::open_document(&state, &path)?;
+        // The document opened, so the path was allowed and resolves again.
+        let images = state
+            .access()
+            .check(&path)
+            .ok()
+            .and_then(|resolved| access::asset_folder(&resolved));
+        Ok::<_, AppError>((frame, images))
     })
     .await
     .map_err(|error| AppError::Task(error.to_string()))??;
+    if let Some(folder) = images {
+        allow_images_from(&app, &folder);
+    }
     Ok(tauri::ipc::Response::new(frame))
+}
+
+/// Lets the page load the images in a document's folder (and below) through the asset protocol.
+/// Rust does this itself when a document opens; the page has no command to widen the scope. The
+/// scope only grows while the app runs, which is the most the protocol supports. A failure leaves
+/// the images unloadable, so the document shows its placeholders and everything else works.
+fn allow_images_from(app: &tauri::AppHandle, folder: &std::path::Path) {
+    use tauri::Manager as _;
+    // The folder is escaped by Tauri before it becomes a pattern, so a name with `[` is safe.
+    let _ = app.asset_protocol_scope().allow_directory(folder, true);
 }
 
 /// What a save wrote, for the page to remember.

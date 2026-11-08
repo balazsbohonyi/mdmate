@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 69/186
+progress: 74/186
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-08T03:10:00Z
+updated: 2026-11-08T04:20:00Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -350,16 +350,16 @@ Why: documents mix prose with tables, images and code, and a page full of raw sy
 
 - [x] ISC-64: GFM tables render read-only.
 - [x] ISC-65: A caret entering a table reveals its raw source.
-- [ ] ISC-66: Local images render inline from relative paths.
-- [ ] ISC-67: Remote `https` images render inline.
+- [x] ISC-66: Local images render inline from relative paths.
+- [x] ISC-67: Remote `https` images render inline.
 - [ ] ISC-68: YAML frontmatter collapses to a pill.
 - [ ] ISC-69: Clicking a checkbox changes exactly one byte.
 - [ ] ISC-70: Fenced code highlights using token colors.
 - [ ] ISC-71: Language parsers stay out of the entry bundle.
 - [ ] ISC-72: Anti: late-rendering widgets never shift the scroll position.
-- [ ] ISC-180: Anti: an image address other than a relative path or `https` never loads.
-- [ ] ISC-181: Opening a document lets the page load images from its folder, and from no other folder.
-- [ ] ISC-182: A broken or still-loading image holds a fixed-size placeholder.
+- [x] ISC-180: Anti: an image address other than a relative path or `https` never loads.
+- [x] ISC-181: Opening a document lets the page load images from its folder, and from no other folder.
+- [x] ISC-182: A broken or still-loading image holds a fixed-size placeholder.
 - [x] ISC-183: Anti: no selection head ever sits strictly inside a block replacement.
 - [ ] ISC-184: Anti: a read-only document ignores a checkbox click.
 - [x] ISC-73: Anti: `katex` and `mermaid` are absent from v1 dependencies.
@@ -616,11 +616,16 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-64: Interceptor on `pnpm dev` (mock host) and the real WebView2 window: a table with a header row, left, centred and right alignment, bold and code in cells, no pipes shown; tests/editor/table.test.ts reads the model and the widget DOM, and `pnpm test:web tests/editor/table.test.ts` passes (src/editor/livePreview/blocks) (P4-T1).
 - ISC-65: tests/editor/table.test.ts (caret inside, on both edges, a range across it, the caret leaving) and, with real input, a click on a cell and ArrowDown and ArrowUp through the table in both Interceptor on `pnpm dev` and the real window: seven presses each way visit every source line, and the table draws again on leaving. Without `stepIntoBlock` the keyboard jumped over the table (P4-T1).
 - ISC-183: `pnpm test:web tests/editor/blocks.test.ts` puts the caret at every offset of a document of tables, then 400 random ranges, then 300 selection transactions: no block is ever touched by a selection. Breaking it on purpose (drawing touched blocks, ignoring selection moves) fails 10 and 7 tests (P4-T1).
+- ISC-66: the dev page (mock host, Interceptor) showed `pic.svg` and a badge row from relative paths, and the real WebView2 window showed an SVG, two badges and a PNG in a subfolder through the asset protocol, each at its natural size (300x120, 90x20, 128x128 CSS px); `pnpm test:web tests/editor/images.test.ts tests/documents/images.test.ts` passes (P4-T2).
+- ISC-67: the dev page drew an `https` image (800x600) inline, and a unit test pins that its source is the address as written with no referrer sent (P4-T2).
+- ISC-180: `pnpm test:web tests/editor/images.test.ts` runs 36 refusal cases (http, file, data, script and unknown schemes, UNC in four spellings, absolute and rooted paths, drive letters, `..` plain and percent-encoded, device names, trailing dots, credentials), a fuzz of 6000 random addresses that finds no path outside the folder and no non-https remote, and hostile.md, where only its one https image gets an address. Breaking each rule on purpose failed 1 to 8 tests every time (P4-T2).
+- ISC-181: `pnpm test:rust asset_folder` (5 tests: the document's own folder, never a neighbour or the parent, none for a disk root, none for a network path, a folder with glob characters), and in the real window a fetch of an asset URL returned 200 for a file in the document's folder and 403 for a file in the folder beside it. Rust grants it in `open_file`; the page has no command for it (P4-T2).
+- ISC-182: `tests/editor/images.test.ts` loads, fails and refuses an image and reads the same fixed height (160 px block, 20 px inline) before and after, and a remembered size reserves the real aspect ratio from the first frame; the real window showed the 160 px dashed placeholder with its alt text for a missing file (P4-T2).
 
 ## Remaining Work
 
 - [ ] Ship the Inter font's OFL-1.1 notice with the installer and portable zip, and credit it in the README — the font is bundled from `@fontsource-variable/inter`; waits on P10-T3 to P10-T5.
 - [ ] Check the resolved Rust dependency graph for network crates with `cargo tree --target all` — `no-network` reads direct dependencies only, because the lockfile lists `reqwest` and `hyper` although none is in the Windows build graph; waits on P10-T2, where ISC-20 closes.
-- [ ] Turn the asset protocol on for real (the `protocol-asset` feature, `assetProtocol` enabled with an empty scope) and grow its scope with `allow_directory` when a workspace opens, and divide Tauri drop positions by the pixel ratio in the platform layer — both were tested in P0 (drop positions at 125% scale only); waits on the phases that add images and file drops.
+- [ ] Grow the asset protocol scope with `allow_directory` when a workspace folder opens (Phase 4 does it for the folder of each opened document), and divide Tauri drop positions by the pixel ratio in the platform layer — the drop positions were tested in P0 at 125% scale only; waits on the phases that add workspaces and file drops.
 - [ ] Re-measure typing and startup once the Phase 4 block widgets (tables, images, frontmatter) land, against the 16 ms of ISC-7 and the 1500 ms of ISC-4; Phase 3 measured the inline layer only; waits on P4.
 - [ ] Decide whether the Windows 11 snap-layout hover flyout is worth answering `WM_NCHITTEST` from Rust — v1 ships custom caption buttons without it, and Win+Z and edge snapping work; waits on the owner.

@@ -27,7 +27,7 @@ import {
 import { Decoration, EditorView, type DecorationSet } from '@codemirror/view'
 import { scanBlocks, touchesRange, type BlockItem } from './scan'
 import { blockTheme } from './theme'
-import { TableWidget, type BlockWidget } from './widgets'
+import { ImageWidget, TableWidget, type BlockWidget } from './widgets'
 
 interface Span {
   from: number
@@ -51,12 +51,17 @@ export interface BlockInfo {
   readonly estimatedHeight: number
 }
 
-function widgetFor(item: BlockItem): BlockWidget {
-  return new TableWidget(item.model, item.source)
-}
-
 function decorationFor(item: BlockItem): ReturnType<Decoration['range']> {
-  return Decoration.replace({ widget: widgetFor(item), block: true }).range(item.from, item.to)
+  if (item.kind === 'image') {
+    return Decoration.replace({ widget: new ImageWidget(item), block: item.block }).range(
+      item.from,
+      item.to,
+    )
+  }
+  return Decoration.replace({
+    widget: new TableWidget(item.model, item.source),
+    block: true,
+  }).range(item.from, item.to)
 }
 
 /** Sorts spans and joins the ones that overlap or touch. */

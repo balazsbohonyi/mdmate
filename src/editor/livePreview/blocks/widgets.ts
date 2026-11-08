@@ -1,5 +1,6 @@
 import { WidgetType, type EditorView } from '@codemirror/view'
-import type { BlockItem, Inline, TableModel } from './scan'
+import { imageSizeOf, rememberImageSize, type ImageSize } from './image'
+import type { BlockItem, ImageItem, Inline, TableModel } from './scan'
 
 /** Common ground of the block widgets: what kind of block this is, for the field and the tests. */
 export abstract class BlockWidget extends WidgetType {
@@ -96,6 +97,125 @@ export class TableWidget extends BlockWidget {
       const start = view.posAtDOM(wrap)
       event.preventDefault()
       view.dispatch({ selection: { anchor: start + offset }, scrollIntoView: true })
+      view.focus()
+    })
+    return wrap
+  }
+}
+
+/** The height a block image holds while it loads, and when it fails. A fixed size, so nothing moves. */
+const BLOCK_PLACEHOLDER = 160
+/** Same, for an image inside a line of text. A badge is about this tall. */
+const INLINE_PLACEHOLDER = 20
+/** The padding above and below a block image, in px. */
+const IMAGE_PADDING = 14
+
+/** Fits `frame` to an image of this size, so it takes the space the image will fill. */
+function reserve(frame: HTMLElement, size: ImageSize, block: boolean): void {
+  frame.style.minHeight = ''
+  frame.style.aspectRatio = `${String(size.width)} / ${String(size.height)}`
+  if (block) {
+    frame.style.width = '100%'
+    frame.style.maxWidth = `${String(size.width)}px`
+  } else {
+    frame.style.width = `${String(size.width)}px`
+    frame.style.maxWidth = '100%'
+  }
+}
+
+/**
+ * An image drawn in place of its Markdown, alone on its line (a block) or inside the text. It
+ * holds a fixed-size box from the first draw: the remembered size of the image when it has loaded
+ * before, otherwise a placeholder. A failed or refused image keeps that box and shows its alt text,
+ * so a late load or a failure never moves the text around it (ISC-72, ISC-182).
+ */
+export class ImageWidget extends BlockWidget {
+  readonly kind = 'image'
+  readonly src: string | null
+  readonly alt: string
+  readonly title: string | null
+  readonly block: boolean
+
+  constructor(item: ImageItem) {
+    super()
+    this.src = item.src
+    this.alt = item.alt
+    this.title = item.title
+    this.block = item.block
+  }
+
+  override eq(other: WidgetType): boolean {
+    return (
+      other instanceof ImageWidget &&
+      other.src === this.src &&
+      other.alt === this.alt &&
+      other.title === this.title &&
+      other.block === this.block
+    )
+  }
+
+  override get estimatedHeight(): number {
+    if (!this.block) return -1
+    const known = this.src === null ? undefined : imageSizeOf(this.src)
+    return (known?.height ?? BLOCK_PLACEHOLDER) + IMAGE_PADDING * 2
+  }
+
+  override toDOM(view: EditorView): HTMLElement {
+    const wrap: HTMLElement = document.createElement(this.block ? 'div' : 'span')
+    wrap.className = this.block ? 'cm-md-image cm-md-image-block' : 'cm-md-image'
+    const frame: HTMLElement = document.createElement(this.block ? 'div' : 'span')
+    frame.className = 'cm-md-image-frame'
+    wrap.append(frame)
+
+    const known = this.src === null ? undefined : imageSizeOf(this.src)
+    if (known === undefined) {
+      frame.style.minHeight = `${String(this.block ? BLOCK_PLACEHOLDER : INLINE_PLACEHOLDER)}px`
+    } else {
+      reserve(frame, known, this.block)
+    }
+
+    const fail = (reason: string): void => {
+      frame.classList.add('cm-md-image-failed')
+      frame.replaceChildren()
+      const label = document.createElement('span')
+      label.className = 'cm-md-image-label'
+      label.textContent = this.alt === '' ? 'image' : this.alt
+      frame.append(label)
+      wrap.title = reason
+      view.requestMeasure()
+    }
+
+    if (this.src === null) {
+      fail('Not loaded: only a path inside the document folder, or an https address, can load.')
+    } else {
+      const src = this.src
+      const img = document.createElement('img')
+      img.alt = this.alt
+      if (this.title !== null) img.title = this.title
+      img.decoding = 'async'
+      img.draggable = false
+      // The address of the document is nobody else's business.
+      img.referrerPolicy = 'no-referrer'
+      img.addEventListener('load', () => {
+        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+          rememberImageSize(src, img.naturalWidth, img.naturalHeight)
+          reserve(frame, { width: img.naturalWidth, height: img.naturalHeight }, this.block)
+        }
+        frame.classList.add('cm-md-image-loaded')
+        view.requestMeasure()
+      })
+      img.addEventListener('error', () => {
+        fail('This image could not be loaded.')
+      })
+      frame.append(img)
+      img.src = src
+    }
+
+    wrap.addEventListener('mousedown', (event) => {
+      if (event.button !== 0) return
+      const start = view.posAtDOM(wrap)
+      event.preventDefault()
+      view.dispatch({ selection: { anchor: start }, scrollIntoView: true })
       view.focus()
     })
     return wrap

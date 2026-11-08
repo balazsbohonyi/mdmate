@@ -26,6 +26,7 @@ import os from 'node:os'
 import { join, resolve } from 'node:path'
 import { DEFAULT_PARAMS, SIZES_MB, type PerfParams, type PerfReport } from '../src/perf/params.ts'
 import { driveDrag, driveTyping, sleep } from './lib/cdp.ts'
+import { writeScrollLab } from './lib/scrollLab.ts'
 import { REPEATABILITY_RULE, median, repeatability, summarize } from './lib/perfStats.ts'
 
 const ROOT = resolve(import.meta.dirname, '..')
@@ -191,6 +192,15 @@ const SPECS: Record<string, Spec> = {
       }
     },
   },
+  'scroll-stability': {
+    claim: 'ISC-72',
+    page: 'scroll-stability',
+    headlineName: '',
+    targetMs: 0,
+    check: true,
+    timeoutMs: 10 * 60_000,
+    metrics: () => ({}),
+  },
   'asset-scope': {
     claim: 'fog: asset protocol scope',
     page: 'asset-scope',
@@ -325,33 +335,15 @@ function parseArgs(argv: string[]) {
 
 function build(): void {
   console.log('perf: building the release app with the perf driver (the first build is slow)...')
-  // A constant command line; the shell is there because pnpm is a .cmd file on Windows.
-  // The asset protocol is off in the real config. The lab turns it on for this build only, so the
-  // question "can its scope grow at runtime" can be tested without changing the app's config.
-  mkdirSync(RESULTS, { recursive: true })
-  writeFileSync(
-    join(RESULTS, 'tauri.perf.conf.json'),
-    JSON.stringify({ app: { security: { assetProtocol: { enable: true, scope: [] } } } }),
-  )
-  // With the asset protocol on in the config, the Tauri CLI adds the `protocol-asset` feature to the
-  // main `tauri` dependency in Cargo.toml. Shipped builds must not carry it, and the Rust build
-  // script rejects the mismatch, so the file is put back whatever the build does.
-  const manifest = join(ROOT, 'src-tauri', 'Cargo.toml')
-  const original = readFileSync(manifest, 'utf8')
-  let status: number | null
-  try {
-    status = spawnSync(
-      'pnpm tauri build --features perf --no-bundle --config perf-results/tauri.perf.conf.json',
-      {
-        cwd: ROOT,
-        stdio: 'inherit',
-        shell: true,
-        env: { ...process.env, VITE_MDMATE_PERF: '1' },
-      },
-    ).status
-  } finally {
-    writeFileSync(manifest, original)
-  }
+  // A constant command line; the shell is there because pnpm is a .cmd file on Windows. The asset
+  // protocol is on in the real config since Phase 4 (images next to a document), so the lab needs
+  // no config of its own.
+  const status = spawnSync('pnpm tauri build --features perf --no-bundle', {
+    cwd: ROOT,
+    stdio: 'inherit',
+    shell: true,
+    env: { ...process.env, VITE_MDMATE_PERF: '1' },
+  }).status
   if (status !== 0) fail('the release build failed')
 }
 
@@ -567,6 +559,7 @@ async function runCheck(name: string, params: PerfParams, info: ReturnType<typeo
   console.log(`
 == ${name} (${spec.claim}) ==`)
   if (name === 'asset-scope') prepareAssetLab()
+  if (name === 'scroll-stability') writeScrollLab(join(RESULTS, 'scroll-lab'))
   if (name === 'lab') {
     console.log('A window opens. Follow the three steps in it, then press "Finish and save".')
   }
