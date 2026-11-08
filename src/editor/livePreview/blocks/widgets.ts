@@ -15,8 +15,6 @@ export const ROW_HEIGHT = 33
  * of every tab switch to the document that opens on it (ISC-6, decisions.md in phase 4).
  */
 export const FIRST_ROWS = 50
-/** The key of the measure a table asks for once its rest is drawn, so a test can tell it from CodeMirror's own. */
-export const FILLED_KEY = 'cm-md-table-filled'
 /** The deferred fill of a table drawn in two steps, by its DOM, so `destroy` can stop it. */
 const filling = new WeakMap<HTMLElement, () => void>()
 /** The padding above and below a table, in px. */
@@ -116,7 +114,8 @@ export class TableWidget extends BlockWidget {
         // The swap happens in CodeMirror's own write phase, so the new heights are measured in the
         // same pass as the DOM change and the scroll position is corrected for them.
         view.requestMeasure({
-          key: FILLED_KEY,
+          // CodeMirror keeps one pending request per key, so each table needs a key of its own.
+          key: wrap,
           read: () => undefined,
           write: () => {
             const fragment = document.createDocumentFragment()

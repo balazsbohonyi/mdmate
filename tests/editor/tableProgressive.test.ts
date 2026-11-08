@@ -7,7 +7,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { EditorView } from '@codemirror/view'
 import { blocksOf } from '@/editor/livePreview/blocks'
-import { FILLED_KEY, FIRST_ROWS, ROW_HEIGHT } from '@/editor/livePreview/blocks/widgets'
+import { FIRST_ROWS, ROW_HEIGHT } from '@/editor/livePreview/blocks/widgets'
 import { blockStateOf, mountPreview } from '../helpers/blocks'
 
 const views: EditorView[] = []
@@ -38,6 +38,11 @@ const bodyRows = (view: EditorView): HTMLElement[] => [
 const spacer = (view: EditorView): HTMLElement | null =>
   view.contentDOM.querySelector<HTMLElement>('.cm-md-table-rest')
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+
+interface Request {
+  key?: unknown
+  write?: () => void
+}
 
 describe('a big table, drawn in two steps (ISC-6)', () => {
   it('draws a table of FIRST_ROWS rows or fewer whole, with nothing left for later', () => {
@@ -83,7 +88,11 @@ describe('a big table, drawn in two steps (ISC-6)', () => {
       expect(bodyRows(view)).toHaveLength(FIRST_ROWS + 250)
     })
     // CodeMirror asks to measure on its own after a DOM change, so look for the table's own request.
-    expect(measure).toHaveBeenCalledWith(expect.objectContaining({ key: FILLED_KEY }))
+    expect(
+      measure.mock.calls.some(
+        ([request]) => typeof (request as Request | undefined)?.write === 'function',
+      ),
+    ).toBe(true)
   })
 
   it('swaps the rows in during the editor write phase, so its scroll anchoring sees the change', async () => {
@@ -95,13 +104,37 @@ describe('a big table, drawn in two steps (ISC-6)', () => {
       if (request !== undefined) requests.push(request as never)
     })
     await vi.waitFor(() => {
-      expect(requests.some((request) => request.key === FILLED_KEY)).toBe(true)
+      expect(requests.some((request) => request.write !== undefined)).toBe(true)
     })
     // The request is made, but until CodeMirror runs its write step the page still has the spacer.
     expect(bodyRows(view)).toHaveLength(FIRST_ROWS)
-    requests.find((request) => request.key === FILLED_KEY)?.write?.()
+    requests.find((request) => request.write !== undefined)?.write?.()
     expect(bodyRows(view)).toHaveLength(FIRST_ROWS + 250)
     expect(spacer(view)).toBeNull()
+  })
+
+  it('fills every big table on the page, not only the last one asked for', async () => {
+    // CodeMirror keeps one pending request per key, so tables sharing a key lose each other's fill.
+    // jsdom draws only the first table (no layout), so the widgets are built and driven directly.
+    const first = tableDoc(FIRST_ROWS + 120).replace('after', 'between')
+    const second = tableDoc(FIRST_ROWS + 90)
+    const doc = `${first}\n${second}`
+    const items = blocksOf(blockStateOf(doc, doc.length - 2))
+    expect(items).toHaveLength(2)
+    const pending: Request[] = []
+    const stand = {
+      requestMeasure(request: Request) {
+        const same = pending.findIndex((p) => p.key !== undefined && p.key === request.key)
+        if (same >= 0) pending[same] = request
+        else pending.push(request)
+      },
+    } as unknown as EditorView
+    const doms = items.map((item) => item.widget.toDOM(stand))
+    await sleep(120)
+    for (const request of pending) request.write?.()
+    const counts = doms.map((dom) => dom.querySelectorAll('tbody tr:not(.cm-md-table-rest)').length)
+    expect(counts).toEqual([FIRST_ROWS + 120, FIRST_ROWS + 90])
+    expect(doms.some((dom) => dom.querySelector('.cm-md-table-rest') !== null)).toBe(false)
   })
 
   it('keeps the height it gives CodeMirror, whatever has been drawn so far', () => {
