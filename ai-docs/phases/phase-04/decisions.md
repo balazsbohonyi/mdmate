@@ -321,3 +321,14 @@ Three runs each, five for startup; every one reported repeatable. The decoration
 
 - **Known limits:** untested.md rows 36 to 41.
 - **Subagent decisions:** none.
+
+## Padding around the editor content (2026-11-08)
+
+Your screenshot of two side-by-side panes showed the text touching the pane edges. Commit `9bf2af0` (`[P4-T5]`) changes one line of `src/editor/create.ts` and adds `tests/editor/contentPadding.test.ts`. No ISC, dependency or config change.
+
+- **What:** `.cm-content` gets `padding: 1.25rem 1.5rem` (20 px above and below, 24 px each side), on top of CodeMirror's own 6 px on each line. It sits in the shared editor frame, so live preview and plain source get the same room.
+- **Why padding on the content:** the scrollbar stays at the pane edge and CodeMirror counts content padding in its heights. A margin would not be counted. Nothing in `src/` sizes a widget from the content width (images cap at `max-width: 100%`), so tables, images and code boxes move inward with the text.
+- **Your answer:** you said the amounts are right, and agreed to commit it as a new follow-up task.
+- **Evidence:** the new test reads the computed padding of a real view for both kinds of document (jsdom reports 20 and 24 px) and fails when the padding is removed. `pnpm check` and `test:web` (830 passed) pass. I did not see it in a real window: the dev server on port 1420 had been stopped, and I did not start one because it would block your own `pnpm tauri dev`.
+- **Not run:** the perf set and the Rust gates, since the change is one CSS line and no Rust changed.
+- **Subagent decisions:** none.

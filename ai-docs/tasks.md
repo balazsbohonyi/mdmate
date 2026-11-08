@@ -49,6 +49,7 @@ Mark `[x]` only when the task's "Done when" in its phase plan holds. Each task l
 - [x] P4-T3: Frontmatter and checkboxes — closes ISC-68, ISC-69, ISC-184
 - [x] P4-T4: Code highlighting — closes ISC-70, ISC-71
   - [x] Follow-up to P4-T4: code block container (`c85e3c7`) — closes ISC-185, ISC-186, ISC-187, ISC-188, ISC-189
+- [x] P4-T5: Editor content padding (`9bf2af0`) — a UX fix from your screenshot of two side-by-side panes; closes no ISC
 
 ## Phase 5: Links and editing ([plan](phases/phase-05/plan.md))
 
