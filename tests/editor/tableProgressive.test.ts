@@ -86,6 +86,24 @@ describe('a big table, drawn in two steps (ISC-6)', () => {
     expect(measure).toHaveBeenCalledWith(expect.objectContaining({ key: FILLED_KEY }))
   })
 
+  it('swaps the rows in during the editor write phase, so its scroll anchoring sees the change', async () => {
+    const doc = tableDoc(FIRST_ROWS + 250)
+    const view = mountPreview(doc, doc.length - 2)
+    views.push(view)
+    const requests: { key?: unknown; write?: () => void }[] = []
+    vi.spyOn(view, 'requestMeasure').mockImplementation((request) => {
+      if (request !== undefined) requests.push(request as never)
+    })
+    await vi.waitFor(() => {
+      expect(requests.some((request) => request.key === FILLED_KEY)).toBe(true)
+    })
+    // The request is made, but until CodeMirror runs its write step the page still has the spacer.
+    expect(bodyRows(view)).toHaveLength(FIRST_ROWS)
+    requests.find((request) => request.key === FILLED_KEY)?.write?.()
+    expect(bodyRows(view)).toHaveLength(FIRST_ROWS + 250)
+    expect(spacer(view)).toBeNull()
+  })
+
   it('keeps the height it gives CodeMirror, whatever has been drawn so far', () => {
     const doc = tableDoc(FIRST_ROWS + 250)
     const widget = blocksOf(blockStateOf(doc, doc.length - 2))[0]

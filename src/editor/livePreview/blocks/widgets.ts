@@ -113,11 +113,18 @@ export class TableWidget extends BlockWidget {
       body.append(spacer)
       const fill = (): void => {
         filling.delete(wrap)
-        const fragment = document.createDocumentFragment()
-        for (const cells of rows.slice(FIRST_ROWS)) fragment.append(row(cells, 'td'))
-        spacer?.replaceWith(fragment)
-        spacer = undefined
-        view.requestMeasure({ key: FILLED_KEY, read: () => undefined })
+        // The swap happens in CodeMirror's own write phase, so the new heights are measured in the
+        // same pass as the DOM change and the scroll position is corrected for them.
+        view.requestMeasure({
+          key: FILLED_KEY,
+          read: () => undefined,
+          write: () => {
+            const fragment = document.createDocumentFragment()
+            for (const cells of rows.slice(FIRST_ROWS)) fragment.append(row(cells, 'td'))
+            spacer?.replaceWith(fragment)
+            spacer = undefined
+          },
+        })
       }
       const idle = (window as { requestIdleCallback?: typeof requestIdleCallback })
         .requestIdleCallback
