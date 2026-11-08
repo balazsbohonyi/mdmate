@@ -237,25 +237,25 @@ Debug app (`cargo run --features perf` against the dev server, DevTools port). A
 - **Subagent decisions:** none.
 ## ISC-6 fixed: big tables drawn in two steps (2026-11-08)
 
-You approved building the progressive table. Commits `4a1383d` and `2fe9bdf`, both `[P4-T1]`, change only `src/editor/livePreview/blocks/widgets.ts` and add `tests/editor/tableProgressive.test.ts`. No Cargo, config or dependency change.
+You approved building the progressive table. Commits `4a1383d`, `2fe9bdf` and `9d6f8e9`, all `[P4-T1]`, change only `src/editor/livePreview/blocks/widgets.ts` and add `tests/editor/tableProgressive.test.ts`. No Cargo, config or dependency change.
 
-- **What it does:** a table with more than `FIRST_ROWS` = 50 body rows is built as its header, the first 50 rows and one spacer row as tall as the rest (33 px a row, the old estimate). After idle time (`requestIdleCallback`, 300 ms timeout; `setTimeout` where there is none) the table asks CodeMirror for a measure with a write step (`FILLED_KEY`), and that step replaces the spacer with the real rows in one go. `estimatedHeight` is unchanged. A click on the spacer puts the caret in the row under the pointer. Destroying the widget cancels the fill. Tables of 50 rows or fewer are built as before.
+- **What it does:** a table with more than `FIRST_ROWS` = 50 body rows is built as its header, the first 50 rows and one spacer row as tall as the rest (33 px a row, the old estimate). After idle time (`requestIdleCallback`, 300 ms timeout; `setTimeout` where there is none) the table asks CodeMirror for a measure with a write step, keyed by the table's own wrapper element, and that step replaces the spacer with the real rows in one go. `estimatedHeight` is unchanged. A click on the spacer puts the caret in the row under the pointer. Destroying the widget cancels the fill. Tables of 50 rows or fewer are built as before.
 - **Differs from what you approved:** the proposal said idle slices would append the remaining rows and that the first step would be about 40 rows. The build adds all the rest in one step, and the first step is 50 rows. One step means one layout of the finished table instead of many; the cost is that a table of thousands of rows becomes one long task, which I did not test (the fixture's longest table is 296 rows). 50 rather than 40 was a judgement call and is one constant.
-- **Result, release build of the final tree (`2fe9bdf`), 5 runs:** tab-switch p95 **19.7 ms** (runs 21.8, 19.7, 19.4, 18.9, 20.8) against 50; it was 52.7. The harness reports "repeatable: NO" because the spread is 11% against its 10% line; every run is under half the limit. Median 15.7, plain 16.8, with a change elsewhere 14.5, synchronous part 3.6.
+- **Result, release build of `9d6f8e9` (the final tree), 5 runs:** tab-switch p95 **18.7 ms** (runs 20.3, 18.7, 18.7, 18.2, 20.2; repeatable) against 50; it was 52.7. Median 15.6, plain 16.3, with a change elsewhere 14.5, synchronous part 3.6. The run on `2fe9bdf` before the per-table key read 19.7 ms and was reported not repeatable (11% spread); it is superseded by this one.
 
 | Scenario (claim) | Limit | Result | |
 |---|---|---|---|
-| startup, warm (ISC-4) | 1500 ms | 608.4 ms, repeatable | pass |
-| startup, fresh profile, 3 launches | 1500 ms | 623.7, 599.2, 614.8 ms (median 614.8) | pass |
-| open-1mb (ISC-5) | 100 ms | 24.5 ms | pass |
-| tab-switch p95 (ISC-6) | 50 ms | 19.7 ms (18.9 to 21.8) | pass |
-| typing-1mb / trusted (ISC-7) | 16 ms | 6.7 / 7.8 ms | pass |
-| typing-2mb / 3mb | 16 ms | 7.6 / 10.8 ms | pass |
-| decorations-scale (ISC-63) | 35% | worst deviation 0.183, same work in both places, control 6.2 ms (1 MB) and 55.3 ms (10 MB) | pass |
-| reveal (ISC-58) | 16 ms | 4.4 ms | pass |
-| scroll-stability (ISC-72) | 2 px | 0.47 px up, 0.25 px down; control drifted 287.6 px (image document, see below) | pass |
+| startup, warm (ISC-4) | 1500 ms | 594.3 ms, repeatable | pass |
+| startup, fresh profile, 3 launches | 1500 ms | 590.2, 605.8, 592.4 ms (median 592.4) | pass |
+| open-1mb (ISC-5) | 100 ms | 24.6 ms | pass |
+| tab-switch p95 (ISC-6) | 50 ms | 18.7 ms (18.2 to 20.3) | pass |
+| typing-1mb / trusted (ISC-7) | 16 ms | 6.9 / 7.7 ms | pass |
+| typing-2mb / 3mb | 16 ms | 8.0 / 10.8 ms | pass |
+| decorations-scale (ISC-63) | 35% | worst deviation 0.213, same work in both places, control 5.3 ms (1 MB) and 59.8 ms (10 MB) | pass |
+| reveal (ISC-58) | 16 ms | 4.1 ms | pass |
+| scroll-stability (ISC-72) | 2 px | 0.47 px up, 0.25 px down; control drifted 299.6 px (image document, see below) | pass |
 
-Gates on the final tree: `pnpm check`, `check:rust`, `test:web` (806 passed), `test:rust` (102 passed) all exit 0. An earlier release run of this set (before the write-phase change) was killed by the system for low memory after typing-2mb; I did not restart it until you freed memory, and its numbers are not used here.
+Gates on `9d6f8e9`: `pnpm check`, `check:rust`, `test:web` (807 passed), `test:rust` (102 passed) all exit 0. Two earlier release runs of this set are not used: one was killed by the system for low memory after typing-2mb (I did not restart it until you freed memory), and one was on `2fe9bdf`, before the per-table key.
 
 ### Scroll stability while the rest fills (the ISC-72 risk named in the proposal)
 
@@ -272,5 +272,6 @@ Gates on the final tree: `pnpm check`, `check:rust`, `test:web` (806 passed), `t
 - **Real window:** 50 rows on the first frame, the rest within about 65 ms, content height settles to the same 100,022 px as with the old widget. Opening 5000 px into the table, the settled view is the same as the old widget's (same first visible row); at 9000 px the old widget settled at scrollTop 8982 and the new at 9000, so I do not claim the same scroll position, only the same rows. A real mouse click on row 54 of the undrawn rows landed on source line 112, the expected line, before and after the write-phase change.
 - **Tried and removed:** an `IntersectionObserver` that fills at once when the spacer is in view. Measured 1 blank frame against 1 to 2 with idle fill alone, so I removed it with its tests.
 - **Mistakes caught:** my first scroll-anchor control was invalid because the page still held the new widget in its module cache; I caught it from the row counts, reloaded after swapping the file, and redid it. A test of mine first checked only that `requestMeasure` was called, which CodeMirror also does by itself; it now looks for the table's own key, and breaking that line fails it.
-- **Known limits:** untested.md rows 27 and 29 to 33.
+- **Bug found on a second look, fixed in `9d6f8e9`:** after the write-phase change all tables shared one measure key, and CodeMirror keeps only the last pending request for a key (`requestMeasure` in the view source replaces it). Two big tables asking for their fill in the same idle period would leave the first with its spacer. A unit test with two big tables and a stand-in view that keeps one request per key failed on `2fe9bdf` (first table at 50 rows, expected 170). In the real window I never saw it: a walk down `tables-heavy-1mb.md` (28 stops, 350 ms at each, 29 big tables seen after their fill) found no spacer left, with the fixed code (two walks) and with `2fe9bdf` (one walk). So the effect in practice is unproven, and the fix follows from CodeMirror's contract. The test now fails if the shared key comes back.
+- **Known limits:** untested.md rows 27 and 29 to 34.
 - **Subagent decisions:** none.
