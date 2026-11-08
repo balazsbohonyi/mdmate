@@ -69,7 +69,11 @@ describe('ATX headings', () => {
 
   it('does not style hashes inside fenced code', () => {
     const state = stateOf('```\n# not a heading\n```\n', 0)
-    expect(scanAll(state)).toEqual([])
+    // The block is a code container; nothing in it is a heading.
+    const rest = scanAll(state).filter(
+      (item) => item.type !== 'line' || !item.class.startsWith('cm-md-box'),
+    )
+    expect(rest).toEqual([])
   })
 
   it('handles a heading with a tab after the hashes', () => {

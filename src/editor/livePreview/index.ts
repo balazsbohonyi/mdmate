@@ -4,8 +4,8 @@
  * styling and hides characters; it never changes the document, so the text and the bytes saved
  * stay exactly what was typed.
  *
- * Block widgets (tables, images, frontmatter) are a separate layer in Phase 4, because only
- * directly provided decorations can change block structure.
+ * Block widgets (tables, images, frontmatter) are a separate layer, because only directly
+ * provided decorations can change block structure. Checkboxes stay inline: they change no height.
  */
 import { syntaxTree } from '@codemirror/language'
 import type { Extension, Range } from '@codemirror/state'
@@ -16,10 +16,17 @@ import {
   type DecorationSet,
   type ViewUpdate,
 } from '@codemirror/view'
+import { blockLayer } from './blocks'
+import { boxTheme } from './box'
+import { CheckboxWidget } from './checkbox'
 import { previewTheme } from './theme'
 import { scanPreview, type PreviewItem } from './scan'
 
 const hide = Decoration.replace({})
+const checkboxes = {
+  open: Decoration.replace({ widget: new CheckboxWidget(false) }),
+  done: Decoration.replace({ widget: new CheckboxWidget(true) }),
+}
 const marks = new Map<string, Decoration>()
 const lines = new Map<string, Decoration>()
 
@@ -39,11 +46,17 @@ export function decorationsFor(items: readonly PreviewItem[]): DecorationSet {
   for (const item of items) {
     if (item.type === 'hide') {
       ranges.push(hide.range(item.from, item.to))
+    } else if (item.type === 'checkbox') {
+      ranges.push((item.checked ? checkboxes.done : checkboxes.open).range(item.from, item.to))
     } else if (item.type === 'mark') {
       const decoration = shared(marks, item.class, () => Decoration.mark({ class: item.class }))
       ranges.push(decoration.range(item.from, item.to))
     } else {
-      const decoration = shared(lines, item.class, () => Decoration.line({ class: item.class }))
+      // A line with attributes (a label) is not shared: labels are free text and the cache is not bounded.
+      const decoration =
+        item.attributes === undefined
+          ? shared(lines, item.class, () => Decoration.line({ class: item.class }))
+          : Decoration.line({ class: item.class, attributes: item.attributes })
       ranges.push(decoration.range(item.from))
     }
   }
@@ -102,7 +115,11 @@ const atomic = EditorView.atomicRanges.of((view) => view.plugin(plugin)?.hidden 
  * CodeMirror alone, which the walk test uses to show that atomic ranges change nothing today.
  */
 export function livePreview(options: { atomic?: boolean } = {}): Extension {
-  return options.atomic === false ? [previewTheme, plugin] : [previewTheme, plugin, atomic]
+  const inline =
+    options.atomic === false
+      ? [previewTheme, boxTheme, plugin]
+      : [previewTheme, boxTheme, plugin, atomic]
+  return [inline, blockLayer()]
 }
 
 export { scanPreview, type PreviewItem } from './scan'

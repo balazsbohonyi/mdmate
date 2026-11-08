@@ -21,6 +21,7 @@ import { framePresented, measureFrameCadence, snapshotEnv } from './support'
 import { tabSwitch } from './tabSwitch'
 import { probePreview } from './previewProbe'
 import { reveal } from './reveal'
+import { scrollStability } from './scrollStability'
 import { typing } from './typing'
 
 /** The size-cutoff scenarios: open and type in a generated document of each size, in MB. */
@@ -45,6 +46,7 @@ const scenarios: Record<string, (ctx: ScenarioContext) => Promise<ScenarioOutput
   'journal-cost': journalCost,
   'decorations-scale': decorationScale,
   reveal,
+  'scroll-stability': scrollStability,
   'asset-scope': assetScope,
   lab: labByHand,
   'drag-auto': dragAuto,

@@ -10,6 +10,7 @@ import {
   type Text,
 } from '@codemirror/state'
 import { createFollowerState, createMasterState } from '@/editor/create'
+import { imageContext } from '@/editor/livePreview/blocks'
 import { isLargeFile } from './largeFile'
 import { endingsOf, lineEndingsFor } from '@/editor/lineEndings'
 import { sourceCopy } from '@/editor/sourceCopy'
@@ -71,6 +72,8 @@ export interface DocumentOptions {
   readonly parser?: boolean
   /** Extensions every view of this document gets, such as live preview. */
   readonly extensions?: Extension
+  /** Turns the path of a file on disk into an address the webview can load, for images. */
+  readonly assetUrl?: (path: string) => string
   /** Called whenever something a session snapshot holds may have changed: text, caret, saved state. */
   readonly touched?: () => void
 }
@@ -152,6 +155,7 @@ export class Document implements FollowerHost {
             followerSync(link),
             sourceCopy(() => link.endings()),
             readOnlyFacet(this.readOnly),
+            this.#imageSupport(),
             this.#options.extensions ?? [],
           ],
         }),
@@ -160,6 +164,19 @@ export class Document implements FollowerHost {
       this.#seeds.delete(tabId)
     }
     return follower
+  }
+
+  /** What lets live preview load the images next to this file. Without an `assetUrl` there are none. */
+  #imageSupport(): Extension {
+    const url = this.#options.assetUrl
+    if (url === undefined) return []
+    return imageContext.of({
+      folder: () => {
+        const cut = Math.max(this.path.lastIndexOf('/'), this.path.lastIndexOf('\\'))
+        return cut <= 0 ? null : this.path.slice(0, cut)
+      },
+      url,
+    })
   }
 
   /** Where the caret of a tab is: in its follower once that exists, otherwise where it was seeded. */

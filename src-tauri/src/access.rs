@@ -113,6 +113,20 @@ impl Access {
     }
 }
 
+/// The folder whose files the page may load as images while this document is open: the folder
+/// the document is in, and everything below it. Never a network path, which would make Windows
+/// contact a host, and never the root of a disk, which would open all of it.
+pub(crate) fn asset_folder(document: &Resolved) -> Option<PathBuf> {
+    let folder = document.path.parent()?;
+    let text = folder.to_string_lossy();
+    if text.starts_with(r"\\?\UNC\") || (text.starts_with(r"\\") && !text.starts_with(r"\\?\")) {
+        return None;
+    }
+    // A folder with no parent is the root of a disk.
+    folder.parent()?;
+    Some(folder.to_path_buf())
+}
+
 /// True when `key` is `root` itself or sits below it. Whole path parts only, so `/a/bc` is not
 /// inside `/a/b`.
 fn is_inside(key: &str, root: &str) -> bool {
@@ -147,6 +161,66 @@ mod tests {
         }
         std::fs::write(&path, b"x").expect("the file can be written");
         path
+    }
+
+    /// A document at `path`, as Rust would resolve it once the user opened it.
+    fn resolved(path: &Path) -> Resolved {
+        Access::new(false).resolve(path).expect("the path exists")
+    }
+
+    #[test]
+    fn asset_folder_is_the_folder_of_the_document() {
+        let dir = temp();
+        let doc = file(dir.path(), "notes/a.md");
+        let folder = asset_folder(&resolved(&doc)).expect("a folder in a folder is allowed");
+        assert_eq!(folder, resolved(&dir.path().join("notes")).path);
+    }
+
+    #[test]
+    fn asset_folder_never_includes_a_neighbouring_folder_or_the_parent() {
+        let dir = temp();
+        let doc = file(dir.path(), "notes/a.md");
+        file(dir.path(), "notes-other/b.png");
+        let folder = asset_folder(&resolved(&doc)).expect("allowed");
+        // The grant is the folder itself, not the folder above it, and not a sibling with the
+        // same text prefix.
+        assert_ne!(folder, resolved(dir.path()).path);
+        assert!(!folder.ends_with("notes-other"));
+        assert!(folder.ends_with("notes"));
+    }
+
+    #[test]
+    fn asset_folder_is_none_for_a_document_at_the_root_of_a_disk() {
+        // Allowing a whole disk so one document can show a picture would be far too much.
+        let root = Resolved {
+            path: PathBuf::from(if cfg!(windows) { r"C:\a.md" } else { "/a.md" }),
+            key: String::new(),
+        };
+        assert_eq!(asset_folder(&root), None);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn asset_folder_is_none_for_a_network_path() {
+        for path in [
+            r"\\?\UNC\host.invalid\share\docs\a.md",
+            r"\\host.invalid\share\docs\a.md",
+        ] {
+            let unc = Resolved {
+                path: PathBuf::from(path),
+                key: String::new(),
+            };
+            assert_eq!(asset_folder(&unc), None, "{path}");
+        }
+    }
+
+    #[test]
+    fn asset_folder_keeps_a_folder_whose_name_has_glob_characters() {
+        // The scope treats a path as a pattern unless it is escaped; the folder is passed whole.
+        let dir = temp();
+        let doc = file(dir.path(), "[draft] {notes}/a.md");
+        let folder = asset_folder(&resolved(&doc)).expect("allowed");
+        assert!(folder.ends_with("[draft] {notes}"));
     }
 
     #[test]

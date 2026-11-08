@@ -4,13 +4,20 @@ import { EditorView } from '@codemirror/view'
 import { createState, createView } from '@/editor/create'
 import { scanPreview } from '@/editor/livePreview/scan'
 import type { ScenarioContext, ScenarioOutput } from './params'
-import { decodeUtf8, framePresented, mountEditorHost, sleep } from './support'
+import { decodeUtf8, framePresented, mountEditorHost, settleOnLine, sleep } from './support'
 
 /**
  * One scan takes microseconds and the page clock ticks in tenths of a millisecond, so a sample is
  * a batch of scans divided by its size. A median that is still zero fails the run.
  */
 const SCANS_PER_SAMPLE = 500
+/**
+ * The text each scan covers, from the target line on, about one screen. It is a fixed stretch of
+ * characters rather than the view's visible ranges: block widgets (tables, images) change line
+ * heights as they load, so two views at the same place can show a few percent more or less text,
+ * and the scenario would then compare different amounts of work.
+ */
+const SCAN_CHARS = 5000
 const SCAN_SAMPLES = 40
 const UPDATES_PER_SAMPLE = 20
 const UPDATE_SAMPLES = 15
@@ -66,15 +73,24 @@ async function measureAt(view: EditorView, at: number, withControl: boolean): Pr
   await framePresented()
   await sleep(200)
   forceParsing(view, view.viewport.to, 60_000)
+  // The parse draws the blocks above the view and moves the line; wait until the view is back on it.
+  await settleOnLine(view, at)
+  const doc = view.state.doc
+  const scanRange = [
+    { from: doc.lineAt(at).from, to: doc.lineAt(Math.min(doc.length, at + SCAN_CHARS)).to },
+  ]
+  forceParsing(view, Math.max(view.viewport.to, scanRange[0]?.to ?? 0), 60_000)
   const parsedTo = syntaxTree(view.state).length
-  if (parsedTo < view.viewport.to) throw new Error('the parse did not reach the viewport')
+  if (parsedTo < view.viewport.to || parsedTo < (scanRange[0]?.to ?? 0)) {
+    throw new Error('the parse did not reach the scanned text')
+  }
 
   const scanMs: number[] = []
   let items = 0
   for (let s = 0; s < SCAN_SAMPLES; s++) {
     const t0 = performance.now()
     for (let i = 0; i < SCANS_PER_SAMPLE; i++) {
-      items = scanPreview(view.state, view.visibleRanges).length
+      items = scanPreview(view.state, scanRange).length
     }
     scanMs.push((performance.now() - t0) / SCANS_PER_SAMPLE)
   }

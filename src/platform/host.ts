@@ -132,6 +132,11 @@ export interface Host {
   watchClose(onClose: () => void): Promise<void>
   /** Ends the app. */
   quitApp(): Promise<void>
+  /**
+   * The address the webview loads a file on disk from, for an image next to a document. Rust must
+   * have allowed the file's folder first, which it does when it opens the document.
+   */
+  assetUrl(path: string): string
   /** Present only where the harness can drive the app. */
   readonly perf?: PerfHost
 }

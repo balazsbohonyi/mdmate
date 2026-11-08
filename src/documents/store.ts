@@ -113,7 +113,10 @@ export async function openDocument(
   const opened = await host.openFile(path)
   const existing = documents.get(opened.id)
   if (existing !== undefined) return { doc: existing, opened, isNew: false }
-  const doc = new Document(opened, publish, { touched })
+  const doc = new Document(opened, publish, {
+    touched,
+    assetUrl: (path) => host.assetUrl(path),
+  })
   documents.set(doc.id, doc)
   publish(doc)
   return { doc, opened, isNew: true }

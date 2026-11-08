@@ -1,3 +1,4 @@
+import type { EditorView } from '@codemirror/view'
 import type { PageEnv } from './params'
 
 /** When the next frame's main-thread work began and when it finished. */
@@ -47,6 +48,32 @@ export async function waitUntil(
   while (!done()) {
     if (performance.now() > deadline) throw new Error(`timed out waiting for ${what}`)
     await sleep(20)
+  }
+}
+
+/**
+ * Waits until the line at `pos` is inside the scroller and has not moved for three frames, or
+ * throws after 5 s. Use it after `forceParsing`: parsing a long stretch above the view draws its
+ * tables and images, the heights above change, and the scroll position stays put until the next
+ * measure puts the view back on its line. In between the view shows other text, so a scenario that
+ * reads the view there reads the wrong place (found in the real window: ISC-63 and ISC-58 both
+ * lost their place for about a frame, 199,000 px off in a 10 MB file). Images that load inside the
+ * view still nudge the line by a few px, so this asks for "in view and still", not "where it was".
+ */
+export async function settleOnLine(view: EditorView, pos: number): Promise<void> {
+  const deadline = performance.now() + 5000
+  let still = 0
+  let last = Number.NaN
+  while (still < 3) {
+    await framePresented()
+    const offset = view.lineBlockAt(pos).top - view.scrollDOM.scrollTop
+    // A line scrolled to the top can sit a pixel above it.
+    const inView = offset >= -4 && offset <= view.scrollDOM.clientHeight
+    still = inView && Math.abs(offset - last) <= 1 ? still + 1 : 0
+    last = offset
+    if (performance.now() > deadline) {
+      throw new Error('the view did not return to its line after the parse')
+    }
   }
 }
 

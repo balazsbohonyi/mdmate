@@ -77,6 +77,9 @@ export const tauriHost: Host = {
       })
     },
   },
+  assetUrl(path) {
+    return convertFileSrc(path)
+  },
   async readFile(path) {
     return invoke<ArrayBuffer>('read_file', { path })
   },

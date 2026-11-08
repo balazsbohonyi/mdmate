@@ -2,7 +2,14 @@ import { forceParsing } from '@codemirror/language'
 import { EditorView } from '@codemirror/view'
 import { createState, createView } from '@/editor/create'
 import type { ScenarioContext, ScenarioOutput } from './params'
-import { decodeUtf8, framePresented, mountEditorHost, observeNextFrame, sleep } from './support'
+import {
+  decodeUtf8,
+  framePresented,
+  mountEditorHost,
+  observeNextFrame,
+  settleOnLine,
+  sleep,
+} from './support'
 
 /** Moves kept per direction, after `WARMUP` that are dropped. */
 const MOVES = 80
@@ -71,6 +78,8 @@ export async function reveal(ctx: ScenarioContext): Promise<ScenarioOutput> {
   await framePresented()
   await sleep(200)
   forceParsing(view, view.viewport.to, 60_000)
+  // The parse draws the blocks above the view and moves the line; wait until the view is back on it.
+  await settleOnLine(view, spot.inside)
   if (view.visibleRanges.every((r) => r.to < spot.outside)) {
     throw new Error('the line below the span is not in the view')
   }

@@ -9,6 +9,12 @@
  */
 import { syntaxTree } from '@codemirror/language'
 import type { EditorState, SelectionRange } from '@codemirror/state'
+import { languageName } from '../codeLanguages'
+import { boxLines } from './box'
+import { frontmatterEnd } from './frontmatter'
+
+/** A node of the syntax tree. `@lezer/common` is not a direct dependency, so the type comes from here. */
+type SyntaxNode = ReturnType<ReturnType<typeof syntaxTree>['resolve']>
 
 /** Syntax that is not shown. Never spans a line break. */
 export interface HideItem {
@@ -30,9 +36,19 @@ export interface LineItem {
   readonly type: 'line'
   readonly from: number
   readonly class: string
+  /** Attributes the line carries, such as the label of a container. */
+  readonly attributes?: Readonly<Record<string, string>>
 }
 
-export type PreviewItem = HideItem | MarkItem | LineItem
+/** A task marker (`[ ]`, `[x]`) drawn as a checkbox. Shown only while no selection touches it. */
+export interface CheckboxItem {
+  readonly type: 'checkbox'
+  readonly from: number
+  readonly to: number
+  readonly checked: boolean
+}
+
+export type PreviewItem = HideItem | MarkItem | LineItem | CheckboxItem
 
 /** The class names the layer puts on the page. The theme and the tests both read them from here. */
 export const classes = {
@@ -46,6 +62,7 @@ export const classes = {
   listMark: 'cm-md-list-mark',
   quote: 'cm-md-quote',
   rule: 'cm-md-hr',
+  frontmatter: 'cm-md-frontmatter-line',
 } as const
 
 /** Nodes that carry their own address, so a URL inside them is not a bare URL. */
@@ -94,6 +111,38 @@ function hideLines(state: EditorState, items: PreviewItem[], from: number, to: n
 }
 
 /**
+ * A fenced code block as a container. With no selection touching it the fences are hidden and the
+ * language is a label at the top right; with one inside (edges included) the fences show and the
+ * label goes. The fence lines are lines either way, so the block is the same height in both states.
+ */
+function fencedCode(
+  state: EditorState,
+  items: PreviewItem[],
+  node: SyntaxNode,
+  visible: { readonly from: number; readonly to: number },
+): void {
+  const doc = state.doc
+  const marks: SyntaxNode[] = []
+  let info: SyntaxNode | null = null
+  for (let child = node.firstChild; child; child = child.nextSibling) {
+    if (child.name === 'CodeMark') marks.push(child)
+    else if (child.name === 'CodeInfo') info = child
+  }
+  const shown = touched(state.selection.ranges, node.from, node.to)
+  const word = info === null ? '' : (/\S+/.exec(doc.sliceString(info.from, info.to))?.[0] ?? '')
+  const label = shown || word === '' ? undefined : (languageName(word) ?? word)
+  items.push(...boxLines(doc, node.from, node.to, visible, { kind: 'code', label }))
+  if (shown) return
+  const open = marks[0]
+  // The closing fence is a second mark; a block that runs to the end of the document has none.
+  const close = marks.length > 1 ? marks[marks.length - 1] : undefined
+  if (open !== undefined && open.to >= visible.from && open.from <= visible.to)
+    items.push({ type: 'hide', from: open.from, to: doc.lineAt(open.from).to })
+  if (close !== undefined && close.to >= visible.from && close.from <= visible.to)
+    items.push({ type: 'hide', from: close.from, to: close.to })
+}
+
+/**
  * Every preview item for the nodes that overlap `ranges`, for the selection the state holds.
  * Items come back in no particular order; CodeMirror sorts them when it builds a set.
  */
@@ -105,15 +154,27 @@ export function scanPreview(
   const selection = state.selection.ranges
   const doc = state.doc
   const tree = syntaxTree(state)
+  // The parser sees a rule and a paragraph there; the frontmatter pill owns that range.
+  const frontmatter = frontmatterEnd(doc)
+  // While a selection touches it the pill is gone and the YAML shows as plain text. The tree still
+  // says "heading" over it, and the highlighter would style it as one, so each line says otherwise.
+  const plain = frontmatter !== null && touched(selection, 0, frontmatter)
   /** Starts of the lines a block quote already styled, so a nested quote adds nothing twice. */
   const quoted = new Set<number>()
 
   for (const { from, to } of ranges) {
+    if (frontmatter !== null && plain) {
+      const last = doc.lineAt(Math.min(to, frontmatter)).number
+      for (let n = doc.lineAt(from).number; n <= last; n++) {
+        items.push({ type: 'line', from: doc.line(n).from, class: classes.frontmatter })
+      }
+    }
     tree.iterate({
       from,
       to,
       enter(node) {
         const name = node.name
+        if (frontmatter !== null && name !== 'Document' && node.from < frontmatter) return false
 
         if (name.startsWith('ATXHeading')) {
           const level = Math.min(6, Number(name.slice('ATXHeading'.length)) || 1)
@@ -189,6 +250,19 @@ export function scanPreview(
           return
         }
 
+        if (name === 'TaskMarker') {
+          if (touched(selection, node.from, node.to)) return
+          const marker = doc.sliceString(node.from, node.to)
+          // The parser only gives a TaskMarker to `[ ]`, `[x]` and `[X]`; the first is open.
+          items.push({
+            type: 'checkbox',
+            from: node.from,
+            to: node.to,
+            checked: marker !== '[ ]',
+          })
+          return
+        }
+
         if (name === 'Blockquote') {
           const last = doc.lineAt(node.to).number
           for (let n = doc.lineAt(node.from).number; n <= last; n++) {
@@ -209,6 +283,14 @@ export function scanPreview(
           // A marker with nothing after it stays, so the line keeps something to land on.
           if (end < line.to) items.push({ type: 'hide', from: node.from, to: end })
           return
+        }
+
+        if (name === 'FencedCode') {
+          // Fences inside a list or a quote keep the plain look: the container is drawn across the
+          // whole line, which would cover the indent or the quote bar.
+          if (node.node.parent?.name !== 'Document') return false
+          fencedCode(state, items, node.node, { from, to })
+          return false
         }
 
         if (name === 'HorizontalRule') {

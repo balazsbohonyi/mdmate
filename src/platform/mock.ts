@@ -180,6 +180,13 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
       return Promise.resolve()
     },
     windowControls: mockWindowControls(),
+    assetUrl(path) {
+      // The mock's files are text, so an image here is an SVG. Anything else, or a file that is
+      // not there, gets an address that fails to load, as a missing file does in the real app.
+      const raw = path.toLowerCase().endsWith('.svg') ? files.read(path) : undefined
+      if (raw === undefined) return `mock-asset-missing:${encodeURIComponent(path)}`
+      return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(raw)}`
+    },
     readFile(path) {
       const raw = files.read(path)
       if (raw === undefined) return Promise.reject(hostError('not-found', `${path} does not exist`))
