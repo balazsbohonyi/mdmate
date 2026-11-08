@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 79/186
+progress: 80/186
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-08T16:05:57Z
+updated: 2026-11-08T17:41:35Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -266,7 +266,7 @@ Why: these promises hold everywhere, and any single feature could quietly break 
 - [x] ISC-3: Mixed line-ending files keep each untouched line's ending after an edit.
 - [x] ISC-4: The release app is usable within 1500 ms of launch.
 - [x] ISC-5: A 1 MB Markdown file opens within 100 ms.
-- [ ] ISC-6: Switching tabs completes within 50 ms.
+- [x] ISC-6: Switching tabs completes within 50 ms.
 - [x] ISC-7: Typing stays under 16 ms per key on the 1 MB fixture.
 - [x] ISC-8: Files above 3 MB open as plain source with a notice.
 - [x] ISC-9: `cfg(windows)` and `target_os` appear only inside `platform/`.
@@ -630,6 +630,7 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-58 (closed again 2026-11-08, P4-T4 perf re-measure, owner approved the scenario change): on the T4 build the unmodified scenario stopped with "the line below the span is not in the view" because it read the view right after `forceParsing`, while the block widgets the parse draws had moved the line 199,000 px away until CodeMirror re-anchored. With `settleOnLine` (commit e564f1c) `pnpm perf reveal` on the release app: work per leave p95 4.10, 4.00 and 4.00 ms against 16 ms, five runs each, repeatable within 5 to 8 percent, and 4.00 ms (3.9 to 4.3) in the full named set on e564f1c. Phase 3 measured 3.7 to 4.0 ms. See decisions.md, "Perf diagnosis after your answers".
 - ISC-63 (closed again 2026-11-08, P4-T4 perf re-measure, owner approved the scenario change): since T1 the same-work check had failed in every run, because the scenario read the view right after `forceParsing` and the two views showed different text (visible characters 4541 against 6605 at the late spot at T4). With `settleOnLine` and one fixed 5000-character scan range in both documents (commit e564f1c), `pnpm perf decorations-scale` on the release app: worst deviation 0.198, 0.192, 0.212 and 0.2155 against the 0.35 limit (an earlier settle variant 0.182, 0.210, 0.207), same work in both places every time, control 8 to 9 times. Phase 3 had 0.15 to 0.28. The limit was not changed.
 - ISC-6 (reopened 2026-11-08, by me): closed earlier at 11.2 ms (see the entry above), and not true at HEAD. `pnpm perf tab-switch` on the release app, five runs each: switch p95 52.7 ms (51.6 to 53.3) on e564f1c, 49.6 ms (48.4 to 51.0) on d5166ab (T4), 52.4 ms (52.1 to 55.1) on 708a90c (T1), 16.1 ms on c98e4d0 (end of Phase 3); against 50 ms. The first build over it is T1, the block layer (T2 and T3 not measured: the bisect was stopped by low memory). The limit was not changed. See decisions.md, "Final perf set on e564f1c". Cause measured 2026-11-08: switching to the tables-heavy fixture draws a 2,907-cell table whole (51 to 56 ms median against 15 ms with the layer off); drawing only its first 40 rows brings it to 20 ms. Fix proposed in decisions.md, "ISC-6 tab-switch: profile in the real window", awaiting the owner.
+- ISC-6 (closed again 2026-11-08, owner approved the fix, commit 4a1383d): a table with more than 50 body rows is built as its header and first 50 rows plus one spacer row at the height of the rest, and idle time swaps in the real rows (`src/editor/livePreview/blocks/widgets.ts`). `pnpm perf tab-switch` on a fresh release build of that tree, five runs: switch p95 20.1 ms (19.4 to 21.5, repeatable) against 50 ms; median 15.7 ms, plain 16.6, with a change made elsewhere 13.6, synchronous part 3.8 ms. Before: 52.7 ms. The cause was measured in the real window, not guessed: the first screen of `tables-heavy-1mb.md` is one table of 2,907 cells that the view laid out whole (51 to 56 ms median for that switch against 15 ms with the block layer off; 17 to 18.5 ms after the change). Tests: `tests/editor/tableProgressive.test.ts` (8 tests); I broke the widget eight ways on purpose (every row at once, spacer never replaced, no re-measure, no cancel on destroy, click ignoring the row, one row short, spacer too short, rest in reverse order) and each failed a test. A real mouse click on a row not yet drawn landed on the right source line. Limit unchanged. See decisions.md, "ISC-6 fixed".
 - ISC-71 (reworded 2026-11-08 by the owner's decision, closed again): the claim was "Language parsers stay out of the entry bundle", which is not literally true because `@codemirror/lang-markdown` imports `lang-html`, `lang-css` and `lang-javascript` (and their Lezer parsers) itself. The owner chose to reword it to what the check enforces: "The entry bundle holds no language parser beyond the ones Markdown itself imports (HTML, CSS and JavaScript); every other language loads when a fence names it." Evidence is the entry above: the check reads the source map of every chunk the page loads first and fails on any other language package; its tests plant a parser in the entry and watch it fail.
 
 ## Remaining Work

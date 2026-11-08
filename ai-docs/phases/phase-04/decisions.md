@@ -235,3 +235,29 @@ Debug app (`cargo run --features perf` against the dev server, DevTools port). A
 - **Recommended fix, not built (it changes the table widget from T1, so it needs your yes):** draw a big table progressively. `toDOM` builds the header and the first rows that can be on screen (about 40) plus one spacer row for the rest at the estimated height; after the frame, idle slices append the remaining rows and remove the spacer, then `requestMeasure()` so CodeMirror takes the real height. `eq()` still keeps the DOM across edits, so only a fresh state (a tab switch, an open) pays for the first rows. Risks to check: scroll stability while the height settles (ISC-72), a click in a row that is not built yet (the caret must still land in its source), the table tests (ISC-64, ISC-65, ISC-183), and tables of 40 rows or fewer must be untouched.
 - **Not done:** no app code changed. The tree is clean on `e564f1c` plus docs. T2 and T3 were not measured; the profile makes it unnecessary for this fix.
 - **Subagent decisions:** none.
+
+## ISC-6 fixed: big tables drawn in two steps (2026-11-08)
+
+You approved building the progressive table. Commit `4a1383d`, `[P4-T1]`, changes only `src/editor/livePreview/blocks/widgets.ts` and adds `tests/editor/tableProgressive.test.ts`. No Cargo, config or dependency change.
+
+- **What it does:** a table with more than `FIRST_ROWS` = 50 body rows is built as its header, the first 50 rows and one spacer row as tall as the rest (33 px a row, the old estimate). In idle time (`requestIdleCallback`, 300 ms timeout; `setTimeout` where there is none) the spacer is replaced by the real rows in one step and the table asks CodeMirror to measure again. `estimatedHeight` is unchanged. A click on the spacer puts the caret in the row under the pointer. Destroying the widget cancels the fill. Tables of 50 rows or fewer are built as before.
+- **Result, release build of the final tree, 5 runs:** tab-switch p95 **20.1 ms** (19.4 to 21.5, repeatable) against 50; it was 52.7. Median 15.7, plain 16.6, with a change elsewhere 13.6, synchronous part 3.8.
+
+| Scenario (claim) | Limit | Result | |
+|---|---|---|---|
+| startup, warm (ISC-4) | 1500 ms | 583.2 ms, repeatable | pass |
+| startup, fresh profile (3 launches) | 1500 ms | 612.5 and 627.1 ms among them, repeatable across the 3 | pass |
+| open-1mb (ISC-5) | 100 ms | 29.4 ms | pass |
+| tab-switch p95 (ISC-6) | 50 ms | 20.1 ms | pass |
+| typing-1mb / trusted (ISC-7) | 16 ms | 6.9 / 7.7 ms | pass |
+| typing-2mb / 3mb | 16 ms | 8.0 / 13.2 ms | pass |
+| decorations-scale (ISC-63) | 35% | worst deviation 0.1365, same work in both places, control 6.8 ms | pass |
+| reveal (ISC-58) | 16 ms | 4.8 ms | pass |
+| scroll-stability (ISC-72) | 2 px | 0.47 px up, 0.25 px down; control drifted 299.6 px | pass |
+
+The first release run of the set was killed by the system for low memory after typing-2mb. I did not restart it; you freed memory, and the rest ran on the same build (`--skip-build`; the tree had not changed since the build, only committed). A warm startup in the cut-off run read 725.7 ms and was not repeatable; the rerun with memory free is 583.2 ms, repeatable. Gates on the tree before the commit: `pnpm check`, `check:rust`, `test:web` (805 passed), `test:rust` (102 passed) all exit 0. I ran all four gates again on the committed code after removing the observer described below: all exit 0.
+
+- **Checked in the real window (debug app):** 50 rows on the first frame, the rest in about 65 ms, and the content height settles to the same 100,022 px as with the old widget. The settled view after opening mid-table is the same as the old widget (same scrollTop, same first visible row). A real mouse click on row 54 of the undrawn rows landed on source line 112, the expected line, and the table gave way to its source.
+- **Deviations and things I tried:** (1) I added an `IntersectionObserver` to fill at once when the spacer is in view, measured it (1 blank frame against 1 to 2 with idle fill alone, 41 to 45 ms either way) and removed it with its tests, because it bought nothing. (2) My first scroll-anchor control was invalid: the page still held the new widget in its module cache, so both runs showed the new code. I caught it from the row counts, reloaded the page after swapping the file, and redid the control. (3) A test of mine first checked only that `requestMeasure` was called, which CodeMirror also does by itself; it now looks for the table's own measure key (`FILLED_KEY`), and breaking that line fails it.
+- **Known limits, in untested.md rows 29 to 31:** about one blank frame when a tab opens already scrolled past row 50 of a big table; the fill is one task of about 25 ms after the frame; far scrolls drift under CodeMirror's re-anchoring, as they did before (control run).
+- **Subagent decisions:** none.
