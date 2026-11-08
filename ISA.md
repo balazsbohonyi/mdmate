@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 97/191
+progress: 104/191
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-08T21:45:04Z
+updated: 2026-11-08T22:09:23Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -390,13 +390,13 @@ Why: documentation is a web of files, so following a link has to cost one gestur
 ### F6 · Quick editing
 Why: formatting should stay in your fingers, so writing never stops for syntax.
 
-- [ ] ISC-83: The bold shortcut toggles bold.
-- [ ] ISC-84: The italic shortcut toggles italic.
-- [ ] ISC-85: The link shortcut inserts a link.
-- [ ] ISC-86: The inline code shortcut toggles inline code.
-- [ ] ISC-87: The strikethrough shortcut toggles strikethrough.
-- [ ] ISC-88: A shortcut raises the heading level.
-- [ ] ISC-89: A shortcut lowers the heading level.
+- [x] ISC-83: The bold shortcut toggles bold.
+- [x] ISC-84: The italic shortcut toggles italic.
+- [x] ISC-85: The link shortcut inserts a link.
+- [x] ISC-86: The inline code shortcut toggles inline code.
+- [x] ISC-87: The strikethrough shortcut toggles strikethrough.
+- [x] ISC-88: A shortcut raises the heading level.
+- [x] ISC-89: A shortcut lowers the heading level.
 - [ ] ISC-90: Enter continues a list.
 - [ ] ISC-91: Enter continues a checkbox list with an unchecked box.
 - [ ] ISC-92: Enter on an empty item ends the list.
@@ -665,6 +665,9 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-79 (closed 2026-11-08, P5-T3): `pnpm test:web tests/links/brokenLinks.test.ts` (11 tests): in a jsdom view only the link whose file is missing gets `cm-md-link-broken` after the background check, a link typed later is checked, a target that appears clears the style once its answer goes stale, web links and anchors are never asked about, and a long list is split into requests Rust accepts; `pnpm test:rust missing_marks_only` pins the Rust side (`check_links`). Interceptor on `pnpm dev` (mock host, test profile): `[broken link](missing.md)` drawn with the wavy underline, the working and web links not. Real window (debug app): `one is gone` drawn red with a wavy underline (`oklch(0.72 0.16 25)`, the dark theme's `--destructive`), and `later.md` cleared by itself about 6 s after the file was created. Breaking the stale check, the redraw on an answer, the recheck after an edit, the periodic recheck or the local-target filter fails a test each.
 - ISC-80 (closed 2026-11-08, P5-T3): `pnpm test:web tests/links/history.test.ts` (10 tests): after following `b.md` from `a.md`, going back focuses `a.md` with the caret where it was; anchor jumps in one document go back too; a closed tab's file is reopened; an Alt+Left keydown on the window and one pressed inside a real view of a tab both reach the history. Real window (trusted keys over the DevTools port): Ctrl+click from `broken.md` to `a.md`, then Alt+Left, put the caret back in `broken.md` on line 7 where it had been. Recording no jump, stepping the wrong way, not reopening a closed tab or leaving Alt+Left in the editor's keymap fails tests.
 - ISC-81 (closed 2026-11-08, P5-T3): the same file: Alt+Right after going back returns to `b.md` at `## Part`, a caret moved after a jump is where Alt+Right lands, and a new jump after going back drops what lay ahead. Real window: Alt+Right after the Alt+Left above returned to `a.md` on `## Lower down`.
+
+- ISC-83 to ISC-87 (closed 2026-11-08, P5-T4): `pnpm test:web tests/editor/commands.test.ts` (34 tests). For bold, italic, inline code and strikethrough each: a selection is wrapped and unwrapped again with the text still selected, a caret or part of the text inside the span unwraps it, a selection that includes the markers unwraps it, a caret inserts an empty pair, and a caret on either edge of a span starts a new pair; bold and italic are told apart in `***x***`, underscores count, markers inside code are not formatting, a read-only document is left alone. Link (ISC-85): selected text becomes `[text](|)`, a selected address `[|](address)`, a caret `[|]()`. The commands run through the registry on the active tab, and their keys reach them (Ctrl+I is taken out of CodeMirror's keymap). Real window (trusted keys over the DevTools port, word selected by a trusted double click): Ctrl+B, Ctrl+I, Ctrl+` and Alt+Shift+5 each wrapped `word` and the same key unwrapped it; Ctrl+K gave `[word]()`, and Ctrl+Z undid it in one step. 18 deliberate breaks of `src/editor/format.ts` and the wiring each failed a test.
+- ISC-88 and ISC-89 (closed 2026-11-08, P5-T4): the same file: raising goes paragraph, H6, ... H1 and stops; lowering goes H1 ... H6, then back to a paragraph; one direction undoes the other; every line of a selection changes; code lines and blank lines do not. Real window: Ctrl+Shift+Up on `## Title` gave `# Title` and stopped there; Ctrl+Shift+Down twice gave `### Title`.
 
 ## Remaining Work
 

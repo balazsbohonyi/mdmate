@@ -26,7 +26,12 @@ const frame = EditorView.theme({
  * so an editor binding for the same key would win. On Windows, Alt+Left and Alt+Right are
  * CodeMirror's syntax-wise caret moves; here they are history (P5-T3).
  */
-export const APP_KEYS: ReadonlySet<string> = new Set(['Alt-ArrowLeft', 'Alt-ArrowRight'])
+export const APP_KEYS: ReadonlySet<string> = new Set([
+  'Alt-ArrowLeft',
+  'Alt-ArrowRight',
+  // CodeMirror's "select parent syntax"; here it is italic (P5-T4).
+  'Mod-i',
+])
 
 /** CodeMirror's default keys, less the ones the app takes. */
 export const editorKeymap = defaultKeymap.filter(

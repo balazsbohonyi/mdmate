@@ -17,3 +17,6 @@ Everything below was skipped on purpose or could not be done in the Phase 5 runs
 | 11 | Broken style on a reference link, an anchor or a file's fragment | Not checked on purpose (see decisions). | Write `[x][r]` with `[r]: gone.md`; it is not styled. |
 | 12 | History positions after edits | A location's caret is clamped, not mapped through edits made since, so after typing above it Alt+Left lands a little off. | Follow a link, type a paragraph above where you were, press Alt+Left. |
 | 13 | Many panes checking links at once | Each visible pane with local links asks every 5 s; not measured with several panes or a slow disk. | Open four panes of link-heavy files and watch the CPU. |
+| 14 | Ctrl+` on keyboard layouts where the backtick is a dead key or needs AltGr | Only a US-style key event was sent. | Press Ctrl+` on a German or Hungarian layout. |
+| 15 | Formatting across lines and across existing formats | A selection over two paragraphs, or half inside a bold span, wraps as text; the result was not looked at. | Select from the middle of one paragraph into the next and press Ctrl+B. |
+| 16 | Setext headings and headings in lists or quotes with the heading keys | Treated as paragraphs or left alone (see decisions). | Press Ctrl+Shift+Up on a setext heading. |

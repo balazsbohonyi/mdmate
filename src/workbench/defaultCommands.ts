@@ -1,5 +1,16 @@
+import type { EditorState, TransactionSpec } from '@codemirror/state'
+import {
+  BOLD,
+  INLINE_CODE,
+  insertLink,
+  ITALIC,
+  shiftHeading,
+  STRIKETHROUGH,
+  toggleInline,
+} from '@/editor/format'
 import {
   canSaveActive,
+  followerOfTab,
   openFromDialog,
   requestCloseTab,
   saveActiveDocument,
@@ -22,6 +33,13 @@ export const COMMAND_IDS = {
   toggleRawSource: 'view.toggleRawSource',
   back: 'navigate.back',
   forward: 'navigate.forward',
+  bold: 'format.bold',
+  italic: 'format.italic',
+  link: 'format.link',
+  inlineCode: 'format.inlineCode',
+  strikethrough: 'format.strikethrough',
+  headingUp: 'format.headingUp',
+  headingDown: 'format.headingDown',
   exit: 'app.exit',
 } as const
 
@@ -31,13 +49,68 @@ function activeTab(): string | null {
   return findPane(layout, layout.activePane)?.activeTab ?? null
 }
 
+/** A format command: computes the change on the active tab's state and makes it there. */
+function formatActive(make: (state: EditorState) => TransactionSpec | null): () => void {
+  return () => {
+    const tab = activeTab()
+    const follower = tab === null ? undefined : followerOfTab(tab)
+    if (follower === undefined) return
+    const spec = make(follower.state)
+    if (spec !== null) follower.dispatch(spec)
+  }
+}
+
+const hasTab = (): boolean => activeTab() !== null
+
+/** The format commands, with the shortcuts the owner chose (Phase 5 decisions). */
+const FORMATS = [
+  {
+    id: COMMAND_IDS.bold,
+    title: 'Bold',
+    keybinding: 'Mod+B',
+    make: (s: EditorState) => toggleInline(s, BOLD),
+  },
+  {
+    id: COMMAND_IDS.italic,
+    title: 'Italic',
+    keybinding: 'Mod+I',
+    make: (s: EditorState) => toggleInline(s, ITALIC),
+  },
+  { id: COMMAND_IDS.link, title: 'Insert Link', keybinding: 'Mod+K', make: insertLink },
+  {
+    id: COMMAND_IDS.inlineCode,
+    title: 'Inline Code',
+    keybinding: 'Mod+`',
+    make: (s: EditorState) => toggleInline(s, INLINE_CODE),
+  },
+  {
+    id: COMMAND_IDS.strikethrough,
+    title: 'Strikethrough',
+    keybinding: 'Alt+Shift+5',
+    make: (s: EditorState) => toggleInline(s, STRIKETHROUGH),
+  },
+  {
+    id: COMMAND_IDS.headingUp,
+    title: 'Raise Heading',
+    keybinding: 'Mod+Shift+ArrowUp',
+    make: (s: EditorState) => shiftHeading(s, 'raise'),
+  },
+  {
+    id: COMMAND_IDS.headingDown,
+    title: 'Lower Heading',
+    keybinding: 'Mod+Shift+ArrowDown',
+    make: (s: EditorState) => shiftHeading(s, 'lower'),
+  },
+] as const
+
 /**
  * Registers the built-in commands with their default shortcuts and returns a function that removes
  * them. Anything already registered under these ids is replaced, because hot reload in development
  * mounts the new shell before the old one has removed its commands.
  *
- * The shortcuts avoid Ctrl+Alt, which many Windows layouts send for AltGr, and Ctrl+B, the usual
- * shortcut for bold (ISC-83, built in Phase 5).
+ * The shortcuts avoid Ctrl+Alt, which many Windows layouts send for AltGr. Ctrl+B, Ctrl+I, Ctrl+K
+ * and Ctrl+` are the format commands (P5-T4); the owner chose them, and the keys the editor also
+ * uses are taken out of its keymap (`APP_KEYS`).
  */
 export function registerDefaultCommands(): () => void {
   for (const id of Object.values(COMMAND_IDS)) removeCommand(id)
@@ -116,6 +189,15 @@ export function registerDefaultCommands(): () => void {
         await goForward()
       },
     }),
+    ...FORMATS.map((format) =>
+      registerCommand({
+        id: format.id,
+        title: format.title,
+        keybinding: format.keybinding,
+        enabled: hasTab,
+        run: formatActive(format.make),
+      }),
+    ),
     registerCommand({
       id: COMMAND_IDS.exit,
       title: 'Exit',

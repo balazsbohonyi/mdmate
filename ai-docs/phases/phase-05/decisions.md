@@ -82,3 +82,24 @@ Deviations from the plan and choices it left open. Numbers carry the OS they cam
 **Real window and dev page:** see the ISA Verification entries for ISC-79 to ISC-81. Interceptor ran on `pnpm dev` in the test profile (`interceptor-test`, group `mdmate`).
 
 **Subagent decisions:** none.
+
+## P5-T4: format commands
+
+**Your answers (2026-11-08):** bold Ctrl+B, italic Ctrl+I, link Ctrl+K, inline code Ctrl+`; strikethrough Alt+Shift+5; heading raise Ctrl+Shift+Up and lower Ctrl+Shift+Down, where raising a paragraph makes it H6 and lowering an H6 makes it a paragraph again.
+
+**What was built.** `src/editor/format.ts` holds pure functions from a state to the change they make: `toggleInline` (bold, italic, inline code, strikethrough), `insertLink` and `shiftHeading`. Seven commands in the registry (`format.*`) apply them to the active tab's follower, so the change goes to the document's master and undoes as one step.
+
+**Choices the plan left open:**
+
+- **What counts as already formatted is read from the syntax tree**, not from the characters around the selection, so `**` inside inline code is not bold, `***x***` is bold and italic, and `__x__` is bold. A selection counts when its edges are on or inside the span; a caret only when it is strictly inside, so a caret right after `**word**` starts a new pair instead of taking the bold off what was just typed.
+- **A caret with no format inserts an empty pair** with the caret between (`**|**`). It does not wrap the word around the caret.
+- **The link command** puts selected text in the brackets and the caret in the empty target; a selected web address goes in the target with the caret in the brackets; a caret inserts `[]()`. It does not ask for an address.
+- **Heading keys** work on every line the selection touches and leave lines in fenced or indented code, and blank lines, alone. Setext headings (`Title` over `===`) are treated as paragraphs: raising one adds `###### ` and leaves the underline.
+- **Ctrl+I** was CodeMirror's "select parent syntax"; it is now in `APP_KEYS` with Alt+Left and Alt+Right, so the editor gives it up.
+- `tests/workbench/defaultCommands.test.ts` pinned Ctrl+B as "not a shortcut" (a P1 placeholder saying it was kept for bold); it now uses Ctrl+J for that case, and the list of commands has 17 entries.
+
+**Evidence.** `tests/editor/commands.test.ts`, 34 tests. Deliberate breaks, all caught in the end: never unwrapping (12), unwrapping one marker (16), a misplaced caret in an empty pair (4), a wrap losing the selection (8), the address not detected (1), the caret not in the target (1), raising past H1 (1), H6 not lowered (2), code lines changed (1), a paragraph raised to H1 (3), read-only ignored (1), Ctrl+I left to the editor (1), Ctrl+B unbound (1), a caret counting on the edges (4), a selection required strictly inside (4). Three survived the first round: a branch for a selection that includes the markers was dead (the tree lookup already covers it) and is removed; a second lookup from the left made a caret just after a span take its format off, which I judged wrong and removed; and the code-line test used an H1, which cannot be raised anyway, so it now uses H2.
+
+**Real window:** see the ISA Verification entries. No dependency, Cargo.toml or config change.
+
+**Subagent decisions:** none.
