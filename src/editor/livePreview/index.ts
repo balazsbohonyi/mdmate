@@ -4,8 +4,8 @@
  * styling and hides characters; it never changes the document, so the text and the bytes saved
  * stay exactly what was typed.
  *
- * Block widgets (tables, images, frontmatter) are a separate layer in Phase 4, because only
- * directly provided decorations can change block structure.
+ * Block widgets (tables, images, frontmatter) are a separate layer, because only directly
+ * provided decorations can change block structure. Checkboxes stay inline: they change no height.
  */
 import { syntaxTree } from '@codemirror/language'
 import type { Extension, Range } from '@codemirror/state'
@@ -17,10 +17,15 @@ import {
   type ViewUpdate,
 } from '@codemirror/view'
 import { blockLayer } from './blocks'
+import { CheckboxWidget } from './checkbox'
 import { previewTheme } from './theme'
 import { scanPreview, type PreviewItem } from './scan'
 
 const hide = Decoration.replace({})
+const checkboxes = {
+  open: Decoration.replace({ widget: new CheckboxWidget(false) }),
+  done: Decoration.replace({ widget: new CheckboxWidget(true) }),
+}
 const marks = new Map<string, Decoration>()
 const lines = new Map<string, Decoration>()
 
@@ -40,6 +45,8 @@ export function decorationsFor(items: readonly PreviewItem[]): DecorationSet {
   for (const item of items) {
     if (item.type === 'hide') {
       ranges.push(hide.range(item.from, item.to))
+    } else if (item.type === 'checkbox') {
+      ranges.push((item.checked ? checkboxes.done : checkboxes.open).range(item.from, item.to))
     } else if (item.type === 'mark') {
       const decoration = shared(marks, item.class, () => Decoration.mark({ class: item.class }))
       ranges.push(decoration.range(item.from, item.to))

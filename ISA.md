@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 75/186
+progress: 78/186
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-08T10:55:00Z
+updated: 2026-11-08T11:40:00Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -352,8 +352,8 @@ Why: documents mix prose with tables, images and code, and a page full of raw sy
 - [x] ISC-65: A caret entering a table reveals its raw source.
 - [x] ISC-66: Local images render inline from relative paths.
 - [x] ISC-67: Remote `https` images render inline.
-- [ ] ISC-68: YAML frontmatter collapses to a pill.
-- [ ] ISC-69: Clicking a checkbox changes exactly one byte.
+- [x] ISC-68: YAML frontmatter collapses to a pill.
+- [x] ISC-69: Clicking a checkbox changes exactly one byte.
 - [ ] ISC-70: Fenced code highlights using token colors.
 - [ ] ISC-71: Language parsers stay out of the entry bundle.
 - [x] ISC-72: Anti: late-rendering widgets never shift the scroll position.
@@ -361,7 +361,7 @@ Why: documents mix prose with tables, images and code, and a page full of raw sy
 - [x] ISC-181: Opening a document lets the page load images from its folder, and from no other folder.
 - [x] ISC-182: A broken or still-loading image holds a fixed-size placeholder.
 - [x] ISC-183: Anti: no selection head ever sits strictly inside a block replacement.
-- [ ] ISC-184: Anti: a read-only document ignores a checkbox click.
+- [x] ISC-184: Anti: a read-only document ignores a checkbox click.
 - [x] ISC-73: Anti: `katex` and `mermaid` are absent from v1 dependencies.
 
 ### F5 · Link navigation
@@ -622,6 +622,9 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-181: `pnpm test:rust asset_folder` (5 tests: the document's own folder, never a neighbour or the parent, none for a disk root, none for a network path, a folder with glob characters), and in the real window a fetch of an asset URL returned 200 for a file in the document's folder and 403 for a file in the folder beside it. Rust grants it in `open_file`; the page has no command for it (P4-T2).
 - ISC-72: `pnpm perf scroll-stability` on the release build, six runs in a row on one build: the top line moved 0.47 px going up and 0.25 px going down every time (limit 2 px), while the control, an image widget with no reserved space, moved it 288 to 910 px. The sizes go in during the view's measure cycle and, when CodeMirror would not make up for the change, the first visible line is put back (`tests/editor/images.test.ts`, 10 deliberate breaks all caught, including the two-images-in-one-frame case that failed 6 of 6 runs before). Four earlier versions missed the limit; see ai-docs/phases/phase-04/decisions.md (P4-T2).
 - ISC-182: `tests/editor/images.test.ts` loads, fails and refuses an image and reads the same fixed height (160 px block, 20 px inline) before and after, and a remembered size reserves the real aspect ratio from the first frame; the real window showed the 160 px dashed placeholder with its alt text for a missing file (P4-T2).
+- ISC-68: `pnpm test:web tests/editor/frontmatter.test.ts` (34 tests): the block at the very start of the text, `---` to `---` or `...` within 200 lines, is one pill labelled with its top-level keys; a caret touching it, edges included, brings the YAML back as plain muted text and the pill returns when the caret leaves; typing the closing line far below turns it on; the block layer and the inline layer draw and style nothing inside it. The real window (debug app, trusted mouse) showed the pill `Frontmatter title, tags, draft` with the caret away and the plain YAML with the caret at the top; the first look showed the YAML styled as a heading by the highlighter, which is why open blocks now get a plain line class (P4-T3).
+- ISC-69: `pnpm test:web tests/editor/checkbox.test.ts` presses a box and compares the file a save would write: one byte differs, the space or the `x`, for LF, CRLF, CR and a file mixing all three, and undo restores the file byte for byte, two quick presses on one box undoing one at a time. The real window (trusted click, Ctrl+S, bytes read from disk): one byte for an LF file (checked to open), a CRLF file and a file with 9 CRLF, 7 LF and 1 CR; Ctrl+Z then Ctrl+S gave the original bytes every time (P4-T3).
+- ISC-184: the same file, a document made read-only through `Document`: two presses change no text, leave nothing to undo and the document unedited; the real window opened a file with invalid UTF-8 as read-only (`aria-readonly`), two trusted clicks on its boxes changed nothing and the file on disk was identical after Ctrl+S. 26 deliberate breaks across the T3 code were all caught; the first 21 left 6 alive, which led to a stricter scan edge, two redundant pieces removed and four tests tightened or added (P4-T3).
 
 ## Remaining Work
 

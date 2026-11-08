@@ -1,6 +1,5 @@
 /**
- * The block layer: widgets that replace whole lines (tables now; images, frontmatter and the like
- * after). CodeMirror lets only directly provided decorations change block structure, so this is a
+ * The block layer: widgets that replace whole lines (tables, images, the frontmatter pill). CodeMirror lets only directly provided decorations change block structure, so this is a
  * `StateField`, not a plugin.
  *
  * The field keeps one decoration set and edits it instead of rebuilding it:
@@ -27,7 +26,7 @@ import {
 import { Decoration, EditorView, type DecorationSet } from '@codemirror/view'
 import { scanBlocks, touchesRange, type BlockItem } from './scan'
 import { blockTheme } from './theme'
-import { ImageWidget, TableWidget, type BlockWidget } from './widgets'
+import { FrontmatterWidget, ImageWidget, TableWidget, type BlockWidget } from './widgets'
 
 interface Span {
   from: number
@@ -52,6 +51,12 @@ export interface BlockInfo {
 }
 
 function decorationFor(item: BlockItem): ReturnType<Decoration['range']> {
+  if (item.kind === 'frontmatter') {
+    return Decoration.replace({
+      widget: new FrontmatterWidget(item.keys, item.source),
+      block: true,
+    }).range(item.from, item.to)
+  }
   if (item.kind === 'image') {
     return Decoration.replace({ widget: new ImageWidget(item), block: item.block }).range(
       item.from,

@@ -6,6 +6,7 @@
  */
 import { syntaxTree } from '@codemirror/language'
 import type { EditorState, Text } from '@codemirror/state'
+import { frontmatterEnd, frontmatterKeys } from '../frontmatter'
 import { imageContext, resolveImageAddress, type ImageAddress } from './image'
 
 type Tree = ReturnType<typeof syntaxTree>
@@ -64,7 +65,20 @@ export interface ImageItem {
   readonly source: string
 }
 
-export type BlockItem = TableItem | ImageItem
+/**
+ * The YAML frontmatter at the start of the document, drawn as a pill. It always starts at 0 and
+ * ends with its closing line. `keys` is the pill's label.
+ */
+export interface FrontmatterItem {
+  readonly kind: 'frontmatter'
+  readonly from: 0
+  readonly to: number
+  readonly keys: string
+  /** The block's own text, which is what makes two widgets for it the same widget. */
+  readonly source: string
+}
+
+export type BlockItem = TableItem | ImageItem | FrontmatterItem
 
 /** True when any selection range touches `[from, to]`, edges included. */
 export function touchesRange(
@@ -284,7 +298,19 @@ export function scanBlocks(
   const items: BlockItem[] = []
   const seen = new Set<number>()
   const tree = syntaxTree(state)
+  const frontmatter = frontmatterEnd(state.doc)
   for (const { from, to } of ranges) {
+    if (frontmatter !== null && from < frontmatter && !seen.has(0)) {
+      seen.add(0)
+      const source = state.doc.sliceString(0, frontmatter)
+      items.push({
+        kind: 'frontmatter',
+        from: 0,
+        to: frontmatter,
+        keys: frontmatterKeys(source),
+        source,
+      })
+    }
     // True while inside a top-level paragraph, the only place images are drawn.
     let inParagraph = false
     tree.iterate({
@@ -292,6 +318,8 @@ export function scanBlocks(
       to,
       enter(node) {
         if (node.name === 'Document') return
+        // The parser sees a rule and a paragraph there; the pill owns that range.
+        if (frontmatter !== null && node.from < frontmatter) return false
         if (inParagraph) {
           if (node.name !== 'Image') return
           if (!seen.has(node.from)) {

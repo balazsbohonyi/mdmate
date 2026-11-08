@@ -103,6 +103,62 @@ export class TableWidget extends BlockWidget {
   }
 }
 
+/** The height of the frontmatter pill with its padding, in px. */
+const PILL_HEIGHT = 44
+
+/**
+ * The frontmatter block drawn as a pill: a label and the block's top-level keys. Pressing it puts
+ * the caret at the start of the block, which is what makes the pill give way to the YAML.
+ */
+export class FrontmatterWidget extends BlockWidget {
+  readonly kind = 'frontmatter'
+  readonly keys: string
+  /** The block's own text, which is what makes two widgets for it the same widget. */
+  readonly source: string
+
+  constructor(keys: string, source: string) {
+    super()
+    this.keys = keys
+    this.source = source
+  }
+
+  override eq(other: WidgetType): boolean {
+    return other instanceof FrontmatterWidget && other.source === this.source
+  }
+
+  override get estimatedHeight(): number {
+    return PILL_HEIGHT
+  }
+
+  override toDOM(view: EditorView): HTMLElement {
+    const wrap = document.createElement('div')
+    wrap.className = 'cm-md-frontmatter'
+    const pill = document.createElement('span')
+    pill.className = 'cm-md-frontmatter-pill'
+    pill.title = 'Show the frontmatter'
+    const label = document.createElement('span')
+    label.className = 'cm-md-frontmatter-label'
+    label.textContent = 'Frontmatter'
+    pill.append(label)
+    if (this.keys !== '') {
+      const keys = document.createElement('span')
+      keys.className = 'cm-md-frontmatter-keys'
+      keys.textContent = this.keys
+      pill.append(keys)
+    }
+    wrap.append(pill)
+    wrap.addEventListener('mousedown', (event) => {
+      if (event.button !== 0) return
+      // Where the widget is now: its DOM can outlive edits that moved it.
+      const start = view.posAtDOM(wrap)
+      event.preventDefault()
+      view.dispatch({ selection: { anchor: start }, scrollIntoView: true })
+      view.focus()
+    })
+    return wrap
+  }
+}
+
 /** The height a block image holds while it loads, and when it fails. A fixed size, so nothing moves. */
 const BLOCK_PLACEHOLDER = 160
 /** Same, for an image inside a line of text. A badge is about this tall. */

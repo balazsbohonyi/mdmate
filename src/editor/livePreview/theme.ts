@@ -33,7 +33,21 @@ export const previewTheme = EditorView.baseTheme({
     textDecoration: 'underline',
     textUnderlineOffset: '2px',
   },
+  // The YAML of an open frontmatter block reads as plain text, whatever the highlighter makes of it.
+  '.cm-md-frontmatter-line, .cm-md-frontmatter-line span': {
+    color: 'var(--syntax-marker)',
+    fontWeight: 'normal',
+    fontStyle: 'normal',
+    textDecoration: 'none',
+  },
   '.cm-md-list-mark': { color: 'var(--syntax-marker)', fontWeight: '700' },
+  '.cm-md-checkbox': {
+    margin: '0 0.35em 0 0',
+    verticalAlign: 'middle',
+    cursor: 'pointer',
+    accentColor: 'var(--primary)',
+  },
+  '.cm-content[aria-readonly="true"] .cm-md-checkbox': { cursor: 'default' },
   '.cm-md-quote': {
     color: 'var(--syntax-quote)',
     borderLeft: '3px solid var(--syntax-quote)',

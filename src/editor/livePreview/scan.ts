@@ -9,6 +9,7 @@
  */
 import { syntaxTree } from '@codemirror/language'
 import type { EditorState, SelectionRange } from '@codemirror/state'
+import { frontmatterEnd } from './frontmatter'
 
 /** Syntax that is not shown. Never spans a line break. */
 export interface HideItem {
@@ -32,7 +33,15 @@ export interface LineItem {
   readonly class: string
 }
 
-export type PreviewItem = HideItem | MarkItem | LineItem
+/** A task marker (`[ ]`, `[x]`) drawn as a checkbox. Shown only while no selection touches it. */
+export interface CheckboxItem {
+  readonly type: 'checkbox'
+  readonly from: number
+  readonly to: number
+  readonly checked: boolean
+}
+
+export type PreviewItem = HideItem | MarkItem | LineItem | CheckboxItem
 
 /** The class names the layer puts on the page. The theme and the tests both read them from here. */
 export const classes = {
@@ -46,6 +55,7 @@ export const classes = {
   listMark: 'cm-md-list-mark',
   quote: 'cm-md-quote',
   rule: 'cm-md-hr',
+  frontmatter: 'cm-md-frontmatter-line',
 } as const
 
 /** Nodes that carry their own address, so a URL inside them is not a bare URL. */
@@ -105,15 +115,27 @@ export function scanPreview(
   const selection = state.selection.ranges
   const doc = state.doc
   const tree = syntaxTree(state)
+  // The parser sees a rule and a paragraph there; the frontmatter pill owns that range.
+  const frontmatter = frontmatterEnd(doc)
+  // While a selection touches it the pill is gone and the YAML shows as plain text. The tree still
+  // says "heading" over it, and the highlighter would style it as one, so each line says otherwise.
+  const plain = frontmatter !== null && touched(selection, 0, frontmatter)
   /** Starts of the lines a block quote already styled, so a nested quote adds nothing twice. */
   const quoted = new Set<number>()
 
   for (const { from, to } of ranges) {
+    if (frontmatter !== null && plain) {
+      const last = doc.lineAt(Math.min(to, frontmatter)).number
+      for (let n = doc.lineAt(from).number; n <= last; n++) {
+        items.push({ type: 'line', from: doc.line(n).from, class: classes.frontmatter })
+      }
+    }
     tree.iterate({
       from,
       to,
       enter(node) {
         const name = node.name
+        if (frontmatter !== null && name !== 'Document' && node.from < frontmatter) return false
 
         if (name.startsWith('ATXHeading')) {
           const level = Math.min(6, Number(name.slice('ATXHeading'.length)) || 1)
@@ -186,6 +208,19 @@ export function scanPreview(
 
         if (name === 'ListMark') {
           items.push({ type: 'mark', from: node.from, to: node.to, class: classes.listMark })
+          return
+        }
+
+        if (name === 'TaskMarker') {
+          if (touched(selection, node.from, node.to)) return
+          const marker = doc.sliceString(node.from, node.to)
+          // The parser only gives a TaskMarker to `[ ]`, `[x]` and `[X]`; the first is open.
+          items.push({
+            type: 'checkbox',
+            from: node.from,
+            to: node.to,
+            checked: marker !== '[ ]',
+          })
           return
         }
 
