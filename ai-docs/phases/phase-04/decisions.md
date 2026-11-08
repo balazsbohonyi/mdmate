@@ -189,3 +189,37 @@ You approved diagnosing in the real window and asked me to try option (b). What 
 - **Option (b) is not built.** Parsing and coloring fences only near the view would need a way to re-parse a fence when it scrolls into range, and CodeMirror has no clean one (a no-op edit would dirty the document). The measurement says it would fix a number at a size the app does not parse. If you want headroom above 3 MiB anyway, the cutoff is the lever, and Phase 3 already chose it with these same scenarios.
 - The debug app runs the dev JavaScript, so its absolute numbers are higher than the release ones; I rely only on the comparisons within each table.
 - **Subagent decisions:** none.
+
+## Final perf set on e564f1c: one gate missed, ISC-6 tab-switch (2026-11-08)
+
+Fresh release build of `e564f1c` (HEAD; app code identical to `d5166ab`, only `src/perf` and docs differ), Windows 11, Ryzen 7 8840HS, WebView2 157.0.4341.42, 5 counted runs after 2 warm-ups unless stated. All four gates (`pnpm check`, `check:rust`, `test:web` 797 passed, `test:rust`) exit 0.
+
+| Scenario (claim) | Limit | Result | |
+|---|---|---|---|
+| startup, warm (ISC-4) | 1500 ms | 611.4 ms (601.6 to 642.2) | pass |
+| startup, fresh profile, 3 first launches | 1500 ms | 691.4 ms median (627.1 to 744.1) | pass |
+| open-1mb (ISC-5) | 100 ms | 29.0 ms (28.1 to 30.9) | pass |
+| **tab-switch p95 (ISC-6)** | 50 ms | **52.7 ms** (51.6 to 53.3, repeatable) | **over** |
+| typing-1mb / trusted (ISC-7) | 16 ms | 6.9 / 7.7 ms | pass |
+| typing-2mb / 3mb | 16 ms | 8.3 / 11.1 ms | pass |
+| decorations-scale (ISC-63) | 35% | worst deviation 0.2155, same work in both places | pass |
+| reveal (ISC-58) | 16 ms | 4.0 ms (3.9 to 4.3) | pass |
+| scroll-stability (ISC-72) | 2 px | 0.47 px up, 0.25 px down; control drifted 299.6 px | pass |
+
+typing-5mb is dropped from the named list by your decision (it forces a parser onto a size the app opens as plain source). The scenario code and `SIZES_MB` are unchanged; I just no longer run or report it.
+
+### ISC-6 tab-switch: numbers
+
+| Build | switch p95 | total median | sync median | plain switch p95 | switch with a pending edit p95 |
+|---|---|---|---|---|---|
+| `c98e4d0` end of Phase 3 | 16.1 ms (15.5 to 16.8) | 12.5 | 1.7 | 17.3 | 11.1 |
+| `708a90c` T1, block layer | 52.4 ms (52.1 to 55.1) | not read | not read | not read | not read |
+| `d5166ab` T4 | 49.6 ms (48.4 to 51.0) | 37.8 | 6.0 | 52.6 | 16.2 |
+| `e564f1c` HEAD | 52.7 ms (51.6 to 53.3) | 43.0 | 6.2 | 56.2 | 18.0 |
+
+- **Measured:** the first build over 50 ms is T1, the commit that adds the block layer (tables, images, frontmatter). T2 and T3 were not measured: the bisect was killed by the system for low memory after T1, and I did not restart it. The miss was thin at T4 (49.6) and I called it a pass by 0.4 ms; it is the same code at HEAD and 3 ms over, so the T4 number was inside the noise and I should not have counted it as a clear pass.
+- **Measured:** the synchronous part of a switch (`next.show(view)`) grew only from 1.7 to 6.2 ms. Most of the growth, about 26 ms in the median, is in the frame after it. Plain switches are the slow ones (56.2 ms p95); a switch that also applies a pending edit is 18.0 ms.
+- **Hypothesis, not verified:** `setState` on a plain switch draws the new view from nothing, and the `tables-heavy-1mb.md` and `realistic-1mb.md` fixtures put many table and image widgets in that first screen, so style, layout and paint of those widgets dominate. I have not profiled one switch, and I have not tried the block layer switched off for this scenario.
+- **What I did not do:** change any code or limit for this. A subagent may not decide it.
+- **Options, recommendation first:** **(1)** profile one switch in the real window with the block layer on and off, then fix what the frame is spending on (for example cheaper first draw of table and image widgets); **(2)** bisect T2 and T3 too, if you want the cost split between tables and images before touching code. I would do (1) and fold (2) into it.
+- **Subagent decisions:** none.
