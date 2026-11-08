@@ -8,7 +8,17 @@ export abstract class BlockWidget extends WidgetType {
 }
 
 /** Rough height of one table row in px. CodeMirror measures the real height after the first draw. */
-const ROW_HEIGHT = 33
+export const ROW_HEIGHT = 33
+/**
+ * A table with more body rows than this is drawn in two steps: these rows at once, so the first
+ * screen is cheap, and the rest after the frame. Laying out a table of 2,900 cells took about 35 ms
+ * of every tab switch to the document that opens on it (ISC-6, decisions.md in phase 4).
+ */
+export const FIRST_ROWS = 50
+/** The key of the measure a table asks for once its rest is drawn, so a test can tell it from CodeMirror's own. */
+export const FILLED_KEY = 'cm-md-table-filled'
+/** The deferred fill of a table drawn in two steps, by its DOM, so `destroy` can stop it. */
+const filling = new WeakMap<HTMLElement, () => void>()
 /** The padding above and below a table, in px. */
 const TABLE_PADDING = 16
 
@@ -69,7 +79,7 @@ export class TableWidget extends BlockWidget {
     const table = document.createElement('table')
     table.className = 'cm-md-table'
 
-    const row = (parent: HTMLElement, cells: TableModel['head'], tag: 'th' | 'td'): void => {
+    const row = (cells: TableModel['head'], tag: 'th' | 'td'): HTMLElement => {
       const tr = document.createElement('tr')
       cells.forEach((cell, column) => {
         const element = document.createElement(tag)
@@ -79,20 +89,64 @@ export class TableWidget extends BlockWidget {
         appendRuns(element, cell.runs)
         tr.append(element)
       })
-      parent.append(tr)
+      return tr
     }
     const head = document.createElement('thead')
-    row(head, this.model.head, 'th')
+    head.append(row(this.model.head, 'th'))
     const body = document.createElement('tbody')
-    for (const cells of this.model.rows) row(body, cells, 'td')
+    const rows = this.model.rows
+    for (const cells of rows.slice(0, FIRST_ROWS)) body.append(row(cells, 'td'))
     table.append(head, body)
     wrap.append(table)
 
+    // The rest of a big table: one spacer row as tall as the rows it stands for, replaced by the
+    // real rows in a single step after the frame, so the table is laid out once more, not often.
+    const remaining = rows.length - FIRST_ROWS
+    let spacer: HTMLElement | undefined
+    if (remaining > 0) {
+      spacer = document.createElement('tr')
+      spacer.className = 'cm-md-table-rest'
+      const cell = document.createElement('td')
+      cell.colSpan = Math.max(1, this.model.head.length)
+      cell.style.cssText = `height: ${String(remaining * ROW_HEIGHT)}px; padding: 0; border: 0`
+      spacer.append(cell)
+      body.append(spacer)
+      const fill = (): void => {
+        filling.delete(wrap)
+        const fragment = document.createDocumentFragment()
+        for (const cells of rows.slice(FIRST_ROWS)) fragment.append(row(cells, 'td'))
+        spacer?.replaceWith(fragment)
+        spacer = undefined
+        view.requestMeasure({ key: FILLED_KEY, read: () => undefined })
+      }
+      const idle = (window as { requestIdleCallback?: typeof requestIdleCallback })
+        .requestIdleCallback
+      if (idle === undefined) {
+        const handle = setTimeout(fill, 0)
+        filling.set(wrap, () => {
+          clearTimeout(handle)
+        })
+      } else {
+        const handle = idle.call(window, fill, { timeout: 300 })
+        filling.set(wrap, () => {
+          cancelIdleCallback(handle)
+        })
+      }
+    }
+
     wrap.addEventListener('mousedown', (event) => {
       if (event.button !== 0) return
-      const cell =
-        event.target instanceof Element ? event.target.closest<HTMLElement>('th, td') : null
-      const offset = Number(cell?.dataset.offset ?? 0)
+      const target = event.target instanceof Element ? event.target : null
+      let offset: number
+      if (spacer !== undefined && target?.closest('.cm-md-table-rest')) {
+        // Rows not drawn yet: the row under the pointer, by how far down the spacer it landed.
+        const down = (event.clientY - spacer.getBoundingClientRect().top) / ROW_HEIGHT
+        const index = Math.min(remaining - 1, Math.max(0, Math.floor(down)))
+        offset = rows[FIRST_ROWS + index]?.[0]?.offset ?? 0
+      } else {
+        const cell = target?.closest<HTMLElement>('th, td')
+        offset = Number(cell?.dataset.offset ?? 0)
+      }
       // Where the widget is now: its DOM can outlive edits that moved the table.
       const start = view.posAtDOM(wrap)
       event.preventDefault()
@@ -100,6 +154,11 @@ export class TableWidget extends BlockWidget {
       view.focus()
     })
     return wrap
+  }
+
+  override destroy(dom: HTMLElement): void {
+    filling.get(dom)?.()
+    filling.delete(dom)
   }
 }
 
