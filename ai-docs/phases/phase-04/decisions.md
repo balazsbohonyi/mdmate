@@ -1,0 +1,19 @@
+# Phase 4 decisions
+
+Deviations from the plan and choices it left open. Numbers carry the OS they came from.
+
+## Checking the UI (all of Phase 4)
+
+- **Two places, every UI claim.** Interceptor on `pnpm dev` (mock host), and the real app: `cargo run --features perf` from `src-tauri` against the Vite server on port 1420, `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`, `MDMATE_DATA_DIR` pointing at a temp folder, trusted key and mouse events and screenshots over the DevTools port. Files are opened through `perf_grant_file` and the page's own store.
+- **Interceptor does run on Windows here** (version 2.1.6, test profile `interceptor-test`). The pinned skill text is written for macOS, but the preflight, `open`, `eval --main`, `click`, `keys` and `screenshot --save` all worked. `screenshot --save` writes to the current folder, and `--out` is not a flag.
+- **Opening a document in the mock-host page.** The page's modules carry Vite's `?t=` stamp, so importing `/src/...` gives a second copy with its own host. The helper reads the exact URL from `performance.getEntriesByType('resource')` and imports that. The scripts live in the session scratchpad, not in the repo.
+- **Rust tests never touch real files**, as in Phase 2.
+
+## P4-T1: block layer and tables
+
+- **The transaction filter is needed, but not the one Phase 3 deferred.** Phase 3 left open a filter that keeps a caret out of a replacement that stays hidden while touched. Phase 4 has no such replacement: every block is removed in the same transaction that moves a selection onto it, so no selection is ever inside one (ISC-183, tested for every offset, 400 random ranges and 300 transactions). Found by the real browser instead: ArrowDown from the blank line above a table landed on the blank line below it, so the keyboard could never enter a table (ISC-60 and ISC-65 both fail that way). `stepIntoBlock` fixes it: a keyboard step onto the line just past a drawn block becomes a step onto the block's first line (down) or last line (up), which reveals its source. Verified with real keys in the browser and in the real window, in both directions, seven presses each: every source line is visited and the table draws again on leaving.
+- **jsdom cannot see this.** It has no layout, so `moveVertically` never ran in the unit tests. The unit tests pin the filter's rules (what it redirects and what it leaves alone); only the real runs show that CodeMirror needs it.
+- **Only top-level tables are drawn.** A table in a list item or a quote stays as source, because the replaced lines would lose their prefix. Deviation from "render GFM tables": nested tables are rare, and a wrong rendering would hide text.
+- **A scan returns a table whole whenever the rescanned stretch touches it,** and the removal filter uses the same strict overlap, so a table that only touches the edge of a rescanned stretch is neither removed nor lost. I first widened rescans to whole tables, then removed that code when a mutation showed it was not needed for correctness.
+- **CSS found by looking at the page:** CodeMirror's wrapped lines set `white-space: break-spaces` and `overflow-wrap: anywhere`, which squeezed every column to a few letters until the table set its own. The table's wrapper sets `overflow-y: hidden`, since `overflow-x: auto` made the screenshot draw a vertical scrollbar.
+- **Mutation checks** (each broke the code on purpose and the tests failed): drawing touched blocks anyway (10 tests failed), ignoring selection moves (7), skipping the rescan after an edit (2), ignoring the parser advancing (3), not mapping through edits (4), `eq` always false (1). One mutation survived (an inclusive removal filter), because no test puts the parse frontier exactly on a table's end; the strict filter stays for the reason above.

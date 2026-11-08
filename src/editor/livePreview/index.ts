@@ -16,6 +16,7 @@ import {
   type DecorationSet,
   type ViewUpdate,
 } from '@codemirror/view'
+import { blockLayer } from './blocks'
 import { previewTheme } from './theme'
 import { scanPreview, type PreviewItem } from './scan'
 
@@ -102,7 +103,8 @@ const atomic = EditorView.atomicRanges.of((view) => view.plugin(plugin)?.hidden 
  * CodeMirror alone, which the walk test uses to show that atomic ranges change nothing today.
  */
 export function livePreview(options: { atomic?: boolean } = {}): Extension {
-  return options.atomic === false ? [previewTheme, plugin] : [previewTheme, plugin, atomic]
+  const inline = options.atomic === false ? [previewTheme, plugin] : [previewTheme, plugin, atomic]
+  return [inline, blockLayer()]
 }
 
 export { scanPreview, type PreviewItem } from './scan'

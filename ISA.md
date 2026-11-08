@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 66/181
+progress: 69/186
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-08T03:00:00Z
+updated: 2026-11-08T03:10:00Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -143,6 +143,11 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-70 | screenshot | code block fixture | token colors shown | Interceptor on pnpm dev | literal | | |
 | ISC-71 | bash | inspect build chunks | no parser in entry | node scripts/check-arch.mjs languages-lazy | derived: fast | | |
 | ISC-72 | bash | scroll heavy fixture, track anchor line | drift under 2 px | pnpm perf scroll-stability | derived: fast | | deep |
+| ISC-180 | bash | resolve relative, absolute, UNC, file, http, data and escaping addresses | only relative and https resolve | pnpm test:web tests/editor/images.test.ts | derived: safe-with-untrusted-files | critical | |
+| ISC-181 | bash | the folder a document opens grants | its own folder, never a network path | pnpm test:rust asset_folder | derived: safe-with-untrusted-files | critical | |
+| ISC-182 | bash | render an image that never loads and one that fails | same fixed height before and after | pnpm test:web tests/editor/images.test.ts | derived: fast | | |
+| ISC-183 | bash | put the caret at every offset of the block fixtures | none strictly inside a hidden range | pnpm test:web tests/editor/blocks.test.ts | derived: byte-exact | | |
+| ISC-184 | bash | click a checkbox in a read-only document | no change | pnpm test:web tests/editor/checkbox.test.ts | derived: byte-exact | | |
 | ISC-73 | bash | scan package.json | absent | node scripts/check-arch.mjs no-math-mermaid | derived: fast | | |
 | ISC-74 | bash | link action test | new tab | pnpm test:web tests/links/navigate.test.ts | derived: link-navigation | | |
 | ISC-75 | bash | link action test | caret at heading | pnpm test:web tests/links/navigate.test.ts | derived: link-navigation | | |
@@ -343,8 +348,8 @@ Why: this is the reason mdmate exists; you read the rendered page and edit it in
 ### F4 · Block preview
 Why: documents mix prose with tables, images and code, and a page full of raw syntax blocks breaks the illusion.
 
-- [ ] ISC-64: GFM tables render read-only.
-- [ ] ISC-65: A caret entering a table reveals its raw source.
+- [x] ISC-64: GFM tables render read-only.
+- [x] ISC-65: A caret entering a table reveals its raw source.
 - [ ] ISC-66: Local images render inline from relative paths.
 - [ ] ISC-67: Remote `https` images render inline.
 - [ ] ISC-68: YAML frontmatter collapses to a pill.
@@ -352,6 +357,11 @@ Why: documents mix prose with tables, images and code, and a page full of raw sy
 - [ ] ISC-70: Fenced code highlights using token colors.
 - [ ] ISC-71: Language parsers stay out of the entry bundle.
 - [ ] ISC-72: Anti: late-rendering widgets never shift the scroll position.
+- [ ] ISC-180: Anti: an image address other than a relative path or `https` never loads.
+- [ ] ISC-181: Opening a document lets the page load images from its folder, and from no other folder.
+- [ ] ISC-182: A broken or still-loading image holds a fixed-size placeholder.
+- [x] ISC-183: Anti: no selection head ever sits strictly inside a block replacement.
+- [ ] ISC-184: Anti: a read-only document ignores a checkbox click.
 - [x] ISC-73: Anti: `katex` and `mermaid` are absent from v1 dependencies.
 
 ### F5 · Link navigation
@@ -603,11 +613,14 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-4: `pnpm perf startup` (release app, WebView2 157, 5 runs after 2 warm-ups, 85 to 88 percent CPU idle): launch to editable 515.2 ms median (513.8 to 529.3, 3 percent spread) against the 1000 ms then in force (the limit is now 1500 ms), with live preview on in every editor. Phase 2 ended at 505 ms; Phase 3 added about 10 ms, 40 ms over the bare shell (475 ms). Rust main to page start 298 ms, page start to mounted 118 ms, mounted to editor 44 ms. On a fresh WebView2 profile, three separate first launches took 803.6, 892.5 and 692.9 ms (Rust main to page start 376 to 491 ms; the machine was 73 to 85 percent idle with 5.8 GB RAM free), so the worst margin is 107 ms (P3-T6).
 - ISC-7: `pnpm perf typing-1mb` (release app, 5 runs, live preview on, GFM parser): work per key p95 5.8 ms (5.7 to 6.1), p99 6.6, median 3.9, max 8.8, against 16 ms; with trusted key events (`typing-1mb-trusted`) p95 6.7 ms. Phase 0 measured 5.0 ms with a throwaway decoration layer, so the real layer and the GFM parser cost about 0.8 ms (P3-T6).
 - ISC-63 (re-measured with the full layer, P3-T6): six runs against the 20 percent limit missed in four (late-file ratio 1.28, 1.27, 1.20, 1.20, 1.16, and 1.05 in a CPU-noisy run); with the limit at 35 percent the run passes: middle 1.06, late 1.15, control 8.5 times, same item counts in both files.
+- ISC-64: Interceptor on `pnpm dev` (mock host) and the real WebView2 window: a table with a header row, left, centred and right alignment, bold and code in cells, no pipes shown; tests/editor/table.test.ts reads the model and the widget DOM, and `pnpm test:web tests/editor/table.test.ts` passes (src/editor/livePreview/blocks) (P4-T1).
+- ISC-65: tests/editor/table.test.ts (caret inside, on both edges, a range across it, the caret leaving) and, with real input, a click on a cell and ArrowDown and ArrowUp through the table in both Interceptor on `pnpm dev` and the real window: seven presses each way visit every source line, and the table draws again on leaving. Without `stepIntoBlock` the keyboard jumped over the table (P4-T1).
+- ISC-183: `pnpm test:web tests/editor/blocks.test.ts` puts the caret at every offset of a document of tables, then 400 random ranges, then 300 selection transactions: no block is ever touched by a selection. Breaking it on purpose (drawing touched blocks, ignoring selection moves) fails 10 and 7 tests (P4-T1).
 
 ## Remaining Work
 
 - [ ] Ship the Inter font's OFL-1.1 notice with the installer and portable zip, and credit it in the README — the font is bundled from `@fontsource-variable/inter`; waits on P10-T3 to P10-T5.
 - [ ] Check the resolved Rust dependency graph for network crates with `cargo tree --target all` — `no-network` reads direct dependencies only, because the lockfile lists `reqwest` and `hyper` although none is in the Windows build graph; waits on P10-T2, where ISC-20 closes.
 - [ ] Turn the asset protocol on for real (the `protocol-asset` feature, `assetProtocol` enabled with an empty scope) and grow its scope with `allow_directory` when a workspace opens, and divide Tauri drop positions by the pixel ratio in the platform layer — both were tested in P0 (drop positions at 125% scale only); waits on the phases that add images and file drops.
-- [ ] Re-measure typing and startup once the Phase 4 block widgets (tables, images, frontmatter) land, against the 16 ms of ISC-7 and the 1000 ms of ISC-4; Phase 3 measured the inline layer only; waits on P4.
+- [ ] Re-measure typing and startup once the Phase 4 block widgets (tables, images, frontmatter) land, against the 16 ms of ISC-7 and the 1500 ms of ISC-4; Phase 3 measured the inline layer only; waits on P4.
 - [ ] Decide whether the Windows 11 snap-layout hover flyout is worth answering `WM_NCHITTEST` from Rust — v1 ships custom caption buttons without it, and Win+Z and edge snapping work; waits on the owner.

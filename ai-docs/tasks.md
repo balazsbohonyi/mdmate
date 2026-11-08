@@ -44,9 +44,9 @@ Mark `[x]` only when the task's "Done when" in its phase plan holds. Each task l
 
 ## Phase 4: Block preview ([plan](phases/phase-04/plan.md))
 
-- [ ] P4-T1: Block layer and tables — closes ISC-64, ISC-65
-- [ ] P4-T2: Images — closes ISC-66, ISC-67, ISC-72
-- [ ] P4-T3: Frontmatter and checkboxes — closes ISC-68, ISC-69
+- [x] P4-T1: Block layer and tables — closes ISC-64, ISC-65, ISC-183
+- [ ] P4-T2: Images — closes ISC-66, ISC-67, ISC-72, ISC-180, ISC-181, ISC-182
+- [ ] P4-T3: Frontmatter and checkboxes — closes ISC-68, ISC-69, ISC-184
 - [ ] P4-T4: Code highlighting — closes ISC-70, ISC-71
 
 ## Phase 5: Links and editing ([plan](phases/phase-05/plan.md))
