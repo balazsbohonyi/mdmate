@@ -14,4 +14,5 @@ Everything below was skipped on purpose or could not be done in the Phase 4 runs
 | 8 | Images in the light theme | Every visual check ran in the dark theme. | Switch theme and look at the placeholder border and label colours. |
 | 9 | A document at the root of a disk (`C:/x.md`) | Rust refuses to grant a whole disk, so its images show placeholders; checked in a unit test only. | Open a document at the root of a drive and confirm the placeholder. |
 | 10 | The asset scope only grows | Tauri has no way to take a folder back out. | Nothing to test; revisit if Tauri adds revocation. |
-| 11 | ISC-72 itself | Misses its gate in 4 of 7 release runs; see decisions.md. | Rerun `pnpm perf scroll-stability` (full build first) once a fix is chosen. |
+| 11 | Scroll stability beyond the lab walk | ISC-72 passes 6 of 6 runs, but only on one lab document, in 60 px steps set through `scrollTop`, with local images. | Try trusted wheel events and a trackpad over the lab document, scrolling down into images not yet seen, and an `https` image that loads late. |
+| 12 | The 12 px anchor point | It is a constant copied from CodeMirror 6.43.15 (`scrollAnchorAt`); the check would notice a change, but nothing else watches it. | After a CodeMirror update, rerun `pnpm perf scroll-stability`. |

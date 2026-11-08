@@ -33,27 +33,42 @@ Deviations from the plan and choices it left open. Numbers carry the OS they cam
 - **Reserved space.** The first time an image is drawn it holds a fixed box (160 px for a block, 20 px inside text). When it loads, the box takes the image's aspect ratio and width (up to its natural size) and asks CodeMirror to measure. The size is remembered by address (at most 1000 entries, oldest dropped first), so the same image drawn again reserves exactly its real size from the first frame.
 - **Mock host:** `assetUrl` serves an `.svg` it holds as a `data:` address and gives anything else an address that cannot load. The mock never runs in the shipped app, so the CSP (which does not allow `data:`) does not matter.
 
-## P4-T2: ISC-72 is NOT closed (scroll stability misses its gate)
+## P4-T2: ISC-72, scroll stability (closed after five attempts)
 
-`pnpm perf scroll-stability` (scenario in `src/perf/scrollStability.ts`, lab files from `scripts/lib/scrollLab.ts`): 80 sections, each with an image of its own size (320x140 up to about 880x640) that has never loaded, scrolled 60 px at a time from the bottom to the top and back. After each step the first line fully in view is looked up and compared with where the scroll alone puts it. Limit: 2 px. The same walk runs over a control, an image widget with no reserved space and no measure request, which must drift by at least 10 px or the check proves nothing.
+`pnpm perf scroll-stability` (scenario in `src/perf/scrollStability.ts`, lab files from `scripts/lib/scrollLab.ts`): 80 sections, each with an image of its own size (320x140 up to about 880x640) that has never loaded, scrolled 60 px at a time from the bottom to the top and back. After each step the first text line fully in view is looked up and compared with where the scroll alone puts it. Limit: 2 px. The same walk runs over a control, an image widget with no reserved space and no measure request, which must drift by at least 10 px or the check proves nothing.
 
-Every release-build run so far (Windows 11, WebView2 157.0.4341.42, Ryzen 7 8840HS, ~5 GB free RAM; `perf-results/scroll-stability-*.json`):
+**Final result** (Windows 11, WebView2, release build, six runs in a row on one build): the real widget moved the top line by 0.47 px going up and 0.25 px going down in every run; the control moved it by 288, 300, 300, 910, 300 and 300 px. The six newest `perf-results/scroll-stability-20261108-*.json` files at the time, `-104046` to `-104941`.
 
-| Run | Real widget, scrolling up | Down | Control, up |
-|---|---|---|---|
-| 011439 | **1363 px** | 0.25 | 0.19 (control built wrongly in that run, see below) |
-| 012803 | 0.47 | 0.25 | 300 |
-| 013007 | **438** | 0.25 | 300 |
-| 013153 | 0.47 | 0.25 | 288 |
-| 013340 | 0.47 | 0.25 | 300 |
-| 015035 | **307** | 0.25 | 300 |
-| 015221 | **687** | 0.25 | 288 |
+### What the failure was
 
-- **4 of 7 runs fail.** In every run, 99% of the 855 steps up stay within 0.47 px; the miss is one or two steps in which the top line jumps by hundreds of px. Scrolling down is always clean (0.25 px). In the debug build against the Vite server, 5 runs in a row passed, so the jump needs the release timing.
-- **What the saved steps show** (runs 013007, 015035, 015221): a step in which the document height changes by 400 to 900 px across two frames while CodeMirror shifts the scroll position by a different amount, so the top line moves 300 to 690 px, and the next step moves it again by about the same. It looks like a bounce, not a drift.
-- **Cause: not proven.** My reading: an image that finishes loading while it straddles the top edge of the view is a block CodeMirror anchors on, so when it grows from its 160 px placeholder to its real height the lines below it move. A known size (the cache) avoids it from the second draw on; a first load cannot know its size. I did not test this, because a fix cannot be told from luck at a 4-in-7 failure rate without more release runs, and the system stopped my background run for low memory (see below).
-- **Not fixed, not loosened.** The limit stays 2 px. Two ideas, neither tried: hold an image's reserved box while it is at or above the top edge and apply its real size once it is below; or anchor on the first visible text line in the load handler and restore its position after the size changes.
-- **The control was wrong in the first run and the check caught it:** `ensureSyntaxTree` returns before the state holds the finished tree, so the control saw 6 images of 80 and drifted 0.19 px. The `checkFailed` rule ("control must drift 10 px") is what exposed it; fixed by updating the state once before adding the control's field.
-- **The run was stopped by the system for low memory** while a rebuild plus up to six more runs was queued (2026-11-08, about 02:00). I did not restart it, as its notice says. Eight release builds of the app in an evening, on a machine with 5 GB free, is a lot.
+The first visible text line moves when an image above it changes height and nothing makes up for it. CodeMirror makes up for a height change only above one block: the block that holds the point 12 px under the top of the view (`scrollAnchorAt` and the measure loop in `@codemirror/view` 6.43.15, `dist/index.js`). A block wholly above that point is covered. A block below the first visible line moves only what follows it. A block in between (the one holding the point, or one between it and the first line) is not covered, and the first line moves by all of the growth.
 
-**Question for the owner:** is ISC-72 meant as "no unexplained movement of the top line, ever" (then a fix like the two above is needed, and a first-time image load needs its own anchoring), or can it be "no movement beyond what CodeMirror's own anchoring does"? I have not changed the claim.
+The scroll step is what puts an image into that middle zone: an image can load as a 188 px placeholder at the top, with the tracked line just under it, and then a 60 px scroll moves it below the anchor point. In the failing step (`img-065`, step 130 to 135 depending on the build) it grew 445 px and the line moved 445 px.
+
+### Attempts, in order
+
+| # | What | Runs on the release build |
+|---|---|---|
+| 1 | The widget as first committed: reserve on load, plain `requestMeasure()` | 4 of 7 failed, 307 to 1363 px |
+| 2 | Your two ideas: hold a resize while the image crosses the top edge, apply it when the edge is clear or the view is idle, and on idle put the first line back | 1 run, failed at 445 px |
+| 3 | The same hold, with the test moved to CodeMirror's anchor point (12 px under the top, 4 px of slack) | 2 of 5 passed, 445 px each time it failed (the same build with a trace added passed 6 of 8) |
+| 4 | Decide in the view's measure cycle, put the first line back when the image sits in the uncovered zone; the line chosen when each image is applied | 0 of 6 passed, 445.27 px every time |
+| 5 | Same, with the line chosen once in the read phase, before any image has changed | 6 of 6 passed |
+
+### Deviations from the two ideas you gave
+
+- **The hold (idea 1) was dropped.** It decides when the image loads, but the scroll that matters comes after. In attempt 3 the trace showed the failing image held, then released by a scroll event at the moment it stopped being the anchor, and then growing in the uncovered zone below it.
+- **The restore (idea 2) stayed, but moved into the view's own measure cycle** (`requestMeasure` with a read and a write). The read decides, from where things are at that moment, whether CodeMirror will cover the change; the write applies the size and, if not, scrolls so the reference line is where it was just before.
+- **The reference line is chosen in the read phase** and its position is read right before each image's own change. Attempt 4 chose it at write time, and with two images loading in one frame the first one grew 384 px and pushed hidden lines into view; the line picked for the second image was one above it, so its 445 px was never restored.
+- **A plain `requestMeasure()` inside a measure cycle does nothing** (CodeMirror only adds a request when given one). The first draft called it to have the new height measured in the same cycle; a unit test that counts the passes of the measure loop caught that, and the call now carries a read of its own.
+
+### How it was found, and what I am less sure of
+
+- Two temporary traces, one in the widget and one in the scenario (position of each image and the first line at load, read and write), gave the events of the failing step. Both are removed. The trace reads layout, so it changed which runs passed; the clean build is the one that counts.
+- All runs are on one lab document, one machine, scrolled in 60 px steps by setting `scrollTop`. Trusted wheel events, a trackpad's smooth scrolling, scrolling down into unseen images and `https` images (whose load time is not local) were not tried: see untested.md.
+- The restore reads the position of an image box, so it is only as good as the 12 px figure CodeMirror uses. It is a constant copied from CodeMirror's source; if a CodeMirror update changes it, the scroll-stability check is what would notice.
+- The check was written before the fix and passed the control, so it was able to fail: the real widget failed it in attempts 1 to 4.
+
+### The system stopped a run
+
+A queued rebuild plus up to six runs was stopped by the system for low memory (2026-11-08, about 02:00) and was not restarted until you asked for it. The runs above were done in batches of at most six, with the free memory (3 to 7 GB) checked first.

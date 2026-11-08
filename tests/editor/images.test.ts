@@ -352,7 +352,7 @@ describe('the fixed-size box (ISC-182)', () => {
     expect(small).toBeLessThan(parseInt(block?.style.minHeight ?? '0'))
   })
 
-  it('sizes the box from the image once it has loaded, and asks the view to measure', () => {
+  it('sizes the box from the image once it has loaded, and asks the view to measure', async () => {
     const view = mount('![a](a.png)\n\nend')
     const measure = vi.spyOn(view, 'requestMeasure')
     const frame = frameOf(view)
@@ -361,6 +361,7 @@ describe('the fixed-size box (ISC-182)', () => {
     Object.defineProperty(img, 'naturalWidth', { value: 400 })
     Object.defineProperty(img, 'naturalHeight', { value: 200 })
     img.dispatchEvent(new Event('load'))
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
     expect(frame.style.aspectRatio.replaceAll(' ', '')).toBe('400/200')
     expect(frame.style.maxWidth).toBe('400px')
     expect(frame.style.minHeight).toBe('')
@@ -409,5 +410,204 @@ describe('the fixed-size box (ISC-182)', () => {
     const known = blocksOf(blockStateOf(doc, doc.length, context))[0]?.estimatedHeight ?? 0
     expect(known).toBeGreaterThan(300)
     expect(known).not.toBe(placeholder)
+  })
+})
+
+describe('a late image and the first visible line (ISC-72)', () => {
+  const EDGE = 100
+
+  /** Waits for the view's own measure cycle, which runs in an animation frame. */
+  const frame = (): Promise<void> =>
+    new Promise((resolve) => requestAnimationFrame(() => resolve()))
+
+  function rect(top: number, bottom: number): DOMRect {
+    return {
+      top,
+      bottom,
+      left: 0,
+      right: 0,
+      width: 0,
+      height: bottom - top,
+      x: 0,
+      y: top,
+      toJSON: () => ({}),
+    }
+  }
+
+  interface Rig {
+    view: EditorView
+    frame: HTMLElement
+    /** Where the image box is, in the page's coordinates. */
+    place(top: number, bottom: number): void
+    scrollTop(): number
+    sized(): boolean
+    load(): void
+  }
+
+  /** One image and the lines after it, with every position stubbed (jsdom has no layout). */
+  function rig(): Rig {
+    const view = mount('![a](a.png)\n\nnext\n\nend')
+    let scrollTop = 0
+    Object.defineProperty(view.scrollDOM, 'scrollTop', {
+      get: () => scrollTop,
+      set: (value: number) => {
+        scrollTop = value
+      },
+      configurable: true,
+    })
+    view.scrollDOM.getBoundingClientRect = () => rect(EDGE, EDGE + 500)
+    const frame = frameOf(view)
+    const wrap = frame.parentElement
+    const img = frame.querySelector<HTMLImageElement>('.cm-md-image-frame img')
+    if (wrap === null || img === null) throw new Error('no image on the page')
+    let box = rect(0, 0)
+    wrap.getBoundingClientRect = () => box
+    const sized = (): boolean => frame.classList.contains('cm-md-image-sized')
+    // The first line in view sits 200 px lower once the image has its real height.
+    for (const line of view.contentDOM.querySelectorAll<HTMLElement>('.cm-line')) {
+      line.getBoundingClientRect = () => rect(sized() ? 420 : 220, 440)
+    }
+    Object.defineProperty(img, 'naturalWidth', { value: 400 })
+    Object.defineProperty(img, 'naturalHeight', { value: 360 })
+    return {
+      view,
+      frame,
+      place: (top, bottom) => {
+        box = rect(top, bottom)
+      },
+      scrollTop: () => scrollTop,
+      sized,
+      load: () => img.dispatchEvent(new Event('load')),
+    }
+  }
+
+  it('sizes the box in the view measure cycle, not in the load event', async () => {
+    const t = rig()
+    t.place(EDGE + 30, EDGE + 118)
+    t.load()
+    expect(t.sized()).toBe(false)
+    await frame()
+    expect(t.sized()).toBe(true)
+    expect(t.frame.style.minHeight).toBe('')
+  })
+
+  it('measures the new height in the same cycle, with a second pass of the measure loop', async () => {
+    const passes = async (load: boolean): Promise<number> => {
+      const t = rig()
+      t.place(EDGE + 30, EDGE + 118)
+      // The view's own measurement; each pass of its loop calls it once.
+      const state = (t.view as unknown as { viewState: { measure(): number } }).viewState
+      const measure = vi.spyOn(state, 'measure')
+      if (load) t.load()
+      else t.view.requestMeasure()
+      await frame()
+      return measure.mock.calls.length
+    }
+    expect(await passes(true)).toBeGreaterThan(await passes(false))
+  })
+
+  it('restores only the growth of its own image when two load in the same frame', async () => {
+    // A is wholly above the view. B sits just above the first visible line, L. When A grows,
+    // the line between A and B comes into view, above B: it must not become the reference.
+    const view = mount('![a](a.png)\n\n![b](b.png)\n\nnext\n\nend')
+    let scrollTop = 0
+    Object.defineProperty(view.scrollDOM, 'scrollTop', {
+      get: () => scrollTop,
+      set: (value: number) => {
+        scrollTop = value
+      },
+      configurable: true,
+    })
+    view.scrollDOM.getBoundingClientRect = () => rect(EDGE, EDGE + 500)
+    const [frameA, frameB] = [
+      ...view.contentDOM.querySelectorAll<HTMLElement>('.cm-md-image-frame'),
+    ]
+    if (frameA === undefined || frameB === undefined) throw new Error('two images expected')
+    const sizedA = (): boolean => frameA.classList.contains('cm-md-image-sized')
+    const sizedB = (): boolean => frameB.classList.contains('cm-md-image-sized')
+    if (frameA.parentElement === null || frameB.parentElement === null) throw new Error('no boxes')
+    frameA.parentElement.getBoundingClientRect = () => rect(EDGE - 300, EDGE - 10)
+    frameB.parentElement.getBoundingClientRect = () => rect(EDGE + 30, EDGE + 118)
+    // Lines in document order: the one between A and B, then L ("next") and the rest.
+    const [between, ...after] = [...view.contentDOM.querySelectorAll<HTMLElement>('.cm-line')]
+    if (between === undefined) throw new Error('no lines')
+    const shiftA = (): number => (sizedA() ? 384 : 0)
+    const shiftB = (): number => (sizedB() ? 445 : 0)
+    // Hidden above the edge until A has grown, then in view above B's old place.
+    between.getBoundingClientRect = () => rect(EDGE - 80 + shiftA(), EDGE - 56 + shiftA())
+    for (const line of after) {
+      line.getBoundingClientRect = () => rect(220 + shiftA() + shiftB(), 244 + shiftA() + shiftB())
+    }
+    for (const each of [frameA, frameB]) {
+      const img = each.querySelector<HTMLImageElement>('.cm-md-image-frame img')
+      if (img === null) throw new Error('no image')
+      Object.defineProperty(img, 'naturalWidth', { value: 400 })
+      Object.defineProperty(img, 'naturalHeight', { value: 300 })
+      img.dispatchEvent(new Event('load'))
+    }
+    await frame()
+    expect(sizedA() && sizedB()).toBe(true)
+    // A is CodeMirror's to make up for; B's 445 is ours, not 0 and not 445 + 384.
+    expect(scrollTop).toBe(445)
+  })
+
+  it('puts the first line back when the image sits between the anchor point and that line', async () => {
+    const t = rig()
+    // Below the point CodeMirror anchors on (12 px under the top), above the first line (at 220).
+    t.place(EDGE + 30, EDGE + 118)
+    t.load()
+    await frame()
+    // The line was at 220, is at 420 once the image has grown, so the scroll follows it down.
+    expect(t.scrollTop()).toBe(200)
+  })
+
+  it('puts it back when the image holds the anchor point itself', async () => {
+    const t = rig()
+    t.place(EDGE - 80, EDGE + 80)
+    t.load()
+    await frame()
+    expect(t.scrollTop()).toBe(200)
+  })
+
+  it('leaves the scroll alone for an image wholly above the anchor point: CodeMirror covers it', async () => {
+    const t = rig()
+    t.place(EDGE - 300, EDGE + 10)
+    t.load()
+    await frame()
+    expect(t.sized()).toBe(true)
+    expect(t.scrollTop()).toBe(0)
+  })
+
+  it('leaves the scroll alone for an image below the first line: it moves only what follows', async () => {
+    const t = rig()
+    t.place(EDGE + 300, EDGE + 460)
+    t.load()
+    await frame()
+    expect(t.sized()).toBe(true)
+    expect(t.scrollTop()).toBe(0)
+  })
+
+  it('does not scroll for an image that has left the page, and still remembers its size', async () => {
+    const t = rig()
+    t.place(EDGE + 30, EDGE + 118)
+    t.load()
+    t.view.dispatch({ changes: { from: 0, to: 11, insert: 'gone' } })
+    await frame()
+    expect(t.scrollTop()).toBe(0)
+    expect(imageSizeOf('asset://localhost/%2Fnotes%2Fdocs%2Fa.png')).toEqual({
+      width: 400,
+      height: 360,
+    })
+  })
+
+  it('shows an image whose size cannot be read as failed, not as an empty box', () => {
+    const view = mount('![a](a.png)\n\nend')
+    const frame = frameOf(view)
+    const img = frame.querySelector('.cm-md-image-frame img')
+    Object.defineProperty(img, 'naturalWidth', { value: 0 })
+    Object.defineProperty(img, 'naturalHeight', { value: 0 })
+    img?.dispatchEvent(new Event('load'))
+    expect(frame.classList.contains('cm-md-image-failed')).toBe(true)
+    expect(frame.style.minHeight).not.toBe('')
   })
 })

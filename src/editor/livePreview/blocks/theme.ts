@@ -41,6 +41,12 @@ export const blockTheme = EditorView.baseTheme({
     objectFit: 'contain',
   },
   '.cm-md-image-frame:not(.cm-md-image-loaded)': { backgroundColor: 'var(--muted)' },
+  // Until the box has its real size the picture stays out of the layout, so it cannot resize it.
+  '.cm-md-image-frame:not(.cm-md-image-sized) img': {
+    position: 'absolute',
+    inset: '0',
+    opacity: '0',
+  },
   '.cm-md-image-frame.cm-md-image-failed': {
     display: 'flex',
     alignItems: 'center',

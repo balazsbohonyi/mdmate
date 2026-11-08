@@ -112,6 +112,7 @@ const IMAGE_PADDING = 14
 
 /** Fits `frame` to an image of this size, so it takes the space the image will fill. */
 function reserve(frame: HTMLElement, size: ImageSize, block: boolean): void {
+  frame.classList.add('cm-md-image-sized')
   frame.style.minHeight = ''
   frame.style.aspectRatio = `${String(size.width)} / ${String(size.height)}`
   if (block) {
@@ -121,6 +122,49 @@ function reserve(frame: HTMLElement, size: ImageSize, block: boolean): void {
     frame.style.width = `${String(size.width)}px`
     frame.style.maxWidth = '100%'
   }
+}
+
+/** CodeMirror anchors the scroll position on the block that holds the point this far below the top. */
+const ANCHOR_PROBE_PX = 12
+
+/** The first text line that is fully in view, and where it is on the screen. */
+function firstVisibleLine(view: EditorView): { line: HTMLElement; top: number } | undefined {
+  const edge = view.scrollDOM.getBoundingClientRect().top
+  for (const line of view.contentDOM.querySelectorAll<HTMLElement>('.cm-line')) {
+    const top = line.getBoundingClientRect().top
+    if (top >= edge) return { line, top }
+  }
+  return undefined
+}
+
+/**
+ * The line a height change of this block would move, when CodeMirror would not make up for it, or
+ * undefined. It makes up for a height change only above the block that holds a point just under
+ * the top of the view. A block wholly above that point is covered, and one below the first visible
+ * line moves only the text after it. A block in between (the one holding the point itself, or one
+ * between it and the first line) is not covered, and the first line moves down by all of the
+ * growth (ISC-72).
+ *
+ * Several images can load in one frame, and the first one to grow can push lines into view that
+ * were hidden, so the line is picked here, before any of them has changed.
+ */
+function lineItWouldMove(view: EditorView, element: HTMLElement): HTMLElement | undefined {
+  const box = element.getBoundingClientRect()
+  if (box.bottom <= view.scrollDOM.getBoundingClientRect().top + ANCHOR_PROBE_PX) return undefined
+  const first = firstVisibleLine(view)
+  return first !== undefined && box.bottom <= first.top + 1 ? first.line : undefined
+}
+
+/**
+ * Runs `change`, then scrolls so `line` is exactly where it was just before. The position is read
+ * now, not earlier, so it leaves out whatever other images already did in this same cycle.
+ */
+function keepLine(view: EditorView, line: HTMLElement, change: () => void): void {
+  const top = line.getBoundingClientRect().top
+  change()
+  if (!line.isConnected) return
+  const moved = line.getBoundingClientRect().top - top
+  if (Math.abs(moved) >= 0.5) view.scrollDOM.scrollTop += moved
 }
 
 /**
@@ -197,12 +241,29 @@ export class ImageWidget extends BlockWidget {
       // The address of the document is nobody else's business.
       img.referrerPolicy = 'no-referrer'
       img.addEventListener('load', () => {
-        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-          rememberImageSize(src, img.naturalWidth, img.naturalHeight)
-          reserve(frame, { width: img.naturalWidth, height: img.naturalHeight }, this.block)
+        if (img.naturalWidth <= 0 || img.naturalHeight <= 0) {
+          fail('This image has no size the editor can use.')
+          return
         }
-        frame.classList.add('cm-md-image-loaded')
-        view.requestMeasure()
+        const size = { width: img.naturalWidth, height: img.naturalHeight }
+        rememberImageSize(src, size.width, size.height)
+        // The size goes in during the view's own measure cycle, where it is known what the
+        // scroll position is and where the first line is. Applied here it could land after a
+        // scroll that moved the image into the one place nothing makes up for.
+        const apply = (): void => {
+          reserve(frame, size, this.block)
+          frame.classList.add('cm-md-image-loaded')
+        }
+        view.requestMeasure({
+          read: () => (wrap.isConnected ? lineItWouldMove(view, wrap) : undefined),
+          write: (line: HTMLElement | undefined) => {
+            if (line !== undefined) keepLine(view, line, apply)
+            else apply()
+            // Have the new height measured in this same cycle. A plain request is ignored while a
+            // cycle runs; one with a read of its own makes the loop take another pass.
+            view.requestMeasure({ read: () => null })
+          },
+        })
       })
       img.addEventListener('error', () => {
         fail('This image could not be loaded.')

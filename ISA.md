@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 74/186
+progress: 75/186
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-08T04:20:00Z
+updated: 2026-11-08T10:55:00Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -356,7 +356,7 @@ Why: documents mix prose with tables, images and code, and a page full of raw sy
 - [ ] ISC-69: Clicking a checkbox changes exactly one byte.
 - [ ] ISC-70: Fenced code highlights using token colors.
 - [ ] ISC-71: Language parsers stay out of the entry bundle.
-- [ ] ISC-72: Anti: late-rendering widgets never shift the scroll position.
+- [x] ISC-72: Anti: late-rendering widgets never shift the scroll position.
 - [x] ISC-180: Anti: an image address other than a relative path or `https` never loads.
 - [x] ISC-181: Opening a document lets the page load images from its folder, and from no other folder.
 - [x] ISC-182: A broken or still-loading image holds a fixed-size placeholder.
@@ -620,6 +620,7 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-67: the dev page drew an `https` image (800x600) inline, and a unit test pins that its source is the address as written with no referrer sent (P4-T2).
 - ISC-180: `pnpm test:web tests/editor/images.test.ts` runs 36 refusal cases (http, file, data, script and unknown schemes, UNC in four spellings, absolute and rooted paths, drive letters, `..` plain and percent-encoded, device names, trailing dots, credentials), a fuzz of 6000 random addresses that finds no path outside the folder and no non-https remote, and hostile.md, where only its one https image gets an address. Breaking each rule on purpose failed 1 to 8 tests every time (P4-T2).
 - ISC-181: `pnpm test:rust asset_folder` (5 tests: the document's own folder, never a neighbour or the parent, none for a disk root, none for a network path, a folder with glob characters), and in the real window a fetch of an asset URL returned 200 for a file in the document's folder and 403 for a file in the folder beside it. Rust grants it in `open_file`; the page has no command for it (P4-T2).
+- ISC-72: `pnpm perf scroll-stability` on the release build, six runs in a row on one build: the top line moved 0.47 px going up and 0.25 px going down every time (limit 2 px), while the control, an image widget with no reserved space, moved it 288 to 910 px. The sizes go in during the view's measure cycle and, when CodeMirror would not make up for the change, the first visible line is put back (`tests/editor/images.test.ts`, 10 deliberate breaks all caught, including the two-images-in-one-frame case that failed 6 of 6 runs before). Four earlier versions missed the limit; see ai-docs/phases/phase-04/decisions.md (P4-T2).
 - ISC-182: `tests/editor/images.test.ts` loads, fails and refuses an image and reads the same fixed height (160 px block, 20 px inline) before and after, and a remembered size reserves the real aspect ratio from the first frame; the real window showed the 160 px dashed placeholder with its alt text for a missing file (P4-T2).
 
 ## Remaining Work
