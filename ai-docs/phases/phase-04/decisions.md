@@ -100,3 +100,47 @@ A queued rebuild plus up to six runs was stopped by the system for low memory (2
 - **Breaks:** 13 deliberate breaks, all caught: 4 in the editor code (no extension lookup, no `codeLanguages`, an unknown token name in the style, a static import of the list, for which the runtime test and the rule both failed) and 9 in the bundle check (ignoring modulepreload links, not following static imports, allowing the list, dropping `lang-css` from the allowance, widening the allowance, Windows paths, pnpm store paths, the `explicit` flag, skipping the scan).
 - **A test that was already at its time limit.** Two full `pnpm test:web` runs after T4 failed one test, `caretWalk.test.ts` "atomic ranges change no caret position today", at 5.0 to 5.3 s against vitest's default 5 s timeout; the same test run alone took 4.6 to 5.0 s with the T4 edits and 4.8 to 4.9 s with them stashed (four runs each), so T4 did not slow it. It walks the caret through two large documents four times. I gave it an explicit 60 s timeout. No perf limit and no claim was loosened: it is a unit test's own timeout, and it is a correctness test (two walks must be equal), not a speed gate.
 - **Subagent decisions:** none.
+
+## Perf after T4: STOPPED, three gates missed (2026-11-08)
+
+Release build of `d5166ab` (T4), Windows 11, Ryzen 7 8840HS, WebView2 157.0.4341.42, 5 counted runs after 2 warm-ups unless stated, `--skip-build` after one fresh build. I stopped here as the brief says: nothing was loosened, no fix was tried, and the phase is **not** done. Phase 4 tasks T1 to T4 are committed.
+
+### What passed and what did not
+
+| Scenario (claim) | Limit | T4 result | |
+|---|---|---|---|
+| startup, warm (ISC-4) | 1500 ms | 529.5 ms (510.0 to 551.7) | pass |
+| startup, 3 fresh-profile first launches | 1500 ms | 629.0 ms median (573.8 to 667.9) | pass |
+| open-1mb (ISC-5) | 100 ms | 28.6 ms (not repeatable within 10%: 25.6 to 30.0) | pass |
+| tab-switch p95 (ISC-6) | 50 ms | 49.6 ms (48.4 to 51.0) | pass by 0.4 ms; one run was 51.0 |
+| typing-1mb p95 (ISC-7) | 16 ms | 7.2 ms | pass |
+| typing-1mb-trusted p95 (ISC-7) | 16 ms | 8.4 ms | pass |
+| typing-2mb / 3mb p95 | 16 ms | 8.7 ms / 11.7 ms (Phase 3: 6.0 / 8.2) | pass, but 40 to 45% slower than Phase 3 |
+| **typing-5mb p95** | 16 ms | **35.0 ms** (26.9 to 39.5, not repeatable) (Phase 3: 12.6) | **over** |
+| **decorations-scale (ISC-63)** | 35% | **worst deviation 0.568 and 0.500** in two runs (middle ratio 1.42 / 1.36, late 1.57 / 1.50) | **failed** |
+| **reveal (ISC-58)** | 16 ms | **no number**: the page stopped with "the line below the span is not in the view", on run 1, in two attempts | **could not run** |
+| scroll-stability (ISC-72) | 2 px | not rerun after T4 (the run on the T2 build passed 6 of 6) | not measured |
+
+typing-5mb belongs to the "size cutoff" fog item, not to a numbered claim, but it was inside 16 ms at the end of Phase 3 and is not now, so I treat it as a miss.
+
+### Where it started (bisect on release builds, same machine, same session)
+
+| Commit | typing-5mb p95 | decorations-scale worst deviation (limit 0.35) | reveal |
+|---|---|---|---|
+| `c98e4d0` end of Phase 3 | 12.6 ms | 0.15 to 0.28 over 7 runs (4 of those 7 had `checkFailed`, all with deviation under 0.35, so the scenario had other noise already) | passed |
+| `708a90c` T1, block layer and tables | 15.4 ms | 0.86 | not run |
+| `449dedb` T2, images | 16.8 ms (not repeatable) | 0.63 | not run |
+| `9484495` T3, frontmatter and checkboxes | 16.2 ms | 0.63 | passed runs 1 to 3, page failure on run 4 |
+| `d5166ab` T4, code languages | 35.0 ms | 0.57 and 0.50 | failed on run 1, twice |
+
+### Causes, and how sure I am of each
+
+- **T4 nested parsers cost about 18 ms per key at 5 MB. Measured.** The same T4 build with `codeLanguages` switched off (an uncommitted one-line change, since reverted) gave typing-5mb p95 16.8 ms (16.3 to 17.9, repeatable) against 35.0 ms with it. The 5 MB fixture holds about 1500 fenced blocks in html, python, rust, ts, bash, js, css and json, so once those parsers are loaded the whole document parses as nested code. In jsdom a full parse of that document took about 1.5 s with nested parsers against 0.9 s without, but the cost of one dispatch was the same (13 to 14 ms median in both), so I do not know which part of the real window's per-key work grows; I only know it is the nested parsing.
+- **The remaining 16.8 ms (Phase 3: 12.6 ms) and the decorations-scale failure come from the block layer (T1), and T2 and T3 add a little. Measured at the level of the symptom, not at the line of code.** A scratch test (jsdom, not committed) times `view.dispatch` of one typed character in the middle of the fixture repeated to 1 MB and 10 MB: without the block layer 0.72 ms and 2.35 ms; with it 0.64 ms and **11.14 ms**, at 295 and 2941 block decorations. So a view update costs more the more block decorations the document has (about 295 per MB of this fixture), and at 1 MB you cannot see it. The state-only update (`state.update`) does not grow (0.03 ms at both sizes), so the cost is in the view handling a large decoration set, not in `blockField.update`. My guess, **not verified**, is that mapping the set through every edit gives all the later chunks new identities and the view then compares them with the old ones. This is exactly what `decorations-scale` was built to catch, and I did not run it at the end of T1.
+- **reveal: not diagnosed.** The scenario scrolls the caret line to the middle of the view and fails if the line six lines below is not on screen. It passed in Phase 3 and passed three runs at T3, so it is flaky at T3 and failing at T4. It may be the same height-drift family as the scroll-stability work (the fixture has 111 images per MB, about 1000 task lines, frontmatter and about 300 fenced blocks), or lazy-loaded languages changing nothing but timing. I did not look further.
+
+### What I did not do, and the decision that is yours
+
+- I did not change code, limits or scenarios to make a number pass. The working tree is the T4 commit; `src-tauri/target/release/mdmate.exe` is currently a build of T4 with nested languages off (do not use it for anything; rebuild with `pnpm perf <scenario>` without `--skip-build`).
+- Options, with my recommendation first: **(1)** make the block layer cost independent of document size (for example keep decorations only for a window around the viewport and the caret, rebuilt when the view scrolls, instead of one set for the whole document), then rerun decorations-scale, reveal and typing-5mb; **(2)** for nested code, parse and color fences only inside or near the viewport, or switch nested parsing off above a size (typing-3mb was 11.7 ms with it on, typing-5mb 16.8 ms with it off), the cutoff being a number I would want you to choose; **(3)** accept the 5 MB figure and move the cutoff down (this loosens what the app promises, so it is your call, not mine). A sub-agent may not choose between these: they decide a speed gate.
+- **Subagent decisions:** none.
