@@ -126,3 +126,17 @@ Deviations from the plan and choices it left open. Numbers carry the OS they cam
 No dependency, Cargo.toml or config change.
 
 **Subagent decisions:** none.
+
+## P5-T6: smart paste and one selection
+
+**Probes before code, and what they showed.** ISC-96 already held: CodeMirror keeps only the main range while `allowMultipleSelections` is off, its default, in every state the app builds. I only added a test that fails if any state turns it on. ISC-95 also already held, which I found only after writing my handler, because I did not probe it first: `@codemirror/lang-markdown` 6.5 ships `pasteURLAsLink`, on by default in `markdown()`, and in a test my handler never ran.
+
+**Why mdmate has its own handler anyway.** The package's handler has two faults: it dispatches without checking `readOnly`, so pasting an address over a selection in a document opened read-only (an unsupported encoding) changed its text, which a test shows by turning the package's handler back on; and it accepts any text that starts with `https://`, spaces included. `src/editor/paste.ts` keeps its one good rule (the selection must be plain text that no syntax node starts or ends inside, which also covers selecting an address the parser already marks) and adds the read-only check and a whole-address check (`looksLikeUrl`, shared with the link command: `http`, `https` or `mailto` with no space). `markdownSupport()` now passes `pasteURLAsLink: false`. A consequence of the plain-text rule, the same as the package's: words inside a bold span touch its closing marker, so pasting over them is a plain paste. `www.` addresses (which the package turned into `https://www.`) paste plainly.
+
+**Evidence.** `tests/editor/paste.test.ts` (7) and `tests/editor/selection.test.ts` (2). Deliberate breaks, all caught: any text linked (1), several lines linked (1), the caret left inside (1), read-only ignored (2), the handler not wired (1, once the package's handler was off), the address not trimmed (1), syntax crossing allowed (1), the package's handler back on (1), multiple selections on followers (2) or on the master (2). One survived: a separate check for an address pasted over an address was redundant with the plain-text rule and is removed.
+
+**Real window:** the paste used the real Windows clipboard. I saved its text, set it to the address, pressed Ctrl+V, and wrote the saved text back afterwards.
+
+No dependency, Cargo.toml or config change.
+
+**Subagent decisions:** none.

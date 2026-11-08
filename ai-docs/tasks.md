@@ -58,7 +58,7 @@ Mark `[x]` only when the task's "Done when" in its phase plan holds. Each task l
 - [x] P5-T3: Broken links and history — closes ISC-79, ISC-80, ISC-81
 - [x] P5-T4: Format commands — closes ISC-83, ISC-84, ISC-85, ISC-86, ISC-87, ISC-88, ISC-89
 - [x] P5-T5: List editing — closes ISC-90, ISC-91, ISC-92, ISC-93, ISC-94
-- [ ] P5-T6: Smart paste and single selection — closes ISC-95, ISC-96
+- [x] P5-T6: Smart paste and single selection — closes ISC-95, ISC-96
 - [ ] P5-T7: Drag selected text — closes ISC-177, ISC-178, ISC-179 (spike passed in P0, see decisions)
 
 ## Phase 6: Workspace ([plan](phases/phase-06/plan.md))

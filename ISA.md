@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 109/191
+progress: 111/191
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-08T22:17:13Z
+updated: 2026-11-08T22:26:52Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -402,8 +402,8 @@ Why: formatting should stay in your fingers, so writing never stops for syntax.
 - [x] ISC-92: Enter on an empty item ends the list.
 - [x] ISC-93: Tab indents a list item.
 - [x] ISC-94: Shift+Tab outdents a list item.
-- [ ] ISC-95: Pasting a URL over selected text creates a link.
-- [ ] ISC-96: Anti: the editor never holds more than one selection range.
+- [x] ISC-95: Pasting a URL over selected text creates a link.
+- [x] ISC-96: Anti: the editor never holds more than one selection range.
 - [ ] ISC-177: Dragging selected text to another position in the editor moves it.
 - [ ] ISC-178: A text drag undoes in one step.
 - [ ] ISC-179: Text drag works in the real app while the window accepts native file drops.
@@ -670,6 +670,9 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-88 and ISC-89 (closed 2026-11-08, P5-T4): the same file: raising goes paragraph, H6, ... H1 and stops; lowering goes H1 ... H6, then back to a paragraph; one direction undoes the other; every line of a selection changes; code lines and blank lines do not. Real window: Ctrl+Shift+Up on `## Title` gave `# Title` and stopped there; Ctrl+Shift+Down twice gave `### Title`.
 
 - ISC-90 to ISC-94 (closed 2026-11-08, P5-T5): `pnpm test:web tests/editor/lists.test.ts` (the list editing block, 11 tests). Enter continues `-`, `*`, `1.` (as `2.`), a quoted list and a nested item (ISC-90); `- [x]` and `- [ ]` continue as `- [ ] ` (ISC-91); Enter on an empty item ends the list with a blank line after it, task box or not, and an empty nested item steps out one level (ISC-92); Tab nests an item under the one before it, children included, lined up with that item's text (`2.` under `1. ` gets three spaces) (ISC-93); Shift+Tab moves a nested item out one level, children included (ISC-94); the two undo each other; a first or top-level item stays put but the key is taken; read-only documents are left alone; the keys sit above CodeMirror's Markdown keymap in every follower. Real window (trusted keys): `- one` Enter, `two` Tab, Enter, `[x] done` Enter gave `  - [ ] `; Enter there stepped out to `- [ ] `; Enter again ended the list, and text typed then was a paragraph. 11 deliberate breaks each failed a test.
+
+- ISC-95 (closed 2026-11-08, P5-T6): `pnpm test:web tests/editor/paste.test.ts` (7 tests): a pasted `https`, `http` or `mailto` address over selected plain text becomes `[text](address)` with the caret after it, through a real paste event on a view too; no selection, text that is not an address, an address with a space, several lines, half a bold span, code, an existing link or an address are plain pastes; a read-only document keeps its text, also with lang-markdown's own handler, which is now off. Real window: a trusted Ctrl+V of `https://example.com/docs` from the Windows clipboard over a double-clicked `docs` gave `Read the [docs](https://example.com/docs) now.`. 10 deliberate breaks each failed a test.
+- ISC-96 (closed 2026-11-08, P5-T6): `pnpm test:web tests/editor/selection.test.ts` (2 tests): every kind of state the app builds (standalone, plain source, master, follower, and a document's tab) has `allowMultipleSelections` off and keeps one range, the main one, after a dispatch of two. The claim held before P5-T6 (CodeMirror's default); the test fails if a follower or the master turns it on (2 failures each). Real window: a two-range dispatch on the active tab kept 1 range.
 
 ## Remaining Work
 

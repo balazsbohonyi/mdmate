@@ -22,3 +22,5 @@ Everything below was skipped on purpose or could not be done in the Phase 5 runs
 | 16 | Setext headings and headings in lists or quotes with the heading keys | Treated as paragraphs or left alone (see decisions). | Press Ctrl+Shift+Up on a setext heading. |
 | 17 | Tab-indented lists, and lists inside quotes, with Tab and Shift+Tab | Shifted with spaces; only space-indented lists were tried (see decisions). | Indent a list with tabs and press Shift+Tab on a nested item. |
 | 18 | Tab with a selection over several items | Only the item at the caret moves. | Select three items and press Tab. |
+| 19 | Pasting an address over words inside bold or italic | A plain paste by the rule kept from lang-markdown (see decisions). | Decide whether linking text inside emphasis matters. |
+| 20 | Rich clipboard content (HTML from a browser) with an address as its text | Only `text/plain` is read; the real-window test put plain text on the clipboard. | Copy a link from a browser page and paste it over a word. |

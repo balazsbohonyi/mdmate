@@ -4,6 +4,7 @@ import { EditorState, type EditorSelection, type Extension, type Text } from '@c
 import { EditorView, keymap } from '@codemirror/view'
 import { tokenHighlight } from './highlight'
 import { listEditing } from './lists'
+import { smartPaste } from './paste'
 import { livePreview } from './livePreview'
 import { previewSlot } from './previewMode'
 import { markdownSupport } from './markdownSupport'
@@ -51,6 +52,7 @@ const withParser: Extension = [
   markdownSupport(),
   syntaxHighlighting(tokenHighlight),
   listEditing(),
+  smartPaste(),
 ]
 
 export interface StateOptions {
@@ -107,7 +109,13 @@ export function createFollowerState(options: FollowerOptions): EditorState {
   const parsing: Extension =
     options.parser === false
       ? []
-      : [markdownSupport(), syntaxHighlighting(tokenHighlight), previewSlot(), listEditing()]
+      : [
+          markdownSupport(),
+          syntaxHighlighting(tokenHighlight),
+          previewSlot(),
+          listEditing(),
+          smartPaste(),
+        ]
   return EditorState.create({
     doc: options.doc,
     ...(options.selection === undefined ? {} : { selection: options.selection }),
