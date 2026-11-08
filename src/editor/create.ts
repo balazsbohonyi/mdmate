@@ -15,7 +15,9 @@ const frame = EditorView.theme({
     backgroundColor: 'var(--background)',
   },
   '.cm-scroller': { overflow: 'auto' },
-  '.cm-content': { caretColor: 'var(--foreground)' },
+  // Room between the text and the edges of the pane. Padding on the content, not margin: the
+  // scrollbar stays at the pane's edge, and CodeMirror counts content padding in its heights.
+  '.cm-content': { caretColor: 'var(--foreground)', padding: '1.25rem 1.5rem' },
 })
 
 /** What every document gets, with or without the Markdown parser. */
