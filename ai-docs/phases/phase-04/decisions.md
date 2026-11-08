@@ -153,3 +153,39 @@ typing-5mb belongs to the "size cutoff" fog item, not to a numbered claim, but i
 - I did not change code, limits or scenarios to make a number pass. The working tree is the committed branch; `src-tauri/target/release/mdmate.exe` is a build of `810ffc0` (code identical to `d5166ab`), made for the scroll-stability run after the nested-languages-off variant.
 - Options, with my recommendation first: **(1)** make the block layer cost independent of document size (for example keep decorations only for a window around the viewport and the caret, rebuilt when the view scrolls, instead of one set for the whole document), then rerun decorations-scale, reveal and typing-5mb; **(2)** for nested code, parse and color fences only inside or near the viewport, or switch nested parsing off above a size (typing-3mb was 11.7 ms with it on, typing-5mb 16.8 ms with it off), the cutoff being a number I would want you to choose; **(3)** accept the 5 MB figure and move the cutoff down (this loosens what the app promises, so it is your call, not mine). A sub-agent may not choose between these: they decide a speed gate.
 - **Subagent decisions:** none.
+
+## Perf diagnosis after your answers (2026-11-08)
+
+You approved diagnosing in the real window and asked me to try option (b). What I found, measured in the debug app (`cargo run --features perf` against the dev server, DevTools port) and then in release builds. **Everything here that touches the perf scenarios is uncommitted in `src/perf/` (`support.ts`, `decorationScale.ts`, `reveal.ts`) until you have looked at it.** To drop it: `git checkout -- src/perf`.
+
+### decorations-scale and reveal: the scenarios read the view at the wrong moment
+
+- **Measured, 10 MB file, jump to the late spot, then `forceParsing` to the end of the view:** the tree grows from 104,375 to 4,702,854 characters, the block layer draws thousands of tables and images above the view, the content grows by 198,810 px, and the scroll position stays put. The caret line is then 198,810 px away (scrollTop 1,362,706, its top at 1,561,516). CodeMirror puts the view back on the next measure: 500 ms later the offset is 1 px. In the 1 MB file the same steps move nothing. Phase 3 had no block widgets, so nothing moved.
+- Both scenarios call `forceParsing` and read the view in that gap, so they read other text. That is why the same-work check has failed in every run since T1 (items 286 against 409 at T4), and why reveal stopped with "the line below the span is not in the view".
+- **What I changed (uncommitted):** `settleOnLine` in `support.ts` waits until the target line is in the scroller and has held still for three frames (it throws after 5 s), and both scenarios call it after the parse. `decorations-scale` also scans one fixed stretch of 5000 characters from the target line in both documents instead of `view.visibleRanges`: after settling, the two views still differed by a few percent (visible characters 5241 against 5678; 286 against 337 items) because images load at different times. The limit (35%), the 10 MB document, the control (must grow at least 3 times) and the same-work check are unchanged. This changes how the gate measures, so it needs your yes.
+- **Results on a fresh release build of the current tree (app code identical to `d5166ab`):**
+
+  | Scenario | Result |
+  |---|---|
+  | decorations-scale, final code, 3 runs | worst deviation 0.198, 0.192, 0.212 against 0.35; same work in both places each time (an earlier settle variant gave 0.182, 0.210, 0.207) |
+  | reveal, final code, 2 runs of 5 | work per leave p95 4.10 and 4.00 ms against 16; repeatable (within 5 to 8%); the earlier settle variant gave 4.10 |
+  | Before, same app code, unmodified scenarios | decorations-scale failed same-work in every run; reveal stopped on run 1, twice |
+
+- ISC-58 and ISC-63 stay un-ticked in the ISA until you accept the scenario change, because they only pass under it.
+- **Not checked:** whether a person sees the 199,000 px jump when a long jump into a big file finishes parsing (one frame or so, in a 10 MB file, which the app does not parse anyway). In the 3 MiB range I did not look.
+
+### typing-5mb: not the nested parsers, and not a supported size
+
+- The app opens anything above 3 MiB as plain source with no parser (`src/documents/largeFile.ts`, ISC-8, cutoff confirmed in Phase 3). `typing-5mb` forces a parser onto a size the app never gives one. The supported largest file, the 3 MB fixture (406 bytes over the cutoff), measures **11.7 ms** at T4 in the release build against 16.
+- **Cause, measured in the debug app:** the scenario starts typing 300 ms after the file loads, while the background parse is still on its way to the caret. Each key then pays the parser catching up, which costs about the 25 ms work slice. Typing after the parse has finished:
+
+  | 5 MB, debug app | p50 / p95, parse unfinished | p50 / p95, parse finished first |
+  |---|---|---|
+  | nested code parsers on | 28.1 / 35.7 ms | 10.4 / 15.3 ms |
+  | nested code parsers off | 27.0 / 34.0 ms | 10.2 / 17.0 ms |
+  | 3 MB, nested on | 6.0 / 9.6 ms | 5.3 / 7.9 ms |
+
+  So the nested parsers do not slow a key. They make the whole parse take longer (jsdom, 5 MB: about 1.5 s against 0.9 s), so the unfinished window is longer. The earlier release comparison (35.0 against 16.8 ms) falls out of that. A CPU profile of the unfinished case puts about 7.7 of 9.3 busy seconds inside `ParseContext.work`.
+- **Option (b) is not built.** Parsing and coloring fences only near the view would need a way to re-parse a fence when it scrolls into range, and CodeMirror has no clean one (a no-op edit would dirty the document). The measurement says it would fix a number at a size the app does not parse. If you want headroom above 3 MiB anyway, the cutoff is the lever, and Phase 3 already chose it with these same scenarios.
+- The debug app runs the dev JavaScript, so its absolute numbers are higher than the release ones; I rely only on the comparisons within each table.
+- **Subagent decisions:** none.
