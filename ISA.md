@@ -3,10 +3,10 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 48/181
+progress: 66/181
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-07T18:19:16Z
-principal_stated_goal: "I want to build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
+updated: 2026-11-08T03:00:00Z
+principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
 principal_stated_goal_locked: 2026-11-07T00:30:52Z
@@ -54,7 +54,7 @@ You double-click a README and it is on screen before you have finished looking a
 - All OS-specific code lives behind `src-tauri/src/platform/`.
 - All file access goes through our own Rust commands.
 - Windows 11 ships first, on WebView2.
-- **Speed gate.** Four speed claims are gates: ISC-4 (startup 1000 ms), ISC-5 (open 1 MB, 100 ms), ISC-6 (tab switch, 50 ms) and ISC-7 (typing p95 16 ms on the 1 MB fixture). When a gate is measured and missed in the release build, the work stops at that task. Profile once to find the cost, then write the numbers and the cause in the phase's `decisions.md` and hand them to the owner, who decides between a fix, a lower feature scope (such as a lower plain-source cutoff) or a new target. A gate is never loosened, skipped or re-measured under easier conditions to make it pass. Only the owner closes a missed gate, with the decision recorded in Decisions.
+- **Speed gate.** Four speed claims are gates: ISC-4 (startup 1500 ms), ISC-5 (open 1 MB, 100 ms), ISC-6 (tab switch, 50 ms) and ISC-7 (typing p95 16 ms on the 1 MB fixture). When a gate is measured and missed in the release build, the work stops at that task. Profile once to find the cost, then write the numbers and the cause in the phase's `decisions.md` and hand them to the owner, who decides between a fix, a lower feature scope (such as a lower plain-source cutoff) or a new target. A gate is never loosened, skipped or re-measured under easier conditions to make it pass. Only the owner closes a missed gate, with the decision recorded in Decisions.
 
 ## Goal
 
@@ -72,7 +72,7 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-1 | bash | hash before and after save across all fixtures | identical | pnpm test:rust roundtrip_unedited | derived: byte-exact | critical | |
 | ISC-2 | bash | property test: random edits leave bytes outside the range unchanged | 1000 runs | pnpm test:rust edit_isolation | derived: byte-exact | critical | |
 | ISC-3 | bash | edit a mixed-EOL fixture, compare untouched lines | identical | pnpm test:web tests/editor/lineEndings.test.ts | derived: byte-exact | | |
-| ISC-4 | bash | launch to editable time, release build | under 1000 ms | pnpm perf startup | derived: fast | critical | |
+| ISC-4 | bash | launch to editable time, release build | under 1500 ms | pnpm perf startup | derived: fast | critical | |
 | ISC-5 | bash | open 1 MB fixture, release build | under 100 ms | pnpm perf open-1mb | derived: fast | critical | |
 | ISC-6 | bash | tab switch, release build | under 50 ms | pnpm perf tab-switch | derived: fast | | |
 | ISC-7 | bash | keystroke latency on 1 MB fixture | p95 under 16 ms | pnpm perf typing-1mb | derived: fast | critical | |
@@ -133,7 +133,7 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-60 | screenshot | walk down a decorated document | no line skipped | Interceptor on pnpm dev | literal | | |
 | ISC-61 | bash | toggle one pane | other pane unchanged | pnpm test:web tests/editor/sourceMode.test.ts | literal | | |
 | ISC-62 | bash | copy across hidden syntax | raw Markdown | pnpm test:web tests/editor/copy.test.ts | derived: byte-exact | | |
-| ISC-63 | bash | compare decoration time on 1 MB and 10 MB | within 20 percent | pnpm perf decorations-scale | derived: fast | | deep |
+| ISC-63 | bash | compare decoration time on 1 MB and 10 MB | within 35 percent | pnpm perf decorations-scale | derived: fast | | deep |
 | ISC-64 | screenshot | render the GFM table fixture | table shown | Interceptor on pnpm dev | literal | | |
 | ISC-65 | bash | caret enters table range | widget removed | pnpm test:web tests/editor/table.test.ts | literal | | |
 | ISC-66 | screenshot | render relative image with mock host | image shown | Interceptor on pnpm dev | literal | | |
@@ -259,10 +259,10 @@ Why: these promises hold everywhere, and any single feature could quietly break 
 - [x] ISC-1: Anti: saving an unedited file never changes a byte.
 - [x] ISC-2: Anti: an edit never changes bytes outside its range.
 - [x] ISC-3: Mixed line-ending files keep each untouched line's ending after an edit.
-- [ ] ISC-4: The release app is usable within 1000 ms of launch.
+- [x] ISC-4: The release app is usable within 1500 ms of launch.
 - [x] ISC-5: A 1 MB Markdown file opens within 100 ms.
 - [x] ISC-6: Switching tabs completes within 50 ms.
-- [ ] ISC-7: Typing stays under 16 ms per key on the 1 MB fixture.
+- [x] ISC-7: Typing stays under 16 ms per key on the 1 MB fixture.
 - [x] ISC-8: Files above 3 MB open as plain source with a notice.
 - [x] ISC-9: `cfg(windows)` and `target_os` appear only inside `platform/`.
 - [x] ISC-10: `cargo check` passes on macOS in CI.
@@ -322,23 +322,23 @@ Why: nobody trusts an editor twice after it loses their words, so no action here
 ### F3 · Inline live preview
 Why: this is the reason mdmate exists; you read the rendered page and edit it in place, with syntax only where you are working.
 
-- [ ] ISC-50: Headings render without `#` markers away from the caret.
-- [ ] ISC-51: [container] Emphasis renders with hidden markers.
-  - [ ] ISC-51.1: Bold renders with hidden markers.
-  - [ ] ISC-51.2: Italic renders with hidden markers.
-  - [ ] ISC-51.3: Strikethrough renders with hidden markers.
-- [ ] ISC-52: Inline code renders with hidden backticks.
-- [ ] ISC-53: Links render as text with the target hidden.
-- [ ] ISC-54: List markers render styled.
-- [ ] ISC-55: Blockquotes render styled.
-- [ ] ISC-56: Horizontal rules render as lines.
-- [ ] ISC-57: A caret inside an inline element reveals only that element's syntax.
-- [ ] ISC-58: Syntax hides again within 16 ms of the caret leaving.
-- [ ] ISC-59: Anti: the caret never sticks inside hidden syntax.
-- [ ] ISC-60: Anti: vertical arrow keys never skip a line.
-- [ ] ISC-61: A per-pane toggle shows raw source.
-- [ ] ISC-62: Copying a selection copies raw Markdown.
-- [ ] ISC-63: Decoration time stays flat between 1 MB and 10 MB files.
+- [x] ISC-50: Headings render without `#` markers away from the caret.
+- [x] ISC-51: [container] Emphasis renders with hidden markers.
+  - [x] ISC-51.1: Bold renders with hidden markers.
+  - [x] ISC-51.2: Italic renders with hidden markers.
+  - [x] ISC-51.3: Strikethrough renders with hidden markers.
+- [x] ISC-52: Inline code renders with hidden backticks.
+- [x] ISC-53: Links render as text with the target hidden.
+- [x] ISC-54: List markers render styled.
+- [x] ISC-55: Blockquotes render styled.
+- [x] ISC-56: Horizontal rules render as lines.
+- [x] ISC-57: A caret inside an inline element reveals only that element's syntax.
+- [x] ISC-58: Syntax hides again within 16 ms of the caret leaving.
+- [x] ISC-59: Anti: the caret never sticks inside hidden syntax.
+- [x] ISC-60: Anti: vertical arrow keys never skip a line.
+- [x] ISC-61: A per-pane toggle shows raw source.
+- [x] ISC-62: Copying a selection copies raw Markdown.
+- [x] ISC-63: Decoration time stays flat between 1 MB and 10 MB files.
 
 ### F4 · Block preview
 Why: documents mix prose with tables, images and code, and a page full of raw syntax blocks breaks the illusion.
@@ -504,6 +504,9 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - 2026-11-07: refined: ISC-7 is judged on the main-thread work a key causes (handling it, plus the next frame's style, layout and paint). Key to frame adds an idle wait of up to one frame, which no editor can remove, so it is printed and never judged.
 - 2026-11-07: Kill rule checked in P0-T8, and it did not fire. Throwaway live-preview decorations hold typing at 5.0 ms p95 per key (5.5 ms with real key events) on the 1 MB fixture, against 16 ms. They cover inline marks only; Phase 3 measures the real layer, block widgets included, with the same scenarios.
 - 2026-11-07: Chose 3 MB as the plain-source cutoff. The Markdown parser is what slows typing (p99 8.2 ms at 3 MB and 15 ms at 5 MB, against 16), and plain source types at 1.9 ms even at 10 MB. Provisional until Phase 3 measures the real live-preview layer.
+- 2026-11-08: Confirmed the 3 MiB cutoff with the real live-preview layer (P3-T6). Typing p95 / p99 in ms: 2 MB 6.0 / 6.9, 3 MB 8.2 / 9.0, 5 MB 12.6 / 13.5, 10 MB 16.5 / 17.4 (over 16, not repeatable). The 3 MB fixture is 3,146,134 bytes, 406 over the 3 MiB cutoff, so that row is the largest size that gets the parser, with p99 9.0 against 16; the number stays. No longer provisional.
+- 2026-11-08: The owner allowed raising the ISC-63 limit if repeat runs agreed, and I set it from 20 to 35 percent (the worst clean run was 1.28), and the owner confirmed the number. The full layer missed 20 in four of six runs (late-file ratio 1.28, 1.27, 1.20, 1.20, 1.16, plus one noisy run at 1.05). A scan late in a 10 MB file takes about 48 microseconds against 40 in a 1 MB file, the cost of finding a place in a tree ten times as big; a whole view update stays level (0.42 against 0.41 ms). The run with the new limit: worst deviation 14.7 percent, control 8.5 times. The control that grows with the file is what stops the check passing a real slope.
+- 2026-11-08: Raised ISC-4 from 1000 ms to 1500 ms, on the owner's call (the fallback named on 2026-11-07). The real shell measured 515 ms warm and 693, 893 and 804 ms on three first launches with a fresh WebView2 profile (P3-T6), so 1000 ms passed with a worst margin of 107 ms; the owner wants room for a slower machine or a first launch after a reboot. Past 1500 ms the number stops catching regressions, so it stays there.
 - 2026-11-07: Chose normalized text with the line endings kept beside it, over keeping the carriage return in the text. The second keeps every byte, but the Markdown parser then misses tables and hard breaks.
 - 2026-11-07: Raised ISC-4 from 500 ms to 1000 ms, on the owner's call. A bare shell with an editor is editable in 429 ms on a warm profile and 475 ms on a first launch with a fresh profile, mostly WebView2 starting, so 1000 ms leaves room for the real UI. Phase 3 measures it, and 1500 ms is the fallback.
 - 2026-11-07: Chose the asset protocol with a scope that grows at runtime for images, over a custom protocol. Tested in the real WebView2: a folder is blocked until it is allowed, then loads, including names with spaces and accents.
@@ -581,11 +584,30 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-49: Real app run (`cargo run --features perf`, 11 checks scripted over the DevTools port): typed text, then an OS close request (`CloseMainWindow`) and then the title bar's Close button, 100 ms after typing and inside the journal interval; both ended the app with no prompt and the next start held the text typed in those 100 ms, still marked edited. The close handler flushes the journal before quitting (src-tauri/src/lib.rs, src/documents/session.ts) (P2-T6).
 - ISC-5: `pnpm perf open-1mb` (release app, real WebView2, 5 runs after 2 warm-ups): a 1 MB file opened the way the app does (openFile in Rust, Document, tab state, show, frame) takes 20.8 ms warm (20.0 to 21.0, repeatable) and 48.7 ms on the first open of a run, against 100 ms (src/perf/open.ts) (P2-T7).
 - ISC-8: `pnpm test:web tests/documents/largeFile.test.ts`: a file one byte above 3 MiB, a 5 MB file and a multi-byte file above 3 MiB on disk open as plain source (no parser, `plainSource` set, notice text); exactly 3 MiB and 1 MB keep the parser; a large file edits and saves byte for byte and stays plain when its unsaved edits are restored. `>=` fails 2 tests, a 5 MiB cutoff 5, ignoring size 4, counting characters 1. Real window: realistic-5mb.md shows the notice and no highlighting (src/documents/largeFile.ts, src/documents/document.ts) (P2-T7).
+- ISC-50: `pnpm test:web tests/editor/headings.test.ts` (20 tests: hashes and the blank after them hidden away from the caret, shown with the caret on the line edges included, closing hashes, bare `#`, `#tag`, code fences, Setext) and `tests/editor/livePreviewView.test.ts` (jsdom view: hashes leave the DOM and come back with the caret; a file above 3 MiB gets no preview). Broken on purpose: edge-inclusive touch made exclusive fails 1, a bare `#` hidden fails 1, the blank left visible fails 13, the size cutoff ignored fails the view test. Seen in Claude in Chrome on `pnpm dev` and in the real window (`cargo run --features perf`, DevTools port): `# First heading` shows as `First heading` away and with its hash on the caret line (src/editor/livePreview/scan.ts) (P3-T1).
+- ISC-63: `pnpm perf decorations-scale` (release app, real WebView2, 3 rounds): the same viewport text scanned in the 1 MB fixture and inside a 10 MB document made of it ten times, 14.2 against 13.8 µs in the middle (ratio 0.97) and 17.6 against 19.6 µs near the end (1.11), same item counts, limit 20%. The control, a scan of the whole document, takes 2.6 ms at 1 MB and 24 ms at 10 MB (9.2 times), so the check can fail. Headings only; rerun with the full layer in P3-T6 (src/perf/decorationScale.ts) (P3-T1).
+- ISC-51.1: `pnpm test:web tests/editor/emphasis.test.ts`: `**` and `__` hidden away from the caret, shown with the caret in the span edges included, only the span the caret is in revealed, unclosed, escaped and spaced markers left alone, never hidden across a line break. Hiding no emphasis markers, or ignoring the caret, fails 4 and 10 tests. Seen in Chrome on `pnpm dev` and in the real window: `Two **bold** words` shows `Two bold words` and `**bold**` only for the span the caret is in (src/editor/livePreview/scan.ts) (P3-T2).
+- ISC-51.2: the same file: `*` and `_` hidden, snake_case_word left alone, nested italic reveals its outer bold. With the italic node left out of the scan 4 tests fail. In the real window the caret inside `*italic*` of `**bold with *italic* inside**` showed both pairs (P3-T2).
+- ISC-51.3: the same file: `~~` hidden, a single tilde left alone, which needs the GFM parser, since `markdown()` alone has no strikethrough (`tests/editor/markdownSupport.test.ts` pins both). With the wrong mark name 2 tests fail (P3-T2).
+- ISC-52: `pnpm test:web tests/editor/inlineCode.test.ts`: backticks hidden, longer fences hidden with an inner backtick kept, shown with the caret in the span, unclosed and fenced code untouched. With the code mark left out 4 tests fail. Seen in Chrome and the real window: `and code in one line` with the backticks back when the caret is in it (P3-T2).
+- ISC-53: `pnpm test:web tests/editor/links.test.ts`: inline, reference and shortcut links keep their text and hide the opening bracket and the whole target, a link with no text, an image and a reference definition are left alone, an autolink hides its angle brackets, a bare URL is only styled, nothing hidden spans a line break, and the caret anywhere in the link (edges included) shows all of it. Breaking the code on purpose (caret ignored, one hidden range across lines, empty link hidden, URL rule widened, autolink brackets kept) fails 3, 1, 1, 2 and 1 tests. Seen in the real window: `Read the docs or http://auto.example.com...` with the caret elsewhere, the full `[docs](http://example.com/docs "Docs")` with the caret in it (src/editor/livePreview/scan.ts) (P3-T3).
+- ISC-54: `pnpm test:web tests/editor/lists.test.ts`: `-`, `*`, `+`, `1.` and `2)` markers, nested and task items included, get the marker style and stay in the text; a dash or number inside a sentence is not a marker. With the style removed 2 tests fail. Seen in the real window (dim markers, text unchanged) (P3-T3).
+- ISC-55: `pnpm test:web tests/editor/blockquotes.test.ts`: every line of a quote is styled exactly once (nested quotes and a lazy continuation line included), each `>` and the blank after it hides away from the caret, only the caret line shows its markers, a marker with nothing after it stays. Breaking the code (lines styled twice, empty marker hidden, caret ignored, blank left visible) fails 1, 1, 2 and 4 tests. Seen in the real window with a bar on the left of the quote (P3-T3).
+- ISC-56: `pnpm test:web tests/editor/rules.test.ts`: `---`, `***`, `___` and `- - -` get the rule line style and hide their text, the caret line shows its text, a setext underline and dashes inside text are not rules. With the hiding removed 2 tests fail, with the caret ignored 2 fail. Seen in the real window: a line across the pane, `---` back with the caret on it (P3-T3).
+- ISC-57: `pnpm test:web tests/editor/reveal.test.ts` (critical): with the caret in one of two bold spans only that span shows its markers, on the scan and on the page a real view draws, in the dispatch that moves the caret; either edge of the span reveals it and one position away does not; the four kinds of element on one line reveal one at a time; block markers show for the caret line only; a selection across both spans reveals both; two carets reveal two spans (with the multiple-selection facet on, which the app does not enable yet). Breaking the rule (a touch reveals the whole line, a touch reveals the whole paragraph, edges excluded, never revealed) fails 10, 10, 1 and 9 tests (src/editor/livePreview/scan.ts) (P3-T4).
+- ISC-58: `pnpm perf reveal` on the release app (Windows 11, Ryzen 7 8840HS, WebView2 157), 5 runs of 80 moves each: leaving a bold span in a 392-character formatted line costs a p95 of 3.7 ms of main-thread work (2.0 ms the update, 1.7 ms the frame), max 4.6 ms; entering is 3.9 ms p95. Limit 16 ms. Every move is read back from the line's own DOM and the run fails if the syntax is in the wrong state (0 wrong in all 5 runs) (src/perf/reveal.ts) (P3-T4).
+- ISC-59: `pnpm test:web tests/editor/caretWalk.test.ts`: real caret commands (char and word moves both ways, shift-extend) walk every position of the eight fixtures and seeded windows of the seven generated ones, plus one document of every element and edge case, with a check after each step that the head moved and that no selection end lies strictly inside a hidden range. Shrinking one reveal span (emphasis, heading, quote, link, rule) fails the walk each time; an atomic set that held the marks too fails the with-and-without comparison. Seen the same on 36 real ArrowDown presses in Chrome (P3-T4).
+- ISC-60: the real window (debug app, DevTools port, trusted key events): ArrowDown from the first line to the last and ArrowUp back over a 37-line document of every element, the 368-line `lf.md` fixture and a 17-line one never skipped a line, never stuck and left the text unchanged (469 and 457 presses for `lf.md`, which wraps). In Claude in Chrome on `pnpm dev`, 36 ArrowDown presses over the 33-line document visited lines 2 to 33 in order (P3-T4).
+- ISC-61: `pnpm test:web tests/editor/sourceMode.test.ts` (6 tests, the real `PaneEditor`): toggling one of two panes on the same document shows raw Markdown there and leaves the other rendered; a tab switch inside the toggled pane stays raw; a tab dragged into the other pane comes up in that pane's mode; the toggle changes no text, makes no edit and leaves nothing to undo; plain-source tabs have nothing to switch and break nothing. Four mutations each failed 2 to 4 tests, except routing the switch through the view instead of the follower, which no test can tell apart (same visible result). In the real window (debug app, trusted key events): Alt+Shift+2 split, Ctrl+E turned raw on in the active pane only, Ctrl+E again turned it off (P3-T5).
+- ISC-62: `pnpm test:web tests/editor/copy.test.ts` (8 tests): 300 seeded selections each of `lf.md`, `crlf.md` and `mixed-eol.md`, run through the follower's clipboard output filter, equal the matching slice of the file's raw bytes (over 100 of each crossed a line break and over 100 contained syntax characters); a hand-built file with CRLF, LF and a lone CR checks that a piece starting after the first break takes its own breaks' endings. Five mutations failed 1 to 3 tests each. Real OS clipboard: in the debug app, a real Ctrl+C on a select-all in the rendered pane and in the raw pane each left exactly the file's 97 UTF-16 code units on the Windows clipboard (read back with .NET `Clipboard.GetText()` after seeding it with a stale value), mixed `\r\n`, `\n` and `\r` included (P3-T5).
+- ISC-4: `pnpm perf startup` (release app, WebView2 157, 5 runs after 2 warm-ups, 85 to 88 percent CPU idle): launch to editable 515.2 ms median (513.8 to 529.3, 3 percent spread) against the 1000 ms then in force (the limit is now 1500 ms), with live preview on in every editor. Phase 2 ended at 505 ms; Phase 3 added about 10 ms, 40 ms over the bare shell (475 ms). Rust main to page start 298 ms, page start to mounted 118 ms, mounted to editor 44 ms. On a fresh WebView2 profile, three separate first launches took 803.6, 892.5 and 692.9 ms (Rust main to page start 376 to 491 ms; the machine was 73 to 85 percent idle with 5.8 GB RAM free), so the worst margin is 107 ms (P3-T6).
+- ISC-7: `pnpm perf typing-1mb` (release app, 5 runs, live preview on, GFM parser): work per key p95 5.8 ms (5.7 to 6.1), p99 6.6, median 3.9, max 8.8, against 16 ms; with trusted key events (`typing-1mb-trusted`) p95 6.7 ms. Phase 0 measured 5.0 ms with a throwaway decoration layer, so the real layer and the GFM parser cost about 0.8 ms (P3-T6).
+- ISC-63 (re-measured with the full layer, P3-T6): six runs against the 20 percent limit missed in four (late-file ratio 1.28, 1.27, 1.20, 1.20, 1.16, and 1.05 in a CPU-noisy run); with the limit at 35 percent the run passes: middle 1.06, late 1.15, control 8.5 times, same item counts in both files.
 
 ## Remaining Work
 
 - [ ] Ship the Inter font's OFL-1.1 notice with the installer and portable zip, and credit it in the README — the font is bundled from `@fontsource-variable/inter`; waits on P10-T3 to P10-T5.
 - [ ] Check the resolved Rust dependency graph for network crates with `cargo tree --target all` — `no-network` reads direct dependencies only, because the lockfile lists `reqwest` and `hyper` although none is in the Windows build graph; waits on P10-T2, where ISC-20 closes.
 - [ ] Turn the asset protocol on for real (the `protocol-asset` feature, `assetProtocol` enabled with an empty scope) and grow its scope with `allow_directory` when a workspace opens, and divide Tauri drop positions by the pixel ratio in the platform layer — both were tested in P0 (drop positions at 125% scale only); waits on the phases that add images and file drops.
-- [ ] Re-measure with the real live-preview layer, block widgets included: typing against 16 ms, the 3 MB plain-source cutoff, and startup on a fresh WebView2 profile, against the 1000 ms of ISC-4 (a bare shell takes 475 ms); then delete `src/perf/throwawayDecorations.ts`; waits on Phase 3. A miss triggers the Speed gate in Constraints.
+- [ ] Re-measure typing and startup once the Phase 4 block widgets (tables, images, frontmatter) land, against the 16 ms of ISC-7 and the 1000 ms of ISC-4; Phase 3 measured the inline layer only; waits on P4.
 - [ ] Decide whether the Windows 11 snap-layout hover flyout is worth answering `WM_NCHITTEST` from Rust — v1 ships custom caption buttons without it, and Win+Z and edge snapping work; waits on the owner.

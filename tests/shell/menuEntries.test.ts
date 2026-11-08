@@ -76,6 +76,13 @@ describe('the app menu', () => {
         shortcut: 'Ctrl+Shift+B',
         disabled: false,
       },
+      {
+        kind: 'item',
+        id: COMMAND_IDS.toggleRawSource,
+        label: 'Toggle Raw Source',
+        shortcut: 'Ctrl+E',
+        disabled: false,
+      },
       { kind: 'separator' },
       { kind: 'item', id: COMMAND_IDS.exit, label: 'Exit', disabled: false },
     ])
@@ -85,7 +92,7 @@ describe('the app menu', () => {
     const shortcuts = buildMenuEntries('mac').flatMap((entry) =>
       entry.kind === 'item' && entry.shortcut !== undefined ? [entry.shortcut] : [],
     )
-    expect(shortcuts).toEqual(['⌘O', '⌘S', '⌥⇧2', '⌥⇧8', '⌘W', '⇧⌘B'])
+    expect(shortcuts).toEqual(['⌘O', '⌘S', '⌥⇧2', '⌥⇧8', '⌘W', '⇧⌘B', '⌘E'])
   })
 
   it('greys out Close Tab while there is no tab, and Save while nothing is edited', () => {
@@ -93,7 +100,11 @@ describe('the app menu', () => {
       buildMenuEntries('other').flatMap((entry) =>
         entry.kind === 'item' && entry.disabled === true ? [entry.id] : [],
       )
-    expect(disabled()).toEqual([COMMAND_IDS.save, COMMAND_IDS.closeTab])
+    expect(disabled()).toEqual([
+      COMMAND_IDS.save,
+      COMMAND_IDS.closeTab,
+      COMMAND_IDS.toggleRawSource,
+    ])
     openNewTab('a.md')
     expect(disabled()).toEqual([COMMAND_IDS.save])
   })

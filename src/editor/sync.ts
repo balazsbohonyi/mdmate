@@ -1,6 +1,7 @@
 import { isolateHistory } from '@codemirror/commands'
 import { Annotation, Prec, Transaction, type Extension } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
+import type { Endings } from '@/lib/endings'
 
 /**
  * What a view needs to stay in step with its document. One document has a headless master state
@@ -15,6 +16,8 @@ export interface FollowerLink {
   undo(): boolean
   /** Redo the document's last undone edit. False when there is nothing to redo. */
   redo(): boolean
+  /** The line ending of every break in the document, which this state's own text does not hold. */
+  endings(): Endings
 }
 
 /** Marks a transaction that applies a change another view already made, so it is not sent back. */

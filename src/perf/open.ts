@@ -1,7 +1,6 @@
 import { Document } from '@/documents/document'
 import { createState, createView } from '@/editor/create'
 import type { ScenarioContext, ScenarioOutput } from './params'
-import { throwawayDecorations } from './throwawayDecorations'
 import { framePresented, mountEditorHost, sleep } from './support'
 
 /**
@@ -19,12 +18,10 @@ export async function open(
   ctx: ScenarioContext,
   fixture = 'realistic-1mb.md',
 ): Promise<ScenarioOutput> {
-  const options = {
-    parser: ctx.params.parser !== 0,
-    extensions: throwawayDecorations(ctx.params),
-  }
+  // A document brings live preview with its parser, the way the app opens one.
+  const options = { parser: ctx.params.parser !== 0 }
   const path = ctx.fixture(fixture)
-  const empty = createState('', options.extensions, { parser: options.parser })
+  const empty = createState('', [], { parser: options.parser, preview: options.parser })
   const view = createView(mountEditorHost(), empty)
   await framePresented()
 

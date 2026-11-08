@@ -3,6 +3,7 @@ import { getHost } from '@/platform'
 import { assetScope } from './assetScope'
 import { dragAuto, dragByHand } from './dragLab'
 import { crashRestore } from './crashRestore'
+import { decorationScale } from './decorationScale'
 import { journalCost } from './journalCost'
 import { SIZES_MB } from './params'
 import { labByHand } from './lab'
@@ -18,7 +19,8 @@ import {
 import { startup } from './startup'
 import { framePresented, measureFrameCadence, snapshotEnv } from './support'
 import { tabSwitch } from './tabSwitch'
-import { probeDecorations } from './throwawayDecorations'
+import { probePreview } from './previewProbe'
+import { reveal } from './reveal'
 import { typing } from './typing'
 
 /** The size-cutoff scenarios: open and type in a generated document of each size, in MB. */
@@ -41,6 +43,8 @@ const scenarios: Record<string, (ctx: ScenarioContext) => Promise<ScenarioOutput
   ...sizedScenarios(),
   'crash-restore': crashRestore,
   'journal-cost': journalCost,
+  'decorations-scale': decorationScale,
+  reveal,
   'asset-scope': assetScope,
   lab: labByHand,
   'drag-auto': dragAuto,
@@ -87,7 +91,7 @@ export async function runPerf(): Promise<void> {
     const env = config.scenario === 'startup' ? undefined : await checkWindow()
     // crash-restore phase 1 never returns here: it reports through `ready` and waits to be killed.
     const output = await run(ctx)
-    if (ctx.params.decorations === 1) Object.assign(output.values, probeDecorations())
+    if (ctx.params.preview === 1) Object.assign(output.values, probePreview())
     report = { scenario: config.scenario, ok: true, env: env ?? snapshotEnv(), ...output }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

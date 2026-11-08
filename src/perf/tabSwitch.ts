@@ -2,7 +2,6 @@ import { Document } from '@/documents/document'
 import type { Follower } from '@/documents/follower'
 import { createView } from '@/editor/create'
 import type { ScenarioContext, ScenarioOutput } from './params'
-import { throwawayDecorations } from './throwawayDecorations'
 import { framePresented, mountEditorHost, sleep } from './support'
 
 /**
@@ -20,10 +19,8 @@ export async function tabSwitch(ctx: ScenarioContext): Promise<ScenarioOutput> {
     ctx.host.openFile(ctx.fixture('realistic-1mb.md')),
     ctx.host.openFile(ctx.fixture('tables-heavy-1mb.md')),
   ])
-  const options = {
-    parser: ctx.params.parser !== 0,
-    extensions: throwawayDecorations(ctx.params),
-  }
+  // A document brings live preview with its parser, the way the app opens one.
+  const options = { parser: ctx.params.parser !== 0 }
   const docs = [
     new Document(a, () => undefined, options),
     new Document(b, () => undefined, options),

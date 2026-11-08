@@ -2,7 +2,6 @@ import { createState, createView } from '@/editor/create'
 import { windowShown } from '@/lib/lifecycle'
 import type { ScenarioContext, ScenarioOutput } from './params'
 import { epochNow, framePresented, mountEditorHost } from './support'
-import { throwawayDecorations } from './throwawayDecorations'
 
 /** Epoch ms of a `performance.mark`, or 0 when it is missing. */
 function markEpoch(name: string): number {
@@ -19,7 +18,7 @@ function markEpoch(name: string): number {
 export async function startup(ctx: ScenarioContext): Promise<ScenarioOutput> {
   const view = createView(
     mountEditorHost(),
-    createState('# Untitled\n\nStart typing.\n', throwawayDecorations(ctx.params)),
+    createState('# Untitled\n\nStart typing.\n', [], { preview: ctx.params.preview !== 0 }),
   )
   view.focus()
   const editorMountedMs = epochNow()

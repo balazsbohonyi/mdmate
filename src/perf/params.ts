@@ -11,8 +11,8 @@ export interface PerfParams {
   keys: number
   warmupKeys: number
   keyIntervalMs: number
-  /** 1 turns on the throwaway live-preview decorations (P0-T8); 0 is plain CodeMirror. */
-  decorations: number
+  /** 1 (the default) puts live preview in the standalone editors, 0 is plain CodeMirror: the baseline. */
+  preview: number
   /** 0 opens documents as plain source, with no Markdown parser (P0-T9 size cutoff). */
   parser: number
   /** crash-restore: 1 builds the session and reports it (the harness then kills the app), 2 restores it and reports what came back. */
@@ -28,7 +28,7 @@ export const DEFAULT_PARAMS: PerfParams = {
   keys: 300,
   warmupKeys: 30,
   keyIntervalMs: 50,
-  decorations: 0,
+  preview: 1,
   parser: 1,
   phase: 0,
 }

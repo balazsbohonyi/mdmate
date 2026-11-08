@@ -12,6 +12,7 @@ import {
 import { createFollowerState, createMasterState } from '@/editor/create'
 import { isLargeFile } from './largeFile'
 import { endingsOf, lineEndingsFor } from '@/editor/lineEndings'
+import { sourceCopy } from '@/editor/sourceCopy'
 import { carriedAnnotations, followerSync } from '@/editor/sync'
 import { endingsEqual, type Endings } from '@/lib/endings'
 import type { OpenedFile, ReadOnlyReason, SavedFile } from '@/platform'
@@ -149,6 +150,7 @@ export class Document implements FollowerHost {
           parser: this.#options.parser,
           extensions: [
             followerSync(link),
+            sourceCopy(() => link.endings()),
             readOnlyFacet(this.readOnly),
             this.#options.extensions ?? [],
           ],
@@ -214,6 +216,11 @@ export class Document implements FollowerHost {
     }
     this.#touched()
     this.#refreshDirty()
+  }
+
+  /** The line ending of every break, as the file had them. Followers hold `\n` only. */
+  endings(): Endings {
+    return endingsOf(this.#master)
   }
 
   undo(origin: Follower): boolean {

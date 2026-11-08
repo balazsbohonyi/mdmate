@@ -11,7 +11,6 @@ import {
   sleep,
   waitUntil,
 } from './support'
-import { throwawayDecorations } from './throwawayDecorations'
 
 export type TypingMode =
   /** The page inserts each character with `view.dispatch`. No OS or browser input path. */
@@ -83,8 +82,9 @@ export async function typing(
 
   const view = createView(
     mountEditorHost(),
-    createState(text, [watchKeys, throwawayDecorations(ctx.params)], {
+    createState(text, [watchKeys], {
       parser: ctx.params.parser !== 0,
+      preview: ctx.params.preview !== 0,
     }),
   )
   const caret = pickCaret(view.state.doc)
