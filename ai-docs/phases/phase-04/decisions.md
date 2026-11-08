@@ -119,7 +119,7 @@ Release build of `d5166ab` (T4), Windows 11, Ryzen 7 8840HS, WebView2 157.0.4341
 | **typing-5mb p95** | 16 ms | **35.0 ms** (26.9 to 39.5, not repeatable) (Phase 3: 12.6) | **over** |
 | **decorations-scale (ISC-63)** | 35% | **worst deviation 0.568 and 0.500** in two runs (middle ratio 1.42 / 1.36, late 1.57 / 1.50) | **failed** |
 | **reveal (ISC-58)** | 16 ms | **no number**: the page stopped with "the line below the span is not in the view", on run 1, in two attempts | **could not run** |
-| scroll-stability (ISC-72) | 2 px | not rerun after T4 (the run on the T2 build passed 6 of 6) | not measured |
+| scroll-stability (ISC-72) | 2 px | 0.47 px up, 0.25 px down over 864 steps each way, 156 images requested; the control drifted 287.6 px (run on a fresh build of `810ffc0`, one run, so the six-run repeat was not redone) | pass |
 
 typing-5mb belongs to the "size cutoff" fog item, not to a numbered claim, but it was inside 16 ms at the end of Phase 3 and is not now, so I treat it as a miss.
 
@@ -141,6 +141,6 @@ typing-5mb belongs to the "size cutoff" fog item, not to a numbered claim, but i
 
 ### What I did not do, and the decision that is yours
 
-- I did not change code, limits or scenarios to make a number pass. The working tree is the T4 commit; `src-tauri/target/release/mdmate.exe` is currently a build of T4 with nested languages off (do not use it for anything; rebuild with `pnpm perf <scenario>` without `--skip-build`).
+- I did not change code, limits or scenarios to make a number pass. The working tree is the committed branch; `src-tauri/target/release/mdmate.exe` is a build of `810ffc0` (code identical to `d5166ab`), made for the scroll-stability run after the nested-languages-off variant.
 - Options, with my recommendation first: **(1)** make the block layer cost independent of document size (for example keep decorations only for a window around the viewport and the caret, rebuilt when the view scrolls, instead of one set for the whole document), then rerun decorations-scale, reveal and typing-5mb; **(2)** for nested code, parse and color fences only inside or near the viewport, or switch nested parsing off above a size (typing-3mb was 11.7 ms with it on, typing-5mb 16.8 ms with it off), the cutoff being a number I would want you to choose; **(3)** accept the 5 MB figure and move the cutoff down (this loosens what the app promises, so it is your call, not mine). A sub-agent may not choose between these: they decide a speed gate.
 - **Subagent decisions:** none.
