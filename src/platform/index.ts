@@ -11,6 +11,7 @@ export type {
   SavedFile,
   WindowControls,
 } from './host'
+export type { FollowedLink, LinkInfo, LinkRefusal } from './links'
 
 let host: Promise<Host> | undefined
 

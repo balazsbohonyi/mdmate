@@ -26,6 +26,10 @@ pub(crate) trait Platform {
     /// Whether a read failed only because another program has the file locked for a moment, as
     /// Windows reports while a file is being replaced. Such a read is worth trying again shortly.
     fn file_is_busy(&self, error: &std::io::Error) -> bool;
+
+    /// Hands a URL or a file path to the app the OS uses for it. Only the link guard calls this,
+    /// with a target it approved (`links::guard::Approved`); nothing else may.
+    fn open_external(&self, target: &str) -> std::io::Result<()>;
 }
 
 /// The implementation for this OS.

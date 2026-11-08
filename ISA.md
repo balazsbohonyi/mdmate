@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 85/191
+progress: 88/191
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-08T20:13:12Z
+updated: 2026-11-08T21:13:02Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -281,9 +281,9 @@ Why: these promises hold everywhere, and any single feature could quietly break 
 - [x] ISC-13: `src/editor/` imports nothing from Vue.
 - [x] ISC-14: No hard-coded colors exist outside token files.
 - [ ] ISC-15: Anti: `innerHTML` and `v-html` never receive document content.
-- [ ] ISC-16: The opener refuses every scheme except `http`, `https` and `mailto`.
-- [ ] ISC-17: Anti: UNC and `file://host/` targets never reach the filesystem.
-- [ ] ISC-18: Default-app opens ask first unless the file is Markdown or an image.
+- [x] ISC-16: The opener refuses every scheme except `http`, `https` and `mailto`.
+- [x] ISC-17: Anti: UNC and `file://host/` targets never reach the filesystem.
+- [x] ISC-18: Default-app opens ask first unless the file is Markdown or an image.
 - [ ] ISC-19: Anti: the hostile fixture causes no code run, launch or SMB attempt.
 - [ ] ISC-20: Anti: the app makes no network request except document images.
 - [x] ISC-21: Anti: `tauri-plugin-fs` is absent from the dependencies.
@@ -552,6 +552,9 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - 2026-11-07: Decided what counts as an outside change by content, not by event: Rust keeps the hash each document last read or wrote and reports only a different one. Why: one save raises several events, notify can lose some, and the app's own write must be recognised; one comparison handles all three. A save records its hash before it writes, because the watcher thread can see the new file before the save returns.
 - 2026-11-07: Made opening a file that is already open leave Rust's record alone, and the page treats a different hash as an outside change. Why: refreshing the record made the host believe the page was current while it still held the old text, which would let a save overwrite a change the page never saw.
 - 2026-11-07: Hot exit writes `session.json` (layout, tabs, carets, unsaved buffers) one journal interval after a change and once on close; the interval is 1000 ms. Why: a write costs the page about one late frame at 1 MB (5 ms to build, 26 ms to confirm) and two at 4 MB, so 1000 ms means about 1 late frame in 60 while typing (worked out, not measured with the journal live) and at most a second of typing lost to a force-kill. Measured in P2-T6 (`pnpm perf journal-cost`); easy to change in `JOURNAL_INTERVAL_MS` if the owner wants fewer writes or less to lose.
+- 2026-11-08: Link targets that run code are refused outright, on the owner's call (P5-T1): programs, scripts, shortcuts, installers and mountable images (`.exe`, `.bat`, `.ps1`, `.hta`, `.lnk`, `.url`, `.msi`, `.iso` and the rest of the list in `src-tauri/src/links/guard.rs`), judged on the resolved name. Why: under "ask first" a single yes would run code from a document. ISC-18 still holds, since such a file never opens at all.
+- 2026-11-08: `file:` URLs are refused like any other scheme, host-less `file:///C:/...` included, on the owner's call (P5-T1). Links are relative paths, anchors, or `http`, `https` and `mailto`.
+- 2026-11-08: Following a Markdown link lets the page open that one file, `..` included, on the owner's call (P5-T1, used by P5-T2). Rust resolves the target against its own record of the linking document; the page sends the document id and the target as written and still has no command that names a path to grant.
 - 2026-11-07: Applied the P0 cutoff: files above 3 MiB open as plain source with a notice, decided once when the document opens by the size on disk. Why: the parser is what makes typing slow at size (P0-T9), and the same rule covers restored sessions. Known limit: a file that grows past the cutoff while open keeps the parser until reopened.
 
 ## Verification
@@ -648,6 +651,10 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-187 (closed 2026-11-08): a caret at the first character, inside, or at the end of the block shows both fences and drops the label; a selection that only touches the block does the same. Unit tests, and the real window (fences muted, no label, same box).
 - ISC-188 (closed 2026-11-08): in the debug app the height of every line of the fixture, and the whole content height (771.9 px), were identical with the caret outside and inside the first block; no difference on any line. The fence lines are lines in both states.
 - ISC-189 (closed 2026-11-08): `boxLines` takes a `kind`; tests call it with `mermaid` and get the same container classes, the label on the first line only, and lines for the visible range only (a 5,000-line block gives 51 lines for a 51-line view). A whole-element variant (`cm-md-box-whole`) is written in CSS but has never been drawn by a widget. I broke the code seven ways on purpose (last line as mid, fences hidden while shown, no visible-range limit, closing fence taken as the last mark, nested fences allowed, label on every line, one shared line decoration for different labels) and each failed a test.
+
+- ISC-16 (closed 2026-11-08, P5-T1): `pnpm test:rust opener_schemes` (3 tests). A seeded property run of 20,000 hrefs (34 schemes in mixed case, noise inside and around them, 8 separators, 10 tails) through the guard, the follow logic and a recording opener: everything that reached it starts with `http://`, `https://` or `mailto:`, is plain ASCII and holds no backslash (and at least 100 runs did reach it, so the check can fail). Every scheme in `hostile.md` plus `ms-settings`, `shell`, `ms-excel`, `mk:`, `res:` and others never reach it, confirmed or not. Breaking the scheme match (any scheme taken as web) fails 3 tests. Real app (debug build, DevTools port, `hostile.md` opened from a temp folder): `describe_link` and a confirmed `follow_link` refused all 25 hostile targets, with no new process from mdmate, no TCP to port 445 or 139 and no DNS lookup of `*.invalid` while it ran (`src-tauri/src/links/`).
+- ISC-17 (closed 2026-11-08, P5-T1): `pnpm test:rust unc_refused` (5 tests): the plan's table (`\\host\share`, `//host/share`, `\\?\UNC\host\share`, `%5C%5Chost`), every UNC form in `hostile.md` and 40 neighbours (`\/host`, `/\host`, `\\.\UNC\`, `%2F%2F`, lower-case escapes, `file://host/`, `file:////host/`, drive letters, streams) are refused with zero calls to a counting file system; 5000 seeded random two-separator spellings likewise; a link that resolves through a junction to a share, and a document whose own folder is a share, are refused. Reading the undecoded path, or removing the rooted check, fails 4 tests each; skipping the share check of the folder or of the resolved path fails 1 each.
+- ISC-18 (closed 2026-11-08, P5-T1): `pnpm test:rust default_app_policy` (3 tests): `.md` and `.markdown` are granted and never handed to the opener; `.png`, `.jpg`, `.gif`, `.webp` open with no question; `.pdf`, `.txt`, `.docx`, `.svg`, `.html`, `.zip` and a name with no extension reject with `needs-confirmation` and open only when confirmed; 17 executable types and the four `hostile.md` executable links are refused even when confirmed, with no file system call; a link written as `doc.pdf` that resolves to `calc.exe` is refused. Ignoring the confirmation, the trailing-dot rule or the executable list fails a test each.
 
 ## Remaining Work
 

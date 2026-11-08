@@ -27,6 +27,15 @@ pub(crate) enum AppError {
     /// The file watcher could not start.
     #[error("could not watch files: {0}")]
     Watch(String),
+    /// The link guard refused a target written in a document. The reason is a stable name.
+    #[error("this link may not be followed: {0}")]
+    LinkRefused(&'static str),
+    /// A file that opens in its default app only after the user says yes.
+    #[error("opening {0} needs a confirmation first")]
+    NeedsConfirmation(String),
+    /// The OS could not hand a target to its app.
+    #[error("could not open the link: {0}")]
+    Open(String),
 }
 
 impl AppError {
@@ -45,6 +54,9 @@ impl AppError {
             Self::NotOpen(_) => "not-open",
             Self::DiskChanged => "disk-changed",
             Self::Watch(_) => "watch",
+            Self::LinkRefused(_) => "link-refused",
+            Self::NeedsConfirmation(_) => "needs-confirmation",
+            Self::Open(_) => "open",
         }
     }
 }
@@ -76,6 +88,12 @@ mod tests {
         assert_eq!(AppError::NotOpen(1).kind(), "not-open");
         assert_eq!(AppError::DiskChanged.kind(), "disk-changed");
         assert_eq!(AppError::Watch("x".into()).kind(), "watch");
+        assert_eq!(AppError::LinkRefused("scheme").kind(), "link-refused");
+        assert_eq!(
+            AppError::NeedsConfirmation("x".into()).kind(),
+            "needs-confirmation"
+        );
+        assert_eq!(AppError::Open("x".into()).kind(), "open");
     }
 
     #[test]

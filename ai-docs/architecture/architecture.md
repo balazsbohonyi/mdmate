@@ -126,7 +126,7 @@ CM6 parsing is budgeted and can stop on huge files, so whole-document features, 
 - File reads return `tauri::ipc::Response`, and writes send raw bytes, avoiding JSON.
 - A document crosses IPC as one raw frame in both directions: a JSON header, the line-ending exceptions as `u32` pairs, then the text with `\n` as its only break (layout in `src-tauri/src/fs/frame.rs`). Rust decodes and encodes; the page never sees a BOM, a UTF-16 byte or a `\r`.
 - The page opens a file and gets a document id, then saves by that id. It never names a path to write to.
-- Rust allows a path only if it saw the user choose it (the open dialog, a restored session) or it lies inside an open workspace folder. Paths are compared with symlinks resolved, and network paths are refused. The page has no command that grants access.
+- Rust allows a path only if it saw the user choose it (the open dialog, a restored session) or it lies inside an open workspace folder. Paths are compared with symlinks resolved, and network paths are refused. The page has no command that names a path to grant. The one way a link widens access is `follow_link` on a Markdown target: Rust resolves it against its own record of the linking document and grants that one file.
 - A file that would not decode and encode back to the same bytes opens read-only, as does any encoding other than UTF-8 and UTF-16 with a BOM.
 - Saves write a temp file in the same folder, then rename.
 - Each save records the hash of what it writes before it writes, so the watcher can ignore mdmate's own writes. Rust decides whether a file changed by comparing content hashes, never by event or timestamp: it keeps, per open document, the hash the page last read or wrote, and says nothing about a file whose content matches it.
@@ -160,8 +160,10 @@ Markdown content is untrusted, and people will open files they did not write.
 
 - Document content never reaches `innerHTML` or `v-html`. `<img>` tags are read for attributes only.
 - `tauri-plugin-fs` stays out. All file access goes through our commands, keeping capabilities small.
-- The opener allows only `http`, `https` and `mailto`.
-- Opening a file in its default app asks first, unless it is Markdown or an image.
+- One Rust module, `src-tauri/src/links/guard.rs`, decides what a link target may do. The page sends `describe_link` or `follow_link` the document id and the target as written; the folder comes from Rust's record of the document, and the page never names a path or URL to open.
+- The guard reads the text first, with no file system call: only `http`, `https` and `mailto` pass as schemes (`file:` is refused), a path is percent-decoded once before any check, and rooted, network (`\\host`, `//host`, `\\?\UNC\`, encoded spellings), drive and stream paths, device names and executable types are refused. Only then does a relative path touch the file system, and the resolved path is checked again.
+- Only a value the guard approved reaches the opener, which is `open_external` behind the platform trait (`ShellExecuteW` on Windows, with no parameters).
+- Opening a file in its default app asks first, unless it is Markdown (opens in a tab, and Rust grants that one file) or an image. Programs, scripts, shortcuts and installers are refused, asked or not.
 - UNC and `file://host/` targets are refused for links and images, because reading one makes Windows contact that host over SMB.
 - SVG renders through `<img>`, so its scripts cannot run.
 - The CSP allows `https` for images only. The app makes no other network request.

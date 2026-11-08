@@ -1,4 +1,5 @@
 import type { Endings } from '@/lib/endings'
+import type { FollowedLink, LinkInfo } from './links'
 
 /** What the perf harness asked this run to do. Mirrors the Rust `PerfConfig`. */
 export interface PerfConfig {
@@ -137,6 +138,18 @@ export interface Host {
    * have allowed the file's folder first, which it does when it opens the document.
    */
   assetUrl(path: string): string
+  /**
+   * Where a link written in a document leads, from Rust's link guard. Opens and grants nothing.
+   * `href` is the target exactly as written; the folder comes from Rust's record of the document.
+   */
+  describeLink(id: number, href: string): Promise<LinkInfo>
+  /**
+   * Follows a link written in a document. Web and mail links and images open at once; a Markdown
+   * file becomes openable and its path comes back; any other file opens in its default app only
+   * with `confirmed`, and rejects with kind `needs-confirmation` without it. A refused target
+   * rejects with kind `link-refused`, a missing one with `not-found`.
+   */
+  followLink(id: number, href: string, confirmed: boolean): Promise<FollowedLink>
   /** Present only where the harness can drive the app. */
   readonly perf?: PerfHost
 }
