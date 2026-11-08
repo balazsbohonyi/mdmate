@@ -53,6 +53,7 @@ describe('inline code', () => {
   })
 
   it('does not style a fenced code block as inline code', () => {
-    expect(scanAll(stateOf('```\ncode\n```\n', 0))).toEqual([])
+    const state = stateOf('```\ncode\n```\n', 0)
+    expect(markedText(state, scanAll(state))).toEqual([])
   })
 })

@@ -17,6 +17,7 @@ import {
   type ViewUpdate,
 } from '@codemirror/view'
 import { blockLayer } from './blocks'
+import { boxTheme } from './box'
 import { CheckboxWidget } from './checkbox'
 import { previewTheme } from './theme'
 import { scanPreview, type PreviewItem } from './scan'
@@ -51,7 +52,11 @@ export function decorationsFor(items: readonly PreviewItem[]): DecorationSet {
       const decoration = shared(marks, item.class, () => Decoration.mark({ class: item.class }))
       ranges.push(decoration.range(item.from, item.to))
     } else {
-      const decoration = shared(lines, item.class, () => Decoration.line({ class: item.class }))
+      // A line with attributes (a label) is not shared: labels are free text and the cache is not bounded.
+      const decoration =
+        item.attributes === undefined
+          ? shared(lines, item.class, () => Decoration.line({ class: item.class }))
+          : Decoration.line({ class: item.class, attributes: item.attributes })
       ranges.push(decoration.range(item.from))
     }
   }
@@ -110,7 +115,10 @@ const atomic = EditorView.atomicRanges.of((view) => view.plugin(plugin)?.hidden 
  * CodeMirror alone, which the walk test uses to show that atomic ranges change nothing today.
  */
 export function livePreview(options: { atomic?: boolean } = {}): Extension {
-  const inline = options.atomic === false ? [previewTheme, plugin] : [previewTheme, plugin, atomic]
+  const inline =
+    options.atomic === false
+      ? [previewTheme, boxTheme, plugin]
+      : [previewTheme, boxTheme, plugin, atomic]
   return [inline, blockLayer()]
 }
 

@@ -30,6 +30,8 @@ const MAX_WORD = 40
 const MAX_KEPT = 128
 
 const kept = new Map<string, LanguageDescription>()
+/** The list's own name for each word that matched one (`ts` is TypeScript), filled as languages load. */
+const names = new Map<string, string>()
 
 async function resolve(word: string): Promise<LanguageSupport> {
   const { languages } = await import('@codemirror/language-data')
@@ -38,7 +40,9 @@ async function resolve(word: string): Promise<LanguageSupport> {
   const found =
     LanguageDescription.matchLanguageName(languages, word, false) ??
     LanguageDescription.matchFilename(languages, `file.${word}`)
-  return found === null ? plainText : found.load()
+  if (found === null) return plainText
+  names.set(word, found.name)
+  return found.load()
 }
 
 /**
@@ -50,9 +54,21 @@ export function codeLanguage(info: string): LanguageDescription | null {
   if (word === '' || word.length > MAX_WORD) return null
   let description = kept.get(word)
   if (description === undefined) {
-    if (kept.size >= MAX_KEPT) kept.clear()
+    if (kept.size >= MAX_KEPT) {
+      kept.clear()
+      names.clear()
+    }
     description = LanguageDescription.of({ name: word, load: () => resolve(word) })
     kept.set(word, description)
   }
   return description
+}
+
+/**
+ * What to call the language of the fence word `info` on screen: the list's name for it once the
+ * word has been looked up, or null before that and for a word the list does not know. A block is
+ * parsed again when its language arrives, which redraws whatever shows this name.
+ */
+export function languageName(info: string): string | null {
+  return names.get(info.trim().toLowerCase()) ?? null
 }

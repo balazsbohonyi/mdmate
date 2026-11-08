@@ -9,7 +9,12 @@
  */
 import { syntaxTree } from '@codemirror/language'
 import type { EditorState, SelectionRange } from '@codemirror/state'
+import { languageName } from '../codeLanguages'
+import { boxLines } from './box'
 import { frontmatterEnd } from './frontmatter'
+
+/** A node of the syntax tree. `@lezer/common` is not a direct dependency, so the type comes from here. */
+type SyntaxNode = ReturnType<ReturnType<typeof syntaxTree>['resolve']>
 
 /** Syntax that is not shown. Never spans a line break. */
 export interface HideItem {
@@ -31,6 +36,8 @@ export interface LineItem {
   readonly type: 'line'
   readonly from: number
   readonly class: string
+  /** Attributes the line carries, such as the label of a container. */
+  readonly attributes?: Readonly<Record<string, string>>
 }
 
 /** A task marker (`[ ]`, `[x]`) drawn as a checkbox. Shown only while no selection touches it. */
@@ -101,6 +108,38 @@ function hideLines(state: EditorState, items: PreviewItem[], from: number, to: n
     if (end > at) items.push({ type: 'hide', from: at, to: end })
     at = line.to + 1
   }
+}
+
+/**
+ * A fenced code block as a container. With no selection touching it the fences are hidden and the
+ * language is a label at the top right; with one inside (edges included) the fences show and the
+ * label goes. The fence lines are lines either way, so the block is the same height in both states.
+ */
+function fencedCode(
+  state: EditorState,
+  items: PreviewItem[],
+  node: SyntaxNode,
+  visible: { readonly from: number; readonly to: number },
+): void {
+  const doc = state.doc
+  const marks: SyntaxNode[] = []
+  let info: SyntaxNode | null = null
+  for (let child = node.firstChild; child; child = child.nextSibling) {
+    if (child.name === 'CodeMark') marks.push(child)
+    else if (child.name === 'CodeInfo') info = child
+  }
+  const shown = touched(state.selection.ranges, node.from, node.to)
+  const word = info === null ? '' : (/\S+/.exec(doc.sliceString(info.from, info.to))?.[0] ?? '')
+  const label = shown || word === '' ? undefined : (languageName(word) ?? word)
+  items.push(...boxLines(doc, node.from, node.to, visible, { kind: 'code', label }))
+  if (shown) return
+  const open = marks[0]
+  // The closing fence is a second mark; a block that runs to the end of the document has none.
+  const close = marks.length > 1 ? marks[marks.length - 1] : undefined
+  if (open !== undefined && open.to >= visible.from && open.from <= visible.to)
+    items.push({ type: 'hide', from: open.from, to: doc.lineAt(open.from).to })
+  if (close !== undefined && close.to >= visible.from && close.from <= visible.to)
+    items.push({ type: 'hide', from: close.from, to: close.to })
 }
 
 /**
@@ -244,6 +283,14 @@ export function scanPreview(
           // A marker with nothing after it stays, so the line keeps something to land on.
           if (end < line.to) items.push({ type: 'hide', from: node.from, to: end })
           return
+        }
+
+        if (name === 'FencedCode') {
+          // Fences inside a list or a quote keep the plain look: the container is drawn across the
+          // whole line, which would cover the indent or the quote bar.
+          if (node.node.parent?.name !== 'Document') return false
+          fencedCode(state, items, node.node, { from, to })
+          return false
         }
 
         if (name === 'HorizontalRule') {
