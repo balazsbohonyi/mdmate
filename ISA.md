@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 80/186
+progress: 77/186
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-08T12:22:23Z
+updated: 2026-11-08T13:32:08Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -338,12 +338,12 @@ Why: this is the reason mdmate exists; you read the rendered page and edit it in
 - [x] ISC-55: Blockquotes render styled.
 - [x] ISC-56: Horizontal rules render as lines.
 - [x] ISC-57: A caret inside an inline element reveals only that element's syntax.
-- [x] ISC-58: Syntax hides again within 16 ms of the caret leaving.
+- [ ] ISC-58: Syntax hides again within 16 ms of the caret leaving.
 - [x] ISC-59: Anti: the caret never sticks inside hidden syntax.
 - [x] ISC-60: Anti: vertical arrow keys never skip a line.
 - [x] ISC-61: A per-pane toggle shows raw source.
 - [x] ISC-62: Copying a selection copies raw Markdown.
-- [x] ISC-63: Decoration time stays flat between 1 MB and 10 MB files.
+- [ ] ISC-63: Decoration time stays flat between 1 MB and 10 MB files.
 
 ### F4 · Block preview
 Why: documents mix prose with tables, images and code, and a page full of raw syntax blocks breaks the illusion.
@@ -355,7 +355,7 @@ Why: documents mix prose with tables, images and code, and a page full of raw sy
 - [x] ISC-68: YAML frontmatter collapses to a pill.
 - [x] ISC-69: Clicking a checkbox changes exactly one byte.
 - [x] ISC-70: Fenced code highlights using token colors.
-- [x] ISC-71: Language parsers stay out of the entry bundle.
+- [ ] ISC-71: Language parsers stay out of the entry bundle.
 - [x] ISC-72: Anti: late-rendering widgets never shift the scroll position.
 - [x] ISC-180: Anti: an image address other than a relative path or `https` never loads.
 - [x] ISC-181: Opening a document lets the page load images from its folder, and from no other folder.
@@ -627,6 +627,9 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-184: the same file, a document made read-only through `Document`: two presses change no text, leave nothing to undo and the document unedited; the real window opened a file with invalid UTF-8 as read-only (`aria-readonly`), two trusted clicks on its boxes changed nothing and the file on disk was identical after Ctrl+S. 26 deliberate breaks across the T3 code were all caught; the first 21 left 6 alive, which led to a stricter scan edge, two redundant pieces removed and four tests tightened or added (P4-T3).
 - ISC-70: `pnpm test:web tests/editor/codeHighlight.test.ts` (20 tests) opens fenced blocks in js, ts, python, py, json, css, sh, go and rust and reads the class each token gets from the style: keywords, strings, numbers and comments get four different classes, the block is plain until its parser has loaded, a fence word written in capitals works, the text of the block is the text of the file, and typing inside a block is colored again. The colors are `var(--syntax-*)` names only, and each exists in both theme files. Real window (debug app on the dev server, 2026-11-08): ts, python, rust, css, json and sh blocks colored by token, an unknown word and a fence with no word left as plain text, document length 702 equal to the file size; typing `7` after `42` in a block gave `427` still colored as a number and Ctrl+Z restored 702; raw mode (Ctrl+E) shows the same colors. Interceptor on `pnpm dev` through the mock host: the screenshot shows the same colors in the dark theme; in the light theme the computed colors are `oklch(0.48 0.15 310)` for keywords, `oklch(0.46 0.11 145)` for strings and `oklch(0.5 0.13 50)` for numbers, but the DOM-render screenshot washed them out so the light theme was checked by value, not by eye (P4-T4).
 - ISC-71: `node scripts/check-arch.mjs languages-lazy --dist <build>` on a build made with `vite build --sourcemap`: the chunks the page loads first (the entry script, the modulepreload link and what they import statically, 2 files, 790 kB) hold `lang-css`, `lang-html`, `lang-javascript` and their grammars and no other language package, while the language chunks and the list of them load on demand. The claim as written, "no parser in the entry bundle", is not literally true and cannot be: `@codemirror/lang-markdown` imports `lang-html` (which brings `lang-css` and `lang-javascript`) for the HTML it finds in Markdown. The rule allows those six packages by name and nothing else; the allowance is a constant with a comment that says why. Source half: no static import of a parser package in `src/`. Runtime half: `tests/editor/codeLanguagesLazy.test.ts` counts imports of `@codemirror/language-data` and sees none for documents with no fence word, `~~~` with a blank word, or an unlabeled fence, and exactly one for two views holding three languages. In the real window the language list was not requested for a document with no fenced block and was requested after a document with one was opened. 9 deliberate breaks of the rule (ignore modulepreload, skip static imports, allow the list, drop `lang-css` from the allowance, widen the allowance, Windows paths, pnpm store paths, `explicit` flag, skip scanning) were all caught by `tests/scripts/checkArch.test.ts` (92 tests); 4 breaks of the editor code (no extension lookup, no `codeLanguages`, an unknown token name in the style, a static import of the list) were caught by the two test files (P4-T4).
+- ISC-58 (reopened 2026-11-08, P4-T4 perf re-measure): the Phase 3 result above stands for that commit (work per leave p95 3.7 to 4.0 ms), but on the T4 build the scenario stops with "the line below the span is not in the view" and gives no number (first run, two attempts); at T3 it passed three runs and failed the fourth. Not diagnosed. See ai-docs/phases/phase-04/decisions.md, "Perf after T4".
+- ISC-63 (reopened 2026-11-08, P4-T4 perf re-measure): the 35 percent limit the owner confirmed in Phase 3 is missed on every build since T1: worst deviation 0.86 (T1), 0.63 (T2), 0.63 (T3), 0.57 and 0.50 (T4), against 0.15 to 0.28 over 7 runs at the end of Phase 3. A jsdom dispatch test shows the cost: 11.14 ms per typed character at 10 MB with the block layer (2941 decorations) against 2.35 ms without, and no difference at 1 MB. See decisions.md, "Perf after T4". The limit was not changed.
+- ISC-71 (reopened 2026-11-08, by me): I had closed it above, but the claim as written ("no parser in the entry bundle") is not literally true, because `@codemirror/lang-markdown` brings `lang-html`, `lang-css` and `lang-javascript` into the entry chunks. I closed it under my own reading (those six packages allowed by name) that you have not approved. The check and the tests are in place and pass under that reading; whether the claim should be kept as written, reworded, or closed under the allowance is yours to decide.
 
 ## Remaining Work
 
