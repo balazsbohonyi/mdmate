@@ -103,3 +103,26 @@ Deviations from the plan and choices it left open. Numbers carry the OS they cam
 **Real window:** see the ISA Verification entries. No dependency, Cargo.toml or config change.
 
 **Subagent decisions:** none.
+
+## P5-T5: list editing
+
+**What the probe showed first.** `markdown()` already binds Enter to CodeMirror's `insertNewlineContinueMarkup`, and a probe on the T4 tree showed it continues bullets, numbers, quotes and `- [x]` (as `- [ ]`) already, so ISC-90 and ISC-91 held before any code. Two things did not: Enter on an empty item inserts a blank line and keeps the list going (CodeMirror makes a tight list loose before it ends it, on the second press), so ISC-92 failed; and an empty nested item gave `" \n  - "`, a broken line.
+
+**What was built** (`src/editor/lists.ts`, in every follower and standalone state with the parser, at `Prec.highest`):
+
+- **Enter** on an empty item (only its marker and perhaps a task box, caret at the end): a nested item steps out one level, keeping its marker; a top-level item is removed and, when a list line is right above, a blank line is left so the next text is a paragraph and not a lazy continuation of the last item. Everywhere else, CodeMirror's continuation.
+- **Tab** nests the item under the item before it, lined up with that item's text (two spaces under `- `, three under `1. `), and moves every line of the item along, children included. The first item of a list has nothing to nest under: nothing changes, but the key is taken.
+- **Shift+Tab** moves a nested item to the indentation of the item it is nested in, children included. A top-level item stays put and the key is taken.
+
+**Choices the plan left open:**
+
+- **Tab and Shift+Tab outside a list keep the browser's meaning** (focus moves). Only list items take them. Changing Tab everywhere (indenting text, or a tab character) was not asked for.
+- **Numbers are not renumbered** after an indent or outdent; `2.` nested under `1.` stays `2.`, which renders as a list starting at 2.
+- **Only the item at the caret** is moved, not every item a selection covers.
+- **Tab-indented lists** are shifted with spaces; a line indented with a tab loses up to the same number of characters on Shift+Tab, which may not line up. Not tried in the real window.
+
+**Evidence.** `tests/editor/lists.test.ts`, 11 new tests. Deliberate breaks, all caught in the end: an empty item continuing (2), no blank line after the ended list (1), a nested empty item ending instead of stepping out (1), an empty task item not seen as empty (1), indent ignoring the previous marker's width (2), children left behind (2), the first item indented anyway (1), read-only ignored (1), the keys below CodeMirror's (1), the keys missing from followers (1), and a top-level Shift+Tab giving the key back to the browser (1, after adding a check of what the command returns; the first round could not see it).
+
+No dependency, Cargo.toml or config change.
+
+**Subagent decisions:** none.

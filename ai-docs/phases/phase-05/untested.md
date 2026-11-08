@@ -20,3 +20,5 @@ Everything below was skipped on purpose or could not be done in the Phase 5 runs
 | 14 | Ctrl+` on keyboard layouts where the backtick is a dead key or needs AltGr | Only a US-style key event was sent. | Press Ctrl+` on a German or Hungarian layout. |
 | 15 | Formatting across lines and across existing formats | A selection over two paragraphs, or half inside a bold span, wraps as text; the result was not looked at. | Select from the middle of one paragraph into the next and press Ctrl+B. |
 | 16 | Setext headings and headings in lists or quotes with the heading keys | Treated as paragraphs or left alone (see decisions). | Press Ctrl+Shift+Up on a setext heading. |
+| 17 | Tab-indented lists, and lists inside quotes, with Tab and Shift+Tab | Shifted with spaces; only space-indented lists were tried (see decisions). | Indent a list with tabs and press Shift+Tab on a nested item. |
+| 18 | Tab with a selection over several items | Only the item at the caret moves. | Select three items and press Tab. |

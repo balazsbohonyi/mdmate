@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 104/191
+progress: 109/191
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-08T22:09:23Z
+updated: 2026-11-08T22:17:13Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -397,11 +397,11 @@ Why: formatting should stay in your fingers, so writing never stops for syntax.
 - [x] ISC-87: The strikethrough shortcut toggles strikethrough.
 - [x] ISC-88: A shortcut raises the heading level.
 - [x] ISC-89: A shortcut lowers the heading level.
-- [ ] ISC-90: Enter continues a list.
-- [ ] ISC-91: Enter continues a checkbox list with an unchecked box.
-- [ ] ISC-92: Enter on an empty item ends the list.
-- [ ] ISC-93: Tab indents a list item.
-- [ ] ISC-94: Shift+Tab outdents a list item.
+- [x] ISC-90: Enter continues a list.
+- [x] ISC-91: Enter continues a checkbox list with an unchecked box.
+- [x] ISC-92: Enter on an empty item ends the list.
+- [x] ISC-93: Tab indents a list item.
+- [x] ISC-94: Shift+Tab outdents a list item.
 - [ ] ISC-95: Pasting a URL over selected text creates a link.
 - [ ] ISC-96: Anti: the editor never holds more than one selection range.
 - [ ] ISC-177: Dragging selected text to another position in the editor moves it.
@@ -668,6 +668,8 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 
 - ISC-83 to ISC-87 (closed 2026-11-08, P5-T4): `pnpm test:web tests/editor/commands.test.ts` (34 tests). For bold, italic, inline code and strikethrough each: a selection is wrapped and unwrapped again with the text still selected, a caret or part of the text inside the span unwraps it, a selection that includes the markers unwraps it, a caret inserts an empty pair, and a caret on either edge of a span starts a new pair; bold and italic are told apart in `***x***`, underscores count, markers inside code are not formatting, a read-only document is left alone. Link (ISC-85): selected text becomes `[text](|)`, a selected address `[|](address)`, a caret `[|]()`. The commands run through the registry on the active tab, and their keys reach them (Ctrl+I is taken out of CodeMirror's keymap). Real window (trusted keys over the DevTools port, word selected by a trusted double click): Ctrl+B, Ctrl+I, Ctrl+` and Alt+Shift+5 each wrapped `word` and the same key unwrapped it; Ctrl+K gave `[word]()`, and Ctrl+Z undid it in one step. 18 deliberate breaks of `src/editor/format.ts` and the wiring each failed a test.
 - ISC-88 and ISC-89 (closed 2026-11-08, P5-T4): the same file: raising goes paragraph, H6, ... H1 and stops; lowering goes H1 ... H6, then back to a paragraph; one direction undoes the other; every line of a selection changes; code lines and blank lines do not. Real window: Ctrl+Shift+Up on `## Title` gave `# Title` and stopped there; Ctrl+Shift+Down twice gave `### Title`.
+
+- ISC-90 to ISC-94 (closed 2026-11-08, P5-T5): `pnpm test:web tests/editor/lists.test.ts` (the list editing block, 11 tests). Enter continues `-`, `*`, `1.` (as `2.`), a quoted list and a nested item (ISC-90); `- [x]` and `- [ ]` continue as `- [ ] ` (ISC-91); Enter on an empty item ends the list with a blank line after it, task box or not, and an empty nested item steps out one level (ISC-92); Tab nests an item under the one before it, children included, lined up with that item's text (`2.` under `1. ` gets three spaces) (ISC-93); Shift+Tab moves a nested item out one level, children included (ISC-94); the two undo each other; a first or top-level item stays put but the key is taken; read-only documents are left alone; the keys sit above CodeMirror's Markdown keymap in every follower. Real window (trusted keys): `- one` Enter, `two` Tab, Enter, `[x] done` Enter gave `  - [ ] `; Enter there stepped out to `- [ ] `; Enter again ended the list, and text typed then was a paragraph. 11 deliberate breaks each failed a test.
 
 ## Remaining Work
 
