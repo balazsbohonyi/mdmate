@@ -11,9 +11,11 @@
  * Vertical moves need layout, which jsdom does not have; ISC-60 checks them in a browser and in
  * the real window.
  */
-import { readFileSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
-import { afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import {
   cursorCharLeft,
   cursorCharRight,
@@ -27,6 +29,21 @@ import { livePreview } from '@/editor/livePreview'
 import { scanPreview } from '@/editor/livePreview/scan'
 
 const FIXTURES = join(__dirname, '..', 'fixtures')
+
+// The large fixtures are not committed (git ignores `tests/fixtures/generated/`), so a fresh
+// checkout, such as CI, has none. The generator is deterministic and takes under a second, so the
+// test makes its own copy in a temp folder and does not depend on what is on disk.
+const GENERATED_ROOT = mkdtempSync(join(tmpdir(), 'caretwalk-'))
+execFileSync(
+  process.execPath,
+  [resolve(__dirname, '..', '..', 'scripts', 'fixtures.mjs'), '--out', GENERATED_ROOT],
+  { stdio: 'ignore' },
+)
+const GENERATED = join(GENERATED_ROOT, 'generated')
+
+afterAll(() => {
+  rmSync(GENERATED_ROOT, { recursive: true, force: true })
+})
 const views: EditorView[] = []
 
 beforeAll(() => {
@@ -167,7 +184,7 @@ function windows(doc: string, count: number, size: number, seed: number): string
 }
 
 const small = readdirSync(FIXTURES).filter((name) => name.endsWith('.md'))
-const large = readdirSync(join(FIXTURES, 'generated')).filter((name) => name.endsWith('.md'))
+const large = readdirSync(GENERATED).filter((name) => name.endsWith('.md'))
 
 describe('caret walks never stick', () => {
   it.each(small)('walks every position of %s', { timeout: 60_000 }, (name) => {
@@ -178,7 +195,7 @@ describe('caret walks never stick', () => {
   // of whole lines from across each file stand in for them. The layer works from the viewport,
   // so a window shows it the same text the whole file would.
   it.each(large)('walks seeded windows of %s', { timeout: 60_000 }, (name) => {
-    const text = decode(name, readFileSync(join(FIXTURES, 'generated', name)))
+    const text = decode(name, readFileSync(join(GENERATED, name)))
     for (const [n, window] of windows(text, 2, 4000, 1234 + name.length).entries()) {
       walkAll(window, `${name} window ${String(n)}`)
     }
