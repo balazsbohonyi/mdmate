@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 88/191
+progress: 94/191
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-08T21:13:02Z
+updated: 2026-11-08T21:28:32Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -377,15 +377,15 @@ Why: documents mix prose with tables, images and code, and a page full of raw sy
 ### F5 · Link navigation
 Why: documentation is a web of files, so following a link has to cost one gesture and be undoable.
 
-- [ ] ISC-74: Ctrl+click on a relative `.md` link opens it in a new tab.
-- [ ] ISC-75: Ctrl+click on a `#heading` link jumps to that heading.
-- [ ] ISC-76: Ctrl+click on `file.md#heading` opens the file at that heading.
-- [ ] ISC-77: Ctrl+click on a web link opens the default browser.
-- [ ] ISC-78: A confirmed link to another file opens its default app.
+- [x] ISC-74: Ctrl+click on a relative `.md` link opens it in a new tab.
+- [x] ISC-75: Ctrl+click on a `#heading` link jumps to that heading.
+- [x] ISC-76: Ctrl+click on `file.md#heading` opens the file at that heading.
+- [x] ISC-77: Ctrl+click on a web link opens the default browser.
+- [x] ISC-78: A confirmed link to another file opens its default app.
 - [ ] ISC-79: Links with missing targets show a broken style.
 - [ ] ISC-80: Alt+Left returns to the previous location.
 - [ ] ISC-81: Alt+Right moves forward again.
-- [ ] ISC-82: Anti: a plain click on a link never navigates.
+- [x] ISC-82: Anti: a plain click on a link never navigates.
 
 ### F6 · Quick editing
 Why: formatting should stay in your fingers, so writing never stops for syntax.
@@ -655,6 +655,12 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-16 (closed 2026-11-08, P5-T1): `pnpm test:rust opener_schemes` (3 tests). A seeded property run of 20,000 hrefs (34 schemes in mixed case, noise inside and around them, 8 separators, 10 tails) through the guard, the follow logic and a recording opener: everything that reached it starts with `http://`, `https://` or `mailto:`, is plain ASCII and holds no backslash (and at least 100 runs did reach it, so the check can fail). Every scheme in `hostile.md` plus `ms-settings`, `shell`, `ms-excel`, `mk:`, `res:` and others never reach it, confirmed or not. Breaking the scheme match (any scheme taken as web) fails 3 tests. Real app (debug build, DevTools port, `hostile.md` opened from a temp folder): `describe_link` and a confirmed `follow_link` refused all 25 hostile targets, with no new process from mdmate, no TCP to port 445 or 139 and no DNS lookup of `*.invalid` while it ran (`src-tauri/src/links/`).
 - ISC-17 (closed 2026-11-08, P5-T1): `pnpm test:rust unc_refused` (5 tests): the plan's table (`\\host\share`, `//host/share`, `\\?\UNC\host\share`, `%5C%5Chost`), every UNC form in `hostile.md` and 40 neighbours (`\/host`, `/\host`, `\\.\UNC\`, `%2F%2F`, lower-case escapes, `file://host/`, `file:////host/`, drive letters, streams) are refused with zero calls to a counting file system; 5000 seeded random two-separator spellings likewise; a link that resolves through a junction to a share, and a document whose own folder is a share, are refused. Reading the undecoded path, or removing the rooted check, fails 4 tests each; skipping the share check of the folder or of the resolved path fails 1 each.
 - ISC-18 (closed 2026-11-08, P5-T1): `pnpm test:rust default_app_policy` (3 tests): `.md` and `.markdown` are granted and never handed to the opener; `.png`, `.jpg`, `.gif`, `.webp` open with no question; `.pdf`, `.txt`, `.docx`, `.svg`, `.html`, `.zip` and a name with no extension reject with `needs-confirmation` and open only when confirmed; 17 executable types and the four `hostile.md` executable links are refused even when confirmed, with no file system call; a link written as `doc.pdf` that resolves to `calc.exe` is refused. Ignoring the confirmation, the trailing-dot rule or the executable list fails a test each.
+- ISC-74 (closed 2026-11-08, P5-T2): `pnpm test:web tests/links/navigate.test.ts`: following `b.md` from `a.md` through the store and the mock host opens `b.md` in a second tab and makes it active, and a Ctrl+click in a real jsdom view of a tab reaches the store and opens it. Real window (debug app, trusted Ctrl+click over the DevTools port): `[other](sub/other.md)` opened `other.md` in a new tab beside `a.md` (`src/editor/links.ts`, `src/documents/links.ts`).
+- ISC-75 (closed 2026-11-08, P5-T2): the same file: `#lower-down` puts the caret at the start of `## Lower down` in the same tab; GitHub slug tests (punctuation, `_`, accents, CJK, emoji, duplicates `-1` and `-2`, markup and images left out, fences and frontmatter skipped). Real window: a trusted Ctrl+click on `[down here](#lower-down)` put the caret on line 7, `## Lower down` (`src/editor/headingSlug.ts`).
+- ISC-76 (closed 2026-11-08, P5-T2): the same file: `b.md#second-part` opens `b.md` with the caret at `## Second part`, and a jump into a tab not yet on screen scrolls when it is shown. Real window: a trusted Ctrl+click on `[second part](sub/other.md#second-part)` focused the `other.md` tab with the caret on line 5, `## Second part` (screenshot).
+- ISC-77 (closed 2026-11-08, P5-T2, by me in the real app): a trusted Ctrl+click on `[the web](https://example.com/)` in the debug app opened the default browser on "Example Domain - Google Chrome", with no change to the tabs and no problem shown.
+- ISC-78 (closed 2026-11-08, P5-T2, by me in the real app): a trusted Ctrl+click on `[the spec](spec.pdf)` showed the banner "Open ...\spec.pdf in its default app?" and started nothing; pressing Open (trusted click) started Acrobat with "spec.pdf - Adobe Acrobat Reader". Unit tests: Cancel opens nothing, Open opens exactly that file.
+- ISC-82 (closed 2026-11-08, P5-T2): `tests/links/navigate.test.ts`: a plain press, Shift, Alt, Ctrl+Alt and a Ctrl middle-button press on a link never call the follow handler, and a plain press in a real view of a tab opens no tab. Real window: a trusted plain click on the link text put the caret inside it (line 3, offset 16) and left one tab. Breaking the gesture check (or dropping the Ctrl requirement) fails 2 and 3 tests.
 
 ## Remaining Work
 

@@ -41,3 +41,23 @@ Deviations from the plan and choices it left open. Numbers carry the OS they cam
 **Changes outside `src/` and `src-tauri/src/`:** none. No `Cargo.toml`, `tauri.conf.json`, capability or dependency change.
 
 **Subagent decisions:** none.
+
+## P5-T2: navigation
+
+**What was built.** `src/editor/links.ts` finds the link under the pointer (`linkAt`: an inline link, a reference or shortcut link with its definition found anywhere in the text, an autolink, a bare GFM URL) and, on Ctrl+click (Cmd+click on a Mac) with the main button and no Shift or Alt, hands the target as written to a callback and keeps the click from moving the caret. Any other click is left to CodeMirror. Each `Document` adds the extension to its tabs through a new `followLink` option, and the store forwards to `src/documents/links.ts`, which asks Rust (`followLink`) and acts on the answer: a heading jump, `openPath` for a Markdown file (so an open file's tab is focused, as ISC-174 wants), nothing for a web link or image, or a question banner in the pane for any other file. A refused or missing target goes to the status bar.
+
+**Choices the plan left open:**
+
+- **Heading anchors are read from the text, not the parse tree** (`src/editor/headingSlug.ts`): ATX and setext headings at the top level, skipping fenced code and frontmatter, because the parser may not have reached the end of a long file. Headings inside lists and quotes are not found. GitHub gives them anchors too; they are rare and the plain text scan cannot tell a list from a paragraph reliably. Each heading's text is parsed with the Markdown parser to drop markers, link targets, images and tags before slugging.
+- **Slugs.** GitHub's algorithm (github-slugger): lower case, remove everything but letters, marks, digits, connector punctuation, `-` and space, then spaces to `-`; duplicates get `-1`, `-2`. I wrote it as one Unicode regex instead of adding `github-slugger` as a dependency; the regex is my reading of its character classes, checked on the examples in the test, not against its own test suite.
+- **Matching a fragment.** Exact slug first, then the fragment lower-cased (people write `#Intro`), and a leading `user-content-` is dropped (GitHub's HTML ids carry it, and links copied from a rendered page do too). Not in the plan; small and easy to remove.
+- **A jump puts the heading's line at the top of the view.** A tab that is not on screen yet (a new tab) keeps the scroll for when it is shown (`Follower.reveal`).
+- **Where the question lives.** A banner in the pane, like the close and conflict banners, not a modal: "Open <path> in its default app?" with Open and Cancel. The path is the one Rust resolved, not the text of the link.
+- **Win key.** `metaKey` counts as the gesture so Cmd+click works on a Mac; on Windows that means Win+click also follows a link. Harmless, untested.
+- `@lezer/common` is not a direct dependency, so the syntax node type is derived from `syntaxTree` as `scan.ts` already does. No dependency, Cargo or config change in T2.
+
+**Evidence.** `tests/links/navigate.test.ts`, 17 tests. Deliberate breaks, each failing at least one test: gesture check skipped (2), gesture without Ctrl (3), inline link target lost (3), references never found (1), reveal forgets the scroll (1), show ignores a pending scroll (1), duplicate slugs not numbered (1), fences not tracked (1), markup kept in the slug (1), punctuation kept in the slug (1), Cancel opening anyway (1), the fragment ignored after opening a file (1), the question skipped (1), the Ctrl+click wiring removed (1). One break survived, an `Image` check in `linkAt` that could never match (an image is its own node); I removed the line.
+
+**Real window (debug app, Windows 11, trusted mouse over the DevTools port, 2026-11-08):** plain click on a link put the caret in it and opened nothing; Ctrl+click opened `sub/other.md` in a new tab; Ctrl+click on `sub/other.md#second-part` focused that tab with the caret on `## Second part`; Ctrl+click on `#lower-down` moved the caret to `## Lower down` in the same tab; Ctrl+click on `https://example.com/` opened Chrome on Example Domain; Ctrl+click on `spec.pdf` showed the banner and started nothing until Open, which started Acrobat Reader with the file. The browser tab and the Acrobat window were left open.
+
+**Subagent decisions:** none.

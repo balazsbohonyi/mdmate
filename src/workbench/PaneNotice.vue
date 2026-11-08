@@ -3,10 +3,18 @@ import { computed } from 'vue'
 import { docMeta } from '@/documents/meta'
 import { LARGE_FILE_NOTICE } from '@/documents/largeFile'
 import { pendingClose, resolveConflict, resolvePendingClose } from '@/documents/store'
+import { pendingLink, resolvePendingLink } from '@/documents/links'
 
 const { docId, tabId } = defineProps<{ docId: number; tabId: string }>()
 
 const meta = computed(() => docMeta(docId))
+const asking = computed(() => (pendingLink.value?.tabId === tabId ? pendingLink.value : null))
+
+function answer(choice: 'open' | 'cancel'): void {
+  resolvePendingLink(choice).catch((error: unknown) => {
+    console.error('Could not answer the link question', error)
+  })
+}
 const closing = computed(() => pendingClose.value?.tabId === tabId)
 const conflict = computed(() => meta.value?.conflict ?? null)
 
@@ -56,6 +64,28 @@ function resolve(choice: 'save' | 'discard' | 'cancel'): void {
       type="button"
       class="rounded-sm px-2 py-0.5 hover:bg-accent"
       @click="resolve('cancel')"
+    >
+      Cancel
+    </button>
+  </div>
+  <div
+    v-if="asking !== null"
+    role="alert"
+    data-testid="link-confirm"
+    class="flex shrink-0 items-center gap-3 border-b border-border bg-muted px-3 py-1.5 text-chrome"
+  >
+    <span class="min-w-0 flex-1 truncate"> Open {{ asking.path }} in its default app? </span>
+    <button
+      type="button"
+      class="rounded-sm px-2 py-0.5 hover:bg-accent"
+      @click="answer('open')"
+    >
+      Open
+    </button>
+    <button
+      type="button"
+      class="rounded-sm px-2 py-0.5 hover:bg-accent"
+      @click="answer('cancel')"
     >
       Cancel
     </button>

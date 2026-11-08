@@ -11,6 +11,7 @@ import {
 } from '@codemirror/state'
 import { createFollowerState, createMasterState } from '@/editor/create'
 import { imageContext } from '@/editor/livePreview/blocks'
+import { linkNavigation } from '@/editor/links'
 import { isLargeFile } from './largeFile'
 import { endingsOf, lineEndingsFor } from '@/editor/lineEndings'
 import { sourceCopy } from '@/editor/sourceCopy'
@@ -76,6 +77,8 @@ export interface DocumentOptions {
   readonly assetUrl?: (path: string) => string
   /** Called whenever something a session snapshot holds may have changed: text, caret, saved state. */
   readonly touched?: () => void
+  /** Called on Ctrl+click on a link in a tab of this document, with the target as written. */
+  readonly followLink?: (tabId: string, href: string) => void
 }
 
 /** Where a caret is, as the session stores it. */
@@ -156,6 +159,7 @@ export class Document implements FollowerHost {
             sourceCopy(() => link.endings()),
             readOnlyFacet(this.readOnly),
             this.#imageSupport(),
+            this.#linkSupport(tabId),
             this.#options.extensions ?? [],
           ],
         }),
@@ -164,6 +168,15 @@ export class Document implements FollowerHost {
       this.#seeds.delete(tabId)
     }
     return follower
+  }
+
+  /** Ctrl+click on a link in this tab. Without a `followLink` option, links are only text. */
+  #linkSupport(tabId: string): Extension {
+    const follow = this.#options.followLink
+    if (follow === undefined) return []
+    return linkNavigation((hit) => {
+      follow(tabId, hit.href)
+    })
   }
 
   /** What lets live preview load the images next to this file. Without an `assetUrl` there are none. */

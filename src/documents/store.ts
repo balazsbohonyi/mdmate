@@ -76,7 +76,18 @@ export function activeDocument(): Document | undefined {
 /** A message about the last thing the user tried that did not work, for the status bar. */
 export const problem = shallowRef<string | null>(null)
 
-function describe(error: unknown): string {
+let linkFollower: ((tabId: TabId, href: string) => void) | undefined
+
+/**
+ * Who handles a Ctrl+click on a link. `links.ts` registers itself, which keeps this module free of
+ * an import cycle; with no handler, a Ctrl+click does nothing.
+ */
+export function setLinkFollower(follow: ((tabId: TabId, href: string) => void) | undefined): void {
+  linkFollower = follow
+}
+
+/** An error's message, whatever threw it. */
+export function describe(error: unknown): string {
   if (typeof error === 'object' && error !== null && 'message' in error) {
     const { message } = error
     if (typeof message === 'string') return message
@@ -85,7 +96,7 @@ function describe(error: unknown): string {
 }
 
 /** The stable name Rust gives an error, such as `disk-changed`, when the error has one. */
-function errorKind(error: unknown): string | undefined {
+export function errorKind(error: unknown): string | undefined {
   if (typeof error === 'object' && error !== null && 'kind' in error) {
     const { kind } = error
     if (typeof kind === 'string') return kind
@@ -116,6 +127,7 @@ export async function openDocument(
   const doc = new Document(opened, publish, {
     touched,
     assetUrl: (path) => host.assetUrl(path),
+    followLink: (tabId, href) => linkFollower?.(tabId, href),
   })
   documents.set(doc.id, doc)
   publish(doc)

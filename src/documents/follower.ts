@@ -1,12 +1,12 @@
-import type {
-  ChangeSet,
+import {
   EditorSelection,
-  EditorState,
-  StateEffect,
-  Transaction,
-  TransactionSpec,
+  type ChangeSet,
+  type EditorState,
+  type StateEffect,
+  type Transaction,
+  type TransactionSpec,
 } from '@codemirror/state'
-import type { EditorView } from '@codemirror/view'
+import { EditorView } from '@codemirror/view'
 import { syncAnnotation, type FollowerLink } from '@/editor/sync'
 import type { Endings } from '@/lib/endings'
 
@@ -62,6 +62,29 @@ export class Follower implements FollowerLink {
     this.#view = null
     view.setState(state)
     this.#view = view
+    if (this.#revealOnShow !== null) {
+      const pos = Math.min(this.#revealOnShow, view.state.doc.length)
+      this.#revealOnShow = null
+      view.dispatch({ effects: EditorView.scrollIntoView(pos, { y: 'start' }) })
+    }
+  }
+
+  /** A position to scroll to the top of the view when this state is next shown. */
+  #revealOnShow: number | null = null
+
+  /**
+   * Puts the caret at `pos` and scrolls it to the top of the view. A follower no view shows keeps
+   * the scroll for when it is shown, so a jump into a tab that is about to open still lands.
+   */
+  reveal(pos: number): void {
+    const at = Math.max(0, Math.min(pos, this.state.doc.length))
+    const selection = EditorSelection.cursor(at)
+    if (this.#view !== null) {
+      this.#view.dispatch({ selection, effects: EditorView.scrollIntoView(at, { y: 'start' }) })
+      return
+    }
+    this.dispatch({ selection })
+    this.#revealOnShow = at
   }
 
   /** Takes the state back from its view, which is about to show something else. */
