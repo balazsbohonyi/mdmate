@@ -4,6 +4,7 @@ import { EditorState, type EditorSelection, type Extension, type Text } from '@c
 import { EditorView, keymap } from '@codemirror/view'
 import { tokenHighlight } from './highlight'
 import { listEditing } from './lists'
+import { textDrag } from './textDrag'
 import { smartPaste } from './paste'
 import { livePreview } from './livePreview'
 import { previewSlot } from './previewMode'
@@ -46,6 +47,7 @@ const common: Extension = [
   keymap.of([...editorKeymap, ...historyKeymap]),
   EditorView.lineWrapping,
   frame,
+  textDrag(),
 ]
 const withParser: Extension = [
   common,
@@ -88,7 +90,13 @@ export function createMasterState(doc: string, extensions: Extension = []): Edit
 }
 
 /** What every follower gets: the default keys without history, which lives on the master. */
-const followerBase: Extension = [keymap.of(editorKeymap), EditorView.lineWrapping, frame]
+const followerBase: Extension = [
+  keymap.of(editorKeymap),
+  EditorView.lineWrapping,
+  frame,
+  // Drag-to-move for selected text, on pointer events (P5-T7).
+  textDrag(),
+]
 
 export interface FollowerOptions {
   /** The master's text. The follower shares it rather than copying it. */

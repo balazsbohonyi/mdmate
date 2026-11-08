@@ -1,12 +1,18 @@
+// @vitest-environment jsdom
 /**
- * P5-T7 spike: the part of drag-to-move that does not need a screen. Where the pointer lands, and
+ * Drag-to-move (P5-T7). The pure part first: where the pointer lands, and Where the pointer lands, and
  * what a drop does to the text, the selection and the undo history. The pointer plumbing needs real
  * layout and real input, so `pnpm perf drag-auto` and `pnpm perf lab-drag` cover it in WebView2.
  */
 import { history, undo } from '@codemirror/commands'
 import { EditorSelection, EditorState } from '@codemirror/state'
-import { describe, expect, it } from 'vitest'
-import { moveSelectedText, pointerOnRange } from '@/editor/textDrag'
+import { EditorView } from '@codemirror/view'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { Document } from '@/documents/document'
+import { createState } from '@/editor/create'
+import { blocksOf } from '@/editor/livePreview/blocks'
+import { uniformEndings } from '@/lib/endings'
+import { moveSelectedText, onDrawnBlock, pointerOnRange } from '@/editor/textDrag'
 
 function stateWith(doc: string, from: number, to: number, readOnly = false): EditorState {
   return EditorState.create({
@@ -166,5 +172,150 @@ describe('moveSelectedText', () => {
       { from: 0, to: 3 },
       { from: 5, insert: 'a\nb' },
     ])
+  })
+})
+
+describe('drag-to-move in the app (P5-T7)', () => {
+  const views: EditorView[] = []
+  afterEach(() => {
+    for (const view of views.splice(0)) view.destroy()
+    vi.restoreAllMocks()
+  })
+
+  /**
+   * jsdom has no layout, so the view's geometry is stubbed: positions map to x pixels on one line,
+   * 10 px a character, inside a 1000 x 500 box.
+   */
+  function stubGeometry(view: EditorView): void {
+    const box = { left: 0, top: 0, right: 1000, bottom: 500, width: 1000, height: 500, x: 0, y: 0 }
+    view.scrollDOM.getBoundingClientRect = () => ({ ...box, toJSON: () => box }) as DOMRect
+    view.posAtCoords = ((coords: { x: number }) =>
+      Math.max(0, Math.min(view.state.doc.length, Math.round(coords.x / 10)))) as never
+    view.posAndSideAtCoords = ((coords: { x: number }) => ({
+      pos: Math.floor(coords.x / 10),
+      assoc: 1,
+    })) as never
+    view.coordsAtPos = (() => null) as never
+  }
+
+  function drag(view: EditorView, fromX: number, toX: number): void {
+    view.contentDOM.dispatchEvent(
+      new MouseEvent('mousedown', {
+        button: 0,
+        detail: 1,
+        clientX: fromX,
+        clientY: 5,
+        bubbles: true,
+        cancelable: true,
+      }),
+    )
+    for (const x of [fromX + 20, toX]) {
+      window.dispatchEvent(
+        Object.assign(
+          new MouseEvent('pointermove', { clientX: x, clientY: 5, buttons: 1, bubbles: true }),
+          {},
+        ),
+      )
+    }
+    window.dispatchEvent(new MouseEvent('pointerup', { clientX: toX, clientY: 5, bubbles: true }))
+  }
+
+  function mounted(doc: Document, tab: string): EditorView {
+    const parent = document.createElement('div')
+    document.body.append(parent)
+    const follower = doc.followerFor(tab)
+    const view = new EditorView({ state: follower.state, parent })
+    follower.show(view)
+    stubGeometry(view)
+    views.push(view)
+    return view
+  }
+
+  function opened(text: string): Document {
+    return new Document(
+      {
+        id: 7,
+        path: 'C:/n/a.md',
+        name: 'a.md',
+        encoding: 'utf-8',
+        bom: false,
+        readOnly: null,
+        size: text.length,
+        hash: '0'.repeat(32),
+        text,
+        endings: uniformEndings(),
+      },
+      () => undefined,
+    )
+  }
+
+  it('a pointer drag in a tab of a document moves the selected text, selection following (ISC-177)', () => {
+    const doc = opened('abc DEF ghi jkl')
+    const view = mounted(doc, 'tab-1')
+    view.dispatch({ selection: EditorSelection.single(4, 7) })
+    // Press on "E" (x 50), drop after "ghi " (position 12, x 120).
+    drag(view, 50, 120)
+    expect(doc.master.doc.toString()).toBe('abc  ghi DEFjkl')
+    expect(view.state.sliceDoc(view.state.selection.main.from, view.state.selection.main.to)).toBe(
+      'DEF',
+    )
+  })
+
+  it('one undo through the document puts the text back (ISC-178)', () => {
+    const doc = opened('abc DEF ghi jkl')
+    const view = mounted(doc, 'tab-1')
+    view.dispatch({ selection: EditorSelection.single(4, 7) })
+    drag(view, 50, 120)
+    const follower = doc.followerFor('tab-1')
+    expect(doc.undo(follower)).toBe(true)
+    expect(doc.master.doc.toString()).toBe('abc DEF ghi jkl')
+  })
+
+  it('is in every follower and standalone state the app makes', () => {
+    const doc = opened('abc DEF ghi')
+    const view = mounted(doc, 'tab-1')
+    view.dispatch({ selection: EditorSelection.single(4, 7) })
+    drag(view, 50, 110)
+    expect(view.state.doc.toString()).not.toBe('abc DEF ghi')
+    const parent = document.createElement('div')
+    document.body.append(parent)
+    const plain = new EditorView({
+      state: createState('abc DEF ghi', [], { parser: false }),
+      parent,
+    })
+    views.push(plain)
+    stubGeometry(plain)
+    plain.dispatch({ selection: EditorSelection.single(4, 7) })
+    drag(plain, 50, 110)
+    expect(plain.state.doc.toString()).toBe('abc  ghiDEF')
+  })
+
+  it('a drag released on a drawn table moves nothing', () => {
+    const text = 'Move me.\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\nEnd.'
+    const parent = document.createElement('div')
+    document.body.append(parent)
+    const view = new EditorView({ state: createState(text, [], { preview: true }), parent })
+    views.push(view)
+    stubGeometry(view)
+    view.dispatch({ selection: EditorSelection.single(0, 4) })
+    expect(blocksOf(view.state).map((block) => block.kind)).toContain('table')
+    // Release on the table's first position (x = 10 px a character).
+    drag(view, 20, text.indexOf('| a') * 10)
+    expect(view.state.doc.toString()).toBe(text)
+    // The same drag released on plain text after the table does move it.
+    drag(view, 20, text.indexOf('End.') * 10)
+    expect(view.state.doc.toString()).not.toBe(text)
+  })
+
+  it('a drawn table is never a drop target', () => {
+    const text = 'Move me.\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\nEnd.'
+    const state = createState(text, [], { preview: true }).update({
+      selection: EditorSelection.single(0, 4),
+    }).state
+    const tableFrom = text.indexOf('| a')
+    expect(blocksOf(state).map((block) => block.kind)).toContain('table')
+    expect(onDrawnBlock(state, tableFrom)).toBe(true)
+    expect(onDrawnBlock(state, text.indexOf('End.'))).toBe(false)
+    expect(onDrawnBlock(state, 2)).toBe(false)
   })
 })
