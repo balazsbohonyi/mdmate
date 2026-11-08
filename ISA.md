@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 94/191
+progress: 97/191
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-08T21:28:32Z
+updated: 2026-11-08T21:45:04Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -382,9 +382,9 @@ Why: documentation is a web of files, so following a link has to cost one gestur
 - [x] ISC-76: Ctrl+click on `file.md#heading` opens the file at that heading.
 - [x] ISC-77: Ctrl+click on a web link opens the default browser.
 - [x] ISC-78: A confirmed link to another file opens its default app.
-- [ ] ISC-79: Links with missing targets show a broken style.
-- [ ] ISC-80: Alt+Left returns to the previous location.
-- [ ] ISC-81: Alt+Right moves forward again.
+- [x] ISC-79: Links with missing targets show a broken style.
+- [x] ISC-80: Alt+Left returns to the previous location.
+- [x] ISC-81: Alt+Right moves forward again.
 - [x] ISC-82: Anti: a plain click on a link never navigates.
 
 ### F6 · Quick editing
@@ -661,6 +661,10 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-77 (closed 2026-11-08, P5-T2, by me in the real app): a trusted Ctrl+click on `[the web](https://example.com/)` in the debug app opened the default browser on "Example Domain - Google Chrome", with no change to the tabs and no problem shown.
 - ISC-78 (closed 2026-11-08, P5-T2, by me in the real app): a trusted Ctrl+click on `[the spec](spec.pdf)` showed the banner "Open ...\spec.pdf in its default app?" and started nothing; pressing Open (trusted click) started Acrobat with "spec.pdf - Adobe Acrobat Reader". Unit tests: Cancel opens nothing, Open opens exactly that file.
 - ISC-82 (closed 2026-11-08, P5-T2): `tests/links/navigate.test.ts`: a plain press, Shift, Alt, Ctrl+Alt and a Ctrl middle-button press on a link never call the follow handler, and a plain press in a real view of a tab opens no tab. Real window: a trusted plain click on the link text put the caret inside it (line 3, offset 16) and left one tab. Breaking the gesture check (or dropping the Ctrl requirement) fails 2 and 3 tests.
+
+- ISC-79 (closed 2026-11-08, P5-T3): `pnpm test:web tests/links/brokenLinks.test.ts` (11 tests): in a jsdom view only the link whose file is missing gets `cm-md-link-broken` after the background check, a link typed later is checked, a target that appears clears the style once its answer goes stale, web links and anchors are never asked about, and a long list is split into requests Rust accepts; `pnpm test:rust missing_marks_only` pins the Rust side (`check_links`). Interceptor on `pnpm dev` (mock host, test profile): `[broken link](missing.md)` drawn with the wavy underline, the working and web links not. Real window (debug app): `one is gone` drawn red with a wavy underline (`oklch(0.72 0.16 25)`, the dark theme's `--destructive`), and `later.md` cleared by itself about 6 s after the file was created. Breaking the stale check, the redraw on an answer, the recheck after an edit, the periodic recheck or the local-target filter fails a test each.
+- ISC-80 (closed 2026-11-08, P5-T3): `pnpm test:web tests/links/history.test.ts` (10 tests): after following `b.md` from `a.md`, going back focuses `a.md` with the caret where it was; anchor jumps in one document go back too; a closed tab's file is reopened; an Alt+Left keydown on the window and one pressed inside a real view of a tab both reach the history. Real window (trusted keys over the DevTools port): Ctrl+click from `broken.md` to `a.md`, then Alt+Left, put the caret back in `broken.md` on line 7 where it had been. Recording no jump, stepping the wrong way, not reopening a closed tab or leaving Alt+Left in the editor's keymap fails tests.
+- ISC-81 (closed 2026-11-08, P5-T3): the same file: Alt+Right after going back returns to `b.md` at `## Part`, a caret moved after a jump is where Alt+Right lands, and a new jump after going back drops what lay ahead. Real window: Alt+Right after the Alt+Left above returned to `a.md` on `## Lower down`.
 
 ## Remaining Work
 

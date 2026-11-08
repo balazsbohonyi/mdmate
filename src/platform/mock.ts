@@ -68,6 +68,8 @@ export interface MockHost extends Host {
   quits: number
   /** Every target `followLink` handed to the "OS", in order. */
   readonly opened: string[]
+  /** How many times the page asked which links are missing. */
+  checks: number
 }
 
 /**
@@ -183,10 +185,19 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     recovered: [],
     quits: 0,
     opened: [],
+    checks: 0,
     describeLink(id, href) {
       const doc = open.get(id)
       if (doc === undefined) return Promise.reject(hostError('not-open', `no open document ${id}`))
       return Promise.resolve(mockDescribeLink(files, doc.path, href))
+    },
+    checkLinks(id, hrefs) {
+      const doc = open.get(id)
+      if (doc === undefined) return Promise.reject(hostError('not-open', `no open document ${id}`))
+      host.checks++
+      return Promise.resolve(
+        hrefs.map((href) => mockDescribeLink(files, doc.path, href).kind === 'missing'),
+      )
     },
     followLink(id, href, confirmed) {
       const doc = open.get(id)

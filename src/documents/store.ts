@@ -128,6 +128,7 @@ export async function openDocument(
     touched,
     assetUrl: (path) => host.assetUrl(path),
     followLink: (tabId, href) => linkFollower?.(tabId, href),
+    checkLinks: (hrefs) => host.checkLinks(opened.id, hrefs),
   })
   documents.set(doc.id, doc)
   publish(doc)

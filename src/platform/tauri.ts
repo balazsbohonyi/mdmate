@@ -87,6 +87,12 @@ export const tauriHost: Host = {
   async followLink(id, href, confirmed) {
     return parseFollowedLink(await invoke<unknown>('follow_link', { id, href, confirmed }))
   },
+  async checkLinks(id, hrefs) {
+    const answer = await invoke<unknown>('check_links', { id, hrefs })
+    if (!Array.isArray(answer) || answer.length !== hrefs.length)
+      throw new Error('bad check_links reply')
+    return answer.map((missing) => missing === true)
+  },
   async readFile(path) {
     return invoke<ArrayBuffer>('read_file', { path })
   },

@@ -4,6 +4,7 @@ import {
   requestCloseTab,
   saveActiveDocument,
 } from '@/documents/store'
+import { canGoBack, canGoForward, goBack, goForward } from '@/documents/history'
 import { getHost } from '@/platform'
 import { registerCommand, removeCommand } from './commands'
 import { findPane } from './splitTree'
@@ -19,6 +20,8 @@ export const COMMAND_IDS = {
   closeTab: 'workbench.closeTab',
   toggleSidebar: 'view.toggleSidebar',
   toggleRawSource: 'view.toggleRawSource',
+  back: 'navigate.back',
+  forward: 'navigate.forward',
   exit: 'app.exit',
 } as const
 
@@ -93,6 +96,24 @@ export function registerDefaultCommands(): () => void {
       enabled: () => activeTab() !== null,
       run: () => {
         toggleRaw(workbenchLayout.value.activePane)
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.back,
+      title: 'Go Back',
+      keybinding: 'Alt+ArrowLeft',
+      enabled: canGoBack,
+      run: async () => {
+        await goBack()
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.forward,
+      title: 'Go Forward',
+      keybinding: 'Alt+ArrowRight',
+      enabled: canGoForward,
+      run: async () => {
+        await goForward()
       },
     }),
     registerCommand({

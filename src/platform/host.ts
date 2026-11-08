@@ -150,6 +150,11 @@ export interface Host {
    * rejects with kind `link-refused`, a missing one with `not-found`.
    */
   followLink(id: number, href: string, confirmed: boolean): Promise<FollowedLink>
+  /**
+   * For each target written in a document, whether it is a relative path to a file that is not
+   * there. At most 500 targets per call. Opens and grants nothing.
+   */
+  checkLinks(id: number, hrefs: readonly string[]): Promise<boolean[]>
   /** Present only where the harness can drive the app. */
   readonly perf?: PerfHost
 }

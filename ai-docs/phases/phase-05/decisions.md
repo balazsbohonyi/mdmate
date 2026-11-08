@@ -61,3 +61,24 @@ Deviations from the plan and choices it left open. Numbers carry the OS they cam
 **Real window (debug app, Windows 11, trusted mouse over the DevTools port, 2026-11-08):** plain click on a link put the caret in it and opened nothing; Ctrl+click opened `sub/other.md` in a new tab; Ctrl+click on `sub/other.md#second-part` focused that tab with the caret on `## Second part`; Ctrl+click on `#lower-down` moved the caret to `## Lower down` in the same tab; Ctrl+click on `https://example.com/` opened Chrome on Example Domain; Ctrl+click on `spec.pdf` showed the banner and started nothing until Open, which started Acrobat Reader with the file. The browser tab and the Acrobat window were left open.
 
 **Subagent decisions:** none.
+
+## P5-T3: broken links and history
+
+**Broken links.** `src/editor/brokenLinks.ts` is a view plugin. It lists the inline links `[text](target)` on screen whose target is a relative path, asks Rust about the ones it has no fresh answer for, 250 ms after the last edit, scroll or focus change, and draws a missing one with `cm-md-link-broken` (the theme's `--destructive` colour and a wavy underline). Rust answers through a new command, `check_links(id, hrefs)`, which runs each target through the same guard as `describe_link` and says only whether it is a missing file (at most 500 per call). Answers are kept per document, shared by its tabs, for 5 s; while a view shows local links it asks again every 5 s, so a file that appears or vanishes is redrawn within about 5 s without any typing. A view with no local links on screen keeps no timer.
+
+- **Not checked:** reference links (finding a definition reads the whole text, too much for every update), anchors inside the same document, the `#fragment` of a file link, links in tables or frontmatter while they are drawn as widgets, and plain-source documents (no parser). Refused targets (UNC, schemes) are not "missing", so they are not styled; following one says so in the status bar.
+- **The colour needed `!important`.** The first real-window look showed the wavy underline but the text still link-blue: the link's colour sits on spans inside the mark. A screenshot caught it, not a test; the rule now wins.
+- **Cost while typing** is one walk of the visible links per update, no IPC (the check waits 250 ms); measured with the perf set after P5-T6.
+
+**History.** `src/documents/history.ts` keeps up to 100 locations (tab, document, path, caret), recorded when a followed link moves the caret: a heading jump or a Markdown file opened. Tab switches, clicks and searches are not recorded; the claims are about links, so I kept to jumps. Alt+Left and Alt+Right are commands (`navigate.back`, `navigate.forward`) in the registry. Going back first stores where the caret is now in the entry being left, so forward returns there. A location whose tab has closed reopens its file in a new tab; one that cannot be reached is dropped. Positions are clamped, not mapped through later edits.
+
+- **The editor gave up Alt+Left and Alt+Right.** On Windows these are CodeMirror's syntax-wise caret moves (`cursorSyntaxLeft`), and the app's key listener deliberately leaves a key the editor handled alone (a P1 rule pinned by a test). Instead of changing that rule, the follower and standalone keymaps leave out the keys in `APP_KEYS` (`src/editor/create.ts`). Behaviour lost: Alt+Left/Right no longer jump over syntax nodes in the editor.
+- `tests/workbench/defaultCommands.test.ts` pins the command list; it now lists the two new commands (10 instead of 8).
+
+**Changes outside `src/`:** `src-tauri/src/commands/mod.rs` and `lib.rs` (the `check_links` command), `src-tauri/src/links/mod.rs` (`missing`, `CHECK_LIMIT`). No dependency, Cargo.toml or config change.
+
+**Evidence.** `tests/links/history.test.ts` (10) and `tests/links/brokenLinks.test.ts` (11), `pnpm test:rust missing_marks_only`. Deliberate breaks, all caught in the end: jump not recorded (6 tests), forward kept after a new jump (1), back stepping forward (6), caret not remembered (1), closed tab not reopened (1), caret not moved (1), Alt+Left not bound (1), editor keeping Alt+Arrow (2), answers never stale (1), no redraw on an answer (2), no recheck after an edit (1), web links checked (2), no batching (1), images counted as links (1), no periodic recheck (1), a timer kept with no links (1). Three survived at first, each because the test was weak (a loop over an empty set, typing before the first check, a timer no test could see); the tests were fixed, not the code.
+
+**Real window and dev page:** see the ISA Verification entries for ISC-79 to ISC-81. Interceptor ran on `pnpm dev` in the test profile (`interceptor-test`, group `mdmate`).
+
+**Subagent decisions:** none.

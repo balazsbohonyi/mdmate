@@ -69,6 +69,7 @@ pub fn run() {
         commands::quit_app,
         commands::describe_link,
         commands::follow_link,
+        commands::check_links,
         commands::perf::perf_config,
         commands::perf::perf_report,
         commands::perf::perf_ready,
@@ -93,7 +94,8 @@ pub fn run() {
         commands::watch_close,
         commands::quit_app,
         commands::describe_link,
-        commands::follow_link
+        commands::follow_link,
+        commands::check_links
     ]);
     builder
         .run(tauri::generate_context!())

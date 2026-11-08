@@ -2,6 +2,7 @@ import { shallowRef } from 'vue'
 import { findAnchor } from '@/editor/headingSlug'
 import { getHost } from '@/platform'
 import type { TabId } from '@/workbench/splitTree'
+import { locationOf, recordJump } from './history'
 import {
   describe,
   documentOfTab,
@@ -75,9 +76,15 @@ export async function followLinkFrom(tabId: TabId, href: string, confirmed = fal
         return
     }
   }
+  // Where the caret was before the jump, for Alt+Left.
+  const from = locationOf(tabId)
+  const jumped = (to: TabId): void => {
+    const there = locationOf(to)
+    if (from !== null && there !== null) recordJump(from, there)
+  }
   switch (followed.kind) {
     case 'anchor':
-      jumpToFragment(tabId, followed.fragment)
+      if (jumpToFragment(tabId, followed.fragment)) jumped(tabId)
       return
     case 'opened':
       return
@@ -86,8 +93,10 @@ export async function followLinkFrom(tabId: TabId, href: string, confirmed = fal
         problem.value = `Could not open ${followed.path}: ${describe(error)}`
         return null
       })
-      if (opened !== null && followed.fragment !== null && followed.fragment !== '')
+      if (opened === null) return
+      if (followed.fragment !== null && followed.fragment !== '')
         jumpToFragment(opened, followed.fragment)
+      jumped(opened)
       return
     }
     default: {

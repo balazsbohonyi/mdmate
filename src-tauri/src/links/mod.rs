@@ -106,6 +106,18 @@ pub(crate) fn describe(href: &str, folder: &Path, fs: &impl FileSystem) -> LinkI
     }
 }
 
+/// The most targets one [`missing`] call checks, so one request stays a short piece of work.
+pub(crate) const CHECK_LIMIT: usize = 500;
+
+/// For each target, whether it is a relative path to a file that is not there. Refused, web and
+/// anchor targets are not missing: the guard has its own answer for those.
+pub(crate) fn missing(hrefs: &[String], folder: &Path, fs: &impl FileSystem) -> Vec<bool> {
+    hrefs
+        .iter()
+        .map(|href| matches!(target_of(href, folder, fs), Ok(Target::Missing(_))))
+        .collect()
+}
+
 /// Follows `href`, written in a document in `folder`. Web and mail links and images open at once;
 /// another file opens in its default app only when `confirmed`; a Markdown file is granted through
 /// `grant` (which returns the path the page may open it by) and never opened outside the app.
@@ -472,6 +484,29 @@ mod tests {
             // The name alone settles it, so the disk is never asked.
             assert_eq!(fs.calls.get(), 0, "{href} touched the file system");
         }
+    }
+
+    #[test]
+    fn missing_marks_only_relative_targets_that_are_not_there() {
+        let fs = files_fs(&["a.md", "sub/b.md", "a.png"]);
+        let hrefs: Vec<String> = [
+            "a.md",
+            "sub/b.md#x",
+            "a.png",
+            "gone.md",
+            "sub/gone.md#x",
+            "#nowhere",
+            "https://example.invalid/missing",
+            r"\\host\share\gone.md",
+            "javascript:x",
+        ]
+        .iter()
+        .map(|href| (*href).to_owned())
+        .collect();
+        assert_eq!(
+            missing(&hrefs, &folder(), &fs),
+            [false, false, false, true, true, false, false, false, false]
+        );
     }
 
     #[test]

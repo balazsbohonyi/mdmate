@@ -13,3 +13,7 @@ Everything below was skipped on purpose or could not be done in the Phase 5 runs
 | 7 | Headings inside lists and quotes, and HTML headings (`<h2 id>`) | Not found by the anchor scan on purpose (see decisions). | Link to a heading inside a list item and see the "No heading" notice. |
 | 8 | Win+click on Windows | `metaKey` is the Mac gesture; on Windows it is the Win key. | Win+click a link; it follows it. Decide whether that matters. |
 | 9 | A link inside a table, an image caption or frontmatter | Tables and frontmatter are widgets until the caret enters them, so their links cannot be Ctrl+clicked while drawn. | Ctrl+click a link in a drawn table; nothing happens until the table shows its source. |
+| 10 | The broken style in the light theme | Only the dark theme was looked at. | Switch theme and look at a missing link. |
+| 11 | Broken style on a reference link, an anchor or a file's fragment | Not checked on purpose (see decisions). | Write `[x][r]` with `[r]: gone.md`; it is not styled. |
+| 12 | History positions after edits | A location's caret is clamped, not mapped through edits made since, so after typing above it Alt+Left lands a little off. | Follow a link, type a paragraph above where you were, press Alt+Left. |
+| 13 | Many panes checking links at once | Each visible pane with local links asks every 5 s; not measured with several panes or a slow disk. | Open four panes of link-heavy files and watch the CPU. |

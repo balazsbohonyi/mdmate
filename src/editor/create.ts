@@ -20,10 +20,23 @@ const frame = EditorView.theme({
   '.cm-content': { caretColor: 'var(--foreground)', padding: '1.25rem 1.5rem' },
 })
 
+/**
+ * Keys the app's own commands use, taken out of CodeMirror's default keymap so they reach the
+ * command registry. The app listens in the bubble phase and leaves a key the editor handled alone,
+ * so an editor binding for the same key would win. On Windows, Alt+Left and Alt+Right are
+ * CodeMirror's syntax-wise caret moves; here they are history (P5-T3).
+ */
+export const APP_KEYS: ReadonlySet<string> = new Set(['Alt-ArrowLeft', 'Alt-ArrowRight'])
+
+/** CodeMirror's default keys, less the ones the app takes. */
+export const editorKeymap = defaultKeymap.filter(
+  (binding) => binding.key === undefined || !APP_KEYS.has(binding.key),
+)
+
 /** What every document gets, with or without the Markdown parser. */
 const common: Extension = [
   history(),
-  keymap.of([...defaultKeymap, ...historyKeymap]),
+  keymap.of([...editorKeymap, ...historyKeymap]),
   EditorView.lineWrapping,
   frame,
 ]
@@ -62,7 +75,7 @@ export function createMasterState(doc: string, extensions: Extension = []): Edit
 }
 
 /** What every follower gets: the default keys without history, which lives on the master. */
-const followerBase: Extension = [keymap.of(defaultKeymap), EditorView.lineWrapping, frame]
+const followerBase: Extension = [keymap.of(editorKeymap), EditorView.lineWrapping, frame]
 
 export interface FollowerOptions {
   /** The master's text. The follower shares it rather than copying it. */

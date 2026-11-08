@@ -96,6 +96,26 @@ export function linkAt(state: EditorState, pos: number): LinkHit | null {
   return null
 }
 
+/**
+ * The inline links `[text](target)` that overlap `from` to `to`, with their targets as written.
+ * Reference links are left out: finding their definition reads the whole text, which is too much
+ * to do for every link on screen on every update.
+ */
+export function inlineLinksIn(state: EditorState, from: number, to: number): LinkHit[] {
+  const hits: LinkHit[] = []
+  syntaxTree(state).iterate({
+    from,
+    to,
+    enter(node) {
+      if (node.name !== 'Link') return undefined
+      const url = childText(state, node.node, 'URL')
+      if (url !== null) hits.push({ from: node.from, to: node.to, href: url })
+      return false
+    },
+  })
+  return hits
+}
+
 /** True for the gesture that follows a link: Ctrl+click, or Cmd+click on macOS. Never a plain click. */
 export function isFollowGesture(event: MouseEvent): boolean {
   return event.button === 0 && (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey

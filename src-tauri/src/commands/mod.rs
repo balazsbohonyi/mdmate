@@ -271,6 +271,34 @@ pub(crate) async fn describe_link(
     .map_err(|error| AppError::Task(error.to_string()))?
 }
 
+/// For each link target written in a document, whether it points at a file that is not there.
+/// The page asks for the links on screen, in the background, to draw the missing ones as broken.
+/// At most [`links::CHECK_LIMIT`] targets per call.
+#[tauri::command]
+pub(crate) async fn check_links(
+    state: State<'_, Arc<AppState>>,
+    id: u32,
+    hrefs: Vec<String>,
+) -> Result<Vec<bool>, AppError> {
+    if hrefs.len() > links::CHECK_LIMIT {
+        return Err(AppError::Invalid(format!(
+            "at most {} links per check",
+            links::CHECK_LIMIT
+        )));
+    }
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let folder = document_folder(&state, id)?;
+        Ok(links::missing(
+            &hrefs,
+            &folder,
+            &links::guard::RealFileSystem,
+        ))
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
 /// Follows a link written in a document. The page sends the document id and the target as
 /// written, never a path or a URL of its own; the guard decides everything else. A Markdown
 /// target becomes readable here, and only that one file.

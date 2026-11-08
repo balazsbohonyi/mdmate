@@ -11,6 +11,7 @@ import {
 } from '@codemirror/state'
 import { createFollowerState, createMasterState } from '@/editor/create'
 import { imageContext } from '@/editor/livePreview/blocks'
+import { brokenLinks, LinkStatus, linkStatus } from '@/editor/brokenLinks'
 import { linkNavigation } from '@/editor/links'
 import { isLargeFile } from './largeFile'
 import { endingsOf, lineEndingsFor } from '@/editor/lineEndings'
@@ -79,6 +80,8 @@ export interface DocumentOptions {
   readonly touched?: () => void
   /** Called on Ctrl+click on a link in a tab of this document, with the target as written. */
   readonly followLink?: (tabId: string, href: string) => void
+  /** Says which link targets are missing files, for the broken-link style. Without it, none is drawn. */
+  readonly checkLinks?: (hrefs: readonly string[]) => Promise<readonly boolean[]>
 }
 
 /** Where a caret is, as the session stores it. */
@@ -160,6 +163,7 @@ export class Document implements FollowerHost {
             readOnlyFacet(this.readOnly),
             this.#imageSupport(),
             this.#linkSupport(tabId),
+            this.#brokenLinkSupport(),
             this.#options.extensions ?? [],
           ],
         }),
@@ -168,6 +172,17 @@ export class Document implements FollowerHost {
       this.#seeds.delete(tabId)
     }
     return follower
+  }
+
+  /** One answer cache for the whole document, so every tab of it shares what is known. */
+  #linkStatus: LinkStatus | null = null
+
+  /** The broken-link style, for documents with a parser and a way to check. */
+  #brokenLinkSupport(): Extension {
+    const check = this.#options.checkLinks
+    if (check === undefined || this.#options.parser === false) return []
+    this.#linkStatus ??= new LinkStatus(check)
+    return [linkStatus.of(this.#linkStatus), brokenLinks()]
   }
 
   /** Ctrl+click on a link in this tab. Without a `followLink` option, links are only text. */
