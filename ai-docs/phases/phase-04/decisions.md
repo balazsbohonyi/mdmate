@@ -289,3 +289,35 @@ You asked me to look at untested row 27 before the merge. Everything here is fro
 - **My reading:** low exposure. It needs a deep jump in the first half second after opening a document with many tables or images, or a document of the extreme tables fixture. I would not hold the merge for it, but I have no release-build number and I did not try a fix.
 - **If you want it fixed:** the candidate is a better `estimatedHeight` for tables, computed from the column count and the text length of the rows instead of a flat 33 px. It is one function in `widgets.ts` (changing a number that tests pin: "growing with its rows"), and I would check it with the same probes: the parked run on `tables-heavy-1mb.md` at 90,000 px (about 20 runs) and Ctrl+End on the same file. I have not built it.
 - **Subagent decisions:** none.
+
+## Code blocks drawn as a container (2026-11-08)
+
+You asked for a styled container around fenced code, like Obsidian, in both themes, written so a Mermaid block can reuse it. Committed as `c85e3c7` (`[P4-T4]`, the code and its tests; the docs follow in the next commit). You said it belongs to P4-T4 and could also be a follow-up task, so tasks.md lists it as a follow-up under P4-T4. Files: `src/editor/livePreview/box.ts` (new), `scan.ts`, `index.ts`, `codeLanguages.ts`, `tests/editor/codeBlock.test.ts` (new), and two existing tests (`inlineCode`, `headings`) that said a fence produces no items. No Cargo, config or dependency change.
+
+- **Answer I used:** fences at the top of the document only; fences in lists and quotes keep the plain look (untested.md row 37). The box is drawn across the whole line, which would cover a list indent or a quote bar.
+- **MockupWeave:** I searched its `src/` for code-block styling (code block, `pre`, language label) and found none, so the look comes from your two Obsidian screenshots. If you point me at the file I will compare.
+- **How it works:** the block stays real lines, no widget, so the caret, selection and syntax colors are unchanged. `boxLines` gives each visible line a position class (first, mid, last, only) and a `kind` class. The theme draws each line's slice of the border and background with `::before`; the gap to the text around it is padding inside the first and last line, because CodeMirror cannot measure a vertical margin. Colors, radius and spacing are CSS variables on `.cm-md-box` that default to existing tokens (`--syntax-code-background`, `--border`, `--radius`), so there is no new theme token.
+- **Rendered and editing:** with no selection touching the block the fences are hidden and the language is a label at the top right (a line attribute drawn by CSS, so it cannot be selected or copied). With the caret in the block, edges included, the fences show and the label goes. The fence lines are lines in both states, so the block is the same height either way.
+- **Label text:** the language list's own name once it has loaded (`ts` shows `TypeScript`), the word as typed before that or when the list does not know it, nothing for a fence without a word. `codeLanguages.ts` keeps the name when it loads a language and the re-parse that follows redraws the label; the list is still only loaded lazily (`languages-lazy` passes).
+- **For Mermaid later:** call `boxLines` with `kind: 'mermaid'` for the editing state, and give a rendered widget the `cm-md-box cm-md-box-whole` classes. Only the CSS for the second is written.
+- **Differs from the plan:** nothing in scope. I added a test for one case the plan did not list (two blocks keep their own labels on the page), after finding that the label decoration could not safely go in the shared cache: labels are free text and that cache is not bounded, so a line with a label is not cached.
+
+**Evidence**
+
+- **Tests:** `tests/editor/codeBlock.test.ts`, 21 tests (positions, hide and reveal with the caret outside, inside and at both edges, selection touching, unknown and missing language, info string, unclosed fence, two blocks, nested fences, indented code, a 5,000-line block, box lines without code, a real view in jsdom). I broke the code seven ways on purpose and each failed a test (listed under ISC-189). Gates on the working tree: `pnpm check`, `check:rust`, `test:web` (828 passed), `test:rust` (102 passed) all exit 0.
+- **Real window (debug app, DevTools script):** screenshots in the dark and the light theme, rendered and editing, match your two Obsidian images in structure: bordered rounded box, label at the top right, fences shown muted with no label while editing. Line heights and total height identical with the caret in and out. A selection across the paragraph and into the box shows over the box background. Down-key walk through the block: clean in 14 of 15 runs; see untested.md row 38.
+
+| Scenario (claim) | Limit | Result on a fresh release build of the working tree | |
+|---|---|---|---|
+| decorations-scale (ISC-63) | 35% | 0.253 worst deviation (was 0.213), same 354 and 334 items at 1 MB and 10 MB | pass |
+| scroll-stability (ISC-72) | 2 px | 0.47 px up, 0.25 px down | pass |
+| typing-1mb (ISC-7) | 16 ms | p95 7.4 ms (was 6.9) | pass |
+| reveal (ISC-58) | 16 ms | p95 4.9 ms (was 4.1) | pass |
+| tab-switch p95 (ISC-6) | 50 ms | 20.1 ms (was 18.7), repeatable | pass |
+| open-1mb (ISC-5) | 100 ms | 25.3 ms (was 24.6) | pass |
+| startup (ISC-4) | 1500 ms | 566.2 ms | pass |
+
+Three runs each, five for startup; every one reported repeatable. The decorations-scale number is higher than before but the work is the same at both sizes (the harness checks that) and the limit is 35%. The small rises elsewhere are inside the run-to-run spread I have seen on this machine; I did not measure them against a build of the commit before this change.
+
+- **Known limits:** untested.md rows 36 to 41.
+- **Subagent decisions:** none.

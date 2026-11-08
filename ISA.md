@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 80/186
+progress: 85/191
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-08T18:52:18Z
+updated: 2026-11-08T20:13:12Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -148,6 +148,11 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-182 | bash | render an image that never loads and one that fails | same fixed height before and after | pnpm test:web tests/editor/images.test.ts | derived: fast | | |
 | ISC-183 | bash | put the caret at every offset of the block fixtures | none strictly inside a hidden range | pnpm test:web tests/editor/blocks.test.ts | derived: byte-exact | | |
 | ISC-184 | bash | click a checkbox in a read-only document | no change | pnpm test:web tests/editor/checkbox.test.ts | derived: byte-exact | | |
+| ISC-185 | screenshot | a fenced code block in the light and the dark theme | a bordered, rounded container in both | pnpm test:web tests/editor/codeBlock.test.ts; real window, both themes | literal | | |
+| ISC-186 | bash | caret outside a fenced block with a language | fences hidden, language label on the first line | pnpm test:web tests/editor/codeBlock.test.ts | derived: live preview | | |
+| ISC-187 | bash | caret anywhere in the block, edges included | fences shown, no label | pnpm test:web tests/editor/codeBlock.test.ts | derived: live preview | | |
+| ISC-188 | bash | line heights of the block with the caret in and out | identical | real window, line block heights of every line | derived: no layout jump | | |
+| ISC-189 | bash | box lines for a kind that is not code | same container classes, label on the first line, cost follows the view | pnpm test:web tests/editor/codeBlock.test.ts | derived: reuse | | |
 | ISC-73 | bash | scan package.json | absent | node scripts/check-arch.mjs no-math-mermaid | derived: fast | | |
 | ISC-74 | bash | link action test | new tab | pnpm test:web tests/links/navigate.test.ts | derived: link-navigation | | |
 | ISC-75 | bash | link action test | caret at heading | pnpm test:web tests/links/navigate.test.ts | derived: link-navigation | | |
@@ -362,6 +367,11 @@ Why: documents mix prose with tables, images and code, and a page full of raw sy
 - [x] ISC-182: A broken or still-loading image holds a fixed-size placeholder.
 - [x] ISC-183: Anti: no selection head ever sits strictly inside a block replacement.
 - [x] ISC-184: Anti: a read-only document ignores a checkbox click.
+- [x] ISC-185: A fenced code block is drawn as a bordered, rounded container in the light and the dark theme.
+- [x] ISC-186: With the caret outside a fenced code block, its fences are hidden and its language shows as a label at the top right.
+- [x] ISC-187: With the caret inside a fenced code block, edges included, its fences show and the label is gone.
+- [x] ISC-188: Anti: a fenced code block never changes height when the caret enters or leaves it.
+- [x] ISC-189: The container is one module that a block of another kind (Mermaid, later) can use.
 - [x] ISC-73: Anti: `katex` and `mermaid` are absent from v1 dependencies.
 
 ### F5 · Link navigation
@@ -633,6 +643,11 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-6 (reopened 2026-11-08, by me): closed earlier at 11.2 ms (see the entry above), and not true at HEAD. `pnpm perf tab-switch` on the release app, five runs each: switch p95 52.7 ms (51.6 to 53.3) on e564f1c, 49.6 ms (48.4 to 51.0) on d5166ab (T4), 52.4 ms (52.1 to 55.1) on 708a90c (T1), 16.1 ms on c98e4d0 (end of Phase 3); against 50 ms. The first build over it is T1, the block layer (T2 and T3 not measured: the bisect was stopped by low memory). The limit was not changed. See decisions.md, "Final perf set on e564f1c". Cause measured 2026-11-08: switching to the tables-heavy fixture draws a 2,907-cell table whole (51 to 56 ms median against 15 ms with the layer off); drawing only its first 40 rows brings it to 20 ms. Fix proposed in decisions.md, "ISC-6 tab-switch: profile in the real window", awaiting the owner.
 - ISC-6 (closed again 2026-11-08, owner approved the fix, commits 4a1383d, 2fe9bdf and 9d6f8e9): a table with more than 50 body rows is built as its header and first 50 rows plus one spacer row at the height of the rest; after idle time the real rows are swapped in during CodeMirror's write phase, with a measure request keyed by the table's own wrapper (`src/editor/livePreview/blocks/widgets.ts`). `pnpm perf tab-switch` on a fresh release build of 9d6f8e9, five runs: switch p95 18.7 ms (runs 20.3, 18.7, 18.7, 18.2, 20.2; repeatable) against 50 ms; median 15.6 ms, plain 16.3, with a change made elsewhere 14.5, synchronous part 3.6 ms. Before the fix: 52.7 ms. An earlier run of the same code before the per-table key (2fe9bdf) read 19.7 ms and the harness called it not repeatable (spread 11%); it is superseded. The cause was measured in the real window: the first screen of `tables-heavy-1mb.md` is one table of 2,907 cells that the view laid out whole (51 to 56 ms median for that switch against 15 ms with the block layer off; 17 to 18.5 ms after the change). Tests: `tests/editor/tableProgressive.test.ts` (10 tests); I broke the widget ten ways on purpose (every row at once, spacer never replaced, no re-measure, no cancel on destroy, click ignoring the row, one row short, spacer too short, rest in reverse order, swap outside the write step, one measure key shared by all tables) and each failed a test. A real mouse click on a row not yet drawn landed on the right source line. Limit unchanged. See decisions.md, "ISC-6 fixed".
 - ISC-71 (reworded 2026-11-08 by the owner's decision, closed again): the claim was "Language parsers stay out of the entry bundle", which is not literally true because `@codemirror/lang-markdown` imports `lang-html`, `lang-css` and `lang-javascript` (and their Lezer parsers) itself. The owner chose to reword it to what the check enforces: "The entry bundle holds no language parser beyond the ones Markdown itself imports (HTML, CSS and JavaScript); every other language loads when a fence names it." Evidence is the entry above: the check reads the source map of every chunk the page loads first and fails on any other language package; its tests plant a parser in the entry and watch it fail.
+- ISC-185 (closed 2026-11-08, owner request with two Obsidian screenshots, top-level fences only by the owner's answer; commit c85e3c7; the owner then used it in the app and said it works fine): `src/editor/livePreview/box.ts` and a `FencedCode` branch in `scan.ts`. Each line of the block gets container classes and draws its slice of the border and background with `::before`. Seen in the debug app (an editor mounted over the app page, so the app's own CSS and theme tokens apply), screenshots in both themes: bordered, rounded, subtle border, gap above and below. Not seen through File > Open in a release build. Tests: `tests/editor/codeBlock.test.ts` (21 tests). See decisions.md, "Code blocks drawn as a container".
+- ISC-186 (closed 2026-11-08): with the caret outside, the opening fence line and the closing fence are hidden and the first line carries `data-box-label` (the list's name, `TypeScript` for `ts`; the word as typed when the list does not know it; none without a word). Unit tests on the scan and on a real view's DOM, and the same in the real window.
+- ISC-187 (closed 2026-11-08): a caret at the first character, inside, or at the end of the block shows both fences and drops the label; a selection that only touches the block does the same. Unit tests, and the real window (fences muted, no label, same box).
+- ISC-188 (closed 2026-11-08): in the debug app the height of every line of the fixture, and the whole content height (771.9 px), were identical with the caret outside and inside the first block; no difference on any line. The fence lines are lines in both states.
+- ISC-189 (closed 2026-11-08): `boxLines` takes a `kind`; tests call it with `mermaid` and get the same container classes, the label on the first line only, and lines for the visible range only (a 5,000-line block gives 51 lines for a 51-line view). A whole-element variant (`cm-md-box-whole`) is written in CSS but has never been drawn by a widget. I broke the code seven ways on purpose (last line as mid, fences hidden while shown, no visible-range limit, closing fence taken as the last mark, nested fences allowed, label on every line, one shared line decoration for different labels) and each failed a test.
 
 ## Remaining Work
 
