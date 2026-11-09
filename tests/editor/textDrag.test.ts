@@ -188,14 +188,14 @@ describe('drag-to-move in the app (P5-T7)', () => {
    */
   function stubGeometry(view: EditorView): void {
     const box = { left: 0, top: 0, right: 1000, bottom: 500, width: 1000, height: 500, x: 0, y: 0 }
-    view.scrollDOM.getBoundingClientRect = () => ({ ...box, toJSON: () => box }) as DOMRect
-    view.posAtCoords = ((coords: { x: number }) =>
-      Math.max(0, Math.min(view.state.doc.length, Math.round(coords.x / 10)))) as never
+    view.scrollDOM.getBoundingClientRect = () => ({ ...box, toJSON: () => box })
+    view.posAtCoords = (coords: { x: number }) =>
+      Math.max(0, Math.min(view.state.doc.length, Math.round(coords.x / 10)))
     view.posAndSideAtCoords = ((coords: { x: number }) => ({
       pos: Math.floor(coords.x / 10),
       assoc: 1,
     })) as never
-    view.coordsAtPos = (() => null) as never
+    view.coordsAtPos = () => null
   }
 
   function drag(view: EditorView, fromX: number, toX: number): void {

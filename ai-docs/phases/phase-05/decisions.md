@@ -140,3 +140,34 @@ No dependency, Cargo.toml or config change.
 No dependency, Cargo.toml or config change.
 
 **Subagent decisions:** none.
+
+## P5-T7: drag selected text
+
+**What changed from the spike.** `textDrag()` (`src/editor/textDrag.ts`, from P0) is now in every editor state the app makes: the followers that tabs show, and standalone states with and without the parser. One addition: a drawn block widget (a table, a block image, the frontmatter pill) is never a drop target. Text dropped on a widget's edge would join the first or last line of its source and break the table or the pill, so over a widget the drop caret is not shown and a release does nothing. The spike's comment that the app did not use it is gone.
+
+**What the spike left open, and what I found:**
+
+- **Line endings carried with moved text.** Already handled in P2-T4: the endings field recognizes a move by its shape, one deletion and one insertion of the same text, and carries the endings of the breaks inside it. `tests/editor/lineEndings.test.ts` pins that shape against `moveSelectedText` and its 300 random runs include drags; I changed nothing there.
+- **Live-preview hidden syntax.** `posAtCoords` never returns a position strictly inside a replaced range, so a drop lands at the edge of hidden syntax, never inside it. Not looked at for every kind of syntax in the real window.
+- **Block widgets:** see above.
+- **125% display scale:** the laptop screen runs at `devicePixelRatio` 1.25, and every real-window check here ran at that scale: the drop caret showed, and the text landed where it showed. Only one machine and one scale were tried.
+- **Cost on a large file:** measured in the debug app (dev JavaScript, so release would be lower). On `realistic-3mb.md` (opens as plain source, over the cutoff) and `realistic-2mb.md` (with the parser), the work for one pointer move (a hit test plus the caret effect) is 0.3 ms median and 0.5 to 0.6 ms p95 over 60 moves. A drop of a 200-character selection, timed to the end of the next frame, is 16.6 ms median on 3 MB and 15.4 ms on 2 MB, so most of that is the frame wait; the worst of 10 drops on 2 MB took 35.6 ms, one late frame. No gate covers drag.
+
+**Evidence.** `tests/editor/textDrag.test.ts`, now 20 tests (15 from the spike, 5 new in jsdom with stubbed geometry): a pointer drag in a real view of a document's tab moves the text and the selection follows (ISC-177); one undo through the document restores it (ISC-178); standalone plain-source states drag too; a release on a drawn table moves nothing while the same drag onto plain text does. Deliberate breaks, all caught: no drag in followers (3 tests), none in standalone states (1), blocks as drop targets (1, after adding the drag-onto-a-table test; the first round only tested the helper), a widget's edge not counted (1), the move split so it is not one change (12).
+
+**ISC-179** needs a real mouse: P0 showed that injected input does not reproduce the Windows native-drop problem (CodeMirror's own drag works with injected input and fails with a real mouse). Real-window evidence with trusted CDP input is in the ISA for ISC-177 and ISC-178. ISC-179 stays open until you drag by hand with native file drops on; P5-T7 is not ticked until then.
+
+**No dependency, Cargo.toml or config change. Subagent decisions:** none.
+
+## Perf after P5-T4 to P5-T6 (2026-11-08)
+
+Fresh release build of `eca8ca0` (T6; the T7 edits were made after the build had read the sources, and the entry bundle has no drag code), Windows 11, Ryzen 7 8840HS, WebView2 157.0.4341.42, 5 counted runs after 2 warm-ups, the debug app stopped first. I measured once after T6 rather than after each of T4, T5 and T6.
+
+| Scenario (claim) | Limit | Result | Repeatable | Phase 4 end |
+|---|---|---|---|---|
+| startup (ISC-4) | 1500 ms | 677.7 ms (651.7 to 747.5) | no (10% spread; CPU under 85% idle before every run) | 566.2 ms |
+| typing-1mb (ISC-7) | 16 ms | p95 8.4 ms (8.2 to 10.3) | no (one run at 10.3) | 7.4 ms |
+| typing-1mb-trusted (ISC-7) | 16 ms | p95 8.3 ms (8.2 to 8.8) | yes | 7.7 ms |
+| reveal (ISC-58) | 16 ms | p95 4.6 ms (4.5 to 5.2) | yes | 4.9 ms |
+
+Every gate passes. Startup and typing are higher than at the end of Phase 4 (about 110 ms and 1 ms). I did not bisect the cause: the CPU was busier than in Phase 4 (61 to 84 percent idle before the startup runs), and the margins are 2.2 times and 1.9 times the limit, so I recorded it rather than stopping. Files: `perf-results/startup-20261108-223057.json` and the three after it.

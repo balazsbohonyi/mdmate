@@ -24,3 +24,6 @@ Everything below was skipped on purpose or could not be done in the Phase 5 runs
 | 18 | Tab with a selection over several items | Only the item at the caret moves. | Select three items and press Tab. |
 | 19 | Pasting an address over words inside bold or italic | A plain paste by the rule kept from lang-markdown (see decisions). | Decide whether linking text inside emphasis matters. |
 | 20 | Rich clipboard content (HTML from a browser) with an address as its text | Only `text/plain` is read; the real-window test put plain text on the clipboard. | Copy a link from a browser page and paste it over a word. |
+| 21 | Drag-to-move by hand with a real mouse and a native file drop in the same session | Injected input does not reproduce the Windows drop problem (P0); this is ISC-179, which waits on the owner. | Drag selected text with the mouse, then drop a file from Explorer onto the window. |
+| 22 | Dropping text at the edge of hidden syntax (bold, links, inline code) | `posAtCoords` returns only edges of hidden ranges; which side a drop lands on was not looked at for each kind. | Drag a word onto the end of a bold word and see whether it lands inside or outside the bold. |
+| 23 | Drag cost in the release build | Measured in the debug app only. | Add a drag scenario to `pnpm perf` if it ever matters. |

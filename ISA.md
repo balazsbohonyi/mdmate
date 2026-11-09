@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 111/191
+progress: 113/191
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-08T22:26:52Z
+updated: 2026-11-09T05:54:13Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -404,8 +404,8 @@ Why: formatting should stay in your fingers, so writing never stops for syntax.
 - [x] ISC-94: Shift+Tab outdents a list item.
 - [x] ISC-95: Pasting a URL over selected text creates a link.
 - [x] ISC-96: Anti: the editor never holds more than one selection range.
-- [ ] ISC-177: Dragging selected text to another position in the editor moves it.
-- [ ] ISC-178: A text drag undoes in one step.
+- [x] ISC-177: Dragging selected text to another position in the editor moves it.
+- [x] ISC-178: A text drag undoes in one step.
 - [ ] ISC-179: Text drag works in the real app while the window accepts native file drops.
 
 ### F7 · Workspace
@@ -673,6 +673,9 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 
 - ISC-95 (closed 2026-11-08, P5-T6): `pnpm test:web tests/editor/paste.test.ts` (7 tests): a pasted `https`, `http` or `mailto` address over selected plain text becomes `[text](address)` with the caret after it, through a real paste event on a view too; no selection, text that is not an address, an address with a space, several lines, half a bold span, code, an existing link or an address are plain pastes; a read-only document keeps its text, also with lang-markdown's own handler, which is now off. Real window: a trusted Ctrl+V of `https://example.com/docs` from the Windows clipboard over a double-clicked `docs` gave `Read the [docs](https://example.com/docs) now.`. 10 deliberate breaks each failed a test.
 - ISC-96 (closed 2026-11-08, P5-T6): `pnpm test:web tests/editor/selection.test.ts` (2 tests): every kind of state the app builds (standalone, plain source, master, follower, and a document's tab) has `allowMultipleSelections` off and keeps one range, the main one, after a dispatch of two. The claim held before P5-T6 (CodeMirror's default); the test fails if a follower or the master turns it on (2 failures each). Real window: a two-range dispatch on the active tab kept 1 range.
+
+- ISC-177 (closed 2026-11-09, P5-T7): `pnpm test:web tests/editor/textDrag.test.ts` (20 tests): a pointer drag (stubbed geometry, jsdom) in a real view of a document's tab moves the selected text and the selection follows it; plain-source states drag too; a release on a drawn table moves nothing; the 15 spike tests on the move itself still hold. Real window (debug app, devicePixelRatio 1.25, trusted mouse over the DevTools port): `MOVEME` double-clicked and dragged to the next line landed exactly where the drop caret showed. Removing the drag from followers or standalone states, or letting blocks take drops, fails tests.
+- ISC-178 (closed 2026-11-09, P5-T7): the same file: one undo through the document after a pointer drag restores the text; the spike's tests pin the move as one transaction (splitting it fails 12). Real window: one Ctrl+Z after the drag gave back both lines as they were.
 
 ## Remaining Work
 
