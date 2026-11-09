@@ -4,10 +4,12 @@
 //! that id, so a save can only reach a file Rust has already checked. Ids come from Rust.
 
 use crate::access::{Access, Resolved, display_path};
+use crate::drops::DropRegistry;
 use crate::error::AppError;
 use crate::fs::document::{Opened, ReadOnlyReason, content_hash};
 use crate::fs::encoding::Format;
 use crate::fs::{self, Saved, atomic, frame};
+use crate::workspace::folders::{self, FolderWatcher};
 use crate::workspace::watch::{DiskChange, Watcher};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
@@ -100,6 +102,10 @@ pub(crate) struct AppState {
     documents: Mutex<Documents>,
     /// Started when the page first asks for changes; see [`AppState::start_watcher`].
     watcher: OnceLock<Watcher>,
+    /// Watches the folders the sidebar has open; see [`AppState::start_folder_watcher`].
+    folder_watcher: OnceLock<FolderWatcher>,
+    /// The paths native drops delivered.
+    drops: DropRegistry,
 }
 
 impl AppState {
@@ -109,6 +115,8 @@ impl AppState {
             access: Mutex::new(Access::new(ignore_case)),
             documents: Mutex::new(Documents::default()),
             watcher: OnceLock::new(),
+            folder_watcher: OnceLock::new(),
+            drops: DropRegistry::new(ignore_case),
         }
     }
 
@@ -150,6 +158,27 @@ impl AppState {
 
     pub(crate) fn watcher(&self) -> Option<&Watcher> {
         self.watcher.get()
+    }
+
+    /// Starts the watcher for the sidebar's open folders and sends the folder whose listing went
+    /// out of date to `sink`. Called again, it only replaces the sink.
+    pub(crate) fn start_folder_watcher(&self, sink: folders::Sink) -> Result<(), AppError> {
+        if let Some(watcher) = self.folder_watcher.get() {
+            watcher.set_sink(sink);
+            return Ok(());
+        }
+        // Losing the race to another call leaves that one's watcher in place, which is fine.
+        let _ = self.folder_watcher.set(FolderWatcher::start(sink)?);
+        Ok(())
+    }
+
+    pub(crate) fn folder_watcher(&self) -> Option<&FolderWatcher> {
+        self.folder_watcher.get()
+    }
+
+    /// The paths native drops delivered.
+    pub(crate) fn drops(&self) -> &DropRegistry {
+        &self.drops
     }
 
     // A thread that panicked while holding a lock must not take the whole app down with it, so a

@@ -1,6 +1,7 @@
 import type { Endings } from '@/lib/endings'
 import type { DiskChange, Host, OpenedFile, ReadOnlyReason, WindowControls } from './host'
 import type { LinkInfo } from './links'
+import type { DroppedItem, FileDragEvent, Point } from './workspace'
 import { joinRaw, MockFiles, mockHash, pathKey, splitRaw } from './mockFiles'
 
 /**
@@ -48,6 +49,15 @@ function hostError(kind: string, message: string): MockHostError {
   return new MockHostError(kind, message)
 }
 
+/** Runs `run` and hands back what it returns, or what it throws, as a promise. */
+function attempt<T>(run: () => T): Promise<T> {
+  try {
+    return Promise.resolve(run())
+  } catch (error) {
+    return Promise.reject(error instanceof Error ? error : new Error(String(error)))
+  }
+}
+
 export interface MockHost extends Host {
   /** The files the app can open. Change them to act as another program editing the disk. */
   readonly files: MockFiles
@@ -70,6 +80,17 @@ export interface MockHost extends Host {
   readonly opened: string[]
   /** How many times the page asked which links are missing. */
   checks: number
+  /** The workspace roots the host keeps, as Rust does between runs. */
+  readonly roots: readonly string[]
+  /** The folders the page last asked to have watched. */
+  watchedFolders(): readonly string[]
+  /**
+   * Acts as the OS delivering a drop of these paths: Rust's record learns them, and the page
+   * hears a drag-drop event at `position` (page pixels).
+   */
+  simulateDrop(paths: readonly string[], position?: Point): void
+  /** Sends a drag event that is not a drop, such as `over`, to the page. */
+  simulateDrag(event: FileDragEvent): void
 }
 
 /**
@@ -114,6 +135,10 @@ export interface MockHostOptions {
   readonly files?: Readonly<Record<string, string>>
   /** What the open dialog returns each time it is shown. Default: no files, as if cancelled. */
   readonly pick?: () => string[]
+  /** What the folder dialog returns each time it is shown. Default: null, as if cancelled. */
+  readonly pickFolder?: () => string | null
+  /** Workspace roots the host already has, as if the last run left them. */
+  readonly roots?: readonly string[]
 }
 
 /**
@@ -174,6 +199,40 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     }
   }
   files.onChange(deliver)
+
+  // ---- the workspace, as Rust keeps it ----
+  const roots: string[] = [...(options.roots ?? [])]
+  let watched: string[] = []
+  let treeListener: ((folder: string) => void) | undefined
+  let dragListener: ((event: FileDragEvent) => void) | undefined
+  /** The paths of the last few native drops, newest last. */
+  const drops: string[][] = []
+  const dropsKept = 4
+
+  const insideRoot = (path: string): boolean => {
+    const key = pathKey(path).replace(/\/$/, '')
+    return roots.some((root) => {
+      const rootKey = pathKey(root).replace(/\/$/, '')
+      return key === rootKey || key.startsWith(`${rootKey}/`)
+    })
+  }
+
+  const addRoot = (path: string): string => {
+    if (!files.isFolder(path)) throw hostError('not-found', `${path} does not exist`)
+    if (!roots.some((root) => pathKey(root) === pathKey(path))) roots.push(path)
+    return path
+  }
+
+  /** Tells the page which watched folder holds a path that changed. */
+  function deliverTree(path: string): void {
+    const parts = path.replaceAll('\\', '/').split('/')
+    parts.pop()
+    const parent = parts.join('/')
+    const own = watched.find((folder) => pathKey(folder) === pathKey(path))
+    const holder = watched.find((folder) => pathKey(folder) === pathKey(parent))
+    for (const folder of [holder, own]) if (folder !== undefined) treeListener?.(folder)
+  }
+  files.onChange(deliverTree)
 
   const host: MockHost = {
     kind: 'browser',
@@ -237,6 +296,82 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     requestClose() {
       closeListener?.()
       return closeListener !== undefined
+    },
+    get roots() {
+      return roots
+    },
+    watchedFolders() {
+      return watched
+    },
+    simulateDrop(paths, position = { x: 0, y: 0 }) {
+      drops.push([...paths])
+      while (drops.length > dropsKept) drops.shift()
+      dragListener?.({ type: 'drop', position, paths })
+    },
+    simulateDrag(event) {
+      dragListener?.(event)
+    },
+    openFolder() {
+      const picked = options.pickFolder?.() ?? null
+      return attempt(() => (picked === null ? null : addRoot(picked)))
+    },
+    loadWorkspace() {
+      // Like Rust: a folder that is gone is not a root any more.
+      for (const root of [...roots]) if (!files.isFolder(root)) roots.splice(roots.indexOf(root), 1)
+      return Promise.resolve([...roots])
+    },
+    removeRoot(path) {
+      const index = roots.findIndex((root) => pathKey(root) === pathKey(path))
+      if (index === -1) return Promise.reject(hostError('invalid', 'not a workspace folder'))
+      roots.splice(index, 1)
+      return Promise.resolve()
+    },
+    listDir(path) {
+      if (!insideRoot(path))
+        return Promise.reject(hostError('not-allowed', `access to ${path} is not allowed`))
+      const listed = files.listDir(path)
+      if (listed === undefined)
+        return Promise.reject(hostError('not-found', `${path} does not exist`))
+      return Promise.resolve(listed)
+    },
+    watchTree(onChange) {
+      treeListener = onChange
+      return Promise.resolve(() => {
+        if (treeListener === onChange) treeListener = undefined
+      })
+    },
+    watchFolders(paths) {
+      watched = paths.filter((path) => insideRoot(path) && files.isFolder(path))
+      return Promise.resolve()
+    },
+    onFileDrag(handler) {
+      dragListener = handler
+      return Promise.resolve(() => {
+        if (dragListener === handler) dragListener = undefined
+      })
+    },
+    describeDrop(paths) {
+      const known = new Set(drops.flat().map((path) => pathKey(path)))
+      if (paths.some((path) => !known.has(pathKey(path)))) {
+        return Promise.reject(
+          hostError('not-allowed', 'access to a path no drop delivered is not allowed'),
+        )
+      }
+      return Promise.resolve(
+        paths.map((path): DroppedItem => {
+          const kind = files.isFolder(path) ? 'folder' : files.has(path) ? 'file' : 'other'
+          return { path, kind }
+        }),
+      )
+    },
+    addDroppedRoot(path) {
+      const known = new Set(drops.flat().map((entry) => pathKey(entry)))
+      if (!known.has(pathKey(path))) {
+        return Promise.reject(
+          hostError('not-allowed', 'access to a path no drop delivered is not allowed'),
+        )
+      }
+      return attempt(() => addRoot(path))
     },
     loadSession() {
       return Promise.resolve(host.session)
@@ -365,9 +500,16 @@ const DEMO_FILES: Readonly<Record<string, string>> = {
   '/demo/crlf.md': '# Windows file\r\n\r\nEvery line here ends in CRLF.\r\nSo does this one.\r\n',
   '/demo/mixed.md': 'LF line\nCRLF line\r\nold Mac line\rlast line\n',
   '/demo/roadmap.md': '# Roadmap\n\n1. Documents\n2. Preview\n3. Links\n',
+  // Not Markdown, and one level down: they give the sidebar something to dim and to open.
+  '/demo/docs/guide.md': '# Guide\n\nA file in a folder.\n',
+  '/demo/docs/todo.txt': 'buy milk\n',
+  '/demo/docs/logo.png': 'not really a png',
 }
 
-const demoOrder = Object.keys(DEMO_FILES)
+// The Open dialog cycles through the Markdown files that sit directly in the demo folder.
+const demoOrder = Object.keys(DEMO_FILES).filter(
+  (path) => path.endsWith('.md') && !path.startsWith('/demo/docs/'),
+)
 let demoNext = 0
 
 /** Browser stand-in, so UI work runs under pnpm dev with no Rust. */
@@ -379,4 +521,5 @@ export const mockHost: MockHost = createMockHost({
     demoNext++
     return path === undefined ? [] : [path]
   },
+  pickFolder: () => '/demo',
 })

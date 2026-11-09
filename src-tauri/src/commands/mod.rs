@@ -11,7 +11,10 @@ use crate::error::AppError;
 use crate::links;
 use crate::platform::{self, Platform as _};
 use crate::session::{self, CloseHook, SessionStore};
+use crate::workspace::roots::{self, RootStore};
+use crate::workspace::tree::{self, TreeEntry};
 use crate::workspace::watch::DiskChange;
+use crate::workspace::{self, DroppedItem};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::State;
@@ -320,6 +323,162 @@ pub(crate) async fn follow_link(
             &links::PlatformOpener,
             |path| Ok(display_path(&state.access().grant_file(path)?.path)),
         )
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Grants a folder to the sidebar and to the image protocol, and returns it as people read it.
+fn add_root_and_allow_images(
+    app: &tauri::AppHandle,
+    state: &AppState,
+    store: &RootStore,
+    path: &std::path::Path,
+) -> Result<String, AppError> {
+    let shown = roots::add(state, store, path)?;
+    // The images of a workspace folder load without opening a document first. The scope can only
+    // grow while the app runs (Tauri has no way to shrink it), so removing the folder later
+    // revokes Rust's file access but not this.
+    allow_images_from(app, std::path::Path::new(&shown));
+    Ok(shown)
+}
+
+/// Shows the system's folder dialog and makes the chosen folder a workspace root. Choosing is what
+/// grants it, here and never on the page's say-so. Returns the folder, or nothing when the user
+/// cancels.
+#[tauri::command]
+pub(crate) async fn open_folder(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    state: State<'_, Arc<AppState>>,
+    store: State<'_, Arc<RootStore>>,
+) -> Result<Option<String>, AppError> {
+    let picked = tauri::async_runtime::spawn_blocking(move || {
+        rfd::FileDialog::new()
+            .set_parent(&window)
+            .set_title("Open Folder")
+            .pick_folder()
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?;
+    let Some(picked) = picked else {
+        return Ok(None);
+    };
+    let (state, store) = (state.inner().clone(), store.inner().clone());
+    tauri::async_runtime::spawn_blocking(move || {
+        add_root_and_allow_images(&app, &state, &store, &picked).map(Some)
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Grants the folders the last run had open and returns the workspace roots, in order. The page
+/// calls it once at startup; the list comes from Rust's own record, never from the session
+/// snapshot the page wrote.
+#[tauri::command]
+pub(crate) async fn workspace_load(
+    app: tauri::AppHandle,
+    state: State<'_, Arc<AppState>>,
+    store: State<'_, Arc<RootStore>>,
+) -> Result<Vec<String>, AppError> {
+    let (state, store) = (state.inner().clone(), store.inner().clone());
+    tauri::async_runtime::spawn_blocking(move || {
+        let restored = roots::restore(&state, &store);
+        for root in &restored {
+            allow_images_from(&app, std::path::Path::new(root));
+        }
+        restored
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))
+}
+
+/// Takes a folder out of the workspace and revokes the page's access to it.
+#[tauri::command]
+pub(crate) async fn remove_root(
+    state: State<'_, Arc<AppState>>,
+    store: State<'_, Arc<RootStore>>,
+    path: String,
+) -> Result<(), AppError> {
+    let (state, store) = (state.inner().clone(), store.inner().clone());
+    tauri::async_runtime::spawn_blocking(move || {
+        roots::remove(&state, &store, &PathBuf::from(path))
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Lists one folder of the workspace: its files and folders, folders first. Only a folder inside
+/// a workspace root can be listed.
+#[tauri::command]
+pub(crate) async fn list_dir(
+    state: State<'_, Arc<AppState>>,
+    path: String,
+) -> Result<Vec<TreeEntry>, AppError> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let resolved = state.access().check(&PathBuf::from(path))?;
+        tree::list_dir(&resolved.path)
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Starts telling the page which folder of the sidebar went out of date. Once at startup; calling
+/// it again replaces the channel.
+#[tauri::command]
+pub(crate) fn watch_tree(
+    state: State<'_, Arc<AppState>>,
+    on_event: Channel<String>,
+) -> Result<(), AppError> {
+    state.start_folder_watcher(Box::new(move |folder| {
+        // A page that has gone away has nobody to tell; the next subscription replaces this one.
+        let _ = on_event.send(folder);
+    }))
+}
+
+/// Says which folders the sidebar has open, so Rust watches exactly those. A folder outside the
+/// workspace is skipped.
+#[tauri::command]
+pub(crate) fn watch_folders(
+    state: State<'_, Arc<AppState>>,
+    paths: Vec<String>,
+) -> Result<(), AppError> {
+    let watcher = state
+        .folder_watcher()
+        .ok_or_else(|| AppError::Invalid("watch_tree comes first".into()))?;
+    let folders: Vec<PathBuf> = paths
+        .iter()
+        .filter_map(|path| state.access().check(&PathBuf::from(path)).ok())
+        .filter(|resolved| resolved.path.is_dir())
+        .map(|resolved| PathBuf::from(display_path(&resolved.path)))
+        .collect();
+    watcher.set_folders(&folders);
+    Ok(())
+}
+
+/// Says what each path of a drop is. Every path must be one a native drop delivered.
+#[tauri::command]
+pub(crate) fn drop_describe(
+    state: State<'_, Arc<AppState>>,
+    paths: Vec<String>,
+) -> Result<Vec<DroppedItem>, AppError> {
+    workspace::describe_drops(&state, &paths)
+}
+
+/// Makes a dropped folder a workspace root.
+#[tauri::command]
+pub(crate) async fn add_dropped_root(
+    app: tauri::AppHandle,
+    state: State<'_, Arc<AppState>>,
+    store: State<'_, Arc<RootStore>>,
+    path: String,
+) -> Result<String, AppError> {
+    let (state, store) = (state.inner().clone(), store.inner().clone());
+    tauri::async_runtime::spawn_blocking(move || {
+        let shown = workspace::add_dropped_root(&state, &store, &path)?;
+        allow_images_from(&app, std::path::Path::new(&shown));
+        Ok(shown)
     })
     .await
     .map_err(|error| AppError::Task(error.to_string()))?

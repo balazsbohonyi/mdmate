@@ -16,6 +16,7 @@ export type MenuEntry =
 /** The order of the menu: command ids, with `'-'` for a separator. */
 const MENU_LAYOUT: readonly string[] = [
   COMMAND_IDS.open,
+  COMMAND_IDS.openFolder,
   COMMAND_IDS.save,
   '-',
   COMMAND_IDS.splitRight,

@@ -1,6 +1,7 @@
 mod access;
 mod commands;
 mod documents;
+mod drops;
 mod error;
 mod fs;
 mod links;
@@ -33,11 +34,20 @@ pub fn run() {
         .setup(|app| {
             use tauri::Manager as _;
             let dir = paths::data_dir_from_env(|| app.path().app_data_dir().ok());
+            app.manage(Arc::new(workspace::roots::RootStore::new(dir.clone())));
             app.manage(Arc::new(session::SessionStore::new(dir)));
             Ok(())
         })
         .on_window_event(|window, event| {
             use tauri::Manager as _;
+            // The only place a dropped path becomes known to Rust: the OS's own drop event. The
+            // page hears about the drop too, but anything it asks to open or copy is checked
+            // against this record.
+            if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event
+                && let Some(state) = window.app_handle().try_state::<Arc<AppState>>()
+            {
+                state.drops().record(paths);
+            }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event
                 && let Some(hook) = window.app_handle().try_state::<Arc<session::CloseHook>>()
                 && hook.ask()
@@ -70,6 +80,14 @@ pub fn run() {
         commands::describe_link,
         commands::follow_link,
         commands::check_links,
+        commands::open_folder,
+        commands::workspace_load,
+        commands::remove_root,
+        commands::list_dir,
+        commands::watch_tree,
+        commands::watch_folders,
+        commands::drop_describe,
+        commands::add_dropped_root,
         commands::perf::perf_config,
         commands::perf::perf_report,
         commands::perf::perf_ready,
@@ -95,7 +113,15 @@ pub fn run() {
         commands::quit_app,
         commands::describe_link,
         commands::follow_link,
-        commands::check_links
+        commands::check_links,
+        commands::open_folder,
+        commands::workspace_load,
+        commands::remove_root,
+        commands::list_dir,
+        commands::watch_tree,
+        commands::watch_folders,
+        commands::drop_describe,
+        commands::add_dropped_root
     ]);
     builder
         .run(tauri::generate_context!())

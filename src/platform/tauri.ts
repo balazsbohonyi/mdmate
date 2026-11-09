@@ -4,6 +4,13 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { decodeFrame, encodeFrame, openedFromFrame } from './frame'
 import type { DiskChange, Host, PerfConfig, PerfHost, SavedFile } from './host'
 import { parseFollowedLink, parseLinkInfo } from './links'
+import {
+  parseDroppedItems,
+  parsePaths,
+  parseTreeEntries,
+  toCssPosition,
+  type FileDragEvent,
+} from './workspace'
 
 /** The Rust commands behind this exist only in `--features perf` builds. */
 const perfBridge: PerfHost = {
@@ -92,6 +99,52 @@ export const tauriHost: Host = {
     if (!Array.isArray(answer) || answer.length !== hrefs.length)
       throw new Error('bad check_links reply')
     return answer.map((missing) => missing === true)
+  },
+  async openFolder() {
+    return invoke<string | null>('open_folder')
+  },
+  async loadWorkspace() {
+    return parsePaths(await invoke<unknown>('workspace_load'))
+  },
+  async removeRoot(path) {
+    await invoke('remove_root', { path })
+  },
+  async listDir(path) {
+    return parseTreeEntries(await invoke<unknown>('list_dir', { path }))
+  },
+  async watchTree(onChange) {
+    const channel = new Channel<string>()
+    channel.onmessage = onChange
+    await invoke('watch_tree', { onEvent: channel })
+    // Rust keeps one channel, and subscribing again replaces it, so stopping only mutes this one.
+    return () => {
+      channel.onmessage = () => undefined
+    }
+  },
+  async watchFolders(paths) {
+    await invoke('watch_folders', { paths })
+  },
+  onFileDrag(handler) {
+    return getCurrentWebview().onDragDropEvent((event) => {
+      const payload = event.payload
+      if (payload.type === 'leave') {
+        handler({ type: 'leave' })
+        return
+      }
+      // Positions arrive in physical pixels; the page works in CSS pixels.
+      const position = toCssPosition(payload.position, window.devicePixelRatio)
+      const drag: FileDragEvent =
+        payload.type === 'drop'
+          ? { type: 'drop', position, paths: payload.paths }
+          : { type: payload.type, position }
+      handler(drag)
+    })
+  },
+  async describeDrop(paths) {
+    return parseDroppedItems(await invoke<unknown>('drop_describe', { paths }))
+  },
+  async addDroppedRoot(path) {
+    return invoke<string>('add_dropped_root', { path })
   },
   async readFile(path) {
     return invoke<ArrayBuffer>('read_file', { path })

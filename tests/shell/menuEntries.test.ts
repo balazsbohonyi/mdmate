@@ -40,6 +40,13 @@ describe('the app menu', () => {
       },
       {
         kind: 'item',
+        id: COMMAND_IDS.openFolder,
+        label: 'Open Folder...',
+        shortcut: 'Ctrl+Shift+O',
+        disabled: false,
+      },
+      {
+        kind: 'item',
         id: COMMAND_IDS.save,
         label: 'Save',
         shortcut: 'Ctrl+S',
@@ -92,7 +99,7 @@ describe('the app menu', () => {
     const shortcuts = buildMenuEntries('mac').flatMap((entry) =>
       entry.kind === 'item' && entry.shortcut !== undefined ? [entry.shortcut] : [],
     )
-    expect(shortcuts).toEqual(['⌘O', '⌘S', '⌥⇧2', '⌥⇧8', '⌘W', '⇧⌘B', '⌘E'])
+    expect(shortcuts).toEqual(['⌘O', '⇧⌘O', '⌘S', '⌥⇧2', '⌥⇧8', '⌘W', '⇧⌘B', '⌘E'])
   })
 
   it('greys out Close Tab while there is no tab, and Save while nothing is edited', () => {

@@ -1,5 +1,6 @@
 import type { Endings } from '@/lib/endings'
 import type { FollowedLink, LinkInfo } from './links'
+import type { DroppedItem, FileDragEvent, TreeEntry } from './workspace'
 
 /** What the perf harness asked this run to do. Mirrors the Rust `PerfConfig`. */
 export interface PerfConfig {
@@ -155,6 +156,37 @@ export interface Host {
    * there. At most 500 targets per call. Opens and grants nothing.
    */
   checkLinks(id: number, hrefs: readonly string[]): Promise<boolean[]>
+  /**
+   * Shows the system's folder dialog and makes the chosen folder a workspace root, which is also
+   * what lets Rust list and open files inside it. Resolves to the folder, or null when cancelled.
+   */
+  openFolder(): Promise<string | null>
+  /**
+   * The workspace roots the last run left, in order, granted again. Rust keeps this list itself,
+   * so a session snapshot cannot add a root. Called once at startup.
+   */
+  loadWorkspace(): Promise<string[]>
+  /** Takes a folder out of the workspace and revokes the page's access to it. */
+  removeRoot(path: string): Promise<void>
+  /** Lists one folder inside a workspace root: folders first, then files, each in name order. */
+  listDir(path: string): Promise<TreeEntry[]>
+  /**
+   * Calls `onChange` with a folder each time its listing went out of date. Rust watches only the
+   * folders `watchFolders` last named. Returns the function that stops listening; one listener is
+   * live at a time.
+   */
+  watchTree(onChange: (folder: string) => void): Promise<() => void>
+  /** Says which folders the sidebar has open, so only those are watched. Replaces the last set. */
+  watchFolders(paths: readonly string[]): Promise<void>
+  /**
+   * Calls `handler` for each step of a file drag from the OS over the window, with positions in
+   * page pixels. Returns the function that stops listening.
+   */
+  onFileDrag(handler: (event: FileDragEvent) => void): Promise<() => void>
+  /** Says what each dropped path is. Rejects with `not-allowed` unless a native drop delivered every path. */
+  describeDrop(paths: readonly string[]): Promise<DroppedItem[]>
+  /** Makes a dropped folder a workspace root. Rejects with `not-allowed` for a path no drop delivered. */
+  addDroppedRoot(path: string): Promise<string>
   /** Present only where the harness can drive the app. */
   readonly perf?: PerfHost
 }

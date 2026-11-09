@@ -16,6 +16,7 @@ import {
   saveActiveDocument,
 } from '@/documents/store'
 import { canGoBack, canGoForward, goBack, goForward } from '@/documents/history'
+import { openFolderDialog } from '@/features/tree/store'
 import { getHost } from '@/platform'
 import { registerCommand, removeCommand } from './commands'
 import { findPane } from './splitTree'
@@ -25,6 +26,7 @@ import { toggleSidebar } from './sidebar'
 
 export const COMMAND_IDS = {
   open: 'file.open',
+  openFolder: 'file.openFolder',
   save: 'file.save',
   splitRight: 'workbench.splitRight',
   splitDown: 'workbench.splitDown',
@@ -120,6 +122,12 @@ export function registerDefaultCommands(): () => void {
       title: 'Open...',
       keybinding: 'Mod+O',
       run: openFromDialog,
+    }),
+    registerCommand({
+      id: COMMAND_IDS.openFolder,
+      title: 'Open Folder...',
+      keybinding: 'Mod+Shift+O',
+      run: openFolderDialog,
     }),
     registerCommand({
       id: COMMAND_IDS.save,

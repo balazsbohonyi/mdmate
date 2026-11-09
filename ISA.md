@@ -3,7 +3,7 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 116/220
+progress: 124/220
 started: 2026-11-07T00:30:52Z
 updated: 2026-11-09T19:51:17Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
@@ -190,7 +190,7 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-102 | screenshot | drag a file onto a folder | file moved | Interceptor on pnpm dev | derived: file-management | | |
 | ISC-103 | manual | delete a file from the tree | in Recycle Bin | Real app run | derived: file-management | | |
 | ISC-104 | manual | run Reveal in Explorer | file selected | Real app run | derived: file-management | | |
-| ISC-105 | screenshot | mixed folder | others dimmed | Interceptor on pnpm dev | derived: file-management | | |
+| ISC-105 | screenshot | mixed folder | others dimmed | Claude in Chrome on pnpm dev | derived: file-management | | |
 | ISC-106 | bash | open a .txt file | kind text | pnpm test:web tests/documents/open.test.ts | derived: file-management | | |
 | ISC-107 | bash | open a .png file | kind image | pnpm test:web tests/documents/open.test.ts | derived: file-management | | |
 | ISC-108 | screenshot | open a large image | fits pane | Interceptor on pnpm dev | derived: file-management | | |
@@ -264,8 +264,8 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-176 | screenshot | drag a tab along its strip | order changes | Interceptor on pnpm dev | derived: sublime-feel | | |
 | ISC-192 | bash | grant a root from the folder dialog, list the tree | root listed | pnpm test:rust open_folder | derived: file-management |  |  |
 | ISC-193 | bash | remove a root, read a file inside it | not-allowed | pnpm test:rust remove_root | derived: safe-with-untrusted-files |  |  |
-| ISC-194 | bash | serialize and restore a session with two roots | both roots back | pnpm test:web tests/documents/session.test.ts | derived: reliable |  |  |
-| ISC-195 | manual | drop a folder from Explorer on a pane | root added | Real app run | derived: file-management |  |  |
+| ISC-194 | bash | serialize and restore a session with two roots | both roots back | pnpm test:web tests/features/workspaceSession.test.ts | derived: reliable |  |  |
+| ISC-195 | manual | drop a folder from Explorer on a pane | root added | Real app run (a native OLE file drag with real mouse input) | derived: file-management |  |  |
 | ISC-196 | bash | filesystem command test | folder exists | pnpm test:rust create_folder | derived: file-management |  |  |
 | ISC-197 | bash | copy dropped files into a folder | copies exist, sources unchanged | pnpm test:rust copy_into_folder | derived: file-management |  |  |
 | ISC-198 | bash | copy a dropped folder tree | every file copied | pnpm test:rust copy_folder_whole | derived: file-management |  |  |
@@ -442,15 +442,15 @@ Why: formatting should stay in your fingers, so writing never stops for syntax.
 ### F7 · Workspace
 Why: Markdown lives among other files, so the sidebar must manage them and renames must never strand a link.
 
-- [ ] ISC-97: Multiple root folders show in the tree.
+- [x] ISC-97: Multiple root folders show in the tree.
 - [x] ISC-98: A loose file opens without any root folder.
-- [ ] ISC-99: A 10,000-entry folder renders under 200 rows.
+- [x] ISC-99: A 10,000-entry folder renders under 200 rows.
 - [ ] ISC-100: The tree creates a new file.
 - [ ] ISC-101: The tree renames a file.
 - [ ] ISC-102: Dragging in the tree moves a file.
 - [ ] ISC-103: Deleting moves a file to the Recycle Bin.
 - [ ] ISC-104: Reveal in Explorer selects the file.
-- [ ] ISC-105: Non-Markdown files show dimmed.
+- [x] ISC-105: Non-Markdown files show dimmed.
 - [ ] ISC-106: Other text files open as plain source.
 - [ ] ISC-107: Images open in an image tab.
 - [ ] ISC-108: The image tab fits a large image to the pane.
@@ -478,7 +478,7 @@ Why: Markdown lives among other files, so the sidebar must manage them and renam
 - [ ] ISC-129: Anti: a rewrite scan never pushes typing past 16 ms.
 - [ ] ISC-130: Ctrl+P finds a file by partial name.
 - [ ] ISC-131: Ctrl+Shift+P runs a command by name.
-- [ ] ISC-132: A file created outside mdmate appears in the tree.
+- [x] ISC-132: A file created outside mdmate appears in the tree.
 
 ### F8 · Search and outline
 Why: long documents and folders are only usable when you can jump straight to the right place.
@@ -537,10 +537,10 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 ### F12 · File lifecycle
 Why: an everyday editor starts, keeps and manages files without sending you to Explorer, and files arrive by drag as often as by dialog.
 
-- [ ] ISC-192: Open Folder adds the chosen folder as a workspace root.
-- [ ] ISC-193: Removing a root takes it out of the tree and revokes its access.
-- [ ] ISC-194: Workspace roots are restored on restart.
-- [ ] ISC-195: A folder dropped from Explorer outside the tree becomes a workspace root.
+- [x] ISC-192: Open Folder adds the chosen folder as a workspace root.
+- [x] ISC-193: Removing a root takes it out of the tree and revokes its access.
+- [x] ISC-194: Workspace roots are restored on restart.
+- [x] ISC-195: A folder dropped from Explorer outside the tree becomes a workspace root.
 - [ ] ISC-196: The tree creates a new folder.
 - [ ] ISC-197: Files dropped from Explorer on a tree folder are copied into it.
 - [ ] ISC-198: A folder dropped from Explorer on a tree folder is copied whole.
@@ -622,6 +622,10 @@ Why: an everyday editor starts, keeps and manages files without sending you to E
 - 2026-11-09: Tab outside a list stays in the editor on the owner's answer: Tab inserts a tab (or indents the selection), Shift+Tab outdents, and the indent unit is a tab. Before, Tab outside a list moved focus out of the editor.
 - 2026-11-09: refined: the decorations-scale and reveal scenarios add the content's top padding when they check that a line is in view (`settleOnLine`, owner-approved). Line tops count from below the padding P4-T5 added, so a line in view read 16 px above the top and the scenario never settled. Limit, documents, control and same-work check unchanged.
 - 2026-11-09: refined: added ISC-192 to ISC-218 (F12 · File lifecycle) on the owner's call after a grilling session: Open and Remove Folder, drop from Explorer (open, copy into a tree folder, folder as root), New Folder, untitled files, Save As, Revert, Close All, Open Recent, a tab context menu and Find File References. Building Phase 5 showed no phase opened a dropped file, created a file outside a folder, or added a root at all. Planned in Phase 6 (P6-T1, T2, T3 extended; P6-T8, T9 added).
+- 2026-11-09: Rust keeps the workspace roots in `workspace.json` in the data folder (written atomically on each add or remove, read and granted again at start); the session snapshot holds only which folders were open. Why: a file the page writes must never be able to grant access, and a snapshot is exactly that. A damaged or missing session still brings the roots back (P6-T1).
+- 2026-11-09: Removing a root revokes Rust's access to it at once but not the image protocol's scope for it, which lasts until restart. Why: Tauri's asset scope can only grow, and `forbid_directory` is permanent and beats later allows, which would block adding the same folder again. Images in a removed folder can still be shown until the app restarts (P6-T1).
+- 2026-11-09: The tree lists one folder when it opens (lazily, again at every open) and Rust watches exactly the open folders, not recursively; an event names the folder to list again. Why: a workspace can hold far more files than the sidebar shows, and a recursive watch of every root costs handles and events for rows nobody sees (P6-T1).
+- 2026-11-09: Rust records the paths of each native drop from Tauri's drop event (the last four drops) and `drop_describe` and `add_dropped_root` accept only those; the page never names a path. Why: dropped files can come from anywhere, and the page must not be able to ask for a path it was not given (P6-T1).
 
 ## Verification
 
@@ -751,10 +755,19 @@ Why: an everyday editor starts, keeps and manages files without sending you to E
 
 - ISC-63 (measured again 2026-11-09, after the owner-approved settle fix): `pnpm perf decorations-scale` on a fresh release build of the Phase 5 tree, external monitor, three runs: worst deviation 0.325, 0.263 and 0.242 against 0.35, the same work at 1 MB and 10 MB every run, control 11.5 times. reveal (ISC-58) on the same build: p95 6.5 ms against 16. Before the fix the scenario stopped in every run since P4-T5.
 
+- ISC-97: `pnpm test:rust multiple_roots` opens a file in each of two roots and none outside them (src-tauri/src/workspace/roots.rs); `pnpm test:web tests/features/tree.test.ts` lists two roots with their own rows through the mock host, which keeps Rust's rule that only a folder inside a root can be listed. Broken on purpose (a removed root keeping its rows) and caught (P6-T1).
+- ISC-99: `pnpm test:web tests/features/tree.test.ts` puts 10,000 files in one folder: the model has 10,001 rows, the mounted tree draws fewer than 200, still fewer than 200 after scrolling to row 7000, and then shows `note-07000.md` and not `note-00001.md`. Letting the window cover every row fails 2 tests. Rust lists a 10,000-entry folder in `workspace::tree` tests (P6-T1).
+- ISC-105: Claude in Chrome on `pnpm dev` (screenshot saved by the zoom action): in the demo folder `logo.png` and `todo.txt` are drawn in the muted color and `guide.md` is not; in the real window (debug build, DevTools port) the row classes show the same for `pic.png` and `a.md`, and `real-1-tree.png` shows it. `tests/features/tree.test.ts` fixes the rule, and drawing every file undimmed fails it (P6-T1).
+- ISC-132: `pnpm test:rust watcher_new_file` (a file created in a watched folder is reported); in the real window a file written to an open folder from outside appeared in the tree 1.5 s later with no click, and a deleted one went away, with the folder unfolded by a real click. The page lists the folder again on each event, and the newest answer wins (`tests/features/tree.test.ts`, caught when the stale-answer guard was removed). Rust watches exactly the open folders, not recursively (P6-T1).
+- ISC-192: `pnpm test:rust open_folder` grants a folder and lists it, and the page adds the folder its dialog returns, once, open (`tests/features/tree.test.ts`). The native folder picker itself was not driven; see untested.md. In the real window a root written by the grant came back at the next start and was listed by Rust (P6-T1).
+- ISC-193: `pnpm test:rust remove_root` shows the removed folder's files refused afterwards while a file opened one by one stays open; in the real window the context menu on a root showed Remove Folder from Workspace, choosing it emptied the tree, `workspace.json` listed no root, `list_dir` on the folder answered `not-allowed`, and the next start showed no tree. Open tabs stay. The image protocol scope keeps the folder until restart, because Tauri cannot shrink it (decision of 2026-11-09) (P6-T1).
+- ISC-194: `pnpm test:web tests/features/workspaceSession.test.ts`: roots and the open folders (three deep) come back through a restart, also when the session file is missing, damaged or from before the workspace; a remembered folder outside every root is ignored, and a snapshot that names a root adds none. In the real window the second and third launches showed the root and its open folders from `workspace.json` and `session.json`. Each page-side break (forgetting the open folders, trusting folders outside the roots) was caught (P6-T1).
+- ISC-195: real native drops on the debug build (a WinForms window offering the folder as a file drop, carried by real mouse input at display scale 100%): a folder dropped on the empty sidebar became a root, was listed, and was back after a restart; a folder dropped onto a tree row became no root; `add_dropped_root` for a path no drop delivered answered `not-allowed` and left `workspace.json` alone. `tests/features/workspaceSession.test.ts` fixes the page side and fails when the on-tree check is dropped. Two runs in between moved nothing and printed nothing, while the first and the last worked; cause not found (P6-T1).
+
 ## Remaining Work
 
 - [ ] Ship the Inter font's OFL-1.1 notice with the installer and portable zip, and credit it in the README — the font is bundled from `@fontsource-variable/inter`; waits on P10-T3 to P10-T5.
 - [ ] Check the resolved Rust dependency graph for network crates with `cargo tree --target all` — `no-network` reads direct dependencies only, because the lockfile lists `reqwest` and `hyper` although none is in the Windows build graph; waits on P10-T2, where ISC-20 closes.
-- [ ] Grow the asset protocol scope with `allow_directory` when a workspace folder opens (Phase 4 does it for the folder of each opened document), and divide Tauri drop positions by the pixel ratio in the platform layer — the drop positions were tested in P0 at 125% scale only; waits on the phases that add workspaces and file drops.
+- [ ] Check native drop positions at 125% display scale in the real window — `allow_directory` now runs when a workspace folder opens and `toCssPosition` divides drop positions by the pixel ratio (P6-T1, unit-tested), but the real-window drops in P6-T1 ran at 100% scale only; the one place a wrong ratio would show is a drop landing one row off on the tree (P6-T2).
 - [ ] Re-measure typing and startup once the Phase 4 block widgets (tables, images, frontmatter) land, against the 16 ms of ISC-7 and the 1500 ms of ISC-4; Phase 3 measured the inline layer only; waits on P4.
 - [ ] Decide whether the Windows 11 snap-layout hover flyout is worth answering `WM_NCHITTEST` from Rust — v1 ships custom caption buttons without it, and Win+Z and edge snapping work; waits on the owner.

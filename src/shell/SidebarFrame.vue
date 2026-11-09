@@ -1,3 +1,8 @@
+<script setup lang="ts">
+import FileTree from '@/features/tree/FileTree.vue'
+import { workspaceRoots } from '@/features/tree/store'
+</script>
+
 <template>
   <aside
     aria-label="Sidebar"
@@ -8,7 +13,11 @@
     >
       Folders
     </div>
-    <div class="flex flex-1 items-center justify-center p-4 text-center text-muted-foreground">
+    <FileTree v-if="workspaceRoots.length > 0" />
+    <div
+      v-else
+      class="flex flex-1 items-center justify-center p-4 text-center text-muted-foreground"
+    >
       Open a folder to browse its files.
     </div>
   </aside>
