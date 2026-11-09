@@ -171,3 +171,5 @@ Fresh release build of `eca8ca0` (T6; the T7 edits were made after the build had
 | reveal (ISC-58) | 16 ms | p95 4.6 ms (4.5 to 5.2) | yes | 4.9 ms |
 
 Every gate passes. Startup and typing are higher than at the end of Phase 4 (about 110 ms and 1 ms). I did not bisect the cause: the CPU was busier than in Phase 4 (61 to 84 percent idle before the startup runs), and the margins are 2.2 times and 1.9 times the limit, so I recorded it rather than stopping. Files: `perf-results/startup-20261108-223057.json` and the three after it.
+
+**ISC-179, by hand (2026-11-09):** you dragged selected text with your mouse in the debug app, undid it with Ctrl+Z, dropped a file from Explorer on the window and dragged again; you answered that all of it worked. P5-T7 is done.

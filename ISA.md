@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 113/191
+progress: 114/191
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-09T05:54:13Z
+updated: 2026-11-09T06:49:09Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -406,7 +406,7 @@ Why: formatting should stay in your fingers, so writing never stops for syntax.
 - [x] ISC-96: Anti: the editor never holds more than one selection range.
 - [x] ISC-177: Dragging selected text to another position in the editor moves it.
 - [x] ISC-178: A text drag undoes in one step.
-- [ ] ISC-179: Text drag works in the real app while the window accepts native file drops.
+- [x] ISC-179: Text drag works in the real app while the window accepts native file drops.
 
 ### F7 · Workspace
 Why: Markdown lives among other files, so the sidebar must manage them and renames must never strand a link.
@@ -676,6 +676,8 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 
 - ISC-177 (closed 2026-11-09, P5-T7): `pnpm test:web tests/editor/textDrag.test.ts` (20 tests): a pointer drag (stubbed geometry, jsdom) in a real view of a document's tab moves the selected text and the selection follows it; plain-source states drag too; a release on a drawn table moves nothing; the 15 spike tests on the move itself still hold. Real window (debug app, devicePixelRatio 1.25, trusted mouse over the DevTools port): `MOVEME` double-clicked and dragged to the next line landed exactly where the drop caret showed. Removing the drag from followers or standalone states, or letting blocks take drops, fails tests.
 - ISC-178 (closed 2026-11-09, P5-T7): the same file: one undo through the document after a pointer drag restores the text; the spike's tests pin the move as one transaction (splitting it fails 12). Real window: one Ctrl+Z after the drag gave back both lines as they were.
+
+- ISC-179 (closed 2026-11-09, P5-T7, owner review): in the debug app with native file drops on, the owner dragged a selected word with a real mouse (the caret followed and the word moved), undid it with one Ctrl+Z, dropped a file from Explorer onto the window, and dragged again: all worked.
 
 ## Remaining Work
 
