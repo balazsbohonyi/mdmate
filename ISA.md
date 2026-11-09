@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 114/191
+progress: 116/193
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-09T06:49:09Z
+updated: 2026-11-09T18:39:03Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -180,6 +180,8 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-177 | bash | drag a selection to another position in a test view | text moved, selection follows | pnpm test:web tests/editor/textDrag.test.ts | derived: quick-editing | | |
 | ISC-178 | bash | drag a selection, then undo once | original text restored | pnpm test:web tests/editor/textDrag.test.ts | derived: quick-editing | | |
 | ISC-179 | manual | drag selected text in the real app with native drops on | text moves | Review by the owner | derived: quick-editing | | |
+| ISC-190 | bash | paste an address over a selection in a read-only document, through the handler and a real paste event | text unchanged | pnpm test:web tests/editor/paste.test.ts | derived: byte-exact | | |
+| ISC-191 | bash | drag a selection and release it on a drawn table | text unchanged, no drop caret | pnpm test:web tests/editor/textDrag.test.ts | derived: byte-exact | | |
 | ISC-97 | bash | workspace test with two roots | both listed | pnpm test:rust multiple_roots | derived: sublime-feel | | |
 | ISC-98 | bash | store test with no roots | tab opens | pnpm test:web tests/documents/open.test.ts | derived: sublime-feel | | |
 | ISC-99 | bash | render 10000 entries | under 200 rows | pnpm test:web tests/features/tree.test.ts | derived: fast | | |
@@ -407,6 +409,8 @@ Why: formatting should stay in your fingers, so writing never stops for syntax.
 - [x] ISC-177: Dragging selected text to another position in the editor moves it.
 - [x] ISC-178: A text drag undoes in one step.
 - [x] ISC-179: Text drag works in the real app while the window accepts native file drops.
+- [x] ISC-190: Anti: a paste never changes a read-only document.
+- [x] ISC-191: A drawn block is never a drop target.
 
 ### F7 · Workspace
 Why: Markdown lives among other files, so the sidebar must manage them and renames must never strand a link.
@@ -556,6 +560,8 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - 2026-11-08: `file:` URLs are refused like any other scheme, host-less `file:///C:/...` included, on the owner's call (P5-T1). Links are relative paths, anchors, or `http`, `https` and `mailto`.
 - 2026-11-08: Following a Markdown link lets the page open that one file, `..` included, on the owner's call (P5-T1, used by P5-T2). Rust resolves the target against its own record of the linking document; the page sends the document id and the target as written and still has no command that names a path to grant.
 - 2026-11-07: Applied the P0 cutoff: files above 3 MiB open as plain source with a notice, decided once when the document opens by the size on disk. Why: the parser is what makes typing slow at size (P0-T9), and the same rule covers restored sessions. Known limit: a file that grows past the cutoff while open keeps the parser until reopened.
+- 2026-11-09: refined: added ISC-190 and ISC-191 on the owner's call (wording agreed), since P5-T6 and P5-T7 built behavior no claim covered: lang-markdown's own paste handler changed read-only documents, and a drop on a drawn block would merge text into its source.
+- 2026-11-09: Tab outside a list stays in the editor on the owner's answer: Tab inserts a tab (or indents the selection), Shift+Tab outdents, and the indent unit is a tab. Before, Tab outside a list moved focus out of the editor.
 
 ## Verification
 
@@ -678,6 +684,10 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-178 (closed 2026-11-09, P5-T7): the same file: one undo through the document after a pointer drag restores the text; the spike's tests pin the move as one transaction (splitting it fails 12). Real window: one Ctrl+Z after the drag gave back both lines as they were.
 
 - ISC-179 (closed 2026-11-09, P5-T7, owner review): in the debug app with native file drops on, the owner dragged a selected word with a real mouse (the caret followed and the word moved), undid it with one Ctrl+Z, dropped a file from Explorer onto the window, and dragged again: all worked.
+
+- ISC-179 (second by-hand check, 2026-11-09): the owner dragged again in the debug app on the external monitor (devicePixelRatio 1), undid with Ctrl+Z, dropped a file from Explorer and dragged again, and tried Tab and Shift+Tab: all worked. The owner noticed a table switching to source after text was dropped on the empty line right below it; a parse check shows the drop filled the blank line that ended the table, so GFM read the text and the next line as table rows (see Phase 5 decisions).
+- ISC-190 (closed 2026-11-09): `tests/editor/paste.test.ts`: `pasteAsLink` returns nothing for a read-only state, and a real paste event on a read-only view leaves its text unchanged; turning lang-markdown's own handler back on fails that test.
+- ISC-191 (closed 2026-11-09): `tests/editor/textDrag.test.ts`: a drag released on a drawn table leaves the text unchanged while the same drag onto plain text moves it, and `onDrawnBlock` holds on a table's edges; letting blocks take drops, or not counting their edges, fails a test. Real window: over the table no drop caret showed and a release changed nothing.
 
 ## Remaining Work
 

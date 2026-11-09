@@ -197,3 +197,17 @@ Fresh release build of `4988cdf`, Windows 11, Ryzen 7 8840HS, WebView2 157, 5 co
 ## Tab outside a list stays in the editor (2026-11-09, your answer)
 
 You asked for Tab outside a list to move the caret within the editor, like other Markdown editors, instead of moving focus. Every editor state now has `Tab` bound to CodeMirror's `insertTab` (a tab at the caret, or the selected lines indented) and `Shift+Tab` to `indentLess`, below the list keys, so a list item still nests and outdents as before. The indent unit is now a tab, as in Obsidian's default, so Shift+Tab removes exactly what Tab added (with the default two-space unit it turned a tab into two spaces, which a test caught). A read-only document still lets the key move focus. Tests: three keydown tests on a real follower view in `tests/editor/lists.test.ts`; removing the Tab keys, the tab unit, or putting the list keys below them each fails a test. Not looked at in the real window.
+
+## Your answers after the report (2026-11-09)
+
+- **New claims:** ISC-190 "Anti: a paste never changes a read-only document" and ISC-191 "A drawn block is never a drop target", with your wording; both close on existing tests.
+- **Perf scenarios:** left as they are (they do not include the broken-link plugin or Ctrl+click), on your answer.
+- **Second drag by hand (ISC-179):** all worked, on the external monitor. **Your note:** dropping text right after a table turned the table to source, while a caret on the same line does not. Measured with the parser: the drop landed on the empty line that ends the table, filled it, and GFM then read the dropped text and `After the table.` as two more table rows; the moved text stays selected, and a selection inside a table shows its source. Typing on that line does the same. Not changed: whether a drop should keep a blank line after a block is your call.
+
+## ISC-63: the cause is the P4-T5 content padding, not the display scale (2026-11-09)
+
+- On the external monitor (`devicePixelRatio` 1) the scenario failed the same way, so the scale was not the cause I thought.
+- With a temporary message in `settleOnLine` (not committed): the target line had settled, but 15.9 px above the top of the scroller (`offset` -15.875 in two frames running, `scrollTop` 157447, line top 157431). `settleOnLine` counts a line as in view only down to -4 px.
+- The 20 px top padding P4-T5 put on `.cm-content` (`9bf2af0`, 22:27 on 2026-11-08) moved where `scrollIntoView(y: 'start')` leaves the line. The last passing run was at 21:47 the same evening, and P4-T5 recorded that the perf set was not run after it.
+- Proof: the same build with the padding taken out (temporarily, restored) passes: worst deviation 0.272 against 0.35, same work at 1 MB and 10 MB, control 9.9 times.
+- Not changed: the fix is in the scenario's settle check, which changes how a gate measures, so it waits on your yes.
