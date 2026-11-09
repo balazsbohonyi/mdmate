@@ -62,11 +62,14 @@ function snapshotOf(from: MockHost): Record<string, unknown> {
 
 /** jsdom has no hit testing; the page under test answers with whatever element it is told to. */
 let hit: Element | null = null
+/** What the folder dialog returns next, one entry per time it is shown. */
+let picks: string[] = []
 
 beforeEach(() => {
   hit = null
   document.elementFromPoint = () => hit
-  host = createMockHost({ files: FILES, pickFolder: () => '/work' })
+  picks = ['/work']
+  host = createMockHost({ files: FILES, pickFolder: () => picks.shift() ?? null })
   setHost(host)
   reset()
 })
@@ -77,8 +80,10 @@ afterEach(() => {
 })
 
 describe('the workspace across a restart (ISC-194)', () => {
-  it('brings back the roots and the folders that were open, and their files', async () => {
+  it('brings back both roots and the folders that were open, and their files', async () => {
+    picks = ['/work', '/dropped']
     await restoreSession()
+    await openFolderDialog()
     await openFolderDialog()
     await flush()
     await toggleFolder('/work/notes')
@@ -91,9 +96,15 @@ describe('the workspace across a restart (ISC-194)', () => {
     await restoreSession()
     await flush()
 
-    expect(workspaceRoots.value).toEqual(['/work'])
-    expect(expandedFolderPaths.value).toEqual(['/work', '/work/notes', '/work/notes/deep'])
+    expect(workspaceRoots.value).toEqual(['/work', '/dropped'])
+    expect(expandedFolderPaths.value).toEqual([
+      '/dropped',
+      '/work',
+      '/work/notes',
+      '/work/notes/deep',
+    ])
     expect(treeRows.value.map((row) => row.name)).toContain('c.md')
+    expect(treeRows.value.map((row) => row.name)).toContain('d.md')
   })
 
   it('brings back the roots even when the session file is missing or damaged', async () => {
@@ -154,6 +165,17 @@ describe('dropping a folder from Explorer (ISC-195, page side)', () => {
     expect(workspaceRoots.value).toEqual(['/dropped'])
     expect(treeRows.value.map((row) => row.name)).toContain('d.md')
     expect(problem.value).toBeNull()
+  })
+
+  it('makes a root of a folder dropped on a pane, over the editor', async () => {
+    await restoreSession()
+    await installFileDrop()
+    const pane = document.createElement('div')
+    pane.dataset.pane = ''
+    hit = pane
+    host.simulateDrop(['/dropped'], { x: 600, y: 300 })
+    await flush()
+    expect(workspaceRoots.value).toEqual(['/dropped'])
   })
 
   it('does not make a root of a folder dropped onto the tree', async () => {
