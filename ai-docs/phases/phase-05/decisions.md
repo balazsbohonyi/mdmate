@@ -173,3 +173,23 @@ Fresh release build of `eca8ca0` (T6; the T7 edits were made after the build had
 Every gate passes. Startup and typing are higher than at the end of Phase 4 (about 110 ms and 1 ms). I did not bisect the cause: the CPU was busier than in Phase 4 (61 to 84 percent idle before the startup runs), and the margins are 2.2 times and 1.9 times the limit, so I recorded it rather than stopping. Files: `perf-results/startup-20261108-223057.json` and the three after it.
 
 **ISC-179, by hand (2026-11-09):** you dragged selected text with your mouse in the debug app, undid it with Ctrl+Z, dropped a file from Explorer on the window and dragged again; you answered that all of it worked. P5-T7 is done.
+
+## Phase end: speed set on HEAD, and ISC-63 could not be measured (2026-11-09)
+
+Fresh release build of `4988cdf`, Windows 11, Ryzen 7 8840HS, WebView2 157, 5 counted runs after 2 warm-ups, the debug app and my Vite server stopped. **The window ran on the laptop screen at `devicePixelRatio` 1.25**; it was the only display connected. Every passing run of these scenarios in Phases 3 and 4 recorded `devicePixelRatio` 1 (an external monitor).
+
+| Scenario (claim) | Limit | Result | Repeatable |
+|---|---|---|---|
+| startup (ISC-4) | 1500 ms | 510.6 ms | no |
+| open-1mb (ISC-5) | 100 ms | 22.0 ms | no |
+| tab-switch p95 (ISC-6) | 50 ms | 16.9 ms | no |
+| typing-1mb p95 (ISC-7) | 16 ms | 6.1 ms | yes |
+| typing-1mb-trusted p95 (ISC-7) | 16 ms | 7.8 ms | no |
+| typing-2mb / 3mb p95 | 16 ms | 6.6 / 8.7 ms | yes |
+| reveal p95 (ISC-58) | 16 ms | 5.4 ms | yes |
+| scroll-stability (ISC-72) | 2 px | 0.70 px up, 0.15 px down; control 628 px | |
+| **decorations-scale (ISC-63)** | 35% | **no number**: the page stopped with "the view did not return to its line after the parse", twice | |
+
+- **ISC-63 is not caused by Phase 5.** Measured: the same failure with the T7 drag wiring taken out (`create.ts`, `textDrag.ts` and the test at `eca8ca0`), and with the Phase 4 code itself (`main` at `99cc99a`, in a temporary worktree, fixtures regenerated, removed afterwards). The difference from the Phase 4 runs is the display scale. Not diagnosed further: `settleOnLine` (the owner-approved settle step) waits for the target line to hold still for three frames and gives up after 5 s, and at 1.25 it never holds still. I did not change the scenario or the limit; that would change how a gate measures.
+- **The ISC-71 bundle check** (`node scripts/check-arch.mjs languages-lazy --dist` on a `vite build --sourcemap`): passes. Entry chunk 549.71 kB (196.26 kB gzip), up from 526.01 kB (188.64 kB gzip) at the end of Phase 4: the Phase 5 code.
+- **The perf scenarios do not build documents the way the app does.** `typing`, `reveal` and `decorations-scale` use `createState`, and `tab-switch` builds `new Document(...)` without the store's options, so none of them includes the broken-link plugin or Ctrl+click (which the store adds through `followLink` and `checkLinks`). The gate numbers above leave out the broken-link walk of visible links on every edit. Not changed, since it changes what a gate measures.
