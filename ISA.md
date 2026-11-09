@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 116/193
+progress: 116/220
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-09T18:51:29Z
+updated: 2026-11-09T19:51:17Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -262,6 +262,33 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-174 | bash | open the same path twice | one tab, focused | pnpm test:web tests/documents/open.test.ts | derived: sublime-feel | | |
 | ISC-175 | bash | rename with a clean tab open | tab shows new link | pnpm test:web tests/documents/rewrite.test.ts | derived: link-rewrite | | |
 | ISC-176 | screenshot | drag a tab along its strip | order changes | Interceptor on pnpm dev | derived: sublime-feel | | |
+| ISC-192 | bash | grant a root from the folder dialog, list the tree | root listed | pnpm test:rust open_folder | derived: file-management |  |  |
+| ISC-193 | bash | remove a root, read a file inside it | not-allowed | pnpm test:rust remove_root | derived: safe-with-untrusted-files |  |  |
+| ISC-194 | bash | serialize and restore a session with two roots | both roots back | pnpm test:web tests/documents/session.test.ts | derived: reliable |  |  |
+| ISC-195 | manual | drop a folder from Explorer on a pane | root added | Real app run | derived: file-management |  |  |
+| ISC-196 | bash | filesystem command test | folder exists | pnpm test:rust create_folder | derived: file-management |  |  |
+| ISC-197 | bash | copy dropped files into a folder | copies exist, sources unchanged | pnpm test:rust copy_into_folder | derived: file-management |  |  |
+| ISC-198 | bash | copy a dropped folder tree | every file copied | pnpm test:rust copy_folder_whole | derived: file-management |  |  |
+| ISC-199 | bash | copy onto existing names with each answer | replaced, renamed (2), skipped | pnpm test:web tests/features/copyDrop.test.ts | derived: file-management |  |  |
+| ISC-200 | manual | drop two files on the right pane | tabs open there | Real app run | derived: file-management |  |  |
+| ISC-201 | manual | drop a PNG on the tab strip | image tab opens | Real app run | derived: file-management |  |  |
+| ISC-202 | bash | ask to open and copy paths that no drop event recorded | all refused | pnpm test:rust drop_paths_only | derived: safe-with-untrusted-files | critical |  |
+| ISC-203 | bash | run the new-file command | untitled tab active | pnpm test:web tests/documents/untitled.test.ts | derived: file-management |  |  |
+| ISC-204 | bash | save an untitled buffer through the save-path command | bytes UTF-8, LF, no BOM | pnpm test:rust save_new_file | derived: byte-exact |  |  |
+| ISC-205 | bash | name suggestion test | heading slug .md, else Untitled.md | pnpm test:web tests/documents/untitled.test.ts | derived: file-management |  |  |
+| ISC-206 | bash | serialize and restore a session with an untitled buffer | text back in an untitled tab | pnpm test:web tests/documents/session.test.ts | derived: reliable |  |  |
+| ISC-207 | bash | Save As test with the mock host | tab path is the new file | pnpm test:web tests/documents/saveAs.test.ts | derived: file-management |  |  |
+| ISC-208 | bash | hash the original before and after Save As | identical | pnpm test:rust save_as_original | derived: byte-exact |  |  |
+| ISC-209 | bash | Save As on the Latin-1 fixture | UTF-8 file, tab editable | pnpm test:rust save_as_read_only | derived: file-management |  |  |
+| ISC-210 | bash | revert test, cancel and confirm | text equals disk only on confirm | pnpm test:web tests/documents/revert.test.ts | derived: reliable |  |  |
+| ISC-211 | bash | close all with two dirty documents | two asks, no tabs left | pnpm test:web tests/documents/closeAll.test.ts | derived: sublime-feel |  |  |
+| ISC-212 | bash | record opens past the limits, reload the list | newest 10 and 5 kept | pnpm test:rust recent_list | derived: sublime-feel |  |  |
+| ISC-213 | bash | tab menu command test | one tab left | pnpm test:web tests/workbench/tabMenu.test.ts | derived: sublime-feel |  |  |
+| ISC-214 | bash | tab menu command test with a mock clipboard | absolute path | pnpm test:web tests/workbench/tabMenu.test.ts | derived: sublime-feel |  |  |
+| ISC-215 | bash | tab menu command test with a mock clipboard | root-relative with / | pnpm test:web tests/workbench/tabMenu.test.ts | derived: sublime-feel |  |  |
+| ISC-216 | screenshot | reveal a file deep in a root | row selected and in view | Interceptor on pnpm dev | derived: file-management |  |  |
+| ISC-217 | bash | rename command test with links present | links rewritten, tab follows | pnpm test:web tests/features/rename.test.ts | derived: link-rewrite |  |  |
+| ISC-218 | bash | references over the scanner fixture workspace | every linking file and line | pnpm test:web tests/features/references.test.ts | derived: link-navigation |  |  |
 
 ## Features
 
@@ -507,6 +534,37 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - [x] ISC-169: The repo carries an MIT `LICENSE`.
 - [ ] ISC-170: The README lets a stranger install and use mdmate.
 
+### F12 · File lifecycle
+Why: an everyday editor starts, keeps and manages files without sending you to Explorer, and files arrive by drag as often as by dialog.
+
+- [ ] ISC-192: Open Folder adds the chosen folder as a workspace root.
+- [ ] ISC-193: Removing a root takes it out of the tree and revokes its access.
+- [ ] ISC-194: Workspace roots are restored on restart.
+- [ ] ISC-195: A folder dropped from Explorer outside the tree becomes a workspace root.
+- [ ] ISC-196: The tree creates a new folder.
+- [ ] ISC-197: Files dropped from Explorer on a tree folder are copied into it.
+- [ ] ISC-198: A folder dropped from Explorer on a tree folder is copied whole.
+- [ ] ISC-199: A name clash on a copy offers Replace, Keep both and Skip.
+- [ ] ISC-200: Markdown and text files dropped from Explorer open in tabs in the pane they land on.
+- [ ] ISC-201: An image dropped from Explorer outside a document's text opens in an image tab.
+- [ ] ISC-202: Anti: a path that no native drop delivered is never opened or copied.
+- [ ] ISC-203: Ctrl+N opens an untitled tab.
+- [ ] ISC-204: The first save of an untitled tab writes UTF-8 with LF to the path chosen in the save dialog.
+- [ ] ISC-205: The save dialog suggests a file name from the first heading.
+- [ ] ISC-206: Unsaved untitled tabs survive a restart.
+- [ ] ISC-207: Save As writes to the chosen path and the tab follows the new file.
+- [ ] ISC-208: Anti: Save As never changes the original file.
+- [ ] ISC-209: Save As on a read-only document writes UTF-8 and the tab becomes editable.
+- [ ] ISC-210: Revert File discards unsaved edits and reloads the file after a confirm.
+- [ ] ISC-211: Close All closes every tab, asking once for each dirty document.
+- [ ] ISC-212: Open Recent lists the last 10 files and 5 folders across restarts.
+- [ ] ISC-213: Close Others closes every other tab in the pane.
+- [ ] ISC-214: Copy Path copies the file's absolute path.
+- [ ] ISC-215: Copy Relative Path copies the path from its root, or the absolute path outside every root.
+- [ ] ISC-216: Reveal in Sidebar selects the file in the tree.
+- [ ] ISC-217: F2 renames the active file through the link-rewrite flow.
+- [ ] ISC-218: Find File References lists every file that links to the active file.
+
 ## Decisions
 
 - 2026-11-07: Chose CodeMirror 6 over ProseMirror-family editors, Lexical and Monaco. Text stays the document, which gives byte-exact saves by construction, and Obsidian's editor runs on it. No head-to-head benchmark exists, so P0 measures it.
@@ -563,6 +621,7 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - 2026-11-09: refined: added ISC-190 and ISC-191 on the owner's call (wording agreed), since P5-T6 and P5-T7 built behavior no claim covered: lang-markdown's own paste handler changed read-only documents, and a drop on a drawn block would merge text into its source.
 - 2026-11-09: Tab outside a list stays in the editor on the owner's answer: Tab inserts a tab (or indents the selection), Shift+Tab outdents, and the indent unit is a tab. Before, Tab outside a list moved focus out of the editor.
 - 2026-11-09: refined: the decorations-scale and reveal scenarios add the content's top padding when they check that a line is in view (`settleOnLine`, owner-approved). Line tops count from below the padding P4-T5 added, so a line in view read 16 px above the top and the scenario never settled. Limit, documents, control and same-work check unchanged.
+- 2026-11-09: refined: added ISC-192 to ISC-218 (F12 · File lifecycle) on the owner's call after a grilling session: Open and Remove Folder, drop from Explorer (open, copy into a tree folder, folder as root), New Folder, untitled files, Save As, Revert, Close All, Open Recent, a tab context menu and Find File References. Building Phase 5 showed no phase opened a dropped file, created a file outside a folder, or added a root at all. Planned in Phase 6 (P6-T1, T2, T3 extended; P6-T8, T9 added).
 
 ## Verification
 

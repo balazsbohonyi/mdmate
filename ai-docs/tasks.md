@@ -63,13 +63,15 @@ Mark `[x]` only when the task's "Done when" in its phase plan holds. Each task l
 
 ## Phase 6: Workspace ([plan](phases/phase-06/plan.md))
 
-- [ ] P6-T1: File tree — closes ISC-97, ISC-99, ISC-105, ISC-132
-- [ ] P6-T2: File operations — closes ISC-100, ISC-101, ISC-102, ISC-103, ISC-104
-- [ ] P6-T3: Text and image tabs — closes ISC-106, ISC-107, ISC-108, ISC-109, ISC-110, ISC-111, ISC-112
+- [ ] P6-T1: File tree, Open and Remove Folder — closes ISC-97, ISC-99, ISC-105, ISC-132, ISC-192, ISC-193, ISC-194, ISC-195
+- [ ] P6-T2: File operations and copy on drop — closes ISC-100, ISC-101, ISC-102, ISC-103, ISC-104, ISC-196, ISC-197, ISC-198, ISC-199
+- [ ] P6-T3: Text and image tabs, drop to open — closes ISC-106, ISC-107, ISC-108, ISC-109, ISC-110, ISC-111, ISC-112, ISC-200, ISC-201, ISC-202
 - [ ] P6-T4: Link scanner — closes ISC-116, ISC-117, ISC-118, ISC-119, ISC-120, ISC-121, ISC-124
 - [ ] P6-T5: Rewrite engine — closes ISC-113, ISC-114, ISC-115, ISC-122, ISC-125, ISC-128
 - [ ] P6-T6: Rewrite UI — closes ISC-123, ISC-126, ISC-127, ISC-129, ISC-175
 - [ ] P6-T7: Quick open and command palette — closes ISC-130, ISC-131
+- [ ] P6-T8: Untitled files, Save As, Revert, Close All, Open Recent — closes ISC-203, ISC-204, ISC-205, ISC-206, ISC-207, ISC-208, ISC-209, ISC-210, ISC-211, ISC-212
+- [ ] P6-T9: Tab context menu and Find File References — closes ISC-213, ISC-214, ISC-215, ISC-216, ISC-217, ISC-218
 
 ## Phase 7: Search and outline ([plan](phases/phase-07/plan.md))
 
