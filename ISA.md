@@ -5,7 +5,7 @@ project: mdmate
 phase: climbing
 progress: 116/193
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-09T18:39:03Z
+updated: 2026-11-09T18:51:29Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -562,6 +562,7 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - 2026-11-07: Applied the P0 cutoff: files above 3 MiB open as plain source with a notice, decided once when the document opens by the size on disk. Why: the parser is what makes typing slow at size (P0-T9), and the same rule covers restored sessions. Known limit: a file that grows past the cutoff while open keeps the parser until reopened.
 - 2026-11-09: refined: added ISC-190 and ISC-191 on the owner's call (wording agreed), since P5-T6 and P5-T7 built behavior no claim covered: lang-markdown's own paste handler changed read-only documents, and a drop on a drawn block would merge text into its source.
 - 2026-11-09: Tab outside a list stays in the editor on the owner's answer: Tab inserts a tab (or indents the selection), Shift+Tab outdents, and the indent unit is a tab. Before, Tab outside a list moved focus out of the editor.
+- 2026-11-09: refined: the decorations-scale and reveal scenarios add the content's top padding when they check that a line is in view (`settleOnLine`, owner-approved). Line tops count from below the padding P4-T5 added, so a line in view read 16 px above the top and the scenario never settled. Limit, documents, control and same-work check unchanged.
 
 ## Verification
 
@@ -688,6 +689,8 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-179 (second by-hand check, 2026-11-09): the owner dragged again in the debug app on the external monitor (devicePixelRatio 1), undid with Ctrl+Z, dropped a file from Explorer and dragged again, and tried Tab and Shift+Tab: all worked. The owner noticed a table switching to source after text was dropped on the empty line right below it; a parse check shows the drop filled the blank line that ended the table, so GFM read the text and the next line as table rows (see Phase 5 decisions).
 - ISC-190 (closed 2026-11-09): `tests/editor/paste.test.ts`: `pasteAsLink` returns nothing for a read-only state, and a real paste event on a read-only view leaves its text unchanged; turning lang-markdown's own handler back on fails that test.
 - ISC-191 (closed 2026-11-09): `tests/editor/textDrag.test.ts`: a drag released on a drawn table leaves the text unchanged while the same drag onto plain text moves it, and `onDrawnBlock` holds on a table's edges; letting blocks take drops, or not counting their edges, fails a test. Real window: over the table no drop caret showed and a release changed nothing.
+
+- ISC-63 (measured again 2026-11-09, after the owner-approved settle fix): `pnpm perf decorations-scale` on a fresh release build of the Phase 5 tree, external monitor, three runs: worst deviation 0.325, 0.263 and 0.242 against 0.35, the same work at 1 MB and 10 MB every run, control 11.5 times. reveal (ISC-58) on the same build: p95 6.5 ms against 16. Before the fix the scenario stopped in every run since P4-T5.
 
 ## Remaining Work
 

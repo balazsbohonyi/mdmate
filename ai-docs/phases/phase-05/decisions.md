@@ -211,3 +211,9 @@ You asked for Tab outside a list to move the caret within the editor, like other
 - The 20 px top padding P4-T5 put on `.cm-content` (`9bf2af0`, 22:27 on 2026-11-08) moved where `scrollIntoView(y: 'start')` leaves the line. The last passing run was at 21:47 the same evening, and P4-T5 recorded that the perf set was not run after it.
 - Proof: the same build with the padding taken out (temporarily, restored) passes: worst deviation 0.272 against 0.35, same work at 1 MB and 10 MB, control 9.9 times.
 - Not changed: the fix is in the scenario's settle check, which changes how a gate measures, so it waits on your yes.
+
+## ISC-63 fixed in the scenario (2026-11-09, your yes)
+
+`settleOnLine` (`src/perf/support.ts`) now adds `view.documentPadding.top` to the line's top before comparing it with the scroll position: CodeMirror counts line tops from the first line, below the content padding, so a line in view read about 16 px above the top. Nothing else changed: limit 35%, the same documents, the control and the same-work check. Fresh release build, external monitor, three runs: worst deviation **0.325, 0.263, 0.242** (Phase 4: 0.198 to 0.253; Phase 3: 0.15 to 0.28), same work every run, control 11.5 times. The first run is the closest to the limit any passing run has been; I did not look for why. reveal on the same build: p95 6.5 ms (5.4 ms earlier today, 4.9 ms at the end of Phase 4), against 16.
+
+**Drop below a block:** kept as Markdown does, on your answer.
