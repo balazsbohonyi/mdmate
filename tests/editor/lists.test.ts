@@ -1,7 +1,8 @@
+// @vitest-environment jsdom
 /** ISC-54: list markers render styled, and stay in the text. */
 import { ensureSyntaxTree } from '@codemirror/language'
 import { EditorSelection, EditorState, Text, type StateCommand } from '@codemirror/state'
-import { keymap } from '@codemirror/view'
+import { EditorView, keymap } from '@codemirror/view'
 import { describe, expect, it } from 'vitest'
 import { createFollowerState, createState } from '@/editor/create'
 import { continueList, indentListItem, outdentListItem } from '@/editor/lists'
@@ -146,5 +147,47 @@ describe('list editing (ISC-90 to ISC-94)', () => {
       .flat()
       .filter((binding) => binding.key === 'Enter')
     expect(enter[0]?.run).toBe(continueList)
+  })
+})
+
+describe('Tab and Shift+Tab in a view', () => {
+  /** Presses a key in a follower view of `doc` with the caret at `|`, and returns the result. */
+  function press(marked: string, shiftKey = false): { text: string; taken: boolean } {
+    const at = marked.indexOf('|')
+    const parent = document.createElement('div')
+    document.body.append(parent)
+    const view = new EditorView({
+      state: createFollowerState({
+        doc: Text.of(marked.replace('|', '').split('\n')),
+        selection: EditorSelection.single(at),
+      }),
+      parent,
+    })
+    ensureSyntaxTree(view.state, view.state.doc.length, 5000)
+    const event = new KeyboardEvent('keydown', {
+      key: 'Tab',
+      code: 'Tab',
+      keyCode: 9,
+      shiftKey,
+      bubbles: true,
+      cancelable: true,
+    })
+    view.contentDOM.dispatchEvent(event)
+    const head = view.state.selection.main.head
+    const doc = view.state.doc.toString()
+    view.destroy()
+    return { text: doc.slice(0, head) + '|' + doc.slice(head), taken: event.defaultPrevented }
+  }
+
+  it('Tab outside a list inserts a tab at the caret and keeps focus in the editor', () => {
+    expect(press('plain| text')).toEqual({ text: 'plain\t| text', taken: true })
+  })
+
+  it('Shift+Tab outside a list outdents the line and keeps focus in the editor', () => {
+    expect(press('\tindented| line', true)).toEqual({ text: 'indented| line', taken: true })
+  })
+
+  it('Tab on a list item still nests it rather than inserting a tab', () => {
+    expect(press('- a\n- b|')).toEqual({ text: '- a\n  - b|', taken: true })
   })
 })

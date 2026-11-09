@@ -14,6 +14,7 @@ import { keymap } from '@codemirror/view'
  * List editing: Enter continues a list (CodeMirror's `insertNewlineContinueMarkup`, which also
  * turns `- [x]` into a fresh `- [ ]`), Enter on an empty item ends the list or steps out one level,
  * and Tab and Shift+Tab move an item, with everything nested under it, one level in or out.
+ * Outside a list they fall through to the editor's own Tab keys (`create.ts`).
  */
 
 /** A node of the syntax tree, typed without a direct `@lezer/common` dependency (as in scan.ts). */

@@ -116,7 +116,7 @@ Deviations from the plan and choices it left open. Numbers carry the OS they cam
 
 **Choices the plan left open:**
 
-- **Tab and Shift+Tab outside a list keep the browser's meaning** (focus moves). Only list items take them. Changing Tab everywhere (indenting text, or a tab character) was not asked for.
+- **Tab and Shift+Tab outside a list** kept the browser's meaning (focus moves) at first; changed on your answer, see "Tab outside a list stays in the editor" below.
 - **Numbers are not renumbered** after an indent or outdent; `2.` nested under `1.` stays `2.`, which renders as a list starting at 2.
 - **Only the item at the caret** is moved, not every item a selection covers.
 - **Tab-indented lists** are shifted with spaces; a line indented with a tab loses up to the same number of characters on Shift+Tab, which may not line up. Not tried in the real window.
@@ -193,3 +193,7 @@ Fresh release build of `4988cdf`, Windows 11, Ryzen 7 8840HS, WebView2 157, 5 co
 - **ISC-63 is not caused by Phase 5.** Measured: the same failure with the T7 drag wiring taken out (`create.ts`, `textDrag.ts` and the test at `eca8ca0`), and with the Phase 4 code itself (`main` at `99cc99a`, in a temporary worktree, fixtures regenerated, removed afterwards). The difference from the Phase 4 runs is the display scale. Not diagnosed further: `settleOnLine` (the owner-approved settle step) waits for the target line to hold still for three frames and gives up after 5 s, and at 1.25 it never holds still. I did not change the scenario or the limit; that would change how a gate measures.
 - **The ISC-71 bundle check** (`node scripts/check-arch.mjs languages-lazy --dist` on a `vite build --sourcemap`): passes. Entry chunk 549.71 kB (196.26 kB gzip), up from 526.01 kB (188.64 kB gzip) at the end of Phase 4: the Phase 5 code.
 - **The perf scenarios do not build documents the way the app does.** `typing`, `reveal` and `decorations-scale` use `createState`, and `tab-switch` builds `new Document(...)` without the store's options, so none of them includes the broken-link plugin or Ctrl+click (which the store adds through `followLink` and `checkLinks`). The gate numbers above leave out the broken-link walk of visible links on every edit. Not changed, since it changes what a gate measures.
+
+## Tab outside a list stays in the editor (2026-11-09, your answer)
+
+You asked for Tab outside a list to move the caret within the editor, like other Markdown editors, instead of moving focus. Every editor state now has `Tab` bound to CodeMirror's `insertTab` (a tab at the caret, or the selected lines indented) and `Shift+Tab` to `indentLess`, below the list keys, so a list item still nests and outdents as before. The indent unit is now a tab, as in Obsidian's default, so Shift+Tab removes exactly what Tab added (with the default two-space unit it turned a tab into two spaces, which a test caught). A read-only document still lets the key move focus. Tests: three keydown tests on a real follower view in `tests/editor/lists.test.ts`; removing the Tab keys, the tab unit, or putting the list keys below them each fails a test. Not looked at in the real window.

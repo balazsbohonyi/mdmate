@@ -1,5 +1,5 @@
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
-import { syntaxHighlighting } from '@codemirror/language'
+import { defaultKeymap, history, historyKeymap, indentLess, insertTab } from '@codemirror/commands'
+import { indentUnit, syntaxHighlighting } from '@codemirror/language'
 import { EditorState, type EditorSelection, type Extension, type Text } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { tokenHighlight } from './highlight'
@@ -41,12 +41,24 @@ export const editorKeymap = defaultKeymap.filter(
   (binding) => binding.key === undefined || !APP_KEYS.has(binding.key),
 )
 
+/**
+ * Tab and Shift+Tab stay in the editor, as in other Markdown editors: Tab inserts a tab at the caret
+ * (or indents the selected lines) and Shift+Tab outdents. List items get their own Tab first
+ * (`lists.ts`, at a higher precedence). A read-only document lets the key move focus.
+ */
+const tabKeys: Extension = [
+  keymap.of([{ key: 'Tab', run: insertTab, shift: indentLess }]),
+  // One tab is one level, so Shift+Tab takes back exactly what Tab put in.
+  indentUnit.of('\t'),
+]
+
 /** What every document gets, with or without the Markdown parser. */
 const common: Extension = [
   history(),
   keymap.of([...editorKeymap, ...historyKeymap]),
   EditorView.lineWrapping,
   frame,
+  tabKeys,
   textDrag(),
 ]
 const withParser: Extension = [
@@ -94,6 +106,7 @@ const followerBase: Extension = [
   keymap.of(editorKeymap),
   EditorView.lineWrapping,
   frame,
+  tabKeys,
   // Drag-to-move for selected text, on pointer events (P5-T7).
   textDrag(),
 ]
