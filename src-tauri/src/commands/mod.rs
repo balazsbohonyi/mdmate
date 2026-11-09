@@ -8,6 +8,7 @@ pub(crate) mod perf;
 use crate::access::{self, display_path};
 use crate::documents::{self, AppState};
 use crate::error::AppError;
+use crate::links;
 use crate::platform::{self, Platform as _};
 use crate::session::{self, CloseHook, SessionStore};
 use crate::workspace::watch::DiskChange;
@@ -237,4 +238,89 @@ pub(crate) fn watch_close(hook: State<'_, Arc<CloseHook>>, on_close: Channel<()>
 #[tauri::command]
 pub(crate) fn quit_app(app: tauri::AppHandle) {
     app.exit(0);
+}
+
+/// The folder of an open document, from Rust's own record of it. Links resolve against it.
+fn document_folder(state: &AppState, id: u32) -> Result<PathBuf, AppError> {
+    let documents = state.documents();
+    let entry = documents.get(id).ok_or(AppError::NotOpen(id))?;
+    entry
+        .path
+        .parent()
+        .map(std::path::Path::to_path_buf)
+        .ok_or_else(|| AppError::Invalid("the document has no folder".into()))
+}
+
+/// Says where a link written in a document leads, without opening or granting anything.
+#[tauri::command]
+pub(crate) async fn describe_link(
+    state: State<'_, Arc<AppState>>,
+    id: u32,
+    href: String,
+) -> Result<links::LinkInfo, AppError> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let folder = document_folder(&state, id)?;
+        Ok(links::describe(
+            &href,
+            &folder,
+            &links::guard::RealFileSystem,
+        ))
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// For each link target written in a document, whether it points at a file that is not there.
+/// The page asks for the links on screen, in the background, to draw the missing ones as broken.
+/// At most [`links::CHECK_LIMIT`] targets per call.
+#[tauri::command]
+pub(crate) async fn check_links(
+    state: State<'_, Arc<AppState>>,
+    id: u32,
+    hrefs: Vec<String>,
+) -> Result<Vec<bool>, AppError> {
+    if hrefs.len() > links::CHECK_LIMIT {
+        return Err(AppError::Invalid(format!(
+            "at most {} links per check",
+            links::CHECK_LIMIT
+        )));
+    }
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let folder = document_folder(&state, id)?;
+        Ok(links::missing(
+            &hrefs,
+            &folder,
+            &links::guard::RealFileSystem,
+        ))
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Follows a link written in a document. The page sends the document id and the target as
+/// written, never a path or a URL of its own; the guard decides everything else. A Markdown
+/// target becomes readable here, and only that one file.
+#[tauri::command]
+pub(crate) async fn follow_link(
+    state: State<'_, Arc<AppState>>,
+    id: u32,
+    href: String,
+    confirmed: bool,
+) -> Result<links::Followed, AppError> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let folder = document_folder(&state, id)?;
+        links::follow(
+            &href,
+            &folder,
+            confirmed,
+            &links::guard::RealFileSystem,
+            &links::PlatformOpener,
+            |path| Ok(display_path(&state.access().grant_file(path)?.path)),
+        )
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
 }

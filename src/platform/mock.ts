@@ -1,5 +1,6 @@
 import type { Endings } from '@/lib/endings'
 import type { DiskChange, Host, OpenedFile, ReadOnlyReason, WindowControls } from './host'
+import type { LinkInfo } from './links'
 import { joinRaw, MockFiles, mockHash, pathKey, splitRaw } from './mockFiles'
 
 /**
@@ -65,6 +66,47 @@ export interface MockHost extends Host {
   requestClose(): boolean
   /** How many times the page ended the app. */
   quits: number
+  /** Every target `followLink` handed to the "OS", in order. */
+  readonly opened: string[]
+  /** How many times the page asked which links are missing. */
+  checks: number
+}
+
+/**
+ * A stand-in for Rust's link guard, so links can be followed under `pnpm dev` and in tests. It is
+ * deliberately small: web and mail links, anchors, and relative paths to the mock's own files.
+ * It is not the guard and is never shipped; the rules that keep a hostile link harmless live in
+ * `src-tauri/src/links/guard.rs`.
+ */
+function mockDescribeLink(files: MockFiles, docPath: string, href: string): LinkInfo {
+  const target = href.trim()
+  if (target.startsWith('#')) return { kind: 'anchor', fragment: safeDecode(target.slice(1)) }
+  if (/^(https?:\/\/[^/@\\]|mailto:[^/\\])/i.test(target)) return { kind: 'web', url: target }
+  if (/^[a-z][a-z0-9+.-]*:/i.test(target)) return { kind: 'refused', reason: 'scheme' }
+  if (/^[/\\]/.test(target)) return { kind: 'refused', reason: 'absolute' }
+  const hash = target.indexOf('#')
+  const rawPath = hash === -1 ? target : target.slice(0, hash)
+  const fragment = hash === -1 ? null : safeDecode(target.slice(hash + 1))
+  if (rawPath === '') return { kind: 'anchor', fragment: fragment ?? '' }
+  const parts = docPath.split('/').slice(0, -1)
+  for (const part of safeDecode(rawPath).split(/[/\\]/)) {
+    if (part === '..') parts.pop()
+    else if (part !== '' && part !== '.') parts.push(part)
+  }
+  const path = parts.join('/')
+  const canonical = files.canonicalPath(path)
+  if (canonical === undefined) return { kind: 'missing', path }
+  if (/\.(md|markdown)$/i.test(canonical)) return { kind: 'markdown', path: canonical, fragment }
+  if (/\.(png|jpe?g|gif|webp)$/i.test(canonical)) return { kind: 'image', path: canonical }
+  return { kind: 'file', path: canonical }
+}
+
+function safeDecode(text: string): string {
+  try {
+    return decodeURIComponent(text)
+  } catch {
+    return text
+  }
 }
 
 export interface MockHostOptions {
@@ -142,6 +184,56 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     session: null,
     recovered: [],
     quits: 0,
+    opened: [],
+    checks: 0,
+    describeLink(id, href) {
+      const doc = open.get(id)
+      if (doc === undefined) return Promise.reject(hostError('not-open', `no open document ${id}`))
+      return Promise.resolve(mockDescribeLink(files, doc.path, href))
+    },
+    checkLinks(id, hrefs) {
+      const doc = open.get(id)
+      if (doc === undefined) return Promise.reject(hostError('not-open', `no open document ${id}`))
+      host.checks++
+      return Promise.resolve(
+        hrefs.map((href) => mockDescribeLink(files, doc.path, href).kind === 'missing'),
+      )
+    },
+    followLink(id, href, confirmed) {
+      const doc = open.get(id)
+      if (doc === undefined) return Promise.reject(hostError('not-open', `no open document ${id}`))
+      const info = mockDescribeLink(files, doc.path, href)
+      switch (info.kind) {
+        case 'anchor':
+          return Promise.resolve({ kind: 'anchor', fragment: info.fragment })
+        case 'markdown':
+          return Promise.resolve({ kind: 'document', path: info.path, fragment: info.fragment })
+        case 'web':
+          host.opened.push(info.url)
+          return Promise.resolve({ kind: 'opened' })
+        case 'image':
+          host.opened.push(info.path)
+          return Promise.resolve({ kind: 'opened' })
+        case 'file':
+          if (!confirmed) {
+            return Promise.reject(
+              hostError('needs-confirmation', `opening ${info.path} needs a confirmation first`),
+            )
+          }
+          host.opened.push(info.path)
+          return Promise.resolve({ kind: 'opened' })
+        case 'missing':
+          return Promise.reject(hostError('not-found', `${info.path} does not exist`))
+        case 'refused':
+          return Promise.reject(
+            hostError('link-refused', `this link may not be followed: ${info.reason}`),
+          )
+        default: {
+          const unreachable: never = info
+          return unreachable
+        }
+      }
+    },
     requestClose() {
       closeListener?.()
       return closeListener !== undefined

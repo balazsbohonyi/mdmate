@@ -66,7 +66,10 @@ export async function settleOnLine(view: EditorView, pos: number): Promise<void>
   let last = Number.NaN
   while (still < 3) {
     await framePresented()
-    const offset = view.lineBlockAt(pos).top - view.scrollDOM.scrollTop
+    // Line tops count from the first line, below the content's top padding (20 px since P4-T5),
+    // so the padding is added back to get where the line sits in the scroller (owner-approved
+    // 2026-11-09; without it a line in view read about 16 px above the top).
+    const offset = view.lineBlockAt(pos).top + view.documentPadding.top - view.scrollDOM.scrollTop
     // A line scrolled to the top can sit a pixel above it.
     const inView = offset >= -4 && offset <= view.scrollDOM.clientHeight
     still = inView && Math.abs(offset - last) <= 1 ? still + 1 : 0

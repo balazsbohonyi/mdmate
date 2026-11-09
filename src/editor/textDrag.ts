@@ -2,6 +2,12 @@ import { EditorSelection, StateEffect, StateField } from '@codemirror/state'
 import type { EditorState, Extension, TransactionSpec } from '@codemirror/state'
 import { EditorView, RectangleMarker, ViewPlugin, layer } from '@codemirror/view'
 import type { LayerMarker } from '@codemirror/view'
+import { blocksOf } from './livePreview/blocks'
+
+/** True when `pos` is on or inside a block widget that is drawn now. */
+export function onDrawnBlock(state: EditorState, pos: number): boolean {
+  return blocksOf(state).some((block) => pos >= block.from && pos <= block.to)
+}
 
 /**
  * Drag-to-move for selected text, built on pointer events.
@@ -13,7 +19,9 @@ import type { LayerMarker } from '@codemirror/view'
  * dropping inside the selection all cancel or do nothing. A press that never moves is a plain
  * click, so it collapses the selection to a caret as usual.
  *
- * This is the P5-T7 spike: the app does not use it yet.
+ * Every editor state has it (`create.ts`, P5-T7). A drawn block widget (a table, a block image,
+ * the frontmatter pill) is never a drop target: text dropped on its edge would join the first or
+ * last line of its source, so the caret is not shown there and a release there does nothing.
  */
 
 /** How far the pointer must travel before a press becomes a drag. */
@@ -206,7 +214,7 @@ class TextDrag {
     if (inside) {
       const pos = view.posAtCoords({ x: this.x, y: this.y }, false)
       const { from, to } = view.state.selection.main
-      target = pos >= from && pos <= to ? null : pos
+      target = (pos >= from && pos <= to) || onDrawnBlock(view.state, pos) ? null : pos
     }
     this.target = target
     if (view.state.field(dropCaret) !== target) view.dispatch({ effects: setDropCaret.of(target) })

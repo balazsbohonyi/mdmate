@@ -87,6 +87,15 @@ describe('the default commands', () => {
       [COMMAND_IDS.closeTab]: 'Ctrl+W',
       [COMMAND_IDS.toggleSidebar]: 'Ctrl+Shift+B',
       [COMMAND_IDS.toggleRawSource]: 'Ctrl+E',
+      [COMMAND_IDS.back]: 'Alt+ArrowLeft',
+      [COMMAND_IDS.forward]: 'Alt+ArrowRight',
+      [COMMAND_IDS.bold]: 'Ctrl+B',
+      [COMMAND_IDS.italic]: 'Ctrl+I',
+      [COMMAND_IDS.link]: 'Ctrl+K',
+      [COMMAND_IDS.inlineCode]: 'Ctrl+`',
+      [COMMAND_IDS.strikethrough]: 'Alt+Shift+5',
+      [COMMAND_IDS.headingUp]: 'Ctrl+Shift+ArrowUp',
+      [COMMAND_IDS.headingDown]: 'Ctrl+Shift+ArrowDown',
       [COMMAND_IDS.exit]: undefined,
     })
   })
@@ -94,10 +103,10 @@ describe('the default commands', () => {
   it('can be registered a second time before the first is removed, as hot reload does', () => {
     const removeOld = removeCommands
     removeCommands = registerDefaultCommands()
-    expect(listCommands()).toHaveLength(8)
+    expect(listCommands()).toHaveLength(17)
     // The old shell unmounts after the new one has mounted, and removes what it registered.
     removeOld()
-    expect(listCommands()).toHaveLength(8)
+    expect(listCommands()).toHaveLength(17)
     expect(shortcutLabel(COMMAND_IDS.toggleSidebar, 'other')).toBe('Ctrl+Shift+B')
   })
 
@@ -105,7 +114,7 @@ describe('the default commands', () => {
     removeCommands()
     expect(listCommands()).toEqual([])
     removeCommands = registerDefaultCommands()
-    expect(listCommands()).toHaveLength(8)
+    expect(listCommands()).toHaveLength(17)
   })
 })
 
@@ -239,7 +248,8 @@ describe('keys that are not shortcuts', () => {
       { key: '@', code: 'Digit2', shiftKey: true },
       { key: 'w', code: 'KeyW' },
       { key: '@', code: 'Digit2', ctrlKey: true, altKey: true, shiftKey: true },
-      { key: 'b', code: 'KeyB', ctrlKey: true },
+      // Ctrl+B was here until P5-T4 made it bold; Ctrl+J is still free.
+      { key: 'j', code: 'KeyJ', ctrlKey: true },
     ]
     for (const props of ignored) {
       const event = keydown(props)

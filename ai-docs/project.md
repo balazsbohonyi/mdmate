@@ -62,6 +62,8 @@ The first user is the author, who wants a daily Markdown tool. Beyond that, mdma
 
 **US-019: Open safely.** As a user, I want hostile documents to be harmless, so I can open anything. Acceptance: ISC-15 to ISC-20, ISC-112, ISC-173.
 
+**US-021: Start, keep and manage files.** As a writer, I want to create, save as, reopen, drop and organize files without leaving the app, so mdmate can be my only Markdown tool. Acceptance: ISC-192 to ISC-218.
+
 **US-020: Install it.** As a stranger, I want an installer or a portable zip and a double-click that works, so I can start in a minute. Acceptance: ISC-161 to ISC-170.
 
 ## Non-goals

@@ -1,6 +1,8 @@
 import { createApp } from 'vue'
 import App from './App.vue'
 import './styles/tokens.css'
+// Registers the Ctrl+click handler for links with the document store.
+import './documents/links'
 
 createApp(App).mount('#app')
 performance.mark('app-mounted')

@@ -3,6 +3,7 @@ import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { decodeFrame, encodeFrame, openedFromFrame } from './frame'
 import type { DiskChange, Host, PerfConfig, PerfHost, SavedFile } from './host'
+import { parseFollowedLink, parseLinkInfo } from './links'
 
 /** The Rust commands behind this exist only in `--features perf` builds. */
 const perfBridge: PerfHost = {
@@ -79,6 +80,18 @@ export const tauriHost: Host = {
   },
   assetUrl(path) {
     return convertFileSrc(path)
+  },
+  async describeLink(id, href) {
+    return parseLinkInfo(await invoke<unknown>('describe_link', { id, href }))
+  },
+  async followLink(id, href, confirmed) {
+    return parseFollowedLink(await invoke<unknown>('follow_link', { id, href, confirmed }))
+  },
+  async checkLinks(id, hrefs) {
+    const answer = await invoke<unknown>('check_links', { id, hrefs })
+    if (!Array.isArray(answer) || answer.length !== hrefs.length)
+      throw new Error('bad check_links reply')
+    return answer.map((missing) => missing === true)
   },
   async readFile(path) {
     return invoke<ArrayBuffer>('read_file', { path })

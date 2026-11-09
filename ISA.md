@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 85/191
+progress: 116/220
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-08T20:13:12Z
+updated: 2026-11-09T19:51:17Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -180,6 +180,8 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-177 | bash | drag a selection to another position in a test view | text moved, selection follows | pnpm test:web tests/editor/textDrag.test.ts | derived: quick-editing | | |
 | ISC-178 | bash | drag a selection, then undo once | original text restored | pnpm test:web tests/editor/textDrag.test.ts | derived: quick-editing | | |
 | ISC-179 | manual | drag selected text in the real app with native drops on | text moves | Review by the owner | derived: quick-editing | | |
+| ISC-190 | bash | paste an address over a selection in a read-only document, through the handler and a real paste event | text unchanged | pnpm test:web tests/editor/paste.test.ts | derived: byte-exact | | |
+| ISC-191 | bash | drag a selection and release it on a drawn table | text unchanged, no drop caret | pnpm test:web tests/editor/textDrag.test.ts | derived: byte-exact | | |
 | ISC-97 | bash | workspace test with two roots | both listed | pnpm test:rust multiple_roots | derived: sublime-feel | | |
 | ISC-98 | bash | store test with no roots | tab opens | pnpm test:web tests/documents/open.test.ts | derived: sublime-feel | | |
 | ISC-99 | bash | render 10000 entries | under 200 rows | pnpm test:web tests/features/tree.test.ts | derived: fast | | |
@@ -260,6 +262,33 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-174 | bash | open the same path twice | one tab, focused | pnpm test:web tests/documents/open.test.ts | derived: sublime-feel | | |
 | ISC-175 | bash | rename with a clean tab open | tab shows new link | pnpm test:web tests/documents/rewrite.test.ts | derived: link-rewrite | | |
 | ISC-176 | screenshot | drag a tab along its strip | order changes | Interceptor on pnpm dev | derived: sublime-feel | | |
+| ISC-192 | bash | grant a root from the folder dialog, list the tree | root listed | pnpm test:rust open_folder | derived: file-management |  |  |
+| ISC-193 | bash | remove a root, read a file inside it | not-allowed | pnpm test:rust remove_root | derived: safe-with-untrusted-files |  |  |
+| ISC-194 | bash | serialize and restore a session with two roots | both roots back | pnpm test:web tests/documents/session.test.ts | derived: reliable |  |  |
+| ISC-195 | manual | drop a folder from Explorer on a pane | root added | Real app run | derived: file-management |  |  |
+| ISC-196 | bash | filesystem command test | folder exists | pnpm test:rust create_folder | derived: file-management |  |  |
+| ISC-197 | bash | copy dropped files into a folder | copies exist, sources unchanged | pnpm test:rust copy_into_folder | derived: file-management |  |  |
+| ISC-198 | bash | copy a dropped folder tree | every file copied | pnpm test:rust copy_folder_whole | derived: file-management |  |  |
+| ISC-199 | bash | copy onto existing names with each answer | replaced, renamed (2), skipped | pnpm test:web tests/features/copyDrop.test.ts | derived: file-management |  |  |
+| ISC-200 | manual | drop two files on the right pane | tabs open there | Real app run | derived: file-management |  |  |
+| ISC-201 | manual | drop a PNG on the tab strip | image tab opens | Real app run | derived: file-management |  |  |
+| ISC-202 | bash | ask to open and copy paths that no drop event recorded | all refused | pnpm test:rust drop_paths_only | derived: safe-with-untrusted-files | critical |  |
+| ISC-203 | bash | run the new-file command | untitled tab active | pnpm test:web tests/documents/untitled.test.ts | derived: file-management |  |  |
+| ISC-204 | bash | save an untitled buffer through the save-path command | bytes UTF-8, LF, no BOM | pnpm test:rust save_new_file | derived: byte-exact |  |  |
+| ISC-205 | bash | name suggestion test | heading slug .md, else Untitled.md | pnpm test:web tests/documents/untitled.test.ts | derived: file-management |  |  |
+| ISC-206 | bash | serialize and restore a session with an untitled buffer | text back in an untitled tab | pnpm test:web tests/documents/session.test.ts | derived: reliable |  |  |
+| ISC-207 | bash | Save As test with the mock host | tab path is the new file | pnpm test:web tests/documents/saveAs.test.ts | derived: file-management |  |  |
+| ISC-208 | bash | hash the original before and after Save As | identical | pnpm test:rust save_as_original | derived: byte-exact |  |  |
+| ISC-209 | bash | Save As on the Latin-1 fixture | UTF-8 file, tab editable | pnpm test:rust save_as_read_only | derived: file-management |  |  |
+| ISC-210 | bash | revert test, cancel and confirm | text equals disk only on confirm | pnpm test:web tests/documents/revert.test.ts | derived: reliable |  |  |
+| ISC-211 | bash | close all with two dirty documents | two asks, no tabs left | pnpm test:web tests/documents/closeAll.test.ts | derived: sublime-feel |  |  |
+| ISC-212 | bash | record opens past the limits, reload the list | newest 10 and 5 kept | pnpm test:rust recent_list | derived: sublime-feel |  |  |
+| ISC-213 | bash | tab menu command test | one tab left | pnpm test:web tests/workbench/tabMenu.test.ts | derived: sublime-feel |  |  |
+| ISC-214 | bash | tab menu command test with a mock clipboard | absolute path | pnpm test:web tests/workbench/tabMenu.test.ts | derived: sublime-feel |  |  |
+| ISC-215 | bash | tab menu command test with a mock clipboard | root-relative with / | pnpm test:web tests/workbench/tabMenu.test.ts | derived: sublime-feel |  |  |
+| ISC-216 | screenshot | reveal a file deep in a root | row selected and in view | Interceptor on pnpm dev | derived: file-management |  |  |
+| ISC-217 | bash | rename command test with links present | links rewritten, tab follows | pnpm test:web tests/features/rename.test.ts | derived: link-rewrite |  |  |
+| ISC-218 | bash | references over the scanner fixture workspace | every linking file and line | pnpm test:web tests/features/references.test.ts | derived: link-navigation |  |  |
 
 ## Features
 
@@ -281,9 +310,9 @@ Why: these promises hold everywhere, and any single feature could quietly break 
 - [x] ISC-13: `src/editor/` imports nothing from Vue.
 - [x] ISC-14: No hard-coded colors exist outside token files.
 - [ ] ISC-15: Anti: `innerHTML` and `v-html` never receive document content.
-- [ ] ISC-16: The opener refuses every scheme except `http`, `https` and `mailto`.
-- [ ] ISC-17: Anti: UNC and `file://host/` targets never reach the filesystem.
-- [ ] ISC-18: Default-app opens ask first unless the file is Markdown or an image.
+- [x] ISC-16: The opener refuses every scheme except `http`, `https` and `mailto`.
+- [x] ISC-17: Anti: UNC and `file://host/` targets never reach the filesystem.
+- [x] ISC-18: Default-app opens ask first unless the file is Markdown or an image.
 - [ ] ISC-19: Anti: the hostile fixture causes no code run, launch or SMB attempt.
 - [ ] ISC-20: Anti: the app makes no network request except document images.
 - [x] ISC-21: Anti: `tauri-plugin-fs` is absent from the dependencies.
@@ -377,36 +406,38 @@ Why: documents mix prose with tables, images and code, and a page full of raw sy
 ### F5 · Link navigation
 Why: documentation is a web of files, so following a link has to cost one gesture and be undoable.
 
-- [ ] ISC-74: Ctrl+click on a relative `.md` link opens it in a new tab.
-- [ ] ISC-75: Ctrl+click on a `#heading` link jumps to that heading.
-- [ ] ISC-76: Ctrl+click on `file.md#heading` opens the file at that heading.
-- [ ] ISC-77: Ctrl+click on a web link opens the default browser.
-- [ ] ISC-78: A confirmed link to another file opens its default app.
-- [ ] ISC-79: Links with missing targets show a broken style.
-- [ ] ISC-80: Alt+Left returns to the previous location.
-- [ ] ISC-81: Alt+Right moves forward again.
-- [ ] ISC-82: Anti: a plain click on a link never navigates.
+- [x] ISC-74: Ctrl+click on a relative `.md` link opens it in a new tab.
+- [x] ISC-75: Ctrl+click on a `#heading` link jumps to that heading.
+- [x] ISC-76: Ctrl+click on `file.md#heading` opens the file at that heading.
+- [x] ISC-77: Ctrl+click on a web link opens the default browser.
+- [x] ISC-78: A confirmed link to another file opens its default app.
+- [x] ISC-79: Links with missing targets show a broken style.
+- [x] ISC-80: Alt+Left returns to the previous location.
+- [x] ISC-81: Alt+Right moves forward again.
+- [x] ISC-82: Anti: a plain click on a link never navigates.
 
 ### F6 · Quick editing
 Why: formatting should stay in your fingers, so writing never stops for syntax.
 
-- [ ] ISC-83: The bold shortcut toggles bold.
-- [ ] ISC-84: The italic shortcut toggles italic.
-- [ ] ISC-85: The link shortcut inserts a link.
-- [ ] ISC-86: The inline code shortcut toggles inline code.
-- [ ] ISC-87: The strikethrough shortcut toggles strikethrough.
-- [ ] ISC-88: A shortcut raises the heading level.
-- [ ] ISC-89: A shortcut lowers the heading level.
-- [ ] ISC-90: Enter continues a list.
-- [ ] ISC-91: Enter continues a checkbox list with an unchecked box.
-- [ ] ISC-92: Enter on an empty item ends the list.
-- [ ] ISC-93: Tab indents a list item.
-- [ ] ISC-94: Shift+Tab outdents a list item.
-- [ ] ISC-95: Pasting a URL over selected text creates a link.
-- [ ] ISC-96: Anti: the editor never holds more than one selection range.
-- [ ] ISC-177: Dragging selected text to another position in the editor moves it.
-- [ ] ISC-178: A text drag undoes in one step.
-- [ ] ISC-179: Text drag works in the real app while the window accepts native file drops.
+- [x] ISC-83: The bold shortcut toggles bold.
+- [x] ISC-84: The italic shortcut toggles italic.
+- [x] ISC-85: The link shortcut inserts a link.
+- [x] ISC-86: The inline code shortcut toggles inline code.
+- [x] ISC-87: The strikethrough shortcut toggles strikethrough.
+- [x] ISC-88: A shortcut raises the heading level.
+- [x] ISC-89: A shortcut lowers the heading level.
+- [x] ISC-90: Enter continues a list.
+- [x] ISC-91: Enter continues a checkbox list with an unchecked box.
+- [x] ISC-92: Enter on an empty item ends the list.
+- [x] ISC-93: Tab indents a list item.
+- [x] ISC-94: Shift+Tab outdents a list item.
+- [x] ISC-95: Pasting a URL over selected text creates a link.
+- [x] ISC-96: Anti: the editor never holds more than one selection range.
+- [x] ISC-177: Dragging selected text to another position in the editor moves it.
+- [x] ISC-178: A text drag undoes in one step.
+- [x] ISC-179: Text drag works in the real app while the window accepts native file drops.
+- [x] ISC-190: Anti: a paste never changes a read-only document.
+- [x] ISC-191: A drawn block is never a drop target.
 
 ### F7 · Workspace
 Why: Markdown lives among other files, so the sidebar must manage them and renames must never strand a link.
@@ -503,6 +534,37 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - [x] ISC-169: The repo carries an MIT `LICENSE`.
 - [ ] ISC-170: The README lets a stranger install and use mdmate.
 
+### F12 · File lifecycle
+Why: an everyday editor starts, keeps and manages files without sending you to Explorer, and files arrive by drag as often as by dialog.
+
+- [ ] ISC-192: Open Folder adds the chosen folder as a workspace root.
+- [ ] ISC-193: Removing a root takes it out of the tree and revokes its access.
+- [ ] ISC-194: Workspace roots are restored on restart.
+- [ ] ISC-195: A folder dropped from Explorer outside the tree becomes a workspace root.
+- [ ] ISC-196: The tree creates a new folder.
+- [ ] ISC-197: Files dropped from Explorer on a tree folder are copied into it.
+- [ ] ISC-198: A folder dropped from Explorer on a tree folder is copied whole.
+- [ ] ISC-199: A name clash on a copy offers Replace, Keep both and Skip.
+- [ ] ISC-200: Markdown and text files dropped from Explorer open in tabs in the pane they land on.
+- [ ] ISC-201: An image dropped from Explorer outside a document's text opens in an image tab.
+- [ ] ISC-202: Anti: a path that no native drop delivered is never opened or copied.
+- [ ] ISC-203: Ctrl+N opens an untitled tab.
+- [ ] ISC-204: The first save of an untitled tab writes UTF-8 with LF to the path chosen in the save dialog.
+- [ ] ISC-205: The save dialog suggests a file name from the first heading.
+- [ ] ISC-206: Unsaved untitled tabs survive a restart.
+- [ ] ISC-207: Save As writes to the chosen path and the tab follows the new file.
+- [ ] ISC-208: Anti: Save As never changes the original file.
+- [ ] ISC-209: Save As on a read-only document writes UTF-8 and the tab becomes editable.
+- [ ] ISC-210: Revert File discards unsaved edits and reloads the file after a confirm.
+- [ ] ISC-211: Close All closes every tab, asking once for each dirty document.
+- [ ] ISC-212: Open Recent lists the last 10 files and 5 folders across restarts.
+- [ ] ISC-213: Close Others closes every other tab in the pane.
+- [ ] ISC-214: Copy Path copies the file's absolute path.
+- [ ] ISC-215: Copy Relative Path copies the path from its root, or the absolute path outside every root.
+- [ ] ISC-216: Reveal in Sidebar selects the file in the tree.
+- [ ] ISC-217: F2 renames the active file through the link-rewrite flow.
+- [ ] ISC-218: Find File References lists every file that links to the active file.
+
 ## Decisions
 
 - 2026-11-07: Chose CodeMirror 6 over ProseMirror-family editors, Lexical and Monaco. Text stays the document, which gives byte-exact saves by construction, and Obsidian's editor runs on it. No head-to-head benchmark exists, so P0 measures it.
@@ -552,7 +614,14 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - 2026-11-07: Decided what counts as an outside change by content, not by event: Rust keeps the hash each document last read or wrote and reports only a different one. Why: one save raises several events, notify can lose some, and the app's own write must be recognised; one comparison handles all three. A save records its hash before it writes, because the watcher thread can see the new file before the save returns.
 - 2026-11-07: Made opening a file that is already open leave Rust's record alone, and the page treats a different hash as an outside change. Why: refreshing the record made the host believe the page was current while it still held the old text, which would let a save overwrite a change the page never saw.
 - 2026-11-07: Hot exit writes `session.json` (layout, tabs, carets, unsaved buffers) one journal interval after a change and once on close; the interval is 1000 ms. Why: a write costs the page about one late frame at 1 MB (5 ms to build, 26 ms to confirm) and two at 4 MB, so 1000 ms means about 1 late frame in 60 while typing (worked out, not measured with the journal live) and at most a second of typing lost to a force-kill. Measured in P2-T6 (`pnpm perf journal-cost`); easy to change in `JOURNAL_INTERVAL_MS` if the owner wants fewer writes or less to lose.
+- 2026-11-08: Link targets that run code are refused outright, on the owner's call (P5-T1): programs, scripts, shortcuts, installers and mountable images (`.exe`, `.bat`, `.ps1`, `.hta`, `.lnk`, `.url`, `.msi`, `.iso` and the rest of the list in `src-tauri/src/links/guard.rs`), judged on the resolved name. Why: under "ask first" a single yes would run code from a document. ISC-18 still holds, since such a file never opens at all.
+- 2026-11-08: `file:` URLs are refused like any other scheme, host-less `file:///C:/...` included, on the owner's call (P5-T1). Links are relative paths, anchors, or `http`, `https` and `mailto`.
+- 2026-11-08: Following a Markdown link lets the page open that one file, `..` included, on the owner's call (P5-T1, used by P5-T2). Rust resolves the target against its own record of the linking document; the page sends the document id and the target as written and still has no command that names a path to grant.
 - 2026-11-07: Applied the P0 cutoff: files above 3 MiB open as plain source with a notice, decided once when the document opens by the size on disk. Why: the parser is what makes typing slow at size (P0-T9), and the same rule covers restored sessions. Known limit: a file that grows past the cutoff while open keeps the parser until reopened.
+- 2026-11-09: refined: added ISC-190 and ISC-191 on the owner's call (wording agreed), since P5-T6 and P5-T7 built behavior no claim covered: lang-markdown's own paste handler changed read-only documents, and a drop on a drawn block would merge text into its source.
+- 2026-11-09: Tab outside a list stays in the editor on the owner's answer: Tab inserts a tab (or indents the selection), Shift+Tab outdents, and the indent unit is a tab. Before, Tab outside a list moved focus out of the editor.
+- 2026-11-09: refined: the decorations-scale and reveal scenarios add the content's top padding when they check that a line is in view (`settleOnLine`, owner-approved). Line tops count from below the padding P4-T5 added, so a line in view read 16 px above the top and the scenario never settled. Limit, documents, control and same-work check unchanged.
+- 2026-11-09: refined: added ISC-192 to ISC-218 (F12 · File lifecycle) on the owner's call after a grilling session: Open and Remove Folder, drop from Explorer (open, copy into a tree folder, folder as root), New Folder, untitled files, Save As, Revert, Close All, Open Recent, a tab context menu and Find File References. Building Phase 5 showed no phase opened a dropped file, created a file outside a folder, or added a root at all. Planned in Phase 6 (P6-T1, T2, T3 extended; P6-T8, T9 added).
 
 ## Verification
 
@@ -648,6 +717,39 @@ Why: it only becomes your everyday Markdown app once it opens from a double-clic
 - ISC-187 (closed 2026-11-08): a caret at the first character, inside, or at the end of the block shows both fences and drops the label; a selection that only touches the block does the same. Unit tests, and the real window (fences muted, no label, same box).
 - ISC-188 (closed 2026-11-08): in the debug app the height of every line of the fixture, and the whole content height (771.9 px), were identical with the caret outside and inside the first block; no difference on any line. The fence lines are lines in both states.
 - ISC-189 (closed 2026-11-08): `boxLines` takes a `kind`; tests call it with `mermaid` and get the same container classes, the label on the first line only, and lines for the visible range only (a 5,000-line block gives 51 lines for a 51-line view). A whole-element variant (`cm-md-box-whole`) is written in CSS but has never been drawn by a widget. I broke the code seven ways on purpose (last line as mid, fences hidden while shown, no visible-range limit, closing fence taken as the last mark, nested fences allowed, label on every line, one shared line decoration for different labels) and each failed a test.
+
+- ISC-16 (closed 2026-11-08, P5-T1): `pnpm test:rust opener_schemes` (3 tests). A seeded property run of 20,000 hrefs (34 schemes in mixed case, noise inside and around them, 8 separators, 10 tails) through the guard, the follow logic and a recording opener: everything that reached it starts with `http://`, `https://` or `mailto:`, is plain ASCII and holds no backslash (and at least 100 runs did reach it, so the check can fail). Every scheme in `hostile.md` plus `ms-settings`, `shell`, `ms-excel`, `mk:`, `res:` and others never reach it, confirmed or not. Breaking the scheme match (any scheme taken as web) fails 3 tests. Real app (debug build, DevTools port, `hostile.md` opened from a temp folder): `describe_link` and a confirmed `follow_link` refused all 25 hostile targets, with no new process from mdmate, no TCP to port 445 or 139 and no DNS lookup of `*.invalid` while it ran (`src-tauri/src/links/`).
+- ISC-17 (closed 2026-11-08, P5-T1): `pnpm test:rust unc_refused` (5 tests): the plan's table (`\\host\share`, `//host/share`, `\\?\UNC\host\share`, `%5C%5Chost`), every UNC form in `hostile.md` and 40 neighbours (`\/host`, `/\host`, `\\.\UNC\`, `%2F%2F`, lower-case escapes, `file://host/`, `file:////host/`, drive letters, streams) are refused with zero calls to a counting file system; 5000 seeded random two-separator spellings likewise; a link that resolves through a junction to a share, and a document whose own folder is a share, are refused. Reading the undecoded path, or removing the rooted check, fails 4 tests each; skipping the share check of the folder or of the resolved path fails 1 each.
+- ISC-18 (closed 2026-11-08, P5-T1): `pnpm test:rust default_app_policy` (3 tests): `.md` and `.markdown` are granted and never handed to the opener; `.png`, `.jpg`, `.gif`, `.webp` open with no question; `.pdf`, `.txt`, `.docx`, `.svg`, `.html`, `.zip` and a name with no extension reject with `needs-confirmation` and open only when confirmed; 17 executable types and the four `hostile.md` executable links are refused even when confirmed, with no file system call; a link written as `doc.pdf` that resolves to `calc.exe` is refused. Ignoring the confirmation, the trailing-dot rule or the executable list fails a test each.
+- ISC-74 (closed 2026-11-08, P5-T2): `pnpm test:web tests/links/navigate.test.ts`: following `b.md` from `a.md` through the store and the mock host opens `b.md` in a second tab and makes it active, and a Ctrl+click in a real jsdom view of a tab reaches the store and opens it. Real window (debug app, trusted Ctrl+click over the DevTools port): `[other](sub/other.md)` opened `other.md` in a new tab beside `a.md` (`src/editor/links.ts`, `src/documents/links.ts`).
+- ISC-75 (closed 2026-11-08, P5-T2): the same file: `#lower-down` puts the caret at the start of `## Lower down` in the same tab; GitHub slug tests (punctuation, `_`, accents, CJK, emoji, duplicates `-1` and `-2`, markup and images left out, fences and frontmatter skipped). Real window: a trusted Ctrl+click on `[down here](#lower-down)` put the caret on line 7, `## Lower down` (`src/editor/headingSlug.ts`).
+- ISC-76 (closed 2026-11-08, P5-T2): the same file: `b.md#second-part` opens `b.md` with the caret at `## Second part`, and a jump into a tab not yet on screen scrolls when it is shown. Real window: a trusted Ctrl+click on `[second part](sub/other.md#second-part)` focused the `other.md` tab with the caret on line 5, `## Second part` (screenshot).
+- ISC-77 (closed 2026-11-08, P5-T2, by me in the real app): a trusted Ctrl+click on `[the web](https://example.com/)` in the debug app opened the default browser on "Example Domain - Google Chrome", with no change to the tabs and no problem shown.
+- ISC-78 (closed 2026-11-08, P5-T2, by me in the real app): a trusted Ctrl+click on `[the spec](spec.pdf)` showed the banner "Open ...\spec.pdf in its default app?" and started nothing; pressing Open (trusted click) started Acrobat with "spec.pdf - Adobe Acrobat Reader". Unit tests: Cancel opens nothing, Open opens exactly that file.
+- ISC-82 (closed 2026-11-08, P5-T2): `tests/links/navigate.test.ts`: a plain press, Shift, Alt, Ctrl+Alt and a Ctrl middle-button press on a link never call the follow handler, and a plain press in a real view of a tab opens no tab. Real window: a trusted plain click on the link text put the caret inside it (line 3, offset 16) and left one tab. Breaking the gesture check (or dropping the Ctrl requirement) fails 2 and 3 tests.
+
+- ISC-79 (closed 2026-11-08, P5-T3): `pnpm test:web tests/links/brokenLinks.test.ts` (11 tests): in a jsdom view only the link whose file is missing gets `cm-md-link-broken` after the background check, a link typed later is checked, a target that appears clears the style once its answer goes stale, web links and anchors are never asked about, and a long list is split into requests Rust accepts; `pnpm test:rust missing_marks_only` pins the Rust side (`check_links`). Interceptor on `pnpm dev` (mock host, test profile): `[broken link](missing.md)` drawn with the wavy underline, the working and web links not. Real window (debug app): `one is gone` drawn red with a wavy underline (`oklch(0.72 0.16 25)`, the dark theme's `--destructive`), and `later.md` cleared by itself about 6 s after the file was created. Breaking the stale check, the redraw on an answer, the recheck after an edit, the periodic recheck or the local-target filter fails a test each.
+- ISC-80 (closed 2026-11-08, P5-T3): `pnpm test:web tests/links/history.test.ts` (10 tests): after following `b.md` from `a.md`, going back focuses `a.md` with the caret where it was; anchor jumps in one document go back too; a closed tab's file is reopened; an Alt+Left keydown on the window and one pressed inside a real view of a tab both reach the history. Real window (trusted keys over the DevTools port): Ctrl+click from `broken.md` to `a.md`, then Alt+Left, put the caret back in `broken.md` on line 7 where it had been. Recording no jump, stepping the wrong way, not reopening a closed tab or leaving Alt+Left in the editor's keymap fails tests.
+- ISC-81 (closed 2026-11-08, P5-T3): the same file: Alt+Right after going back returns to `b.md` at `## Part`, a caret moved after a jump is where Alt+Right lands, and a new jump after going back drops what lay ahead. Real window: Alt+Right after the Alt+Left above returned to `a.md` on `## Lower down`.
+
+- ISC-83 to ISC-87 (closed 2026-11-08, P5-T4): `pnpm test:web tests/editor/commands.test.ts` (34 tests). For bold, italic, inline code and strikethrough each: a selection is wrapped and unwrapped again with the text still selected, a caret or part of the text inside the span unwraps it, a selection that includes the markers unwraps it, a caret inserts an empty pair, and a caret on either edge of a span starts a new pair; bold and italic are told apart in `***x***`, underscores count, markers inside code are not formatting, a read-only document is left alone. Link (ISC-85): selected text becomes `[text](|)`, a selected address `[|](address)`, a caret `[|]()`. The commands run through the registry on the active tab, and their keys reach them (Ctrl+I is taken out of CodeMirror's keymap). Real window (trusted keys over the DevTools port, word selected by a trusted double click): Ctrl+B, Ctrl+I, Ctrl+` and Alt+Shift+5 each wrapped `word` and the same key unwrapped it; Ctrl+K gave `[word]()`, and Ctrl+Z undid it in one step. 18 deliberate breaks of `src/editor/format.ts` and the wiring each failed a test.
+- ISC-88 and ISC-89 (closed 2026-11-08, P5-T4): the same file: raising goes paragraph, H6, ... H1 and stops; lowering goes H1 ... H6, then back to a paragraph; one direction undoes the other; every line of a selection changes; code lines and blank lines do not. Real window: Ctrl+Shift+Up on `## Title` gave `# Title` and stopped there; Ctrl+Shift+Down twice gave `### Title`.
+
+- ISC-90 to ISC-94 (closed 2026-11-08, P5-T5): `pnpm test:web tests/editor/lists.test.ts` (the list editing block, 11 tests). Enter continues `-`, `*`, `1.` (as `2.`), a quoted list and a nested item (ISC-90); `- [x]` and `- [ ]` continue as `- [ ] ` (ISC-91); Enter on an empty item ends the list with a blank line after it, task box or not, and an empty nested item steps out one level (ISC-92); Tab nests an item under the one before it, children included, lined up with that item's text (`2.` under `1. ` gets three spaces) (ISC-93); Shift+Tab moves a nested item out one level, children included (ISC-94); the two undo each other; a first or top-level item stays put but the key is taken; read-only documents are left alone; the keys sit above CodeMirror's Markdown keymap in every follower. Real window (trusted keys): `- one` Enter, `two` Tab, Enter, `[x] done` Enter gave `  - [ ] `; Enter there stepped out to `- [ ] `; Enter again ended the list, and text typed then was a paragraph. 11 deliberate breaks each failed a test.
+
+- ISC-95 (closed 2026-11-08, P5-T6): `pnpm test:web tests/editor/paste.test.ts` (7 tests): a pasted `https`, `http` or `mailto` address over selected plain text becomes `[text](address)` with the caret after it, through a real paste event on a view too; no selection, text that is not an address, an address with a space, several lines, half a bold span, code, an existing link or an address are plain pastes; a read-only document keeps its text, also with lang-markdown's own handler, which is now off. Real window: a trusted Ctrl+V of `https://example.com/docs` from the Windows clipboard over a double-clicked `docs` gave `Read the [docs](https://example.com/docs) now.`. 10 deliberate breaks each failed a test.
+- ISC-96 (closed 2026-11-08, P5-T6): `pnpm test:web tests/editor/selection.test.ts` (2 tests): every kind of state the app builds (standalone, plain source, master, follower, and a document's tab) has `allowMultipleSelections` off and keeps one range, the main one, after a dispatch of two. The claim held before P5-T6 (CodeMirror's default); the test fails if a follower or the master turns it on (2 failures each). Real window: a two-range dispatch on the active tab kept 1 range.
+
+- ISC-177 (closed 2026-11-09, P5-T7): `pnpm test:web tests/editor/textDrag.test.ts` (20 tests): a pointer drag (stubbed geometry, jsdom) in a real view of a document's tab moves the selected text and the selection follows it; plain-source states drag too; a release on a drawn table moves nothing; the 15 spike tests on the move itself still hold. Real window (debug app, devicePixelRatio 1.25, trusted mouse over the DevTools port): `MOVEME` double-clicked and dragged to the next line landed exactly where the drop caret showed. Removing the drag from followers or standalone states, or letting blocks take drops, fails tests.
+- ISC-178 (closed 2026-11-09, P5-T7): the same file: one undo through the document after a pointer drag restores the text; the spike's tests pin the move as one transaction (splitting it fails 12). Real window: one Ctrl+Z after the drag gave back both lines as they were.
+
+- ISC-179 (closed 2026-11-09, P5-T7, owner review): in the debug app with native file drops on, the owner dragged a selected word with a real mouse (the caret followed and the word moved), undid it with one Ctrl+Z, dropped a file from Explorer onto the window, and dragged again: all worked.
+
+- ISC-179 (second by-hand check, 2026-11-09): the owner dragged again in the debug app on the external monitor (devicePixelRatio 1), undid with Ctrl+Z, dropped a file from Explorer and dragged again, and tried Tab and Shift+Tab: all worked. The owner noticed a table switching to source after text was dropped on the empty line right below it; a parse check shows the drop filled the blank line that ended the table, so GFM read the text and the next line as table rows (see Phase 5 decisions).
+- ISC-190 (closed 2026-11-09): `tests/editor/paste.test.ts`: `pasteAsLink` returns nothing for a read-only state, and a real paste event on a read-only view leaves its text unchanged; turning lang-markdown's own handler back on fails that test.
+- ISC-191 (closed 2026-11-09): `tests/editor/textDrag.test.ts`: a drag released on a drawn table leaves the text unchanged while the same drag onto plain text moves it, and `onDrawnBlock` holds on a table's edges; letting blocks take drops, or not counting their edges, fails a test. Real window: over the table no drop caret showed and a release changed nothing.
+
+- ISC-63 (measured again 2026-11-09, after the owner-approved settle fix): `pnpm perf decorations-scale` on a fresh release build of the Phase 5 tree, external monitor, three runs: worst deviation 0.325, 0.263 and 0.242 against 0.35, the same work at 1 MB and 10 MB every run, control 11.5 times. reveal (ISC-58) on the same build: p95 6.5 ms against 16. Before the fix the scenario stopped in every run since P4-T5.
 
 ## Remaining Work
 
