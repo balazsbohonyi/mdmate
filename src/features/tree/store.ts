@@ -232,6 +232,12 @@ export async function openFolderDialog(): Promise<void> {
   }
 }
 
+/** Makes a folder from the Open Recent list a workspace root again. Rust refuses a path not on the list. */
+export async function openRecentFolder(path: string): Promise<void> {
+  const host = await getHost()
+  addRoot(await host.recentOpenFolder(path))
+}
+
 /** Makes a folder from a native drop a workspace root. Rust checks that a drop delivered it. */
 export async function addRootFromDrop(path: string): Promise<void> {
   try {

@@ -8,6 +8,9 @@ export type {
   PerfDragDrop,
   PerfHost,
   ReadOnlyReason,
+  RecentLists,
+  SaveAsHint,
+  SavedAs,
   SavedFile,
   WindowControls,
 } from './host'

@@ -16,6 +16,8 @@ export function namedDoc(name: string): TabRecord {
     readOnly: null,
     kind: 'markdown',
     plainSource: false,
+    untitled: false,
+    missing: false,
     saveError: null,
     conflict: null,
   })

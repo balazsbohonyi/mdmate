@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onUnmounted } from 'vue'
+import { refreshRecent } from '@/documents/recent'
+import { activeDocument, refreshMissing } from '@/documents/store'
 import { paletteMode } from '@/features/palette/state'
 import { runCommand } from '@/workbench/commands'
 import { registerDefaultCommands } from '@/workbench/defaultCommands'
 import { installKeybindings } from '@/workbench/keyboard'
 import { sidebarVisible } from '@/workbench/sidebar'
 import WorkbenchView from '@/workbench/WorkbenchView.vue'
-import { buildMenuEntries } from './menuEntries'
+import { buildMenuEntries, findMenuItem } from './menuEntries'
 import SidebarFrame from './SidebarFrame.vue'
 import StatusBar from './StatusBar.vue'
 import TitleBar from './TitleBar.vue'
@@ -27,9 +29,19 @@ onUnmounted(() => {
 const menuEntries = computed(() => buildMenuEntries())
 
 function runMenuEntry(id: string): void {
-  runCommand(id).catch((error: unknown) => {
+  // A recent file or folder runs its own action; everything else is a command.
+  const own = findMenuItem(menuEntries.value, id)?.run
+  const done = own === undefined ? runCommand(id) : own()
+  done.catch((error: unknown) => {
     console.error(`Menu command "${id}" failed`, error)
   })
+}
+
+/** Opening the menu is the moment to look again at what it shows: recent files, and a file that may be gone. */
+function menuOpened(): void {
+  void refreshRecent()
+  const doc = activeDocument()
+  if (doc !== undefined) void refreshMissing(doc.id)
 }
 </script>
 
@@ -38,6 +50,7 @@ function runMenuEntry(id: string): void {
     <TitleBar
       :entries="menuEntries"
       @menu-select="runMenuEntry"
+      @menu-open="menuOpened"
     />
     <div class="flex min-h-0 flex-1">
       <SidebarFrame v-if="sidebarVisible" />

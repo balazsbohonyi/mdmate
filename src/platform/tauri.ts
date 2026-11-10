@@ -2,7 +2,7 @@ import { Channel, convertFileSrc, invoke } from '@tauri-apps/api/core'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { decodeFrame, encodeFrame, openedFromFrame } from './frame'
-import type { DiskChange, Host, PerfConfig, PerfHost, SavedFile } from './host'
+import type { DiskChange, Host, PerfConfig, PerfHost, SavedAs, SavedFile } from './host'
 import { parseFollowedLink, parseLinkInfo } from './links'
 import { parseQuickOpenAnswer } from './quickOpen'
 import { parseRewriteDone, parseRewritePlanned } from './rewrite'
@@ -219,8 +219,38 @@ export const tauriHost: Host = {
   async pickFiles() {
     return invoke<string[]>('pick_files')
   },
-  async openFile(path) {
-    return openedFromFrame(decodeFrame(await invoke<ArrayBuffer>('open_file', { path })))
+  async openFile(path, remember) {
+    return openedFromFrame(
+      decodeFrame(await invoke<ArrayBuffer>('open_file', { path, remember: remember === true })),
+    )
+  },
+  async newUntitled() {
+    return invoke<number>('document_new_untitled')
+  },
+  async saveAs(id, text, endings, hint) {
+    // The name and folder travel in the frame's header, which is UTF-8 JSON, so a name with
+    // accents survives; an HTTP header would not carry it.
+    const header =
+      hint.folder === null ? { name: hint.name } : { name: hint.name, folder: hint.folder }
+    return invoke<SavedAs | null>('document_save_as', encodeFrame(header, endings, text), {
+      headers: { 'x-document-id': String(id) },
+    })
+  },
+  async documentExists(id) {
+    return invoke<boolean>('document_exists', { id })
+  },
+  async recentList() {
+    const lists = await invoke<{ files?: unknown; folders?: unknown }>('recent_list')
+    return { files: parsePaths(lists.files), folders: parsePaths(lists.folders) }
+  },
+  async recentClear() {
+    await invoke('recent_clear')
+  },
+  async recentOpenFile(path) {
+    return invoke<string>('recent_open_file', { path })
+  },
+  async recentOpenFolder(path) {
+    return invoke<string>('recent_open_folder', { path })
   },
   async saveFile(id, text, endings) {
     // The body is the frame; the id is a plain number, so the header stays ASCII.

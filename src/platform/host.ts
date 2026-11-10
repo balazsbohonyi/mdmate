@@ -94,6 +94,33 @@ export interface SavedFile {
   readonly size: number
 }
 
+/** What Save As wrote: the file the document now has. */
+export interface SavedAs {
+  /** The path as people read it, with symlinks resolved. */
+  readonly path: string
+  readonly name: string
+  /** Hash of the bytes now on disk, 32 hex digits. */
+  readonly hash: string
+  readonly size: number
+  readonly kind: 'markdown' | 'text' | 'image'
+  readonly encoding: 'utf-8' | 'utf-16le' | 'utf-16be'
+  readonly bom: boolean
+}
+
+/** What the page suggests the save dialog shows. */
+export interface SaveAsHint {
+  /** The file name to suggest. */
+  readonly name: string
+  /** The folder to start in, or null to leave it to the system. */
+  readonly folder: string | null
+}
+
+/** The Open Recent lists, newest first. */
+export interface RecentLists {
+  readonly files: readonly string[]
+  readonly folders: readonly string[]
+}
+
 /**
  * A change another program made to the file of an open document. Never raised for the app's own
  * saves: Rust compares the content on disk with what the document last read or wrote.
@@ -120,8 +147,33 @@ export interface Host {
    * Empty when the user cancels.
    */
   pickFiles(): Promise<string[]>
-  /** Opens a file the user chose. Opening the same file again returns the same document id. */
-  openFile(path: string): Promise<OpenedFile>
+  /**
+   * Opens a file the user chose. Opening the same file again returns the same document id.
+   * `remember` puts the file on the Open Recent list, for a file the user chose to open; a
+   * restored session does not pass it.
+   */
+  openFile(path: string, remember?: boolean): Promise<OpenedFile>
+  /** Gives a new untitled tab its document id. The document has no file until `saveAs`. */
+  newUntitled(): Promise<number>
+  /**
+   * Shows the save dialog and writes the document into the file the user chooses: the first save of
+   * an untitled document, or Save As. Granting the chosen file happens in the host, never on the
+   * page's say-so. The document then has that file; the original of a Save As is not touched, and a
+   * file in an encoding mdmate cannot write is written as UTF-8. Resolves to null when the user
+   * cancels. Rejects with `invalid` for a file open in another tab, `exists` for a name the dialog
+   * could not have asked about, and `read-only` when asked to replace an unwritable original.
+   */
+  saveAs(id: number, text: string, endings: Endings, hint: SaveAsHint): Promise<SavedAs | null>
+  /** Whether the file of an open document is still on disk. */
+  documentExists(id: number): Promise<boolean>
+  /** The Open Recent lists: files and folders the user opened, with those that are gone dropped. */
+  recentList(): Promise<RecentLists>
+  /** Empties the Open Recent lists. */
+  recentClear(): Promise<void>
+  /** Lets the page open a file on the Open Recent list. Rejects with `not-allowed` for any other path. */
+  recentOpenFile(path: string): Promise<string>
+  /** Makes a folder on the Open Recent list a workspace root again. Rejects with `not-allowed` for any other path. */
+  recentOpenFolder(path: string): Promise<string>
   /** Writes the text and endings into an open document, by its id. */
   saveFile(id: number, text: string, endings: Endings): Promise<SavedFile>
   /** Tells Rust the document has no tab left. */

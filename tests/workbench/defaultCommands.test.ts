@@ -80,14 +80,20 @@ describe('the default commands', () => {
       listCommands().map((command) => [command.id, shortcutLabel(command.id, 'other')]),
     )
     expect(shown).toEqual({
+      [COMMAND_IDS.newFile]: 'Ctrl+N',
       [COMMAND_IDS.open]: 'Ctrl+O',
       [COMMAND_IDS.openFolder]: 'Ctrl+Shift+O',
       [COMMAND_IDS.quickOpen]: 'Ctrl+P',
       [COMMAND_IDS.commandPalette]: 'Ctrl+Shift+P',
       [COMMAND_IDS.save]: 'Ctrl+S',
+      [COMMAND_IDS.saveAs]: 'Ctrl+Shift+S',
+      [COMMAND_IDS.revert]: undefined,
+      [COMMAND_IDS.rename]: 'F2',
+      [COMMAND_IDS.clearRecent]: undefined,
       [COMMAND_IDS.splitRight]: 'Alt+Shift+2',
       [COMMAND_IDS.splitDown]: 'Alt+Shift+8',
       [COMMAND_IDS.closeTab]: 'Ctrl+W',
+      [COMMAND_IDS.closeAll]: 'Ctrl+Shift+W',
       [COMMAND_IDS.toggleSidebar]: 'Ctrl+Shift+B',
       [COMMAND_IDS.toggleRawSource]: 'Ctrl+E',
       [COMMAND_IDS.back]: 'Alt+ArrowLeft',
@@ -106,10 +112,10 @@ describe('the default commands', () => {
   it('can be registered a second time before the first is removed, as hot reload does', () => {
     const removeOld = removeCommands
     removeCommands = registerDefaultCommands()
-    expect(listCommands()).toHaveLength(20)
+    expect(listCommands()).toHaveLength(26)
     // The old shell unmounts after the new one has mounted, and removes what it registered.
     removeOld()
-    expect(listCommands()).toHaveLength(20)
+    expect(listCommands()).toHaveLength(26)
     expect(shortcutLabel(COMMAND_IDS.toggleSidebar, 'other')).toBe('Ctrl+Shift+B')
   })
 
@@ -117,7 +123,7 @@ describe('the default commands', () => {
     removeCommands()
     expect(listCommands()).toEqual([])
     removeCommands = registerDefaultCommands()
-    expect(listCommands()).toHaveLength(20)
+    expect(listCommands()).toHaveLength(26)
   })
 })
 

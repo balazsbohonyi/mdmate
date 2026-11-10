@@ -33,6 +33,13 @@ describe('the app menu', () => {
     expect(buildMenuEntries('other')).toEqual([
       {
         kind: 'item',
+        id: COMMAND_IDS.newFile,
+        label: 'New File',
+        shortcut: 'Ctrl+N',
+        disabled: false,
+      },
+      {
+        kind: 'item',
         id: COMMAND_IDS.open,
         label: 'Open...',
         shortcut: 'Ctrl+O',
@@ -46,11 +53,36 @@ describe('the app menu', () => {
         disabled: false,
       },
       {
+        kind: 'submenu',
+        label: 'Open Recent',
+        items: [
+          { kind: 'item', id: 'recent.none', label: 'No recent files', disabled: true },
+          { kind: 'separator' },
+          expect.objectContaining({ id: 'recent.clear', label: 'Clear Recent', disabled: true }),
+        ],
+      },
+      { kind: 'separator' },
+      {
         kind: 'item',
         id: COMMAND_IDS.save,
         label: 'Save',
         shortcut: 'Ctrl+S',
         // Nothing is edited, so there is nothing to save.
+        disabled: true,
+      },
+      {
+        kind: 'item',
+        id: COMMAND_IDS.saveAs,
+        label: 'Save As...',
+        shortcut: 'Ctrl+Shift+S',
+        // The test tab has no document behind it, so there is nothing to write.
+        disabled: true,
+      },
+      {
+        kind: 'item',
+        id: COMMAND_IDS.revert,
+        label: 'Revert File',
+        // The test tab has no document behind it, so there is no file to go back to.
         disabled: true,
       },
       { kind: 'separator' },
@@ -73,6 +105,13 @@ describe('the app menu', () => {
         id: COMMAND_IDS.closeTab,
         label: 'Close Tab',
         shortcut: 'Ctrl+W',
+        disabled: false,
+      },
+      {
+        kind: 'item',
+        id: COMMAND_IDS.closeAll,
+        label: 'Close All',
+        shortcut: 'Ctrl+Shift+W',
         disabled: false,
       },
       { kind: 'separator' },
@@ -99,7 +138,19 @@ describe('the app menu', () => {
     const shortcuts = buildMenuEntries('mac').flatMap((entry) =>
       entry.kind === 'item' && entry.shortcut !== undefined ? [entry.shortcut] : [],
     )
-    expect(shortcuts).toEqual(['⌘O', '⇧⌘O', '⌘S', '⌥⇧2', '⌥⇧8', '⌘W', '⇧⌘B', '⌘E'])
+    expect(shortcuts).toEqual([
+      '⌘N',
+      '⌘O',
+      '⇧⌘O',
+      '⌘S',
+      '⇧⌘S',
+      '⌥⇧2',
+      '⌥⇧8',
+      '⌘W',
+      '⇧⌘W',
+      '⇧⌘B',
+      '⌘E',
+    ])
   })
 
   it('greys out Close Tab while there is no tab, and Save while nothing is edited', () => {
@@ -109,11 +160,15 @@ describe('the app menu', () => {
       )
     expect(disabled()).toEqual([
       COMMAND_IDS.save,
+      COMMAND_IDS.saveAs,
+      COMMAND_IDS.revert,
       COMMAND_IDS.closeTab,
+      COMMAND_IDS.closeAll,
       COMMAND_IDS.toggleRawSource,
     ])
     openNewTab('a.md')
-    expect(disabled()).toEqual([COMMAND_IDS.save])
+    // The test tab has no document, so the commands that need one stay off.
+    expect(disabled()).toEqual([COMMAND_IDS.save, COMMAND_IDS.saveAs, COMMAND_IDS.revert])
   })
 
   it('leaves out a command that is not registered', () => {

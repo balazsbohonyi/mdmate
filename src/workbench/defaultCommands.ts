@@ -8,13 +8,22 @@ import {
   STRIKETHROUGH,
   toggleInline,
 } from '@/editor/format'
+import { clearRecent } from '@/documents/recent'
 import {
+  canRevertActive,
   canSaveActive,
+  canSaveActiveAs,
+  closeAllTabs,
+  activeDocument,
   followerOfTab,
+  hasOpenTabs,
   openFromDialog,
   requestCloseTab,
+  requestRevert,
   saveActiveDocument,
+  saveActiveDocumentAs,
 } from '@/documents/store'
+import { newUntitledTab } from '@/documents/untitled'
 import { canGoBack, canGoForward, goBack, goForward } from '@/documents/history'
 import { togglePalette } from '@/features/palette/state'
 import { openFolderDialog } from '@/features/tree/store'
@@ -26,14 +35,20 @@ import { toggleRaw } from './rawMode'
 import { toggleSidebar } from './sidebar'
 
 export const COMMAND_IDS = {
+  newFile: 'file.new',
   open: 'file.open',
   openFolder: 'file.openFolder',
   quickOpen: 'file.quickOpen',
   commandPalette: 'view.commandPalette',
   save: 'file.save',
+  saveAs: 'file.saveAs',
+  revert: 'file.revert',
+  rename: 'file.rename',
+  clearRecent: 'file.clearRecent',
   splitRight: 'workbench.splitRight',
   splitDown: 'workbench.splitDown',
   closeTab: 'workbench.closeTab',
+  closeAll: 'workbench.closeAll',
   toggleSidebar: 'view.toggleSidebar',
   toggleRawSource: 'view.toggleRawSource',
   back: 'navigate.back',
@@ -121,6 +136,12 @@ export function registerDefaultCommands(): () => void {
   for (const id of Object.values(COMMAND_IDS)) removeCommand(id)
   const disposers = [
     registerCommand({
+      id: COMMAND_IDS.newFile,
+      title: 'New File',
+      keybinding: 'Mod+N',
+      run: newUntitledTab,
+    }),
+    registerCommand({
       id: COMMAND_IDS.open,
       title: 'Open...',
       keybinding: 'Mod+O',
@@ -157,6 +178,33 @@ export function registerDefaultCommands(): () => void {
       run: saveActiveDocument,
     }),
     registerCommand({
+      id: COMMAND_IDS.saveAs,
+      title: 'Save As...',
+      keybinding: 'Mod+Shift+S',
+      enabled: canSaveActiveAs,
+      run: saveActiveDocumentAs,
+    }),
+    registerCommand({
+      id: COMMAND_IDS.revert,
+      title: 'Revert File',
+      enabled: canRevertActive,
+      run: requestRevert,
+    }),
+    registerCommand({
+      id: COMMAND_IDS.rename,
+      title: 'Rename...',
+      keybinding: 'F2',
+      // A new file has no name to change, so naming it is Save As. A file on disk is renamed from
+      // the tab menu (P6-T9) or the tree.
+      enabled: () => activeDocument()?.untitled === true,
+      run: saveActiveDocumentAs,
+    }),
+    registerCommand({
+      id: COMMAND_IDS.clearRecent,
+      title: 'Clear Recent',
+      run: clearRecent,
+    }),
+    registerCommand({
       id: COMMAND_IDS.splitRight,
       title: 'Split Right',
       keybinding: 'Alt+Shift+2',
@@ -180,6 +228,15 @@ export function registerDefaultCommands(): () => void {
       run: () => {
         const tab = activeTab()
         if (tab !== null) requestCloseTab(tab)
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.closeAll,
+      title: 'Close All',
+      keybinding: 'Mod+Shift+W',
+      enabled: hasOpenTabs,
+      run: async () => {
+        await closeAllTabs()
       },
     }),
     registerCommand({

@@ -1,7 +1,8 @@
-import { computed, shallowRef } from 'vue'
-import { getHost, type OpenedFile } from '@/platform'
+import { computed, shallowRef, watch } from 'vue'
+import { uniformEndings, type Endings } from '@/lib/endings'
+import { getHost, type OpenedFile, type SaveAsHint } from '@/platform'
 import { isMarkdownName } from '@/features/tree/model'
-import { findPane } from '@/workbench/splitTree'
+import { allTabs, findPane } from '@/workbench/splitTree'
 import {
   closeTabById,
   imageTabs,
@@ -17,6 +18,7 @@ import { docIdOf } from '@/workbench/tabs'
 import { Document } from './document'
 import type { Follower } from './follower'
 import { clearDocMeta, docMeta, patchDocMeta, removeDocMeta, setDocMeta } from './meta'
+import { suggestedFileName } from './suggest'
 
 /**
  * The open documents. Several tabs can show one document; the document lives until its last tab
@@ -34,6 +36,8 @@ function publish(doc: Document): void {
     readOnly: doc.readOnly,
     kind: doc.kind,
     plainSource: doc.plainSource,
+    untitled: doc.untitled,
+    missing: docMeta(doc.id)?.missing ?? false,
     saveError: docMeta(doc.id)?.saveError ?? null,
     conflict: docMeta(doc.id)?.conflict ?? null,
   })
@@ -141,20 +145,94 @@ function tabToFocus(docId: number, paneId?: PaneId): TabId | undefined {
  */
 export async function openDocument(
   path: string,
+  remember = false,
 ): Promise<{ doc: Document; opened: OpenedFile; isNew: boolean }> {
   const host = await getHost()
-  const opened = await host.openFile(path)
+  const opened = await host.openFile(path, remember)
   const existing = documents.get(opened.id)
   if (existing !== undefined) return { doc: existing, opened, isNew: false }
-  const doc = new Document(opened, publish, {
+  const doc = adopt(new Document(opened, publish, documentOptions(opened.id, host)))
+  return { doc, opened, isNew: true }
+}
+
+function documentOptions(
+  id: number,
+  host: Awaited<ReturnType<typeof getHost>>,
+  untitledNumber?: number,
+): ConstructorParameters<typeof Document>[2] {
+  return {
     touched,
     assetUrl: (path) => host.assetUrl(path),
     followLink: (tabId, href) => linkFollower?.(tabId, href),
-    checkLinks: (hrefs) => host.checkLinks(opened.id, hrefs),
-  })
+    checkLinks: (hrefs) => host.checkLinks(id, hrefs),
+    ...(untitledNumber === undefined ? {} : { untitledNumber }),
+  }
+}
+
+function adopt(doc: Document): Document {
   documents.set(doc.id, doc)
   publish(doc)
-  return { doc, opened, isNew: true }
+  return doc
+}
+
+/** The folder of the last file opened or saved, which the save dialog starts in as a last resort. */
+let lastFolder: string | null = null
+
+function folderOf(path: string): string | null {
+  const cut = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
+  return cut <= 0 ? null : path.slice(0, cut)
+}
+
+/** The folder of the last file opened or saved in this session, or null before the first. */
+export function lastFileFolder(): string | null {
+  return lastFolder
+}
+
+/**
+ * Makes a document for a new tab that has no file. Rust gives it an id and nothing else; the first
+ * save gives it a file. `buffer` is text a restored session had in it: the document then counts as
+ * edited, since an empty file is what it is measured against.
+ */
+export async function createUntitled(
+  number: number,
+  buffer?: { text: string; endings: Endings },
+): Promise<Document> {
+  const host = await getHost()
+  const id = await host.newUntitled()
+  const empty: OpenedFile = {
+    id,
+    path: '',
+    name: `Untitled-${String(number)}`,
+    encoding: 'utf-8',
+    bom: false,
+    readOnly: null,
+    size: 0,
+    hash: '',
+    text: '',
+    endings: uniformEndings(),
+    kind: 'markdown',
+  }
+  const doc = adopt(new Document(empty, publish, documentOptions(id, host, number)))
+  if (buffer !== undefined) doc.restoreBuffer(empty, buffer)
+  return doc
+}
+
+let saveHint: ((doc: Document) => SaveAsHint) | undefined
+
+/**
+ * Who says what the save dialog suggests for an untitled document: its file name from the first
+ * heading, and the folder to start in. Registered by `untitled.ts`, which knows the workspace; with
+ * no provider, the name comes from the text and the system picks the folder.
+ */
+export function setSaveHint(provider: ((doc: Document) => SaveAsHint) | undefined): void {
+  saveHint = provider
+}
+
+function hintFor(doc: Document): SaveAsHint {
+  if (!doc.untitled) return { name: doc.name, folder: folderOf(doc.path) }
+  return (
+    saveHint?.(doc) ?? { name: suggestedFileName(doc.master.doc.toString()), folder: lastFolder }
+  )
 }
 
 /**
@@ -188,7 +266,8 @@ export async function openPath(path: string, paneId?: PaneId): Promise<TabId> {
   if (!isMarkdownName(path) && (await (await getHost()).fileKind(path)) === 'image') {
     return openImage(path, paneId)
   }
-  const { doc, opened, isNew } = await openDocument(path)
+  const { doc, opened, isNew } = await openDocument(path, true)
+  lastFolder = folderOf(doc.path) ?? lastFolder
   if (!isNew) {
     // The file may have changed since this document last read it, with no event to say so (the
     // watcher missed it, or it is not running). The host keeps what it recorded; the page decides.
@@ -242,6 +321,8 @@ export function saveDocument(docId: number): Promise<boolean> {
 async function runSave(docId: number): Promise<boolean> {
   const doc = documents.get(docId)
   if (doc?.readOnly !== null) return false
+  // A document with no file has nothing to write to yet, edited or not: the first save asks where.
+  if (doc.untitled) return runSaveAs(docId)
   if (!doc.dirty) return true
   if (conflictOf(doc.id) !== null) {
     // The user has not said yet which version of the file to keep, so nothing is written.
@@ -266,6 +347,53 @@ async function runSave(docId: number): Promise<boolean> {
     }
     return false
   }
+}
+
+/**
+ * Saves a document to a file the user picks, with the system's dialog. An untitled document gets
+ * its first file; any other follows the new file and leaves the old one as it was. Resolves to true
+ * when a file was written, and to false when the user cancelled or the save failed (the reason is
+ * on the document's `saveError`). Runs in turn with the document's other saves.
+ */
+export function saveDocumentAs(docId: number): Promise<boolean> {
+  const previous = saving.get(docId) ?? Promise.resolve(true)
+  const next = previous.then(() => runSaveAs(docId))
+  const tracked = next.finally(() => {
+    if (saving.get(docId) === tracked) saving.delete(docId)
+  })
+  saving.set(docId, tracked)
+  return tracked
+}
+
+async function runSaveAs(docId: number): Promise<boolean> {
+  const doc = documents.get(docId)
+  if (doc === undefined) return false
+  const snapshot = doc.snapshot()
+  try {
+    const host = await getHost()
+    const saved = await host.saveAs(doc.id, snapshot.text, snapshot.endings, hintFor(doc))
+    // The user closed the dialog without choosing: nothing was written and nothing is an error.
+    if (saved === null) return false
+    if (documents.get(docId) !== doc) return true
+    doc.relocate(snapshot, saved)
+    lastFolder = folderOf(saved.path) ?? lastFolder
+    // A change made to the old file no longer concerns this document.
+    patchDocMeta(doc.id, { saveError: null, conflict: null, missing: false })
+    return true
+  } catch (error) {
+    if (errorKind(error) === 'disk-changed') {
+      patchDocMeta(doc.id, { conflict: 'save', saveError: null })
+    } else {
+      patchDocMeta(doc.id, { saveError: describe(error) })
+    }
+    return false
+  }
+}
+
+/** Shows the save dialog for the document in the focused tab. */
+export async function saveActiveDocumentAs(): Promise<void> {
+  const doc = activeDocument()
+  if (doc !== undefined) await saveDocumentAs(doc.id)
 }
 
 /** Per document: set while its file is being compared with the disk, and true when another change arrived meanwhile. */
@@ -360,6 +488,7 @@ export async function resolveConflict(docId: number, choice: 'mine' | 'theirs'):
 }
 
 let stopWatching: (() => void) | undefined
+let stopMissingCheck: (() => void) | undefined
 
 /**
  * Starts listening for changes other programs make to open files. Once at startup. A document
@@ -376,9 +505,30 @@ export async function watchDisk(): Promise<void> {
         reportSyncFailure(doc, error)
       })
     })
+    watchMissing()
   } catch (error) {
     // Saving still refuses to overwrite a changed file, so this costs the live reload, not data.
     problem.value = `Could not watch open files for changes: ${describe(error)}`
+  }
+}
+
+/**
+ * Keeps `missing` in step for the focused document: each time another tab comes to the front and
+ * each time the window gets the focus back, since a file is usually deleted while the user is
+ * elsewhere. The watcher says nothing about a file that vanished, so this asks.
+ */
+function watchMissing(): void {
+  stopMissingCheck?.()
+  const check = (): void => {
+    const doc = activeDocument()
+    if (doc !== undefined) void refreshMissing(doc.id)
+  }
+  const stopWatch = watch(() => activeDocument()?.id, check, { immediate: true })
+  const target = typeof window === 'undefined' ? undefined : window
+  target?.addEventListener('focus', check)
+  stopMissingCheck = () => {
+    stopWatch()
+    target?.removeEventListener('focus', check)
   }
 }
 
@@ -391,11 +541,32 @@ export async function saveActiveDocument(): Promise<void> {
 /** True when Save would write something: the focused document is edited and can be saved. */
 export function canSaveActive(): boolean {
   const doc = activeDocument()
-  return doc?.readOnly === null && docMeta(doc.id)?.dirty === true
+  const meta = doc === undefined ? undefined : docMeta(doc.id)
+  // A new document can always be saved: that is how it gets its file.
+  return doc?.readOnly === null && (meta?.dirty === true || meta?.untitled === true)
+}
+
+/** True when Save As has something to write: any open document, even a read-only one. */
+export function canSaveActiveAs(): boolean {
+  return activeDocument() !== undefined
 }
 
 /** A tab waiting for the user to say what happens to its unsaved edits. */
 export const pendingClose = shallowRef<{ tabId: TabId; docId: number } | null>(null)
+
+/** Who is waiting for the pending close to be settled: Close All and Close Others. */
+let closeWaiter: ((choice: 'save' | 'discard' | 'cancel' | 'gone') => void) | undefined
+
+/** Sets what the close banner asks about, and frees whoever waited on the one it replaces. */
+function setPendingClose(next: { tabId: TabId; docId: number } | null): void {
+  pendingClose.value = next
+}
+
+function settleWaiter(choice: 'save' | 'discard' | 'cancel' | 'gone'): void {
+  const waiter = closeWaiter
+  closeWaiter = undefined
+  waiter?.(choice)
+}
 
 /**
  * Closes a tab. Closing the last tab of a document with unsaved edits would lose them, so it
@@ -406,11 +577,41 @@ export function requestCloseTab(tabId: TabId): void {
   const docId = docIdOf(tabRecord(tabId))
   const doc = docId === undefined ? undefined : documents.get(docId)
   if (docId !== undefined && doc?.dirty === true && tabsOfDocument(docId).length === 1) {
+    // A close that was waiting for an answer is dropped: the user moved on to this one.
+    settleWaiter('cancel')
     selectTab(tabId)
-    pendingClose.value = { tabId, docId }
+    setPendingClose({ tabId, docId })
     return
   }
   closeTabById(tabId)
+}
+
+/**
+ * Closes these tabs one after another, in order. A tab whose document has unsaved edits asks with
+ * the pane banner and waits for the answer, once per document, since only its last tab asks.
+ * Resolves to false when the user chose Cancel, which leaves that tab and the ones after it open.
+ */
+export async function closeTabs(tabs: readonly TabId[]): Promise<boolean> {
+  for (const tab of tabs) {
+    if (tabRecord(tab) === undefined) continue
+    requestCloseTab(tab)
+    if (pendingClose.value?.tabId !== tab) continue
+    const answer = await new Promise<'save' | 'discard' | 'cancel' | 'gone'>((resolve) => {
+      closeWaiter = resolve
+    })
+    if (answer === 'cancel') return false
+  }
+  return true
+}
+
+/** Closes every tab, asking about each document with unsaved edits. False when the user cancelled. */
+export function closeAllTabs(): Promise<boolean> {
+  return closeTabs(allTabs(workbenchLayout.value))
+}
+
+/** True when at least one tab is open. */
+export function hasOpenTabs(): boolean {
+  return allTabs(workbenchLayout.value).length > 0
 }
 
 /** Settles a pending close: save and close, close and discard, or keep the tab open. */
@@ -418,15 +619,81 @@ export async function resolvePendingClose(choice: 'save' | 'discard' | 'cancel')
   const pending = pendingClose.value
   if (pending === null) return
   if (choice === 'save' && !(await saveDocument(pending.docId))) return // the error is shown on the tab
-  pendingClose.value = null
+  setPendingClose(null)
   if (choice !== 'cancel') closeTabById(pending.tabId)
+  settleWaiter(choice)
+}
+
+/** A tab waiting for the user to confirm that its unsaved edits are thrown away for the file's. */
+export const pendingRevert = shallowRef<{ tabId: TabId; docId: number } | null>(null)
+
+/** Looks whether a document's file is still on disk, and tells the chrome. */
+export async function refreshMissing(docId: number): Promise<void> {
+  const doc = documents.get(docId)
+  if (doc === undefined || doc.untitled) return
+  try {
+    const exists = await (await getHost()).documentExists(docId)
+    if (documents.get(docId) === doc) patchDocMeta(docId, { missing: !exists })
+  } catch {
+    // A document the host no longer knows is not one to revert either way.
+  }
+}
+
+/** True when Revert File has a file to go back to: a document with a file that is on disk. */
+export function canRevertActive(): boolean {
+  const doc = activeDocument()
+  const meta = doc === undefined ? undefined : docMeta(doc.id)
+  return meta !== undefined && !meta.untitled && !meta.missing
+}
+
+/** Asks, in the banner of the focused tab, whether to throw away edits and reload the file. */
+export async function requestRevert(): Promise<void> {
+  const layout = workbenchLayout.value
+  const tabId = findPane(layout, layout.activePane)?.activeTab
+  const doc = activeDocument()
+  if (tabId === null || tabId === undefined || doc === undefined || doc.untitled) return
+  // The file may have gone since the last look; Revert has nothing to reload then.
+  await refreshMissing(doc.id)
+  if (docMeta(doc.id)?.missing === true) {
+    problem.value = `${doc.name} is no longer on disk, so there is nothing to revert to.`
+    return
+  }
+  pendingRevert.value = { tabId, docId: doc.id }
+}
+
+/** Settles a pending revert: reload the file and drop the edits, or leave everything as it is. */
+export async function resolvePendingRevert(choice: 'revert' | 'cancel'): Promise<void> {
+  const pending = pendingRevert.value
+  if (pending === null) return
+  pendingRevert.value = null
+  if (choice === 'cancel') return
+  const doc = documents.get(pending.docId)
+  if (doc === undefined) return
+  try {
+    const host = await getHost()
+    const opened = await host.reloadDocument(doc.id)
+    if (documents.get(doc.id) !== doc) return
+    doc.reload(opened)
+    patchDocMeta(doc.id, { conflict: null, saveError: null, missing: false })
+  } catch (error) {
+    if (errorKind(error) === 'not-found') patchDocMeta(doc.id, { missing: true })
+    problem.value = `Could not revert ${doc.name}: ${describe(error)}`
+  }
+}
+
+/** Drops a document that no tab shows, such as one a restore made and could not give a tab. */
+export function discardUnused(docId: number): void {
+  release(docId)
 }
 
 /** Drops a document once no tab shows it. */
 function release(docId: number): void {
   if (tabsOfDocument(docId).length > 0 || !documents.delete(docId)) return
   removeDocMeta(docId)
-  if (pendingClose.value?.docId === docId) pendingClose.value = null
+  if (pendingClose.value?.docId === docId) {
+    setPendingClose(null)
+    settleWaiter('gone')
+  }
   getHost()
     .then((host) => host.closeDocument(docId))
     .catch((error: unknown) => {
@@ -456,10 +723,15 @@ export const hasPendingClose = computed(() => pendingClose.value !== null)
 export function resetDocuments(): void {
   stopWatching?.()
   stopWatching = undefined
+  stopMissingCheck?.()
+  stopMissingCheck = undefined
   documents.clear()
   saving.clear()
   syncing.clear()
   clearDocMeta()
   pendingClose.value = null
+  closeWaiter = undefined
+  pendingRevert.value = null
+  lastFolder = null
   problem.value = null
 }

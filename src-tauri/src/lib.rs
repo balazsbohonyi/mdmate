@@ -7,6 +7,8 @@ mod fs;
 mod links;
 mod paths;
 mod platform;
+mod recent;
+mod save_as;
 mod search;
 mod session;
 mod settings;
@@ -34,6 +36,10 @@ pub fn run() {
         .setup(|app| {
             use tauri::Manager as _;
             let dir = paths::data_dir_from_env(|| app.path().app_data_dir().ok());
+            app.manage(Arc::new(recent::RecentStore::new(
+                dir.clone(),
+                platform::current().paths_ignore_case(),
+            )));
             app.manage(Arc::new(workspace::roots::RootStore::new(dir.clone())));
             app.manage(Arc::new(session::SessionStore::new(dir)));
             Ok(())
@@ -69,6 +75,13 @@ pub fn run() {
         commands::pick_files,
         commands::open_file,
         commands::save_file,
+        commands::document_new_untitled,
+        commands::document_save_as,
+        commands::document_exists,
+        commands::recent_list,
+        commands::recent_clear,
+        commands::recent_open_file,
+        commands::recent_open_folder,
         commands::close_document,
         commands::reload_document,
         commands::watch_changes,
@@ -122,6 +135,13 @@ pub fn run() {
         commands::pick_files,
         commands::open_file,
         commands::save_file,
+        commands::document_new_untitled,
+        commands::document_save_as,
+        commands::document_exists,
+        commands::recent_list,
+        commands::recent_clear,
+        commands::recent_open_file,
+        commands::recent_open_folder,
         commands::close_document,
         commands::reload_document,
         commands::watch_changes,

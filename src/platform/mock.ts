@@ -1,6 +1,13 @@
 import type { Endings } from '@/lib/endings'
 import { freeName, nameProblem } from '@/lib/fileNames'
-import type { DiskChange, Host, OpenedFile, ReadOnlyReason, WindowControls } from './host'
+import type {
+  DiskChange,
+  Host,
+  OpenedFile,
+  ReadOnlyReason,
+  SaveAsHint,
+  WindowControls,
+} from './host'
 import type { LinkInfo } from './links'
 import type {
   ClashAnswer,
@@ -109,6 +116,10 @@ export interface MockHost extends Host {
   readonly recycled: { path: string; raw: string }[]
   /** Every path the page asked to show in the file manager, in order. */
   readonly revealed: string[]
+  /** What the host would offer in Open Recent, newest first, with no check that the entries exist. */
+  readonly recent: { files: string[]; folders: string[] }
+  /** The hints the save dialog was shown, in order. */
+  readonly saveDialogs: SaveAsHint[]
 }
 
 /**
@@ -158,6 +169,13 @@ export interface MockHostOptions {
   /** Workspace roots the host already has, as if the last run left them. */
   readonly roots?: readonly string[]
   /**
+   * What the save dialog returns each time it is shown, given what the page suggested. Default:
+   * null, as if cancelled.
+   */
+  readonly pickSave?: (hint: SaveAsHint) => string | null
+  /** Open Recent entries the host already has, as if the last run left them. */
+  readonly recent?: { readonly files?: readonly string[]; readonly folders?: readonly string[] }
+  /**
    * Pictures the files stand for. The mock's files are text, so an image gets its address and its
    * size on disk from here; an image not listed is an SVG made from the file's own text, or fails
    * to load.
@@ -191,6 +209,13 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     reported: string | null
   }
   const open = new Map<number, Open>()
+  /** Documents with no file yet. They have an id and nothing else. */
+  const untitled = new Set<number>()
+  const recent = {
+    files: [...(options.recent?.files ?? [])],
+    folders: [...(options.recent?.folders ?? [])],
+  }
+  const saveDialogs: SaveAsHint[] = []
   let nextId = 0
   let listener: ((change: DiskChange) => void) | undefined
   let deaf = false
@@ -261,6 +286,15 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     if (!files.isFolder(path)) throw hostError('not-found', `${path} does not exist`)
     if (!roots.some((root) => pathKey(root) === pathKey(path))) roots.push(path)
     return path
+  }
+
+  /** Puts a path first on a recent list, once, keeping the newest `max`. */
+  function remember(list: string[], path: string, max: number): void {
+    const key = pathKey(path)
+    const at = list.findIndex((entry) => pathKey(entry) === key)
+    if (at !== -1) list.splice(at, 1)
+    list.unshift(path)
+    list.length = Math.min(list.length, max)
   }
 
   /** Tells the page which watched folder holds a path that changed. */
@@ -500,6 +534,8 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     kind: 'browser',
     recycled,
     revealed,
+    recent,
+    saveDialogs,
     files,
     openDocuments() {
       return new Map([...open].map(([id, doc]) => [id, doc.path]))
@@ -577,7 +613,12 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     },
     openFolder() {
       const picked = options.pickFolder?.() ?? null
-      return attempt(() => (picked === null ? null : addRoot(picked)))
+      return attempt(() => {
+        if (picked === null) return null
+        const root = addRoot(picked)
+        remember(recent.folders, root, 5)
+        return root
+      })
     },
     loadWorkspace() {
       // Like Rust: a folder that is gone is not a root any more.
@@ -832,7 +873,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     pickFiles() {
       return Promise.resolve(options.pick?.() ?? [])
     },
-    openFile(path): Promise<OpenedFile> {
+    openFile(path, rememberIt): Promise<OpenedFile> {
       const raw = files.read(path)
       const canonical = files.canonicalPath(path)
       if (raw === undefined || canonical === undefined) {
@@ -846,6 +887,8 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
       }
       // Like Rust: a file that is already open keeps what the host recorded for it. The page holds
       // the text it read earlier, and decides what the fresh content means.
+      // Like Rust, a file the user chose goes on the recent list every time, open already or not.
+      if (rememberIt === true) remember(recent.files, canonical, 10)
       const existing = open.get(id)
       if (existing !== undefined) return Promise.resolve(describe(id, existing, raw))
       const readOnly: ReadOnlyReason | null = files.isUnsupported(canonical)
@@ -854,6 +897,119 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
       const doc: Open = { path: canonical, readOnly, known: mockHash(raw), reported: null }
       open.set(id, doc)
       return Promise.resolve(describe(id, doc, raw))
+    },
+    newUntitled() {
+      const id = ++nextId
+      untitled.add(id)
+      return Promise.resolve(id)
+    },
+    saveAs(id, text, endings, hint) {
+      const doc = open.get(id)
+      if (!untitled.has(id) && doc === undefined) {
+        return Promise.reject(hostError('not-open', `no open document ${id}`))
+      }
+      saveDialogs.push(hint)
+      const chosen = options.pickSave?.(hint) ?? null
+      if (chosen === null) return Promise.resolve(null)
+      let target = slashes(chosen)
+      if (untitled.has(id) && !/\.[^/]+$/.test(nameOf(target))) {
+        // Like Rust: a name with no extension becomes .md, and never replaces a file unasked.
+        target = `${target}.md`
+        if (files.has(target)) {
+          return Promise.reject(hostError('exists', `${target} already exists`))
+        }
+      }
+      const canonical = files.canonicalPath(target) ?? target
+      const key = canonical.toLowerCase()
+      if (key === doc?.path.toLowerCase()) {
+        // The document's own file: an ordinary save, and an unwritable original is never replaced.
+        if (doc.readOnly !== null) {
+          return Promise.reject(
+            hostError('read-only', 'choose a different file name; the original is left as it is'),
+          )
+        }
+        return host.saveFile(id, text, endings).then((saved) => ({
+          path: doc.path,
+          name: nameOf(doc.path),
+          hash: saved.hash,
+          size: saved.size,
+          kind: mockKindOf(doc.path),
+          encoding: 'utf-8',
+          bom: false,
+        }))
+      }
+      const other = ids.get(key)
+      if (other !== undefined && other !== id && open.has(other)) {
+        return Promise.reject(
+          hostError(
+            'invalid',
+            `${nameOf(canonical)} is open in another tab; close it or choose another name`,
+          ),
+        )
+      }
+      const raw = joinRaw(text, endings)
+      const hash = mockHash(raw)
+      // Like Rust, the file is written before the document is pointed at it, and its hash is
+      // recorded, so the write is not news to the watcher.
+      files.write(canonical, raw)
+      if (doc === undefined) {
+        untitled.delete(id)
+        open.set(id, { path: canonical, readOnly: null, known: hash, reported: null })
+      } else {
+        ids.delete(doc.path.toLowerCase())
+        doc.path = canonical
+        doc.readOnly = null
+        doc.known = hash
+        doc.reported = null
+      }
+      ids.set(key, id)
+      remember(recent.files, canonical, 10)
+      return Promise.resolve({
+        path: canonical,
+        name: nameOf(canonical),
+        hash,
+        size: new TextEncoder().encode(raw).length,
+        kind: mockKindOf(canonical),
+        encoding: 'utf-8',
+        bom: false,
+      })
+    },
+    documentExists(id) {
+      const doc = open.get(id)
+      if (doc === undefined) return Promise.reject(hostError('not-open', `no open document ${id}`))
+      return Promise.resolve(files.has(doc.path))
+    },
+    recentList() {
+      return Promise.resolve({
+        files: recent.files.filter((path) => files.has(path)),
+        folders: recent.folders.filter((path) => files.isFolder(path)),
+      })
+    },
+    recentClear() {
+      recent.files.length = 0
+      recent.folders.length = 0
+      return Promise.resolve()
+    },
+    recentOpenFile(path) {
+      const key = pathKey(path)
+      const entry = recent.files.find((file) => pathKey(file) === key)
+      if (entry === undefined) {
+        return Promise.reject(hostError('not-allowed', `access to ${path} is not allowed`))
+      }
+      remember(recent.files, entry, 10)
+      return Promise.resolve(entry)
+    },
+    recentOpenFolder(path) {
+      const key = pathKey(path)
+      const entry = recent.folders.find((folder) => pathKey(folder) === key)
+      if (entry === undefined) {
+        return Promise.reject(hostError('not-allowed', `access to ${path} is not allowed`))
+      }
+      return attempt(() => {
+        const root = addRoot(entry)
+        remember(recent.folders, root, 5)
+        return root
+      })
     },
     saveFile(id: number, text: string, endings: Endings) {
       const doc = open.get(id)
@@ -878,6 +1034,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     },
     closeDocument(id) {
       open.delete(id)
+      untitled.delete(id)
       return Promise.resolve()
     },
     reloadDocument(id) {

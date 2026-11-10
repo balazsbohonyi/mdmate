@@ -144,3 +144,32 @@ Deviations from the plan and choices it left open. Numbers carry the OS they cam
 - Real window (`real5`, debug build): 20 checks passed, listed in ISA Verification for ISC-130 and ISC-131. A real OS Ctrl+P and Ctrl+Shift+P, sent to the app window while it was in the foreground, opened the pickers and WebView2 did not open Print.
 - Mutations: 24 in Rust and 39 in the page, listed in ISA Verification. The first stale-answer test was timing dependent (it passed once with the guard removed); it now releases the slow answer itself.
 - No speed gate is named for the picker, and none was measured; the first query in a very large workspace is in untested.md.
+
+## P6-T8: untitled tabs, Save As, Revert, Close All, Open Recent
+
+**An untitled document is an id.** Rust keeps a set of ids for it and nothing else: no path, no entry in the table of open documents. So the watcher never sees it, the workspace never lists it and no recent entry can point at it. The first save writes the file, then §promote§ gives the id its path; if the write fails or the dialog is cancelled the id stays untitled. §promote§ refuses a path another document has open, and the same check runs first in §save_as§, so the user gets a plain message instead of two documents on one file.
+
+**Save As is one Rust command.** §save_as(state, id, body, chooser)§ takes the dialog as a parameter, so tests choose a path without a window. Rules: a file open in another tab is refused (nothing is written); the original of a document that cannot be written (the Latin-1 case) is never the target; the document's own file is a plain save, with the disk-changed guard; a name with no extension gets §.md§ and is refused if that file exists; the format is the file's own encoding and BOM when it has them and UTF-8 with no BOM when it has none; line endings default to LF. A hint sent by the page (name, folder) is cleaned in Rust (folders and characters Windows forbids removed) before the dialog sees it.
+
+**The page keeps the document.** Save As moves the same §Document§ to the new file (§relocate§), so undo history and the caret stay. The saved baseline is the text that was written, so the tab is clean. Two things do not change: the kind of tab and the plain-source choice made when the file opened (a copy of a large file stays plain source; a .md copy of a text file stays a text tab until reopened).
+
+**Name and folder offered.** The name is the first heading as a slug (letters and digits, accents kept, 60 characters at most, fences skipped, §#tag§ is not a heading), else §Untitled.md§. The brief says "the active pane's root"; I read it as the workspace root that holds the first file tab (the active tab first, then the other tabs of the pane), else the folder of the last file opened or saved. If the owner meant something else (the root the tree has selected, say) it is one function.
+
+**Recent files.** §recent.json§ in the data folder: newest first, 10 files and 5 folders, written atomically, pruned of paths that no longer exist each time it is read. Only Rust adds to it: §open_file§ with §remember§ (every open the user makes: the dialog, a tree click, the picker, Open Recent; a session restore does not remember), §open_folder§ and Save As. A recent entry is granted access again only if it is on the list, so a forged id cannot grant a path. The page cannot write the list.
+
+**Hot exit for untitled tabs.** The tab entry is §{id, path: '', caret, kind: 'untitled', untitled: n}§ and the buffer carries the same number. A restart makes a new id in Rust per untitled tab and puts the text back as an edited document (so it is unsaved, not empty). Numbers rise during a run and are not reused. Text with no tab (a layout that lost the tab) goes to §recovered/Untitled-N§ with a notice, and a damaged line-ending record does the same.
+
+**Close All.** §closeTabs(tabs)§ asks once per dirty document, in tab order, through the pane banner; Cancel stops the queue and closes nothing that was not answered. A question replaced by another resolves as cancel; a document released by another route resolves as gone, so the queue moves on. P6-T9's Close Others uses the same call.
+
+**Revert File.** The question is a pane banner (Revert, Cancel). The command is off for an untitled tab and for a file known to be gone. "Gone" is looked at when the active document changes, when the window gets focus, when the menu opens and again at the moment of the request, so the menu state can be stale for the time between those (a file deleted while the window has focus and the menu is closed). A request on a stale "present" looks again and says so instead of asking for nothing.
+
+**F2** is the same command as Rename. For an untitled tab it is Save As (there is no name to change); for a file on disk it stays off until P6-T9 wires the rewrite flow to it.
+
+**Finding for the owner (ISC-209).** Save As on a read-only document writes what the page shows as UTF-8. That is lossless only for true Latin-1. A file in another encoding that mdmate cannot read (UTF-16 with no BOM, for instance) is shown through the same fallback, so its UTF-8 copy holds the characters shown, not the original ones. The original is never touched. Not fixed here: a second decoder is not in the plan. Written in untested.md.
+
+**Evidence.**
+
+- Rust: 308 tests pass. Web: 1251 tests (untitled 17, Save As 11, Revert 11, Close All 9, recent 8, session additions). §pnpm check§ and §pnpm check:rust§ exit 0.
+- Real window (§real6§, debug build with the perf feature, Windows 11): 45 checks passed, listed in ISA Verification for ISC-203 to ISC-212. Real OS Ctrl+N, Ctrl+S, Ctrl+Shift+S and Ctrl+Shift+W went to the app window while it was in the foreground, and the Windows Save As dialog (and its own overwrite question) was driven through UI Automation. A forced kill kept an untitled buffer.
+- Mutations: 27 in Rust and 42 in the page, listed in ISA Verification; 7 survived and were fixed with new tests, all caught on a second run.
+- Screenshots: the first Open Recent menu showed every file name cut to "old....", "readme..."; fixed (the name never shrinks, the folder path does) and checked again with a long name.

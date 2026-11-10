@@ -18,7 +18,7 @@ import { endingsOf, lineEndingsFor } from '@/editor/lineEndings'
 import { sourceCopy } from '@/editor/sourceCopy'
 import { carriedAnnotations, followerSync } from '@/editor/sync'
 import { endingsEqual, type Endings } from '@/lib/endings'
-import type { OpenedFile, ReadOnlyReason, SavedFile } from '@/platform'
+import type { OpenedFile, ReadOnlyReason, SavedAs, SavedFile } from '@/platform'
 import { Follower, type FollowerHost } from './follower'
 
 /** What a save sends: the text and endings as they were at one moment. */
@@ -80,6 +80,8 @@ export interface DocumentOptions {
   readonly touched?: () => void
   /** Called on Ctrl+click on a link in a tab of this document, with the target as written. */
   readonly followLink?: (tabId: string, href: string) => void
+  /** The number in the name of an untitled document, which has no path. */
+  readonly untitledNumber?: number
   /** Says which link targets are missing files, for the broken-link style. Without it, none is drawn. */
   readonly checkLinks?: (hrefs: readonly string[]) => Promise<readonly boolean[]>
 }
@@ -108,6 +110,8 @@ export class Document implements FollowerHost {
    * Markdown file above the size cutoff.
    */
   readonly plainSource: boolean
+  /** The number in the name of an untitled document, or null for one that has a file. */
+  untitledNumber: number | null
   /** Hash of the bytes last read from or written to disk. */
   diskHash: string
   #master: EditorState
@@ -126,6 +130,7 @@ export class Document implements FollowerHost {
     this.name = opened.name
     this.readOnly = opened.readOnly
     this.diskHash = opened.hash
+    this.untitledNumber = options.untitledNumber ?? null
     this.#changed = changed
     this.#touched = options.touched ?? (() => undefined)
     // An explicit choice wins (the perf scenarios make one); otherwise the file's size decides.
@@ -138,6 +143,11 @@ export class Document implements FollowerHost {
       readOnlyFacet(opened.readOnly),
     ])
     this.#saved = { doc: this.#master.doc, endings: endingsOf(this.#master) }
+  }
+
+  /** True for a new document that has no file yet. */
+  get untitled(): boolean {
+    return this.path === ''
   }
 
   /** The state that owns the document. Read it; change it only through a follower. */
@@ -344,6 +354,23 @@ export class Document implements FollowerHost {
     this.diskHash = saved.hash
     this.#touched()
     this.#refreshDirty()
+  }
+
+  /**
+   * Gives the document the file a Save As wrote: it follows the file, `snapshot` is what that file
+   * holds, and the history stays. A document that could not be saved (a file in an encoding mdmate
+   * cannot write) can be saved from now on, since what was written is UTF-8.
+   */
+  relocate(snapshot: Snapshot, saved: SavedAs): void {
+    this.path = saved.path
+    this.name = saved.name
+    this.untitledNumber = null
+    this.#saved = { doc: snapshot.doc, endings: snapshot.endings }
+    this.diskHash = saved.hash
+    this.#applyReadOnly(null)
+    this.#touched()
+    this.#refreshDirty()
+    this.#changed(this)
   }
 
   /**

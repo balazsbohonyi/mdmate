@@ -13,7 +13,7 @@ use crate::fs::{self, Saved, atomic, frame};
 use crate::workspace::folders::{self, FolderWatcher};
 use crate::workspace::watch::{DiskChange, Watcher};
 use serde_json::{Map, Value};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 
@@ -36,6 +36,9 @@ pub(crate) struct Documents {
     next_id: u32,
     by_id: HashMap<u32, DocEntry>,
     by_key: HashMap<String, u32>,
+    /// Documents with no file yet (an untitled tab). They have an id and nothing else, so they are
+    /// in no listing of open files, are never watched, and are never granted at the next start.
+    untitled: HashSet<u32>,
 }
 
 impl Documents {
@@ -65,6 +68,50 @@ impl Documents {
             },
         );
         id
+    }
+
+    /// Gives an untitled document an id. It has no path, so a save by id refuses it; only Save As
+    /// (see `save_as`) can give it one.
+    pub(crate) fn register_untitled(&mut self) -> u32 {
+        self.next_id += 1;
+        self.untitled.insert(self.next_id);
+        self.next_id
+    }
+
+    pub(crate) fn is_untitled(&self, id: u32) -> bool {
+        self.untitled.contains(&id)
+    }
+
+    /// Whether this path is the file of another open document than `id`.
+    pub(crate) fn path_is_open_elsewhere(&self, key: &str, id: u32) -> bool {
+        self.by_key.get(key).is_some_and(|&other| other != id)
+    }
+
+    /// Gives an untitled document its file, after the file was written. False (and nothing
+    /// changes) when the id is not an untitled document or another document has that path.
+    pub(crate) fn promote(
+        &mut self,
+        id: u32,
+        resolved: &Resolved,
+        format: Option<Format>,
+        hash: u128,
+    ) -> bool {
+        if !self.untitled.contains(&id) || self.path_is_open_elsewhere(&resolved.key, id) {
+            return false;
+        }
+        self.untitled.remove(&id);
+        self.by_key.insert(resolved.key.clone(), id);
+        self.by_id.insert(
+            id,
+            DocEntry {
+                path: resolved.path.clone(),
+                key: resolved.key.clone(),
+                format,
+                known_hash: hash,
+                reported_hash: None,
+            },
+        );
+        true
     }
 
     pub(crate) fn get(&self, id: u32) -> Option<&DocEntry> {
@@ -105,6 +152,7 @@ impl Documents {
     }
 
     pub(crate) fn remove(&mut self, id: u32) -> Option<DocEntry> {
+        self.untitled.remove(&id);
         let entry = self.by_id.remove(&id)?;
         self.by_key.remove(&entry.key);
         Some(entry)
@@ -489,6 +537,34 @@ mod tests {
 
     fn edit_frame(text: &str) -> Vec<u8> {
         frame::encode(Map::new(), &Endings::uniform(Ending::CrLf), text)
+    }
+
+    #[test]
+    fn promote_gives_an_untitled_document_its_file_once_and_never_over_another_documents() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let state = state_with(dir.path(), &["taken.md", "free.md"]);
+        let taken = dir.path().join("taken.md");
+        state.access().grant_file(&taken).expect("granted");
+        open_document(&state, &taken).expect("opens");
+        let resolved_taken = state.access().check(&taken).expect("allowed");
+        let free = state
+            .access()
+            .grant_file(&dir.path().join("free.md"))
+            .expect("granted");
+
+        let mut documents = state.documents();
+        let id = documents.register_untitled();
+        assert!(documents.is_untitled(id));
+        // Another document already has that path: nothing changes.
+        assert!(!documents.promote(id, &resolved_taken, None, 1));
+        assert!(documents.is_untitled(id));
+        assert!(documents.get(id).is_none());
+        // A free path works, once. An id that was never untitled cannot be promoted at all.
+        assert!(documents.promote(id, &free, None, 2));
+        assert!(!documents.is_untitled(id));
+        assert_eq!(documents.get(id).map(|entry| entry.known_hash), Some(2));
+        assert!(!documents.promote(id, &free, None, 3));
+        assert!(!documents.promote(9999, &free, None, 4));
     }
 
     #[test]
