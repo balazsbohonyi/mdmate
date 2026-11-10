@@ -293,6 +293,17 @@ async function noticeDiskChange(doc: Document, hash: string): Promise<void> {
   }
 }
 
+/**
+ * Brings an open document up to date with its file after the app itself rewrote the file. A
+ * document with no unsaved edits takes the new content; one with edits asks, as for any change
+ * from outside. Does nothing for a document that is not open.
+ */
+export function refreshFromDisk(id: number): Promise<void> {
+  const doc = documents.get(id)
+  // An empty hash never equals a real one, so the file is always read.
+  return doc === undefined ? Promise.resolve() : noticeDiskChange(doc, '')
+}
+
 function conflictOf(docId: number): 'disk' | 'save' | null {
   return docMeta(docId)?.conflict ?? null
 }

@@ -231,6 +231,13 @@ struct Moves {
 }
 
 impl Moves {
+    fn of(mv: &Move) -> Result<Self, AppError> {
+        match (Abs::of(&mv.from), Abs::of(&mv.to)) {
+            (Some(from), Some(to)) => Ok(Self { from, to }),
+            _ => Err(AppError::Invalid("a move needs full paths".into())),
+        }
+    }
+
     /// Where something at `place` is once the move is done.
     fn after(&self, place: &Abs, ignore_case: bool) -> Abs {
         match place.under(&self.from, ignore_case) {
@@ -306,6 +313,58 @@ fn written(link: &Link, relative: &[String]) -> String {
     link.render(&path)
 }
 
+/// One change to the text of an open document, counted in the units the editor counts: UTF-16 code
+/// units from the start of the text.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct BufferEdit {
+    pub(crate) from: usize,
+    pub(crate) to: usize,
+    pub(crate) insert: String,
+}
+
+/// The edits for the text of a document that is open, which may differ from the file on disk.
+/// `file` is where the document is now; call it before the move, as with [`plan`]. The second
+/// value is how many links could not be written relative.
+pub(crate) fn buffer_edits(
+    file: &Path,
+    text: &str,
+    mv: &Move,
+    ignore_case: bool,
+) -> Result<(Vec<BufferEdit>, usize), AppError> {
+    let moves = Moves::of(mv)?;
+    let file = Abs::of(file).ok_or_else(|| AppError::Invalid("a file needs a full path".into()))?;
+    let mut unrelatable = 0;
+    let mut edits = edits_for(
+        &scan::scan(text),
+        &file,
+        &moves,
+        ignore_case,
+        &mut unrelatable,
+    );
+    edits.sort_by_key(|edit| edit.span.start);
+    let (mut at, mut units) = (0, 0);
+    let mut out = Vec::with_capacity(edits.len());
+    for edit in edits {
+        let (Some(before), Some(inside)) = (
+            text.get(at..edit.span.start),
+            text.get(edit.span.start..edit.span.end),
+        ) else {
+            return Err(AppError::Invalid(
+                "a link is not where the text says".into(),
+            ));
+        };
+        let from = units + before.encode_utf16().count();
+        let to = from + inside.encode_utf16().count();
+        (at, units) = (edit.span.end, to);
+        out.push(BufferEdit {
+            from,
+            to,
+            insert: edit.new,
+        });
+    }
+    Ok((out, unrelatable))
+}
+
 /// Works out every edit for moving `mv`, reading the files under `roots`. Call it before the
 /// move. `progress` gets each file about to be read and returns false to stop early; what was
 /// found until then is the plan.
@@ -315,10 +374,7 @@ pub(crate) fn plan(
     ignore_case: bool,
     mut progress: impl FnMut(&Path) -> bool,
 ) -> Result<Plan, AppError> {
-    let (Some(from), Some(to)) = (Abs::of(&mv.from), Abs::of(&mv.to)) else {
-        return Err(AppError::Invalid("a move needs full paths".into()));
-    };
-    let moves = Moves { from, to };
+    let moves = Moves::of(mv)?;
     let mut plan = Plan::default();
     let mut seen: HashSet<String> = HashSet::new();
     let mut stopped = false;

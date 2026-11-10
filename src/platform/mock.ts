@@ -14,6 +14,8 @@ import type {
 } from './workspace'
 import { DEMO_IMAGES } from './demoImages'
 import { joinRaw, MockFiles, mockHash, pathKey, splitRaw } from './mockFiles'
+import { applyEdits, isScannable, mockEdits, movedPath } from './mockRewrite'
+import type { RewriteChange, RewriteDone, RewritePlanned, TextChange } from './rewrite'
 
 /**
  * Window controls for the browser. Maximize flips a flag so the title bar's icon can be seen
@@ -304,6 +306,174 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     return moved
   }
 
+  /** Renames, like Rust's `rename_entry`. */
+  function rename(path: string, newName: string): Moved {
+    const target = renameTarget(path, newName)
+    if (target === null) return { path: `${parentOf(path)}/${newName}`, documents: [] }
+    files.move(path, target)
+    return { path: target, documents: followMove(path, target) }
+  }
+
+  /** Moves into a folder, like Rust's `move_entry`. */
+  function moveInto(path: string, into: string): Moved {
+    const target = moveTarget(path, into)
+    if (target === null) return { path: `${slashes(into)}/${nameOf(path)}`, documents: [] }
+    files.move(path, target)
+    return { path: target, documents: followMove(path, target) }
+  }
+
+  /** Where a rename puts `path` after the checks; null when the name is the one it has. */
+  function renameTarget(path: string, newName: string): string | null {
+    checkName(newName)
+    entryInRoot(path)
+    const target = `${parentOf(path)}/${newName}`
+    if (slashes(target) === slashes(path)) return null
+    if (exists(target) && trimmed(target) !== trimmed(path)) {
+      throw hostError('exists', `${newName} already exists`)
+    }
+    return target
+  }
+
+  /** Where a move puts `path` after the checks; null when it is in that folder already. */
+  function moveTarget(path: string, into: string): string | null {
+    entryInRoot(path)
+    folderInRoot(into)
+    const [from, destination] = [trimmed(path), trimmed(into)]
+    if (destination === from || destination.startsWith(`${from}/`)) {
+      throw hostError('invalid', 'a folder cannot be moved into itself')
+    }
+    const target = `${slashes(into)}/${nameOf(path)}`
+    if (slashes(target) === slashes(path)) return null
+    if (exists(target)) throw hostError('exists', `${nameOf(path)} already exists`)
+    return target
+  }
+
+  // ---- link rewrite, in the small: inline links only (see mockRewrite.ts) ----
+  interface Planned {
+    token: number
+    path: string
+    change: RewriteChange
+    target: string
+    /** The files to write and the edits for each, with the hash of what was read. */
+    files: { path: string; hash: string; edits: TextChange[] }[]
+  }
+  let pending: Planned | null = null
+  let cancelled = false
+  let lastToken = 0
+
+  function targetOf(path: string, change: RewriteChange): string | null {
+    return change.kind === 'rename'
+      ? renameTarget(path, change.name)
+      : moveTarget(path, change.into)
+  }
+
+  async function planRewrite(
+    path: string,
+    change: RewriteChange,
+    buffers: readonly { id: number; text: string }[],
+    onProgress: (scanned: number) => void,
+  ): Promise<RewritePlanned> {
+    const empty: RewritePlanned = {
+      token: 0,
+      links: 0,
+      files: 0,
+      scanned: 0,
+      binary: 0,
+      skipped: [],
+      unrelatable: 0,
+      cancelled: false,
+      buffers: [],
+    }
+    const target = targetOf(path, change)
+    if (target === null) return empty
+    cancelled = false
+    const held = new Map<string, TextChange[]>()
+    for (const buffer of buffers) {
+      const doc = open.get(buffer.id)
+      if (doc === undefined) continue
+      held.set(pathKey(doc.path), mockEdits(doc.path, buffer.text, path, target))
+    }
+    const found: Planned['files'] = []
+    let scanned = 0
+    for (const file of files.paths()) {
+      if (!insideRoot(file) || !isScannable(file) || held.has(pathKey(file))) continue
+      // Give the page a turn between files, as the real scan does by running on another thread.
+      await Promise.resolve()
+      if (cancelled) return { ...empty, cancelled: true }
+      scanned += 1
+      onProgress(scanned)
+      const raw = files.read(file) ?? ''
+      const edits = mockEdits(file, raw, path, target)
+      if (edits.length > 0) found.push({ path: file, hash: mockHash(raw), edits })
+    }
+    const links =
+      found.reduce((sum, file) => sum + file.edits.length, 0) +
+      [...held.values()].reduce((sum, edits) => sum + edits.length, 0)
+    const count = found.length + [...held.values()].filter((edits) => edits.length > 0).length
+    lastToken += 1
+    pending = { token: lastToken, path, change, target, files: found }
+    return {
+      ...empty,
+      token: lastToken,
+      links,
+      files: count,
+      scanned,
+      buffers: buffers.map((b) => b.id),
+    }
+  }
+
+  function finishRewrite(
+    token: number,
+    buffers: readonly { id: number; text: string }[],
+  ): RewriteDone {
+    const plan = pending
+    if (plan?.token !== token) {
+      throw hostError('invalid', 'the plan is out of date: start the rename again')
+    }
+    pending = null
+    const held = new Map<number, { key: string; edits: TextChange[] }>()
+    for (const buffer of buffers) {
+      const doc = open.get(buffer.id)
+      if (doc === undefined) continue
+      held.set(buffer.id, {
+        key: pathKey(doc.path),
+        edits: mockEdits(doc.path, buffer.text, plan.path, plan.target),
+      })
+    }
+    const heldKeys = new Set([...held.values()].map((doc) => doc.key))
+    const moved =
+      plan.change.kind === 'rename'
+        ? rename(plan.path, plan.change.name)
+        : moveInto(plan.path, plan.change.into)
+    const written: string[] = []
+    const failed: { path: string; reason: string }[] = []
+    for (const file of plan.files) {
+      if (heldKeys.has(pathKey(file.path))) continue
+      const now = movedPath(file.path, plan.path, plan.target)
+      const raw = files.read(now)
+      if (raw === undefined || mockHash(raw) !== file.hash) {
+        failed.push({ path: now, reason: 'it changed since it was scanned' })
+        continue
+      }
+      files.write(now, applyEdits(raw, file.edits))
+      written.push(now)
+    }
+    const writtenKeys = new Set(written.map((path) => pathKey(path)))
+    const reload = [...open]
+      .filter(([, doc]) => writtenKeys.has(pathKey(doc.path)))
+      .map(([id]) => id)
+    return {
+      moved,
+      written,
+      failed,
+      reload,
+      edits: [...held]
+        .filter(([, doc]) => doc.edits.length > 0)
+        .map(([id, doc]) => ({ id, changes: doc.edits })),
+      unrelatable: 0,
+    }
+  }
+
   function requireDropped(paths: readonly string[]): void {
     const known = new Set(drops.flat().map((path) => pathKey(path)))
     if (paths.some((path) => !known.has(pathKey(path)))) {
@@ -514,32 +684,24 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
       })
     },
     renameEntry(path, newName) {
-      return attempt((): Moved => {
-        checkName(newName)
-        entryInRoot(path)
-        const target = `${parentOf(path)}/${newName}`
-        if (slashes(target) === slashes(path)) return { path: target, documents: [] }
-        if (exists(target) && trimmed(target) !== trimmed(path)) {
-          throw hostError('exists', `${newName} already exists`)
-        }
-        files.move(path, target)
-        return { path: target, documents: followMove(path, target) }
-      })
+      return attempt(() => rename(path, newName))
     },
     moveEntry(path, into) {
-      return attempt((): Moved => {
-        entryInRoot(path)
-        folderInRoot(into)
-        const [from, destination] = [trimmed(path), trimmed(into)]
-        if (destination === from || destination.startsWith(`${from}/`)) {
-          throw hostError('invalid', 'a folder cannot be moved into itself')
-        }
-        const target = `${slashes(into)}/${nameOf(path)}`
-        if (slashes(target) === slashes(path)) return { path: target, documents: [] }
-        if (exists(target)) throw hostError('exists', `${nameOf(path)} already exists`)
-        files.move(path, target)
-        return { path: target, documents: followMove(path, target) }
-      })
+      return attempt(() => moveInto(path, into))
+    },
+    rewritePlan(path, change, buffers, onProgress) {
+      return planRewrite(path, change, buffers, onProgress)
+    },
+    rewriteMove(token, buffers) {
+      return attempt(() => finishRewrite(token, buffers))
+    },
+    rewriteCancel() {
+      cancelled = true
+      return Promise.resolve()
+    },
+    rewriteDiscard(token) {
+      if (pending?.token === token) pending = null
+      return Promise.resolve()
     },
     deleteEntry(path) {
       return attempt(() => {

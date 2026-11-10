@@ -1,5 +1,6 @@
 import { shallowRef } from 'vue'
 import { describe, documentMoved, problem } from '@/documents/store'
+import { moveWithLinks } from '@/features/links/rewrite'
 import { imageTabs, setImagePath } from '@/workbench/store'
 import { nameProblem } from '@/lib/fileNames'
 import { getHost, type ClashAnswer, type ClashChoice, type Moved } from '@/platform'
@@ -74,9 +75,15 @@ export async function commitNaming(name: string): Promise<void> {
     const host = await getHost()
     if (typing.kind === 'rename') {
       if (trimmed === baseName(typing.path)) return cancelNaming()
-      const moved = await host.renameEntry(typing.path, trimmed)
+      // The box stays open until the move is known to be possible, so a name that is taken or
+      // not allowed is explained where it was typed.
+      const moved = await moveWithLinks(
+        typing.path,
+        { kind: 'rename', name: trimmed },
+        { onChecked: cancelNaming },
+      )
       cancelNaming()
-      afterMove(typing.path, moved)
+      if (moved !== null) afterMove(typing.path, moved)
       return
     }
     const made =
@@ -120,8 +127,8 @@ export async function moveRow(path: string, folder: string): Promise<void> {
     return
   }
   try {
-    const host = await getHost()
-    const moved = await host.moveEntry(path, folder)
+    const moved = await moveWithLinks(path, { kind: 'move', into: folder })
+    if (moved === null) return
     await openFolderRow(folder)
     afterMove(path, moved)
   } catch (error) {

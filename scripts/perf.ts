@@ -26,6 +26,7 @@ import os from 'node:os'
 import { join, resolve } from 'node:path'
 import { DEFAULT_PARAMS, SIZES_MB, type PerfParams, type PerfReport } from '../src/perf/params.ts'
 import { driveDrag, driveTyping, sleep } from './lib/cdp.ts'
+import { writeWorkspace } from './lib/workspaceFixture.ts'
 import { writeScrollLab } from './lib/scrollLab.ts'
 import { REPEATABILITY_RULE, median, repeatability, summarize } from './lib/perfStats.ts'
 
@@ -268,6 +269,24 @@ const SPECS: Record<string, Spec> = {
     headlineName: 'work per key, p95',
     targetMs: 16,
     metrics: typingMetrics,
+  },
+  'typing-during-scan': {
+    claim: 'ISC-129',
+    page: 'typing-during-scan',
+    headlineName: 'work per key, p95',
+    targetMs: 16,
+    metrics(run) {
+      const { report } = run
+      return {
+        ...typingMetrics(run),
+        'scan of the workspace, median': median(q(report, 'scanMs')),
+        'scans completed': v(report, 'scansCompleted'),
+        'typing window with a scan running (1 = all)': v(report, 'scanShareOfTypingWindow'),
+        'files read per scan': v(report, 'filesScanned'),
+        'links found per scan': v(report, 'linksFound'),
+        'longest gap between scans': v(report, 'longestGapBetweenScansMs'),
+      }
+    },
   },
   'typing-1mb-trusted': {
     claim: 'ISC-7',
@@ -801,6 +820,11 @@ async function main(): Promise<void> {
   if (!existsSync(join(ROOT, 'tests', 'fixtures', 'generated', 'realistic-1mb.md'))) {
     console.log('perf: generating fixtures...')
     spawnSync(process.execPath, [join(ROOT, 'scripts', 'fixtures.mjs')], { stdio: 'inherit' })
+  }
+  const workspace = join(ROOT, 'tests', 'fixtures', 'generated', 'workspace-large')
+  if (chosen.includes('typing-during-scan') && !existsSync(join(workspace, 'target.md'))) {
+    console.log('perf: generating the large workspace...')
+    writeWorkspace(workspace)
   }
   if (!skipBuild) build()
   if (!existsSync(EXE)) fail(`${EXE} is missing; run without --skip-build`)

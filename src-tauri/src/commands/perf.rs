@@ -96,6 +96,17 @@ pub(crate) fn perf_grant_file(
     Ok(())
 }
 
+/// Makes a folder a workspace root without the native dialog, so a perf scenario can run a rewrite
+/// scan over it. The path comes from whoever launched the perf build.
+#[tauri::command]
+pub(crate) fn perf_grant_root(
+    state: tauri::State<'_, std::sync::Arc<AppState>>,
+    path: String,
+) -> Result<(), AppError> {
+    state.access().grant_root(std::path::Path::new(&path))?;
+    Ok(())
+}
+
 /// P0 lab: grows the asset protocol scope while the app runs, which is what opening a folder
 /// would need to do for the images inside it.
 #[tauri::command]

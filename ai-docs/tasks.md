@@ -68,7 +68,7 @@ Mark `[x]` only when the task's "Done when" in its phase plan holds. Each task l
 - [x] P6-T3: Text and image tabs, drop to open — closes ISC-106, ISC-107, ISC-108, ISC-109, ISC-110, ISC-111, ISC-112, ISC-200, ISC-201, ISC-202
 - [x] P6-T4: Link scanner — closes ISC-116, ISC-117, ISC-118, ISC-119, ISC-120, ISC-121, ISC-124
 - [x] P6-T5: Rewrite engine — closes ISC-113, ISC-114, ISC-115, ISC-122, ISC-125, ISC-128
-- [ ] P6-T6: Rewrite UI — closes ISC-123, ISC-126, ISC-127, ISC-129, ISC-175
+- [x] P6-T6: Rewrite UI — closes ISC-123, ISC-126, ISC-127, ISC-129, ISC-175
 - [ ] P6-T7: Quick open and command palette — closes ISC-130, ISC-131
 - [ ] P6-T8: Untitled files, Save As, Revert, Close All, Open Recent — closes ISC-203, ISC-204, ISC-205, ISC-206, ISC-207, ISC-208, ISC-209, ISC-210, ISC-211, ISC-212
 - [ ] P6-T9: Tab context menu and Find File References — closes ISC-213, ISC-214, ISC-215, ISC-216, ISC-217, ISC-218

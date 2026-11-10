@@ -140,6 +140,7 @@ pub(crate) fn apply(text: &str, edits: &[Edit]) -> String {
 
 /// `text` with the target of `link` pointing at `new_path` (forward slashes), written the way the
 /// link was.
+#[cfg(test)]
 pub(crate) fn splice(text: &str, link: &Link, new_path: &str) -> String {
     apply(
         text,

@@ -4,6 +4,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { decodeFrame, encodeFrame, openedFromFrame } from './frame'
 import type { DiskChange, Host, PerfConfig, PerfHost, SavedFile } from './host'
 import { parseFollowedLink, parseLinkInfo } from './links'
+import { parseRewriteDone, parseRewritePlanned } from './rewrite'
 import {
   parseCopyReport,
   parseDroppedItems,
@@ -29,6 +30,9 @@ const perfBridge: PerfHost = {
   },
   async grantFile(path) {
     await invoke('perf_grant_file', { path })
+  },
+  async grantRoot(path) {
+    await invoke('perf_grant_root', { path })
   },
   assetUrl(path) {
     return convertFileSrc(path)
@@ -173,6 +177,22 @@ export const tauriHost: Host = {
   },
   async moveEntry(path, into) {
     return parseMoved(await invoke<unknown>('move_entry', { path, into }))
+  },
+  async rewritePlan(path, change, buffers, onProgress) {
+    const channel = new Channel<number>()
+    channel.onmessage = onProgress
+    return parseRewritePlanned(
+      await invoke<unknown>('rewrite_plan', { path, change, buffers, onProgress: channel }),
+    )
+  },
+  async rewriteMove(token, buffers) {
+    return parseRewriteDone(await invoke<unknown>('rewrite_move', { token, buffers }))
+  },
+  async rewriteCancel() {
+    await invoke('rewrite_cancel')
+  },
+  async rewriteDiscard(token) {
+    await invoke('rewrite_discard', { token })
   },
   async deleteEntry(path) {
     await invoke('delete_entry', { path })

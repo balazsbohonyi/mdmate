@@ -75,6 +75,7 @@ pub(crate) fn walk(root: &Path, mut visit: impl FnMut(&Path) -> bool) -> Walked 
 
 /// Reads a file and scans it. A binary file is recognised from its first bytes, without reading
 /// the rest.
+#[cfg(test)]
 pub(crate) fn scan_file(path: &Path) -> std::io::Result<Scan> {
     Ok(read_unless_binary(path)?.map_or(Scan::Binary, |bytes| scan_bytes(&bytes)))
 }

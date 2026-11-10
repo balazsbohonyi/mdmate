@@ -1,5 +1,6 @@
 import type { Endings } from '@/lib/endings'
 import type { FollowedLink, LinkInfo } from './links'
+import type { RewriteBuffer, RewriteChange, RewriteDone, RewritePlanned } from './rewrite'
 import type {
   ClashAnswer,
   CopyReport,
@@ -37,6 +38,8 @@ export interface PerfHost {
   ready(json: string): Promise<void>
   /** Lets the page open a file without the native dialog. */
   grantFile(path: string): Promise<void>
+  /** Makes a folder a workspace root without the native dialog, so a scan can read it. */
+  grantRoot(path: string): Promise<void>
   /** P0 lab: the URL that serves a local file through the asset protocol. */
   assetUrl(path: string): string
   /** P0 lab: grows the asset protocol scope while the app runs. */
@@ -227,6 +230,29 @@ export interface Host {
   renameEntry(path: string, newName: string): Promise<Moved>
   /** Moves a file or folder into another folder of the workspace; a folder never into itself. */
   moveEntry(path: string, into: string): Promise<Moved>
+  /**
+   * Checks a rename or move and reads the workspace for the links it would change, without
+   * changing anything. `onProgress` hears how many files were read so far. `buffers` are the open
+   * documents with unsaved edits: their text is read instead of the file's. Rejects for the
+   * reasons `renameEntry` and `moveEntry` do, before reading anything.
+   */
+  rewritePlan(
+    path: string,
+    change: RewriteChange,
+    buffers: readonly RewriteBuffer[],
+    onProgress: (scanned: number) => void,
+  ): Promise<RewritePlanned>
+  /**
+   * Does the rename or move a plan was made for and rewrites the links. Open documents are not
+   * written: `buffers` carries the text of every one the page holds edits in now, and the answer
+   * says what to change in each and which to reload. Rejects with `invalid` for a plan that is
+   * out of date.
+   */
+  rewriteMove(token: number, buffers: readonly RewriteBuffer[]): Promise<RewriteDone>
+  /** Stops a scan that `rewritePlan` is running; it then answers `cancelled`. */
+  rewriteCancel(): Promise<void>
+  /** Forgets a plan the user said no to. */
+  rewriteDiscard(token: number): Promise<void>
   /** Sends a file or folder of the workspace to the Recycle Bin. */
   deleteEntry(path: string): Promise<void>
   /** Shows a file or folder in the system's file manager, selected. */

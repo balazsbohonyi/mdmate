@@ -4,23 +4,10 @@
 //! everything from those two: the folder comes from its own record of the document, and the guard
 //! ([`guard`]) decides what the target may do. The page never names a path or a URL to open.
 
+pub(crate) mod flow;
 pub(crate) mod guard;
-// The scanner, the walker and the rewrite engine are called by the commands P6-T6 adds; until then
-// only tests do.
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "P6-T6 wires the commands that call it")
-)]
 pub(crate) mod rewrite;
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "P6-T6 wires the commands that call it")
-)]
 pub(crate) mod scan;
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "P6-T6 wires the commands that call it")
-)]
 pub(crate) mod walk;
 
 use crate::access::display_path;

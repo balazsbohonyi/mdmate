@@ -174,6 +174,8 @@ flowchart LR
 
 The scan covers all workspace roots at any depth, plus open tabs outside the roots. Only `.git` and binary files are skipped.
 
+The page runs it in two calls (`src/features/links/rewrite.ts`). `rewrite_plan` scans in the background with progress and returns the counts under a token; the banner in the sidebar asks, unless `settings.links.confirmRewrite` is false; `rewrite_move` then moves and applies. Rust (`links/flow.rs`) never writes a file that is open: it names the clean ones for the page to reload and returns text edits for the dirty ones, which the page applies to the editor as one undoable step.
+
 ## Security
 
 Markdown content is untrusted, and people will open files they did not write.

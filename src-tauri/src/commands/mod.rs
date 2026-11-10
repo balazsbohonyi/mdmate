@@ -554,6 +554,68 @@ pub(crate) fn move_entry(
     )
 }
 
+/// Checks a rename or move and reads the workspace for the links it would change, without
+/// changing anything. `on_progress` hears how many files were read, a few times a second; the
+/// answer says how many links in how many files, and names the plan for [`rewrite_move`].
+/// `buffers` are the open documents with edits not yet saved: their text is read instead of the
+/// file's.
+#[tauri::command]
+pub(crate) async fn rewrite_plan(
+    state: State<'_, Arc<AppState>>,
+    path: String,
+    change: links::flow::Change,
+    buffers: Vec<links::flow::Buffer>,
+    on_progress: Channel<usize>,
+) -> Result<links::flow::Planned, AppError> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut last = std::time::Instant::now();
+        links::flow::plan(
+            &state,
+            std::path::Path::new(&path),
+            &change,
+            &buffers,
+            |read| {
+                if last.elapsed() >= std::time::Duration::from_millis(75) {
+                    last = std::time::Instant::now();
+                    // A page that has gone away has nobody to tell.
+                    let _ = on_progress.send(read);
+                }
+            },
+        )
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Does the rename or move a plan was made for, and rewrites the links it said it would. Open
+/// documents are not written: `buffers` carries the text of every one the page holds edits in.
+#[tauri::command]
+pub(crate) async fn rewrite_move(
+    state: State<'_, Arc<AppState>>,
+    token: u64,
+    buffers: Vec<links::flow::Buffer>,
+) -> Result<links::flow::Done, AppError> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || links::flow::finish(&state, token, &buffers))
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Stops a scan that [`rewrite_plan`] is running. The plan then answers `cancelled`.
+#[tauri::command]
+pub(crate) fn rewrite_cancel(state: State<'_, Arc<AppState>>) {
+    state
+        .rewrite_stop()
+        .store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Forgets a plan the user said no to.
+#[tauri::command]
+pub(crate) fn rewrite_discard(state: State<'_, Arc<AppState>>, token: u64) {
+    links::flow::discard(&state, token);
+}
+
 /// Sends a file or folder of the workspace to the Recycle Bin.
 #[tauri::command]
 pub(crate) async fn delete_entry(

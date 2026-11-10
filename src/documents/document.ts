@@ -269,6 +269,25 @@ export class Document implements FollowerHost {
     this.#refreshDirty()
   }
 
+  /**
+   * Changes the text the way typing would: one step of history that undo takes back, the same
+   * change in every follower, and the document counts as edited. For edits that come from the app
+   * itself, such as rewritten links. Positions are in the master's text.
+   */
+  applyEdits(edits: readonly { from: number; to: number; insert: string }[]): void {
+    if (edits.length === 0) return
+    const master = this.#master
+    const changes = ChangeSet.of(
+      edits.map((edit) => ({ from: edit.from, to: edit.to, insert: edit.insert })),
+      master.doc.length,
+      master.lineBreak,
+    )
+    this.#master = master.update({ changes, userEvent: 'input.rewrite' }).state
+    for (const follower of this.#followers.values()) follower.receive(changes)
+    this.#touched()
+    this.#refreshDirty()
+  }
+
   /** The line ending of every break, as the file had them. Followers hold `\n` only. */
   endings(): Endings {
     return endingsOf(this.#master)

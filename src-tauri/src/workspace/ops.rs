@@ -195,13 +195,14 @@ fn finish_move(state: &AppState, was: &Resolved, now: &Path) -> Result<Moved, Ap
     })
 }
 
-/// Renames a file or folder in place. A name that only differs in case from the old one is fine
+/// Where a rename would put `path`, after every check that does not touch the disk. `None` when
+/// the name is the one it already has. A name that only differs in case from the old one is fine
 /// where the file system ignores case; any other name that is taken is refused.
-pub(crate) fn rename_entry(
+pub(crate) fn rename_target(
     state: &AppState,
     path: &Path,
     new_name: &str,
-) -> Result<Moved, AppError> {
+) -> Result<Option<(Resolved, PathBuf)>, AppError> {
     validate_name(new_name)?;
     let source = entry_in_root(state, path)?;
     let parent = source
@@ -210,22 +211,22 @@ pub(crate) fn rename_entry(
         .ok_or_else(|| AppError::Invalid("it has no folder".into()))?;
     let target = parent.join(new_name);
     if target == source.path {
-        return Ok(Moved {
-            path: display_path(&source.path),
-            documents: Vec::new(),
-        });
+        return Ok(None);
     }
     if is_taken(&target) && !same_file(&source.path, &target) {
         return Err(AppError::Exists(new_name.to_owned()));
     }
-    fs::rename(&source.path, &target)?;
-    finish_move(state, &source, &target)
+    Ok(Some((source, target)))
 }
 
-/// Moves a file or folder into another folder of the workspace, under the same name. Moving a
-/// folder into itself is refused, and so is a name that is taken. A move to another drive is
-/// refused too: it is a copy and a delete, which is for the user to ask for.
-pub(crate) fn move_entry(state: &AppState, path: &Path, into: &Path) -> Result<Moved, AppError> {
+/// Where a move would put `path`, after every check that does not touch the disk. `None` when it
+/// is in that folder already. Moving a folder into itself is refused, and so is a name that is
+/// taken.
+pub(crate) fn move_target(
+    state: &AppState,
+    path: &Path,
+    into: &Path,
+) -> Result<Option<(Resolved, PathBuf)>, AppError> {
     let source = entry_in_root(state, path)?;
     let folder = folder_in_root(state, into)?;
     if is_inside(&folder.key, &source.key) {
@@ -239,15 +240,23 @@ pub(crate) fn move_entry(state: &AppState, path: &Path, into: &Path) -> Result<M
         .ok_or_else(|| AppError::Invalid("it has no name".into()))?;
     let target = folder.path.join(name);
     if target == source.path {
-        return Ok(Moved {
-            path: display_path(&source.path),
-            documents: Vec::new(),
-        });
+        return Ok(None);
     }
     if is_taken(&target) {
         return Err(AppError::Exists(name.to_string_lossy().into_owned()));
     }
-    match fs::rename(&source.path, &target) {
+    Ok(Some((source, target)))
+}
+
+/// Does the move `rename_target` or `move_target` found, and points the open documents at the new
+/// place. A move to another drive is refused: it is a copy and a delete, which is for the user to
+/// ask for.
+pub(crate) fn carry_out(
+    state: &AppState,
+    source: &Resolved,
+    target: &Path,
+) -> Result<Moved, AppError> {
+    match fs::rename(&source.path, target) {
         Ok(()) => {}
         Err(error) if error.kind() == io::ErrorKind::CrossesDevices => {
             return Err(AppError::Invalid(
@@ -256,7 +265,35 @@ pub(crate) fn move_entry(state: &AppState, path: &Path, into: &Path) -> Result<M
         }
         Err(error) => return Err(error.into()),
     }
-    finish_move(state, &source, &target)
+    finish_move(state, source, target)
+}
+
+/// What a move that changes nothing answers.
+fn unmoved(source: &Path) -> Moved {
+    Moved {
+        path: display_path(source),
+        documents: Vec::new(),
+    }
+}
+
+/// Renames a file or folder in place.
+pub(crate) fn rename_entry(
+    state: &AppState,
+    path: &Path,
+    new_name: &str,
+) -> Result<Moved, AppError> {
+    match rename_target(state, path, new_name)? {
+        None => Ok(unmoved(&entry_in_root(state, path)?.path)),
+        Some((source, target)) => carry_out(state, &source, &target),
+    }
+}
+
+/// Moves a file or folder into another folder of the workspace, under the same name.
+pub(crate) fn move_entry(state: &AppState, path: &Path, into: &Path) -> Result<Moved, AppError> {
+    match move_target(state, path, into)? {
+        None => Ok(unmoved(&entry_in_root(state, path)?.path)),
+        Some((source, target)) => carry_out(state, &source, &target),
+    }
 }
 
 /// Sends a file or folder to the Recycle Bin. Open tabs keep their text; a later save brings the
