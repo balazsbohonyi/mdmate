@@ -131,6 +131,8 @@ pub(crate) struct AppState {
     /// Set by the page to stop a scan that is running.
     rewrite_stop: std::sync::atomic::AtomicBool,
     rewrite_tokens: std::sync::atomic::AtomicU64,
+    /// The file index behind Ctrl+P; built when the page first asks.
+    quick_open: crate::workspace::quick::QuickOpen,
 }
 
 impl AppState {
@@ -146,12 +148,18 @@ impl AppState {
             rewrite: Mutex::new(None),
             rewrite_stop: std::sync::atomic::AtomicBool::new(false),
             rewrite_tokens: std::sync::atomic::AtomicU64::new(0),
+            quick_open: crate::workspace::quick::QuickOpen::default(),
         }
     }
 
     /// Whether this file system treats names that differ in case as one.
     pub(crate) fn ignore_case(&self) -> bool {
         self.ignore_case
+    }
+
+    /// The file index behind Ctrl+P.
+    pub(crate) fn quick_open(&self) -> &crate::workspace::quick::QuickOpen {
+        &self.quick_open
     }
 
     /// The rewrite plan the page has not answered yet.

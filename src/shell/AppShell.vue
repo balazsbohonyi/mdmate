@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onUnmounted } from 'vue'
+import { computed, defineAsyncComponent, onUnmounted } from 'vue'
+import { paletteMode } from '@/features/palette/state'
 import { runCommand } from '@/workbench/commands'
 import { registerDefaultCommands } from '@/workbench/defaultCommands'
 import { installKeybindings } from '@/workbench/keyboard'
@@ -11,6 +12,9 @@ import StatusBar from './StatusBar.vue'
 import TitleBar from './TitleBar.vue'
 
 defineProps<{ platformName: string }>()
+
+// The pickers are code the user may never need, so they load the first time one opens.
+const PaletteHost = defineAsyncComponent(() => import('@/features/palette/PaletteHost.vue'))
 
 // The menu and the shortcuts both run commands from the registry, through `runCommand`.
 const removeCommands = registerDefaultCommands()
@@ -42,5 +46,10 @@ function runMenuEntry(id: string): void {
       </main>
     </div>
     <StatusBar :platform-name="platformName" />
+    <PaletteHost
+      v-if="paletteMode !== null"
+      :key="paletteMode"
+      :mode="paletteMode"
+    />
   </div>
 </template>

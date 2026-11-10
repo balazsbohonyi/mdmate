@@ -14,6 +14,7 @@ import type {
 } from './workspace'
 import { DEMO_IMAGES } from './demoImages'
 import { joinRaw, MockFiles, mockHash, pathKey, splitRaw } from './mockFiles'
+import { mockQuickOpen } from './mockQuickOpen'
 import { applyEdits, isScannable, mockEdits, movedPath } from './mockRewrite'
 import type { RewriteChange, RewriteDone, RewritePlanned, TextChange } from './rewrite'
 
@@ -702,6 +703,12 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     rewriteDiscard(token) {
       if (pending?.token === token) pending = null
       return Promise.resolve()
+    },
+    quickOpenQuery(query, limit) {
+      return Promise.resolve(mockQuickOpen(files.paths(), roots, query, limit))
+    },
+    quickOpenRefresh() {
+      return Promise.resolve(true)
     },
     deleteEntry(path) {
       return attempt(() => {

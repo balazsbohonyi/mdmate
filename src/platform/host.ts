@@ -1,5 +1,6 @@
 import type { Endings } from '@/lib/endings'
 import type { FollowedLink, LinkInfo } from './links'
+import type { QuickOpenAnswer } from './quickOpen'
 import type { RewriteBuffer, RewriteChange, RewriteDone, RewritePlanned } from './rewrite'
 import type {
   ClashAnswer,
@@ -253,6 +254,13 @@ export interface Host {
   rewriteCancel(): Promise<void>
   /** Forgets a plan the user said no to. */
   rewriteDiscard(token: number): Promise<void>
+  /**
+   * The best `limit` files of the open folders for what was typed in Ctrl+P. The first call reads
+   * the folders; later calls use that index until `quickOpenRefresh` replaces it.
+   */
+  quickOpenQuery(query: string, limit: number): Promise<QuickOpenAnswer>
+  /** Reads the folders again so a file made a moment ago is found. False when a read is already going. */
+  quickOpenRefresh(): Promise<boolean>
   /** Sends a file or folder of the workspace to the Recycle Bin. */
   deleteEntry(path: string): Promise<void>
   /** Shows a file or folder in the system's file manager, selected. */

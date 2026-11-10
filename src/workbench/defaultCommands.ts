@@ -16,6 +16,7 @@ import {
   saveActiveDocument,
 } from '@/documents/store'
 import { canGoBack, canGoForward, goBack, goForward } from '@/documents/history'
+import { togglePalette } from '@/features/palette/state'
 import { openFolderDialog } from '@/features/tree/store'
 import { getHost } from '@/platform'
 import { registerCommand, removeCommand } from './commands'
@@ -27,6 +28,8 @@ import { toggleSidebar } from './sidebar'
 export const COMMAND_IDS = {
   open: 'file.open',
   openFolder: 'file.openFolder',
+  quickOpen: 'file.quickOpen',
+  commandPalette: 'view.commandPalette',
   save: 'file.save',
   splitRight: 'workbench.splitRight',
   splitDown: 'workbench.splitDown',
@@ -128,6 +131,22 @@ export function registerDefaultCommands(): () => void {
       title: 'Open Folder...',
       keybinding: 'Mod+Shift+O',
       run: openFolderDialog,
+    }),
+    registerCommand({
+      id: COMMAND_IDS.quickOpen,
+      title: 'Go to File...',
+      keybinding: 'Mod+P',
+      run: () => {
+        togglePalette('files')
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.commandPalette,
+      title: 'Show Command Palette...',
+      keybinding: 'Mod+Shift+P',
+      run: () => {
+        togglePalette('commands')
+      },
     }),
     registerCommand({
       id: COMMAND_IDS.save,

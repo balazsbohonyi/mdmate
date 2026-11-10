@@ -258,6 +258,28 @@ const cases: RuleCase[] = [
     },
   },
   {
+    rule: 'palette-lazy',
+    clean: {
+      'src/shell/AppShell.vue':
+        '<script setup lang="ts">\nconst Picker = () => import(\'@/features/palette/PaletteHost.vue\')\n</script>\n',
+      'src/features/palette/PaletteHost.vue':
+        '<script setup lang="ts">\nimport { fileRow } from \'./rows\'\nvoid fileRow\n</script>\n',
+      'src/features/palette/rows.ts': 'export const fileRow = 1\n',
+    },
+    planted: {
+      'a static import of the picker': {
+        'src/shell/AppShell.vue':
+          '<script setup lang="ts">\nimport PaletteHost from \'@/features/palette/PaletteHost.vue\'\nvoid PaletteHost\n</script>\n',
+      },
+      'a static import of its row code': {
+        'src/workbench/a.ts': "import { fileRow } from '@/features/palette/rows'\nvoid fileRow\n",
+      },
+      'a relative static import of the picker': {
+        'src/shell/b.ts': "import P from '../features/palette/PaletteHost.vue'\nvoid P\n",
+      },
+    },
+  },
+  {
     rule: 'no-plugin-fs',
     clean: {
       'src-tauri/Cargo.toml': '[dependencies]\ntauri = "2"\n# tauri-plugin-fs stays out\n',

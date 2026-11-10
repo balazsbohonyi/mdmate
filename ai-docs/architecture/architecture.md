@@ -38,7 +38,7 @@ mdmate/
 │  ├─ documents/      Document store, master state, save, conflict, session
 │  ├─ workbench/      Split tree model, panes, tabs, pointer drag, commands
 │  ├─ shell/          App layout: title bar with menu and caption buttons, sidebar frame, status bar
-│  ├─ features/       tree/ (model, store, ops, FileTree.vue, NameInput.vue, CopyBanner.vue), drop.ts; later quick-open, palette, search, outline, settings
+│  ├─ features/       tree/ (model, store, ops, FileTree.vue, NameInput.vue, CopyBanner.vue), drop.ts, palette/ (state, rows, PaletteHost.vue); later search, outline, settings
 │  ├─ components/ui/  shadcn-vue, added only with `pnpm ui:add` (never edit by hand)
 │  ├─ lib/            shadcn-vue utilities
 │  └─ styles/         tokens.css (fonts, sizes, Tailwind map), themes/dark.css and light.css (every color)
@@ -175,6 +175,12 @@ flowchart LR
 The scan covers all workspace roots at any depth, plus open tabs outside the roots. Only `.git` and binary files are skipped.
 
 The page runs it in two calls (`src/features/links/rewrite.ts`). `rewrite_plan` scans in the background with progress and returns the counts under a token; the banner in the sidebar asks, unless `settings.links.confirmRewrite` is false; `rewrite_move` then moves and applies. Rust (`links/flow.rs`) never writes a file that is open: it names the clean ones for the page to reload and returns text edits for the dirty ones, which the page applies to the editor as one undoable step.
+
+## Quick open and command palette
+
+Ctrl+P lists files and Ctrl+Shift+P lists commands, in one picker (`src/features/palette/`). `state.ts` is the only part in the entry chunk (which picker is open, and focus handling); `PaletteHost.vue` and `rows.ts` load with `import()` the first time one opens, and the `palette-lazy` rule in `check-arch` keeps it so.
+
+Files come from Rust. `workspace/quick.rs` keeps a list of every file under every root except `.git` (the link scan's walk), builds it on the first query and again in the background each time the picker opens, and answers `quick_open_query(query, limit)` with the best matches and the letters to mark, as UTF-16 offsets. The page never holds the file list. Commands come from the registry; their titles are ranked by `src/lib/fuzzy.ts`, which uses the same points as the Rust scorer. The browser host answers the same two calls from its in-memory files with `fuzzy.ts`.
 
 ## Security
 

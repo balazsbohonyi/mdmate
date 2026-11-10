@@ -2,6 +2,7 @@
 
 pub(crate) mod folders;
 pub(crate) mod ops;
+pub(crate) mod quick;
 pub(crate) mod roots;
 pub(crate) mod tree;
 pub(crate) mod watch;

@@ -588,6 +588,29 @@ pub(crate) async fn rewrite_plan(
     .map_err(|error| AppError::Task(error.to_string()))?
 }
 
+/// The best `limit` files for what was typed in Ctrl+P. The first call builds the file index.
+#[tauri::command]
+pub(crate) async fn quick_open_query(
+    state: State<'_, Arc<AppState>>,
+    query: String,
+    limit: usize,
+) -> Result<workspace::quick::Answer, AppError> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || state.quick_open().query(&state, &query, limit))
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))
+}
+
+/// Reads the workspace again for Ctrl+P, so a file made a moment ago is found. False when a read is
+/// already going, which will land by itself.
+#[tauri::command]
+pub(crate) async fn quick_open_refresh(state: State<'_, Arc<AppState>>) -> Result<bool, AppError> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || state.quick_open().refresh(&state))
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))
+}
+
 /// Does the rename or move a plan was made for, and rewrites the links it said it would. Open
 /// documents are not written: `buffers` carries the text of every one the page holds edits in.
 #[tauri::command]

@@ -644,6 +644,30 @@ rule(
   },
 )
 
+// P6-T7: Ctrl+P and Ctrl+Shift+P load on first use
+rule(
+  'palette-lazy',
+  'the picker (PaletteHost.vue and its row code) is loaded with import() on first use, never statically',
+  ({ root }) => {
+    const violations = []
+    const lazy = /(?:^|\/)features\/palette\/(?:PaletteHost\.vue|rows)(?:\.ts)?$/
+    for (const file of walk(root, 'src', SOURCE_EXTS)) {
+      if (file.startsWith('src/features/palette/')) continue
+      const text = readText(root, file)
+      for (const { spec, index, kind } of importSpecifiers(text)) {
+        if (kind === 'static' && lazy.test(spec)) {
+          violations.push({
+            file,
+            line: lineAt(text, index),
+            message: `static import of "${spec}"; the picker loads with import() the first time one opens`,
+          })
+        }
+      }
+    }
+    return violations
+  },
+)
+
 // ISC-73
 rule(
   'no-math-mermaid',

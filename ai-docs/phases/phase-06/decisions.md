@@ -122,3 +122,25 @@ Deviations from the plan and choices it left open. Numbers carry the OS they cam
 - Rust: 259 tests pass; the flow has its own tests (plan changes nothing, cancel keeps nothing, dirty and clean open documents, a document that became dirty after the plan, a dirty document that moves with its folder, one-use tokens, no plan when nothing links, wide characters cut by UTF-16 units, a stopped scan dropping the older plan).
 - Real window (`real4`, debug build): 13 checks passed, listed in ISA Verification for ISC-123 and ISC-175. The first two attempts failed on my script (F2 went to the editor because opening a row gives it focus, and the live preview hides a link's target unless the caret is inside it); the app was right both times.
 - Performance: `pnpm perf typing-during-scan` p95 8.90 ms against 16 ms; numbers in ISA Verification for ISC-129. The gate was met, so nothing was changed to make it pass. The first batch had a run in which the single scan was still unfinished when the keys ended (no scan completed), which I do not understand; I did not see it again in the second batch (25 scans in every run).
+
+
+## P6-T7: quick open and command palette
+
+**One picker, two modes.** Ctrl+P (`file.quickOpen`, "Go to File...") and Ctrl+Shift+P (`view.commandPalette`, "Show Command Palette...") open the same component with a different list. It loads the first time one opens: `AppShell` holds it with `defineAsyncComponent` behind `v-if`, and everything else knows only `features/palette/state.ts`. A source-map build shows the picker and its row code in their own chunk, `fuzzy.ts` in another, and only `state.ts` in the entry; the `palette-lazy` arch rule fails any static import of the picker or its row code from outside the folder.
+
+**What the file index holds.** Every file under every root except `.git` (the walk the link scan uses; symlinks are not followed). Not just Markdown: the tree opens text files and shows images, so the picker finds them too. With more than one root the path starts with the root's folder name. The index is built on the first query, so nothing is read before the first Ctrl+P, and it is rebuilt in the background every time the picker opens, so a file made by another program a moment ago is there on the next look; a second build never starts while one is running. A watcher would be more exact but costs a standing process, and the tree already has its own listing. The index stops at 250,000 files and the footer says so.
+
+**Matching.** The letters must appear in order. Case does not matter and spaces in the query are ignored. Ranking by points: a letter after a slash scores most, after `-`, `_`, space or a dot a little less, a lower-to-upper change less again, a run of adjacent letters beats scattered ones, a letter in the file's own name beats one in a folder, a gap and a late start cost a little, and the case that was typed adds two. Ties go to the shorter path, then alphabetical. For nothing typed the files are listed in path order. Positions of the matched letters are UTF-16 offsets, so the page can mark them in a string without converting. A query is cut at 64 letters.
+
+**Two scorers.** Rust for the files (it runs against the real index) and TypeScript for command titles and the browser stand-in; the constants are the same and each has its own tests. The browser stand-in is not the Rust code and proves only the page.
+
+**Commands.** The list is the registered commands, by title for nothing typed. A command that cannot run now is shown greyed with its shortcut and does nothing when chosen, with the palette left open, so the user sees it exists instead of wondering where it went. The two commands that open a picker are not listed in it. The palette closes before the command runs, since many commands act on the focused editor.
+
+**Keyboard.** Arrows move and wrap, PageUp and PageDown move eight rows and stop at the ends, Enter chooses, Escape closes, Tab does nothing (focus stays in the box). The same key that opened a picker closes it and the other key switches. Every other shortcut is held off while one is open, so Ctrl+S or Ctrl+W cannot act on a document the user cannot see. Closing gives focus back to where it was, unless something else took it meanwhile.
+
+**Evidence.**
+
+- Rust: 284 tests pass, 25 of them for the index. Web: 1174 tests, 46 for the picker and the scorer, and 4 for the arch rule. `pnpm check` and `pnpm check:rust` exit 0.
+- Real window (`real5`, debug build): 20 checks passed, listed in ISA Verification for ISC-130 and ISC-131. A real OS Ctrl+P and Ctrl+Shift+P, sent to the app window while it was in the foreground, opened the pickers and WebView2 did not open Print.
+- Mutations: 24 in Rust and 39 in the page, listed in ISA Verification. The first stale-answer test was timing dependent (it passed once with the guard removed); it now releases the slow answer itself.
+- No speed gate is named for the picker, and none was measured; the first query in a very large workspace is in untested.md.

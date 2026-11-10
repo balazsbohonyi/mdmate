@@ -4,6 +4,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { decodeFrame, encodeFrame, openedFromFrame } from './frame'
 import type { DiskChange, Host, PerfConfig, PerfHost, SavedFile } from './host'
 import { parseFollowedLink, parseLinkInfo } from './links'
+import { parseQuickOpenAnswer } from './quickOpen'
 import { parseRewriteDone, parseRewritePlanned } from './rewrite'
 import {
   parseCopyReport,
@@ -193,6 +194,12 @@ export const tauriHost: Host = {
   },
   async rewriteDiscard(token) {
     await invoke('rewrite_discard', { token })
+  },
+  async quickOpenQuery(query, limit) {
+    return parseQuickOpenAnswer(await invoke<unknown>('quick_open_query', { query, limit }))
+  },
+  async quickOpenRefresh() {
+    return (await invoke<boolean>('quick_open_refresh')) === true
   },
   async deleteEntry(path) {
     await invoke('delete_entry', { path })
