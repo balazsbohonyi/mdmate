@@ -5,15 +5,21 @@
 //! ([`guard`]) decides what the target may do. The page never names a path or a URL to open.
 
 pub(crate) mod guard;
-// The scanner and the walker are called by the rewrite engine in P6-T5; until then only tests do.
+// The scanner, the walker and the rewrite engine are called by the commands P6-T6 adds; until then
+// only tests do.
 #[cfg_attr(
     not(test),
-    expect(dead_code, reason = "P6-T5 is the first caller outside tests")
+    expect(dead_code, reason = "P6-T6 wires the commands that call it")
+)]
+pub(crate) mod rewrite;
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "P6-T6 wires the commands that call it")
 )]
 pub(crate) mod scan;
 #[cfg_attr(
     not(test),
-    expect(dead_code, reason = "P6-T5 is the first caller outside tests")
+    expect(dead_code, reason = "P6-T6 wires the commands that call it")
 )]
 pub(crate) mod walk;
 

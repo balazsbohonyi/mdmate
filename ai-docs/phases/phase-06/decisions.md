@@ -85,3 +85,21 @@ Deviations from the plan and choices it left open. Numbers carry the OS they cam
 **Evidence.** Rust: 227 tests pass, 25 of them new (18 in `links::scan`, 7 in `links::walk`). Each of the seven `rewrite_*` test names in the ISA matches exactly one test. 22 breaks on purpose were tried (fences, spans, the anchor split, indentation, angle and escape rules, tag and attribute case, escapes, parentheses, line counting, `.git`, an extra skipped folder, UTF-16, NUL, link counting) and 19 failed a test at once. Three survived and were dealt with: a scheme check that the later colon check already covers was removed; the link-skip test had returned early because creating a symbolic link needs a privilege, so it now makes a junction, then both link breaks failed it; the early NUL sniff only saves reading and changes no result, so it stays a survivor.
 
 **Real window.** None for T4: nothing in the app calls the scanner yet, so there is no command to drive. P6-T6 runs it in the app, and the first real-window rename in T6 is where it gets looked at on screen.
+
+## P6-T5: rewrite engine
+
+**Two calls around the move.** `plan` runs before the move and `apply` after it. The prompt in P6-T6 can therefore show "N links in M files" and, on No, nothing has changed. A plan holds, for each changed file, where it is now, where it will be, the hash of the bytes read, and each edit as span, old text and new text.
+
+**When a link is edited.** For each link the engine finds where it leads now (names only, with `.` and `..` worked out), where that place will be after the move, and where the file itself will be. If the same link text, read from the file's new folder, reaches the new place exactly as spelled, it is left alone. That one rule covers a link to the moved thing, a relative link in a moved file, a link to a moved folder, and the case where a file and its target move together. A link that climbs above the root of its path is skipped. A link between different drives cannot be written relative; it is counted in `unrelatable` and left as it is.
+
+**Case.** Whether a link points into the moved thing ignores case where the file system does (the caller passes `ignore_case`), but whether it is still right compares the spelling, so renaming `Old.md` to `old.md` rewrites links to `Old.md`.
+
+**Style.** The new target is the relative path with forward slashes, in the escaping style of the old link (`Link::render`), with a leading `./` and a trailing slash kept. A link written with backslashes comes back with forward slashes.
+
+**Apply.** Each file is checked in this order: read-only, then the hash of its bytes against the plan, then that each span still holds the planned text, then written through the atomic writer in its own encoding. Any failure is listed with its path and reason and the others go on. A file whose bytes would not change is not written. Read-only is checked by the engine (a rename over a read-only file would succeed on Linux and macOS), so the failure reads the same everywhere.
+
+**Roots.** The plan takes every workspace root and reads a file once, however many roots hold it. Links in files outside every root are not read. Open documents are P6-T6: the engine writes closed files, and T6 must keep it from writing a file that is open (a dirty tab gets undoable edits from the same plan).
+
+**Evidence.** Rust: 248 tests pass. The four named property tests use a seeded generator (no crate), so a run repeats; each builds a workspace, plans, moves on disk, applies, then reads every file again and checks against the OS, not against the engine's own path code. 20 tried (the choice of what counts as still right, mapping of targets and of the moved file, the steps up, case, the trailing slash and leading ./, the hash, read-only and span checks, verbatim paths, cancel, two roots, reporting, writing at the new place, and stopping at the first failure): 17 failed a test at once, and 3 survived and were fixed with a stronger test (the progress callback is now counted, a case-spelling path case was added, and a shell-escaping slip in one mutation was redone)
+
+**Real window.** None for T5: nothing in the app calls the engine yet. P6-T6 wires it up and checks it on screen.
