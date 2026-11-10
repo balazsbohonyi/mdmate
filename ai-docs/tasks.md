@@ -71,7 +71,7 @@ Mark `[x]` only when the task's "Done when" in its phase plan holds. Each task l
 - [x] P6-T6: Rewrite UI — closes ISC-123, ISC-126, ISC-127, ISC-129, ISC-175
 - [x] P6-T7: Quick open and command palette — closes ISC-130, ISC-131
 - [x] P6-T8: Untitled files, Save As, Revert, Close All, Open Recent — closes ISC-203, ISC-204, ISC-205, ISC-206, ISC-207, ISC-208, ISC-209, ISC-210, ISC-211, ISC-212
-- [ ] P6-T9: Tab context menu and Find File References — closes ISC-213, ISC-214, ISC-215, ISC-216, ISC-217, ISC-218
+- [x] P6-T9: Tab context menu and Find File References — closes ISC-213, ISC-214, ISC-215, ISC-216, ISC-217, ISC-218
 
 ## Phase 7: Search and outline ([plan](phases/phase-07/plan.md))
 

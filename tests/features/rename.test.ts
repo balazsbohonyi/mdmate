@@ -6,7 +6,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createApp, nextTick, watch as watchRef, type App } from 'vue'
-import { problem, resetDocuments } from '@/documents/store'
+import { documentOfTab, openPath, problem, resetDocuments } from '@/documents/store'
 import RewriteBanner from '@/features/links/RewriteBanner.vue'
 import {
   answerRewrite,
@@ -20,7 +20,10 @@ import { naming, resetTree, restoreWorkspace } from '@/features/tree/store'
 import { resetSettings, settings } from '@/lib/settings'
 import { setHost } from '@/platform'
 import { createMockHost, type MockHost } from '@/platform/mock'
-import { resetWorkbench } from '@/workbench/store'
+import { clearCommands, isCommandEnabled, runCommand } from '@/workbench/commands'
+import { COMMAND_IDS, registerDefaultCommands } from '@/workbench/defaultCommands'
+import { resetWorkbench, tabTitle } from '@/workbench/store'
+import { renameTab } from '@/workbench/tabMenu'
 
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
@@ -307,5 +310,76 @@ describe('files that could not be changed (ISC-128, from the page)', () => {
     dismissRewriteReport()
     await nextTick()
     expect(root.querySelector('[data-rewrite-banner]')).toBeNull()
+  })
+})
+
+describe('Rename from F2 and the tab menu (ISC-217)', () => {
+  let removeCommands: (() => void) | undefined
+
+  beforeEach(() => {
+    clearCommands()
+    removeCommands = registerDefaultCommands()
+  })
+
+  afterEach(() => {
+    removeCommands?.()
+    clearCommands()
+  })
+
+  it('F2 renames the active file through the rewrite flow: links change and the tab follows', async () => {
+    await start()
+    const root = mountBanner()
+    const tab = await openPath('/work/old.md')
+    expect(isCommandEnabled(COMMAND_IDS.rename)).toBe(true)
+    await runCommand(COMMAND_IDS.rename)
+    await flush()
+    // The name box is open on the file's row.
+    expect(naming.value).toMatchObject({ kind: 'rename', path: '/work/old.md' })
+
+    const running = commitNaming('new.md')
+    await flush()
+    // The same question a rename from the tree asks, with the same counts.
+    expect(text(root)).toContain('Update 3 links in 2 files?')
+    answerRewrite('update')
+    await running
+    await flush()
+    expect(host.files.read('/work/a.md')).toBe('one [o](new.md), two [o](new.md#top)\n')
+    expect(host.files.read('/work/sub/b.md')).toBe('back [o](../new.md)\n')
+    expect(documentOfTab(tab)?.path).toBe('/work/new.md')
+    expect(tabTitle(tab)).toBe('new.md')
+  })
+
+  it('the tab menu renames a tab that is in the background', async () => {
+    await start()
+    settings.links.confirmRewrite = false
+    const old = await openPath('/work/old.md')
+    await openPath('/work/none.md') // the active tab is another file
+    await renameTab(old)
+    await flush()
+    expect(naming.value).toMatchObject({ kind: 'rename', path: '/work/old.md' })
+    await commitNaming('renamed.md')
+    await flush()
+    expect(host.files.read('/work/a.md')).toBe('one [o](renamed.md), two [o](renamed.md#top)\n')
+    expect(documentOfTab(old)?.path).toBe('/work/renamed.md')
+    expect(tabTitle(old)).toBe('renamed.md')
+  })
+
+  it('a name that is taken is refused in the box and nothing is rewritten', async () => {
+    await start()
+    await openPath('/work/old.md')
+    await runCommand(COMMAND_IDS.rename)
+    await flush()
+    await commitNaming('a.md')
+    await flush()
+    expect(naming.value?.error).not.toBeNull()
+    expect(host.files.has('/work/old.md')).toBe(true)
+    expect(host.files.read('/work/a.md')).toBe(FILES['/work/a.md'])
+  })
+
+  it('F2 is off with no tab open and for a file outside every folder', async () => {
+    await start({ ...FILES, '/outside/o.md': 'o\n' })
+    expect(isCommandEnabled(COMMAND_IDS.rename)).toBe(false)
+    await openPath('/outside/o.md')
+    expect(isCommandEnabled(COMMAND_IDS.rename)).toBe(false)
   })
 })

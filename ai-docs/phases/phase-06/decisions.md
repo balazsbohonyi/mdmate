@@ -173,3 +173,30 @@ Deviations from the plan and choices it left open. Numbers carry the OS they cam
 - Real window (§real6§, debug build with the perf feature, Windows 11): 45 checks passed, listed in ISA Verification for ISC-203 to ISC-212. Real OS Ctrl+N, Ctrl+S, Ctrl+Shift+S and Ctrl+Shift+W went to the app window while it was in the foreground, and the Windows Save As dialog (and its own overwrite question) was driven through UI Automation. A forced kill kept an untitled buffer.
 - Mutations: 27 in Rust and 42 in the page, listed in ISA Verification; 7 survived and were fixed with new tests, all caught on a second run.
 - Screenshots: the first Open Recent menu showed every file name cut to "old....", "readme..."; fixed (the name never shrinks, the folder path does) and checked again with a long name.
+
+## P6-T9: tab context menu and Find File References
+
+**The menu works on the tab that was clicked.** Every function in `workbench/tabMenu.ts` takes a tab id, so Copy Path, Close Others and the rest work on a tab in the background. A right-click does not activate the tab (the pane already takes focus on the pointer press). Close on a background tab with unsaved edits uses `requestCloseTab`, which selects the tab and shows the pane banner, so the question is never about a tab you cannot see.
+
+**Close Others** closes the other tabs of that pane only (`closeTabs`, the call Close All uses), asking once per dirty document; Cancel stops. The kept tab is the only one left, so it is the one shown; a `selectTab` after the call did nothing and was removed.
+
+**Copy Path and Copy Relative Path.** The path is copied as the tab holds it (native separators on Windows), through `navigator.clipboard`. The brief allows a plugin only if WebView2 refused; it did not (`Get-Clipboard` read back the path), so no plugin was added. The relative path is from the innermost open folder that holds the file, with `/`; a file outside every folder copies its full path. `rootOf` now returns the innermost of two nested folders (before, the first match won).
+
+**What is off.** Copy and Reveal in File Explorer need a path, so they are off for an untitled tab. Reveal in Sidebar and Rename need the file inside an open folder (the tree has no row for another file), so both are off outside every folder. **Open question:** a file outside every folder cannot be renamed from the tab. A rename of such a file would need a way to ask Rust for access to its folder; it is not in the plan, so I left it off and said so in the menu state, not in a message. Rename on an untitled tab is Save As.
+
+**Rename and F2.** The menu item and F2 run one function: show the sidebar's folder list, reveal the row, open the tree's name box. So the question about links, the report and the tab following the file are the rename's own (the same path a rename from the tree takes), and a page test shows both. F2 stays Save As for an untitled tab.
+
+**A bug only the real window showed.** After Rename the menu closed and Radix gave focus back to the tab, which blurred the name box; the box cancels on blur, so the rename vanished and the typed name went into the editor. The tree's own menu has a guard for this (`@close-auto-focus`); the tab menu now has the same one (`keepNameBoxFocus`), with a page test and the real run.
+
+**Find File References is a Rust command.** `find_references` walks every open folder, reads each file once (an open document with unsaved edits is read from its buffer), and keeps the links that lead to the target. It uses the rename's own resolution (`Wanted`, which uses the same path joining and comparison as the rewrite plan), so the list is what a rename would rewrite; a test compares the two, including a file's link to itself. Limits: 2000 links (a line is cut at 200 characters) with a flag that says so; files it could not read are listed. Columns are UTF-16 units, as the editor counts them. The order is by file name ignoring case; the links of one file stay in the order written (the sort is stable). The mock host reads inline links only, so the page tests prove the page and the Rust tests prove the search.
+
+**The panel.** A References panel in the sidebar: a title ("Links to name"), "N links in M files", files with line number and text, click to open the file with the caret on the link. The sidebar header gets Folders and References buttons and a close button while a list exists. The list is a snapshot: it is not refreshed after later edits or renames. A click on a reference opens the file even if it changed since; the caret is kept inside the line.
+
+**Finding for the owner (ISC-218).** The claim says "the active file". The command works on any tab (menu) and on the active tab (command palette: "Find File References"); there is no key for it. Say if you want one.
+
+**Evidence.**
+
+- Rust: 318 tests pass (10 for references). Web: 1300 tests (tabMenu 30, references 15, rename 18). `pnpm check` and `pnpm check:rust` exit 0. The full web suite failed once in the third full run on the known flaky `checkbox` test (untested.md row 24); it passes alone and on the next full run.
+- Real window (`real9`, debug build with the perf feature, Windows 11): 29 checks passed, listed in ISA Verification for ISC-213 to ISC-218. The first run found the name-box focus bug (above); two of my script's own mistakes (a wrong element for the banner, a lost backslash in a template) were fixed in the script, not the app.
+- Mutations: 26 in the page and 12 in Rust, plus 2 on the focus guard; listed in ISA Verification. Survivors were dead code (removed), missing tests (added), and one that changes no output (kept).
+- Screenshots (looked at): the menu on a background tab, Reveal in Sidebar, the question on a dirty background tab, the rename question, the References panel, and a reference opened at its line.

@@ -6,6 +6,7 @@
 
 pub(crate) mod flow;
 pub(crate) mod guard;
+pub(crate) mod references;
 pub(crate) mod rewrite;
 pub(crate) mod scan;
 pub(crate) mod walk;

@@ -1,6 +1,7 @@
 import type { Endings } from '@/lib/endings'
 import type { FollowedLink, LinkInfo } from './links'
 import type { QuickOpenAnswer } from './quickOpen'
+import type { ReferencesFound } from './references'
 import type { RewriteBuffer, RewriteChange, RewriteDone, RewritePlanned } from './rewrite'
 import type {
   ClashAnswer,
@@ -317,6 +318,14 @@ export interface Host {
   deleteEntry(path: string): Promise<void>
   /** Shows a file or folder in the system's file manager, selected. */
   revealEntry(path: string): Promise<void>
+  /**
+   * Every link in the open folders that leads to `path`, by file and line, read with the rule a
+   * rename uses. `buffers` are the open documents with unsaved edits: their text is read instead of
+   * the file's.
+   */
+  findReferences(path: string, buffers: readonly RewriteBuffer[]): Promise<ReferencesFound>
+  /** Puts text on the system clipboard. */
+  writeClipboard(text: string): Promise<void>
   /**
    * Which names of a drop already exist in a folder, so the page can ask what to do about them.
    * Changes nothing. Rejects with `not-allowed` unless a native drop delivered every path.

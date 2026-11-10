@@ -75,6 +75,46 @@ export function mockEdits(file: string, text: string, from: string, to: string):
   return edits
 }
 
+/** One link that leads to a file: where it is written and the line it is on. */
+export interface MockReference {
+  readonly line: number
+  readonly column: number
+  readonly text: string
+}
+
+/** The plain inline links in `text`, written in the file at `file`, that lead to `target`. */
+export function mockReferences(file: string, text: string, target: string): MockReference[] {
+  const wanted = parts(target).map((part) => part.toLowerCase())
+  const dir = parts(file).slice(0, -1)
+  const found: MockReference[] = []
+  for (const match of text.matchAll(LINK)) {
+    const raw = match[1] ?? ''
+    if (/^([a-z][a-z0-9+.-]*:|#|\/)/i.test(raw)) continue
+    const hash = raw.indexOf('#')
+    const written = hash === -1 ? raw : raw.slice(0, hash)
+    if (written === '') continue
+    const reached = join(dir, written)
+    if (
+      reached === null ||
+      !same(
+        reached.map((part) => part.toLowerCase()),
+        wanted,
+      )
+    )
+      continue
+    const start = (match.index ?? 0) + 2
+    const lineStart = text.lastIndexOf('\n', start - 1) + 1
+    const lineEnd = text.indexOf('\n', start)
+    const line = text.slice(lineStart, lineEnd === -1 ? undefined : lineEnd).replace(/\r$/, '')
+    found.push({
+      line: text.slice(0, start).split('\n').length,
+      column: start - lineStart,
+      text: line.trim().slice(0, 200),
+    })
+  }
+  return found
+}
+
 /** The text with `edits` applied; they must not overlap. */
 export function applyEdits(text: string, edits: readonly TextChange[]): string {
   let out = ''

@@ -15,6 +15,7 @@ export type {
   WindowControls,
 } from './host'
 export type { FollowedLink, LinkInfo, LinkRefusal } from './links'
+export type { Reference, ReferenceProblem, ReferencesFound } from './references'
 export type {
   ClashAnswer,
   ClashChoice,

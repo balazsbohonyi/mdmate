@@ -50,7 +50,7 @@ export function dismissRewriteReport(): void {
 }
 
 /** The text of every open document with unsaved edits, as the editor holds it now. */
-function dirtyBuffers(): RewriteBuffer[] {
+export function dirtyBuffers(): RewriteBuffer[] {
   return allDocuments()
     .filter((doc) => doc.dirty)
     .map((doc) => ({ id: doc.id, text: doc.snapshot().text }))

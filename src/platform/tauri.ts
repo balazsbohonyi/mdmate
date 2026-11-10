@@ -5,6 +5,7 @@ import { decodeFrame, encodeFrame, openedFromFrame } from './frame'
 import type { DiskChange, Host, PerfConfig, PerfHost, SavedAs, SavedFile } from './host'
 import { parseFollowedLink, parseLinkInfo } from './links'
 import { parseQuickOpenAnswer } from './quickOpen'
+import { parseReferencesFound } from './references'
 import { parseRewriteDone, parseRewritePlanned } from './rewrite'
 import {
   parseCopyReport,
@@ -206,6 +207,12 @@ export const tauriHost: Host = {
   },
   async revealEntry(path) {
     await invoke('reveal_entry', { path })
+  },
+  async findReferences(path, buffers) {
+    return parseReferencesFound(await invoke<unknown>('find_references', { path, buffers }))
+  },
+  async writeClipboard(text) {
+    await navigator.clipboard.writeText(text)
   },
   async copyClashes(into, paths) {
     return parsePaths(await invoke<unknown>('copy_clashes', { into, paths }))

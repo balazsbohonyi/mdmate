@@ -109,9 +109,13 @@ export function isUnder(path: string, folder: string): boolean {
   return isInside(path, folder)
 }
 
-/** The workspace root that holds a path, or undefined for a path in none. */
+/** The workspace root that holds a path (the innermost, when roots lie inside each other), or undefined for a path in none. */
 export function rootOf(path: string): string | undefined {
-  return roots.value.find((root) => isInside(path, root))
+  let best: string | undefined
+  for (const root of roots.value) {
+    if (isInside(path, root) && (best === undefined || root.length > best.length)) best = root
+  }
+  return best
 }
 
 /** Opens a folder if it is closed, and lists it. Leaves an open folder as it is. */

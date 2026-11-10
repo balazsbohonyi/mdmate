@@ -22,7 +22,8 @@ import type {
 import { DEMO_IMAGES } from './demoImages'
 import { joinRaw, MockFiles, mockHash, pathKey, splitRaw } from './mockFiles'
 import { mockQuickOpen } from './mockQuickOpen'
-import { applyEdits, isScannable, mockEdits, movedPath } from './mockRewrite'
+import { applyEdits, isScannable, mockEdits, mockReferences, movedPath } from './mockRewrite'
+import type { Reference } from './references'
 import type { RewriteChange, RewriteDone, RewritePlanned, TextChange } from './rewrite'
 
 /**
@@ -116,6 +117,8 @@ export interface MockHost extends Host {
   readonly recycled: { path: string; raw: string }[]
   /** Every path the page asked to show in the file manager, in order. */
   readonly revealed: string[]
+  /** Every text the page put on the clipboard, in order. */
+  readonly clipboard: string[]
   /** What the host would offer in Open Recent, newest first, with no check that the entries exist. */
   readonly recent: { files: string[]; folders: string[] }
   /** The hints the save dialog was shown, in order. */
@@ -268,6 +271,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
 
   const recycled: { path: string; raw: string }[] = []
   const revealed: string[] = []
+  const clipboard: string[] = []
   const trimmed = (path: string): string => pathKey(path).replace(/\/$/, '')
   const slashes = (path: string): string => path.replaceAll('\\', '/').replace(/\/$/, '')
   const parentOf = (path: string): string => slashes(path).split('/').slice(0, -1).join('/')
@@ -534,6 +538,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     kind: 'browser',
     recycled,
     revealed,
+    clipboard,
     recent,
     saveDialogs,
     files,
@@ -759,9 +764,44 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     },
     revealEntry(path) {
       return attempt(() => {
-        if (!insideRoot(path)) throw hostError('not-allowed', `access to ${path} is not allowed`)
+        // A file the user opened is shown wherever it is; anything else must be inside a root.
+        const isOpen = [...open.values()].some((doc) => pathKey(doc.path) === pathKey(path))
+        if (!insideRoot(path) && !isOpen) {
+          throw hostError('not-allowed', `access to ${path} is not allowed`)
+        }
         revealed.push(path)
       })
+    },
+    async findReferences(path, buffers) {
+      const held = new Map<string, string>()
+      for (const buffer of buffers) {
+        const doc = open.get(buffer.id)
+        if (doc !== undefined) held.set(pathKey(doc.path), buffer.text)
+      }
+      const references: Reference[] = []
+      const withLinks = new Set<string>()
+      let scanned = 0
+      for (const file of files.paths()) {
+        if (!insideRoot(file) || !isScannable(file)) continue
+        await Promise.resolve()
+        scanned += 1
+        const text = held.get(pathKey(file)) ?? files.read(file) ?? ''
+        for (const hit of mockReferences(file, text, path)) {
+          references.push({ path: file, ...hit })
+          withLinks.add(pathKey(file))
+        }
+      }
+      references.sort(
+        (a, b) =>
+          a.path.toLowerCase().localeCompare(b.path.toLowerCase()) ||
+          a.line - b.line ||
+          a.column - b.column,
+      )
+      return { references, files: withLinks.size, scanned, skipped: [], truncated: false }
+    },
+    writeClipboard(text) {
+      clipboard.push(text)
+      return Promise.resolve()
     },
     copyClashes(into, paths) {
       return attempt(() => {

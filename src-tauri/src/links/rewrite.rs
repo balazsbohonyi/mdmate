@@ -224,6 +224,42 @@ impl Abs {
     }
 }
 
+/// One spelling for one place: equal for every path that names the same file, and lower-cased
+/// where the file system ignores case. `None` for a path that is not absolute.
+pub(crate) fn place_key(path: &Path, ignore_case: bool) -> Option<String> {
+    Abs::of(path).map(|abs| fold(&abs.to_path().to_string_lossy(), ignore_case))
+}
+
+/// A file whose incoming links are wanted. It resolves a link the way [`plan`] does, so Find File
+/// References and a rename can never disagree about what links to a file.
+pub(crate) struct Wanted(Abs);
+
+impl Wanted {
+    /// `None` for a path that is not absolute.
+    pub(crate) fn of(path: &Path) -> Option<Self> {
+        Abs::of(path).map(Self)
+    }
+
+    /// The links among `links`, written in the file at `file`, that lead to this target.
+    pub(crate) fn linked_from<'a>(
+        &self,
+        file: &Path,
+        links: &'a [Link],
+        ignore_case: bool,
+    ) -> Vec<&'a Link> {
+        let Some(dir) = Abs::of(file).map(|file| file.parent()) else {
+            return Vec::new();
+        };
+        links
+            .iter()
+            .filter(|link| {
+                dir.join_link(&link.path)
+                    .is_some_and(|reached| reached.same_as(&self.0, ignore_case))
+            })
+            .collect()
+    }
+}
+
 /// The two ends of a move, as names.
 struct Moves {
     from: Abs,

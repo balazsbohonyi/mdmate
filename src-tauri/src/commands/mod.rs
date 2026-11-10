@@ -747,6 +747,22 @@ pub(crate) async fn rewrite_plan(
     .map_err(|error| AppError::Task(error.to_string()))?
 }
 
+/// Every link in the open folders that leads to `path`, by file and line. `buffers` are the open
+/// documents with edits not yet saved: their text is read instead of the file's.
+#[tauri::command]
+pub(crate) async fn find_references(
+    state: State<'_, Arc<AppState>>,
+    path: String,
+    buffers: Vec<links::flow::Buffer>,
+) -> Result<links::references::Found, AppError> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        links::references::find_for(&state, std::path::Path::new(&path), &buffers)
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
 /// The best `limit` files for what was typed in Ctrl+P. The first call builds the file index.
 #[tauri::command]
 pub(crate) async fn quick_open_query(

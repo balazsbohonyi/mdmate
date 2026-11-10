@@ -14,7 +14,6 @@ import {
   canSaveActive,
   canSaveActiveAs,
   closeAllTabs,
-  activeDocument,
   followerOfTab,
   hasOpenTabs,
   openFromDialog,
@@ -33,6 +32,7 @@ import { findPane } from './splitTree'
 import { splitActivePane, workbenchLayout } from './store'
 import { toggleRaw } from './rawMode'
 import { toggleSidebar } from './sidebar'
+import { activeTabId, findTabReferences, renameTab, tabMenuState, tabPath } from './tabMenu'
 
 export const COMMAND_IDS = {
   newFile: 'file.new',
@@ -44,6 +44,7 @@ export const COMMAND_IDS = {
   saveAs: 'file.saveAs',
   revert: 'file.revert',
   rename: 'file.rename',
+  findReferences: 'file.findReferences',
   clearRecent: 'file.clearRecent',
   splitRight: 'workbench.splitRight',
   splitDown: 'workbench.splitDown',
@@ -194,10 +195,28 @@ export function registerDefaultCommands(): () => void {
       id: COMMAND_IDS.rename,
       title: 'Rename...',
       keybinding: 'F2',
-      // A new file has no name to change, so naming it is Save As. A file on disk is renamed from
-      // the tab menu (P6-T9) or the tree.
-      enabled: () => activeDocument()?.untitled === true,
-      run: saveActiveDocumentAs,
+      // A new file has no name to change, so naming it is Save As. A file on disk is renamed in its
+      // tree row, with the links that point at it, so it has to be in an open folder.
+      enabled: () => {
+        const tab = activeTabId()
+        return tab !== null && tabMenuState(tab).canRename
+      },
+      run: () => {
+        const tab = activeTabId()
+        return tab === null ? undefined : renameTab(tab)
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.findReferences,
+      title: 'Find File References',
+      enabled: () => {
+        const tab = activeTabId()
+        return tab !== null && tabPath(tab) !== null
+      },
+      run: () => {
+        const tab = activeTabId()
+        return tab === null ? undefined : findTabReferences(tab)
+      },
     }),
     registerCommand({
       id: COMMAND_IDS.clearRecent,
