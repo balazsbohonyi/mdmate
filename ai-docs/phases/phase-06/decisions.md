@@ -201,6 +201,12 @@ Deviations from the plan and choices it left open. Numbers carry the OS they cam
 - Mutations: 26 in the page and 12 in Rust, plus 2 on the focus guard; listed in ISA Verification. Survivors were dead code (removed), missing tests (added), and one that changes no output (kept).
 - Screenshots (looked at): the menu on a background tab, Reveal in Sidebar, the question on a dirty background tab, the rename question, the References panel, and a reference opened at its line.
 
+## P6-T9 follow-up: Rename outside a folder and a key for Find File References
+
+**Rename of a file outside every open folder stays off, with a reason.** Rust could grant the parent folder, but that would let the page read and write every file beside it (Downloads, a desktop, a home folder), which `Access` is built to prevent. A narrower route exists (rename a file the user opened by itself, inside its own folder, and grant only the new name), but the tree has no row for such a file, so it needs a name field in the pane. The owner chose not to build it. The Rename item stays visible and off, and its tooltip says "Only a file in an open folder can be renamed." The tooltip is the native `title` on a wrapper around the item (a disabled item takes no pointer events, so the title cannot sit on the item). Save As still makes a renamed copy. **Limit:** the reason shows on mouse hover only; keyboard, touch and screen reader users do not get it (untested.md).
+
+**Shift+F12 runs Find File References.** It is the key VS Code uses for Find All References and means nothing to the browser. Ctrl+Shift+R was not used: WebView2 treats it as hard reload and the app does not turn the accelerator keys off. The menus show the shortcuts from the commands (F2 and Shift+F12) instead of fixed text.
+
 ## Phase 6 end
 
 **Speed set.** Run on a fresh release build with the perf driver after P6-T9, Windows 11 Pro 10.0.26200, one built-in display (1536 x 960 logical) at the Windows scale setting of 125% (AppliedDPI 120). The perf report does not record the window's devicePixelRatio, so that label comes from the system setting. All gates are within target; none was changed and no scenario's way of measuring was touched.
@@ -217,6 +223,8 @@ Deviations from the plan and choices it left open. Numbers carry the OS they cam
 | ISC-72 | scroll-stability, worst drift | 1 px up, 0.15 px down (control 628 px) | 2 px |
 
 **Also run (T8 changed hot exit).** Same build, 5 runs: crash-restore restored 5 tabs and 3 unsaved buffers in 153.8 ms, everything exactly as it was (journal 829 ms after the last edit, interval 1000 ms); typing-1mb-trusted work per key p95 8.4 ms against 16, repeatable. Not rerun: journal-cost and asset-scope (open fog items) and ISC-138 (no scenario yet, claim open).
+
+**Display scale, corrected.** The scale above is the Windows setting read before the run (one built-in display). When the follow-up real-window run was made a second display (1920 x 1200) was attached and the app window opened on it with devicePixelRatio 1, so the scale the speed run's own window had is not recorded and cannot be recovered from the report.
 
 **Fast probes.** All `check-arch` rules pass. `languages-lazy` and `palette-lazy` were inspected on a build with source maps (`vite build --sourcemap` into a temp folder, then `--dist`); the plain `pnpm check` run says "build not inspected" for the bundle half because the default build has no source maps, so that half is only read when the build is made that way. ISC-8, ISC-99 and ISC-182 test files pass.
 

@@ -7,6 +7,9 @@ import {
   ContextMenuShortcut,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
+import { shortcutLabel } from './commands'
+import { COMMAND_IDS } from './defaultCommands'
+import { detectPlatform } from './keybinding'
 import TabStripItem from './TabStripItem.vue'
 import {
   closeEveryTab,
@@ -36,6 +39,9 @@ const emit = defineEmits<{
   close: [id: string]
   press: [id: string, event: PointerEvent]
 }>()
+
+const platform = detectPlatform()
+const shortcut = (id: string): string | undefined => shortcutLabel(id, platform)
 
 /** Each menu item runs for the tab that was right-clicked. A failure shows in the status bar. */
 function run(action: () => Promise<unknown> | void): void {
@@ -104,18 +110,25 @@ function run(action: () => Promise<unknown> | void): void {
           Reveal in Sidebar
         </ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem
-          :disabled="!tabMenuState(tab.id).canRename"
-          @select="run(() => renameTab(tab.id))"
+        <!-- A disabled item takes no pointer events, so the tooltip sits on a wrapper. -->
+        <div
+          data-rename-item
+          :title="tabMenuState(tab.id).renameWhyNot ?? undefined"
         >
-          Rename...
-          <ContextMenuShortcut>F2</ContextMenuShortcut>
-        </ContextMenuItem>
+          <ContextMenuItem
+            :disabled="!tabMenuState(tab.id).canRename"
+            @select="run(() => renameTab(tab.id))"
+          >
+            Rename...
+            <ContextMenuShortcut>{{ shortcut(COMMAND_IDS.rename) }}</ContextMenuShortcut>
+          </ContextMenuItem>
+        </div>
         <ContextMenuItem
           :disabled="!tabMenuState(tab.id).hasPath"
           @select="run(() => findTabReferences(tab.id))"
         >
           Find File References
+          <ContextMenuShortcut>{{ shortcut(COMMAND_IDS.findReferences) }}</ContextMenuShortcut>
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

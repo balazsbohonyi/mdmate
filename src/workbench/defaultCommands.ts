@@ -209,6 +209,7 @@ export function registerDefaultCommands(): () => void {
     registerCommand({
       id: COMMAND_IDS.findReferences,
       title: 'Find File References',
+      keybinding: 'Shift+F12',
       enabled: () => {
         const tab = activeTabId()
         return tab !== null && tabPath(tab) !== null

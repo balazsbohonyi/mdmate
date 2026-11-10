@@ -36,6 +36,9 @@ export function activeTabId(): TabId | null {
   return findPane(layout, layout.activePane)?.activeTab ?? null
 }
 
+/** Why Rename is off for a file outside every open folder. Shown as the item's tooltip. */
+export const RENAME_OUTSIDE_FOLDER = 'Only a file in an open folder can be renamed.'
+
 /** Which items of the menu apply to a tab. */
 export interface TabMenuState {
   /** The tab shows an untitled document, which has no file yet. */
@@ -46,6 +49,8 @@ export interface TabMenuState {
   /** The file lies in an open folder, so the tree has a row for it. */
   readonly canRevealInSidebar: boolean
   readonly canRename: boolean
+  /** Why Rename is off, when it is off for a reason the user can act on; otherwise null. */
+  readonly renameWhyNot: string | null
 }
 
 export function tabMenuState(tabId: TabId): TabMenuState {
@@ -61,6 +66,7 @@ export function tabMenuState(tabId: TabId): TabMenuState {
     canRevealInSidebar: inRoot,
     // A new file is named by Save As; a file on disk is renamed in its tree row.
     canRename: untitled || inRoot,
+    renameWhyNot: path !== null && !inRoot ? RENAME_OUTSIDE_FOLDER : null,
   }
 }
 
@@ -144,7 +150,7 @@ export async function renameTab(tabId: TabId): Promise<void> {
   }
   const path = tabPath(tabId)
   if (path === null || rootOf(path) === undefined) {
-    problem.value = 'Only a file inside an open folder can be renamed here.'
+    problem.value = RENAME_OUTSIDE_FOLDER
     return
   }
   showSidebar('folders')

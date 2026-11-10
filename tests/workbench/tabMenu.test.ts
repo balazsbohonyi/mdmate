@@ -36,6 +36,7 @@ import {
 } from '@/workbench/sidebar'
 import { clearCommands, isCommandEnabled, runCommand } from '@/workbench/commands'
 import { COMMAND_IDS, registerDefaultCommands } from '@/workbench/defaultCommands'
+import { installKeybindings } from '@/workbench/keyboard'
 import { allTabs, paneOfTab } from '@/workbench/splitTree'
 import {
   activeTabId,
@@ -46,6 +47,7 @@ import {
   copyTabRelativePath,
   findTabReferences,
   keepNameBoxFocus,
+  RENAME_OUTSIDE_FOLDER,
   relativePathOf,
   renameTab,
   revealTabInExplorer,
@@ -378,7 +380,7 @@ describe('Rename and Find File References from the menu', () => {
     expect(tabMenuState(outside).canRename).toBe(false)
     await renameTab(outside)
     expect(naming.value).toBeNull()
-    expect(problem.value).toContain('inside an open folder')
+    expect(problem.value).toBe(RENAME_OUTSIDE_FOLDER)
   })
 
   it('Find File References lists the links to a tab that is in the background', async () => {
@@ -451,5 +453,89 @@ describe('closing the menu while the name box is open', () => {
     const event = new Event('focusout', { cancelable: true })
     keepNameBoxFocus(event)
     expect(event.defaultPrevented).toBe(false)
+  })
+})
+
+describe('why Rename is off (ISC-220)', () => {
+  it('gives a reason for a file outside every folder, an image included', async () => {
+    await start()
+    const outside = await openPath('/outside/o.md')
+    expect(tabMenuState(outside).renameWhyNot).toBe(RENAME_OUTSIDE_FOLDER)
+    expect(tabMenuState(outside).canRename).toBe(false)
+    host.files.write('/outside/p.png', 'png')
+    const image = await openPath('/outside/p.png')
+    expect(tabMenuState(image).renameWhyNot).toBe(RENAME_OUTSIDE_FOLDER)
+  })
+
+  it('gives none for a file in a folder, an untitled tab or a tab that is gone', async () => {
+    await start()
+    const inside = await openPath('/work/a.md')
+    expect(tabMenuState(inside).renameWhyNot).toBeNull()
+    const tab = await untitled()
+    expect(tabMenuState(tab).renameWhyNot).toBeNull()
+    expect(tabMenuState('no-such-tab').renameWhyNot).toBeNull()
+  })
+
+  it('asking anyway shows the same reason in the status bar', async () => {
+    await start()
+    const outside = await openPath('/outside/o.md')
+    await renameTab(outside)
+    expect(problem.value).toBe(RENAME_OUTSIDE_FOLDER)
+  })
+})
+
+describe('Shift+F12 (ISC-221)', () => {
+  let removeCommands: (() => void) | undefined
+  let removeKeys: (() => void) | undefined
+  let target: EventTarget
+
+  beforeEach(() => {
+    clearCommands()
+    removeCommands = registerDefaultCommands()
+    target = new EventTarget()
+    removeKeys = installKeybindings(target, 'other')
+  })
+
+  afterEach(() => {
+    removeKeys?.()
+    removeCommands?.()
+    clearCommands()
+  })
+
+  function press(props: Record<string, unknown>): Event {
+    const event = Object.assign(new Event('keydown', { cancelable: true }), {
+      key: 'F12',
+      code: 'F12',
+      ctrlKey: false,
+      altKey: false,
+      shiftKey: true,
+      metaKey: false,
+      ...props,
+    })
+    target.dispatchEvent(event)
+    return event
+  }
+
+  it('lists the links to the active file', async () => {
+    await start()
+    host.files.write('/work/b.md', 'see [a](a.md)\n')
+    await openPath('/work/a.md')
+    const event = press({})
+    expect(event.defaultPrevented).toBe(true)
+    await flush()
+    expect(referencesState.value).toMatchObject({ phase: 'done', target: '/work/a.md' })
+    expect(sidebarPanel.value).toBe('references')
+  })
+
+  it('does nothing without Shift, and nothing for an untitled tab', async () => {
+    await start()
+    await openPath('/work/a.md')
+    press({ shiftKey: false })
+    await flush()
+    expect(referencesState.value).toBeNull()
+    await untitled()
+    press({})
+    await flush()
+    expect(referencesState.value).toBeNull()
   })
 })

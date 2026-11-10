@@ -89,7 +89,7 @@ describe('the default commands', () => {
       [COMMAND_IDS.saveAs]: 'Ctrl+Shift+S',
       [COMMAND_IDS.revert]: undefined,
       [COMMAND_IDS.rename]: 'F2',
-      [COMMAND_IDS.findReferences]: undefined,
+      [COMMAND_IDS.findReferences]: 'Shift+F12',
       [COMMAND_IDS.clearRecent]: undefined,
       [COMMAND_IDS.splitRight]: 'Alt+Shift+2',
       [COMMAND_IDS.splitDown]: 'Alt+Shift+8',
