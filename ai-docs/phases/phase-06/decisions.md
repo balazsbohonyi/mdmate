@@ -200,3 +200,28 @@ Deviations from the plan and choices it left open. Numbers carry the OS they cam
 - Real window (`real9`, debug build with the perf feature, Windows 11): 29 checks passed, listed in ISA Verification for ISC-213 to ISC-218. The first run found the name-box focus bug (above); two of my script's own mistakes (a wrong element for the banner, a lost backslash in a template) were fixed in the script, not the app.
 - Mutations: 26 in the page and 12 in Rust, plus 2 on the focus guard; listed in ISA Verification. Survivors were dead code (removed), missing tests (added), and one that changes no output (kept).
 - Screenshots (looked at): the menu on a background tab, Reveal in Sidebar, the question on a dirty background tab, the rename question, the References panel, and a reference opened at its line.
+
+## Phase 6 end
+
+**Speed set.** Run on a fresh release build with the perf driver after P6-T9, Windows 11 Pro 10.0.26200, one built-in display (1536 x 960 logical) at the Windows scale setting of 125% (AppliedDPI 120). The perf report does not record the window's devicePixelRatio, so that label comes from the system setting. All gates are within target; none was changed and no scenario's way of measuring was touched.
+
+| Claim | Scenario | Result | Target |
+|---|---|---|---|
+| ISC-4 | startup, launch to editable | 590.2 ms (5 runs, repeatable) | 1500 ms |
+| ISC-5 | open-1mb, warm open | 27.1 ms (repeatable) | 100 ms |
+| ISC-6 | tab-switch, p95 | 20.0 ms (19.2 to 24.9; flagged not repeatable, one run 25% high) | 50 ms |
+| ISC-7 | typing-1mb, work per key p95 | 7.8 ms (repeatable) | 16 ms |
+| ISC-129 | typing-during-scan, p95 | 8.9 ms (scan 961 ms) | 16 ms |
+| ISC-58 | reveal, work per leave p95 | 6.3 ms | 16 ms |
+| ISC-63 | decorations-scale, worst deviation | 0.233 (middle 1.05, late 1.23; same work both sizes) | 0.35 |
+| ISC-72 | scroll-stability, worst drift | 1 px up, 0.15 px down (control 628 px) | 2 px |
+
+**Also run (T8 changed hot exit).** Same build, 5 runs: crash-restore restored 5 tabs and 3 unsaved buffers in 153.8 ms, everything exactly as it was (journal 829 ms after the last edit, interval 1000 ms); typing-1mb-trusted work per key p95 8.4 ms against 16, repeatable. Not rerun: journal-cost and asset-scope (open fog items) and ISC-138 (no scenario yet, claim open).
+
+**Fast probes.** All `check-arch` rules pass. `languages-lazy` and `palette-lazy` were inspected on a build with source maps (`vite build --sourcemap` into a temp folder, then `--dist`); the plain `pnpm check` run says "build not inspected" for the bundle half because the default build has no source maps, so that half is only read when the build is made that way. ISC-8, ISC-99 and ISC-182 test files pass.
+
+**ISC-63 watch.** Held: same work at both sizes, worst deviation 0.233 against 0.35.
+
+**Fog.** The ISA's `Not yet specified` section is empty, so there is no fog to resolve or turn into claims.
+
+**Note on ISC-6.** The tab-switch spread is run 4 alone (24.9 ms); medians are 17.2 ms and the other four p95 values are 19.2 to 20.5 ms.
