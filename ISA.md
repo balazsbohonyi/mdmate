@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 144/221
+progress: 151/221
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-10T09:29:49Z
+updated: 2026-11-10T09:48:23Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -462,15 +462,15 @@ Why: Markdown lives among other files, so the sidebar must manage them and renam
 - [ ] ISC-113: After a rename, a rescan finds zero links to the old path in the workspace.
 - [ ] ISC-114: Moving a file updates the relative links inside it.
 - [ ] ISC-115: Renaming a folder updates links to files within it.
-- [ ] ISC-116: Link rewrite covers reference definitions.
-- [ ] ISC-117: Link rewrite covers `<img src>` tags.
-- [ ] ISC-118: Link rewrite covers percent-encoded targets.
-- [ ] ISC-119: Link rewrite covers angle-bracket targets.
-- [ ] ISC-120: Link rewrite preserves `#anchor` suffixes.
-- [ ] ISC-121: Link rewrite covers folders excluded from the tree.
+- [x] ISC-116: Link rewrite covers reference definitions.
+- [x] ISC-117: Link rewrite covers `<img src>` tags.
+- [x] ISC-118: Link rewrite covers percent-encoded targets.
+- [x] ISC-119: Link rewrite covers angle-bracket targets.
+- [x] ISC-120: Link rewrite preserves `#anchor` suffixes.
+- [x] ISC-121: Link rewrite covers folders excluded from the tree.
 - [ ] ISC-122: Link rewrite writes closed files directly.
 - [ ] ISC-123: Link rewrite gives dirty tabs undoable, unsaved edits.
-- [ ] ISC-124: Link rewrite covers other text files.
+- [x] ISC-124: Link rewrite covers other text files.
 - [ ] ISC-175: Link rewrite reloads clean open tabs.
 - [ ] ISC-125: Anti: link rewrite never changes bytes outside link targets.
 - [ ] ISC-126: A rename shows the number of links and files first.
@@ -630,6 +630,7 @@ Why: an everyday editor starts, keeps and manages files without sending you to E
 - 2026-11-09: Rust records the paths of each native drop from Tauri's drop event (the last four drops) and `drop_describe` and `add_dropped_root` accept only those; the page never names a path. Why: dropped files can come from anywhere, and the page must not be able to ask for a path it was not given (P6-T1).
 - 2026-11-09: refined: added ISC-219 (F12 · File lifecycle) before building P6-T2. A rename or move in the tree changes the path of a file Rust holds open by id; without it the next save would write the old path and bring back the file that was just renamed, which breaks "the file on disk belongs to the writer". It covers a folder with open files under it. Implied by ISC-101 and ISC-102, but no claim stated it.
 
+- 2026-11-10: P6-T4 choices: the plan task builds the scanner, and the claims ISC-116 to ISC-121 and ISC-124 read "rewrite covers X", so T4 also builds the one-link edit step (`Link::render`, `splice`, `apply`) and each claim is proven by scan, edit and exact output; T5 keeps the planning (which links point at the old path, new relative paths, outbound links, folders, atomic writes, failures). A link carries the byte span of the path part only, so a `#fragment`, a title and the wrapping are never inside an edit. Offsets are into the decoded text with line endings intact; the walker decodes a file, the engine splices and encodes with the file's own format, which keeps CRLF, a BOM and UTF-16. Not links: fenced and inline code (a code sample is never rewritten), reference usages, wikilinks, `srcset`, web and mail addresses, anchors, and absolute or network paths. Indented code blocks are not recognised (an indented line is also a list continuation) and a definition must sit on one line. A bad percent escape skips that one link. A file with a NUL byte is binary unless it starts with a UTF-16 mark, so UTF-16 without a mark is skipped as binary; a file in an encoding mdmate does not write is reported, never rewritten. No Markdown crate was added: the scanner is about 600 lines, and a crate gives the range of a whole link, not of its target. Why: the rewrite must never corrupt a document, so every uncertain form is skipped rather than guessed.
 - 2026-11-10: P6-T3 choices: a file opens by its extension alone (Markdown, an image extension, or text), and a file that is not UTF-8 opens read-only under the existing notice; a click on any file row opens it; an image dropped on document text does nothing until P9-T2; an image tab keeps no zoom or pan across tab switches; Rust tracks shown images so a restored session grants them again, and `image_closed` removes the grant when the last tab closes; the asset scope for a single image is added when it opens and cannot shrink until restart (the same Tauri limit as for roots); the mock host draws images from `demoImages.ts`; the format keys still work in text tabs, as in large-file plain source; files dropped on blank tree space open in the active pane, and a file already open in another pane opens a second tab in the pane it was dropped on. Why: each keeps untrusted files inert (an SVG is only ever shown through `<img>`) and keeps Rust the only source of paths.
 - 2026-11-10: P6-T2 choices: blur on the name box cancels, so a click elsewhere never leaves a half-made file; a new file is selected and revealed but not opened; Delete asks nothing, since the Recycle Bin is the undo; a move to another volume is refused; a folder dropped on a row is copied into that folder, and one dropped on blank tree space still becomes a root; a drop while the clash banner is open is ignored; an unanswered clash counts as Skip; Replace sends the old item to the Recycle Bin before the copy. Why: each keeps the file on disk safe first (the bin, nothing half-written, no surprise folder). Rename and move do not rewrite links yet (P6-T4 to T6), so links to a renamed file are stale until then.
 
@@ -793,6 +794,15 @@ Why: an everyday editor starts, keeps and manages files without sending you to E
 - ISC-202: `pnpm test:rust drop_paths_only` (5 tests: one undelivered path in a drop refuses all of it and grants nothing); `pnpm test:web tests/features/dropOpen.test.ts`. Real window: `drop_open` for a path no drop delivered returned not-allowed, and `image_info` for an existing PNG outside every grant returned not-allowed (P6-T3).
 - ISC-219, images: `pnpm test:web tests/features/fileOps.test.ts`: an image tab follows a rename of the file, a rename of its folder and a move of that folder, and an image in another folder stays put (P6-T3).
 - Breaks on purpose in the page (12) and in Rust (6) each failed a test (P6-T3).
+- ISC-116: `pnpm test:rust rewrite_reference`: scan, rewrite and compare for `[a]: t`, `<t> "Title"`, `'T'`, `(T)`, an indented and a quoted definition, with the title kept; usages and broken definitions yield no target (`a_reference_usage_or_a_broken_definition_has_no_target`). This is the scanner and the one-link edit step; the plan that decides which links to edit is P6-T5 (P6-T4).
+- ISC-117: `pnpm test:rust rewrite_img_tag`: `<img src>` and `<a href>` in double, single and no quotes, upper-case `IMG SRC`, any attribute order, a tag over several lines; `html_that_holds_no_local_link_is_left_alone` for data-src, web, empty and unclosed tags (P6-T4).
+- ISC-118: `pnpm test:rust rewrite_percent`: `%20` and UTF-8 escapes read as the path and are written as escapes again; a bad escape skips that one link only (`a_bad_percent_escape_skips_that_link_and_no_other`); a randomised round trip (`every_form_reads_back_the_target_it_was_given`, over 4,400 names in ten forms) reads back exactly the name it was given (P6-T4).
+- ISC-119: `pnpm test:rust rewrite_angle`: `<...>` stays, spaces and parentheses stay raw inside it, an escaped target in angle brackets stays escaped, a bare link gets its space escaped, a title is kept (P6-T4).
+- ISC-120: `pnpm test:rust rewrite_anchor`: the span ends before `#`, so the anchor survives in an inline link, an angle link, a link with a title, an `<a href>` and a definition; a link that is only an anchor is not a target (P6-T4).
+- ISC-121: `pnpm test:rust rewrite_excluded`: `node_modules`, `.obsidian`, `build` and `.github` are walked and their links rewritten byte for byte, while `.git` (at any depth, any case) is not. The tree hides nothing today and `folder_exclude_patterns` exists only in the plan, so this proves the walker applies no exclusion of its own (P6-T4).
+- ISC-124: `pnpm test:rust rewrite_text_files`: a `.txt`, an `.html`, a `.json` and an extensionless file are scanned and rewritten; binary files and files in other encodings are reported, not scanned (`binary_files_and_other_encodings_are_not_scanned_and_say_so`) (P6-T4).
+- ISC-125 groundwork, not closed here: `an_edit_keeps_crlf_and_a_byte_order_mark_and_changes_only_the_target` and `a_utf16_file_is_scanned_not_skipped_as_binary` show a decode, edit and encode in the file's own format changes only the target bytes; P6-T5 closes ISC-125 on the whole engine.
+- Breaks on purpose in the scanner and the walker: 22 tried, 19 failed a test at once; three survived and were handled (a redundant scheme check removed, a link-skip test made to run with a junction and then caught both breaks, and the early NUL sniff, which only reads less and changes no result) (P6-T4).
 
 ## Remaining Work
 

@@ -276,7 +276,7 @@ pub(crate) fn classify(href: &str) -> Result<Lexical, Refusal> {
 
 /// The scheme at the start of `text`, if it has one: a letter, then letters, digits, `+`, `-` or
 /// `.`, then a colon.
-fn scheme_of(text: &str) -> Option<&str> {
+pub(crate) fn scheme_of(text: &str) -> Option<&str> {
     let end = text.find(':')?;
     let scheme = &text[..end];
     let mut chars = scheme.chars();
@@ -427,7 +427,7 @@ pub(crate) fn kind_of(path: &Path) -> Option<FileKind> {
 
 /// Decodes `%XX` escapes once. A `%` with no two hex digits after it stays as it is; bytes that
 /// are not UTF-8 are refused.
-fn decode(text: &str) -> Result<String, Refusal> {
+pub(crate) fn decode(text: &str) -> Result<String, Refusal> {
     if !text.contains('%') {
         return Ok(text.to_owned());
     }

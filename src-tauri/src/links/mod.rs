@@ -5,6 +5,17 @@
 //! ([`guard`]) decides what the target may do. The page never names a path or a URL to open.
 
 pub(crate) mod guard;
+// The scanner and the walker are called by the rewrite engine in P6-T5; until then only tests do.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "P6-T5 is the first caller outside tests")
+)]
+pub(crate) mod scan;
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "P6-T5 is the first caller outside tests")
+)]
+pub(crate) mod walk;
 
 use crate::access::display_path;
 use crate::error::AppError;

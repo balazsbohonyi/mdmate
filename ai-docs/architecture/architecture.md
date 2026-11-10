@@ -50,7 +50,7 @@ mdmate/
 │  ├─ workspace/      tree.rs (one folder per listing), roots.rs (workspace.json), folders.rs (watcher for the open folders), ops.rs (create, rename, move, delete to the Recycle Bin, copy in); file index later
 │  ├─ drops.rs        The paths of the last native file drops, which are the only ones the page may ask about
 │  ├─ search/         Streaming folder search
-│  ├─ links/          Link guard, scan, rewrite
+│  ├─ links/          Link guard (guard.rs), scanner (scan.rs), file walker (walk.rs); rewrite engine next
 │  ├─ session/        Hot-exit store
 │  ├─ settings/       Settings and keybinding files
 │  ├─ paths.rs        Installed or portable data folder
@@ -180,6 +180,7 @@ Markdown content is untrusted, and people will open files they did not write.
 
 - Document content never reaches `innerHTML` or `v-html`. `<img>` tags are read for attributes only.
 - `tauri-plugin-fs` stays out. All file access goes through our commands, keeping capabilities small.
+- The link scanner (`links/scan.rs`) is pure: `scan(&str)` returns every link to a local file with the byte span of its path part, the raw and decoded path, its form, how it is wrapped and its line. `Link::render` writes a new path in the same style and `splice` and `apply` replace spans, so an edit never touches an anchor, a title or a quote. `links/walk.rs` walks a folder (skipping `.git` and links, junctions and mount points) and reads each file: UTF-8 and UTF-16 text is scanned on the text it decodes to, line endings intact, so an edit written back with the file's own encoding changes only target bytes; a file with a NUL byte and no UTF-16 mark is binary and a file in an encoding mdmate does not write is reported.
 - One Rust module, `src-tauri/src/links/guard.rs`, decides what a link target may do. The page sends `describe_link` or `follow_link` the document id and the target as written; the folder comes from Rust's record of the document, and the page never names a path or URL to open.
 - The guard reads the text first, with no file system call: only `http`, `https` and `mailto` pass as schemes (`file:` is refused), a path is percent-decoded once before any check, and rooted, network (`\\host`, `//host`, `\\?\UNC\`, encoded spellings), drive and stream paths, device names and executable types are refused. Only then does a relative path touch the file system, and the resolved path is checked again.
 - Only a value the guard approved reaches the opener, which is `open_external` behind the platform trait (`ShellExecuteW` on Windows, with no parameters).
