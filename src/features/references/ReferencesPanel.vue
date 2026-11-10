@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import HoverHint from '@/components/HoverHint.vue'
 import { baseName } from '@/features/tree/model'
 import type { Reference } from '@/platform'
 import { relativePathOf } from '@/workbench/tabMenu'
@@ -54,12 +55,9 @@ const summary = computed(() => {
     class="flex min-h-0 flex-1 flex-col text-chrome"
   >
     <div class="shrink-0 border-b border-sidebar-border px-3 py-2">
-      <div
-        class="truncate font-medium"
-        :title="state.target"
-      >
-        Links to {{ baseName(state.target) }}
-      </div>
+      <HoverHint :text="state.target">
+        <div class="truncate font-medium">Links to {{ baseName(state.target) }}</div>
+      </HoverHint>
       <div
         data-references-summary
         class="mt-0.5 text-xs"
@@ -74,13 +72,12 @@ const summary = computed(() => {
         :key="group.path"
         data-references-file
       >
-        <div
-          class="flex items-baseline gap-2 px-3 pt-2 pb-0.5 select-none"
-          :title="group.path"
-        >
-          <span class="shrink-0 font-medium">{{ group.name }}</span>
-          <span class="min-w-0 truncate text-xs text-muted-foreground">{{ group.where }}</span>
-        </div>
+        <HoverHint :text="group.path">
+          <div class="flex items-baseline gap-2 px-3 pt-2 pb-0.5 select-none">
+            <span class="shrink-0 font-medium">{{ group.name }}</span>
+            <span class="min-w-0 truncate text-xs text-muted-foreground">{{ group.where }}</span>
+          </div>
+        </HoverHint>
         <button
           v-for="reference in group.items"
           :key="`${String(reference.line)}:${String(reference.column)}`"
@@ -103,14 +100,17 @@ const summary = computed(() => {
       >
         Only the first links are listed; there are more.
       </p>
-      <p
+      <HoverHint
         v-if="state.phase === 'done' && state.found.skipped.length > 0"
-        data-references-skipped
-        class="px-3 py-2 text-xs text-muted-foreground"
-        :title="state.found.skipped.map((item) => `${item.path}: ${item.reason}`).join('\n')"
+        :text="state.found.skipped.map((item) => `${item.path}: ${item.reason}`).join('\n')"
       >
-        {{ plural(state.found.skipped.length, 'file', 'files') }} could not be checked.
-      </p>
+        <p
+          data-references-skipped
+          class="px-3 py-2 text-xs text-muted-foreground"
+        >
+          {{ plural(state.found.skipped.length, 'file', 'files') }} could not be checked.
+        </p>
+      </HoverHint>
     </div>
   </section>
 </template>

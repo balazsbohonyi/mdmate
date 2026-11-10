@@ -5,7 +5,8 @@
  * the list of files that could not be changed. The mock host reads plain inline links only.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { createApp, nextTick, watch as watchRef, type App } from 'vue'
+import { nextTick, watch as watchRef, type App } from 'vue'
+import { tooltipApp } from '../helpers/tooltips'
 import { documentOfTab, openPath, problem, resetDocuments } from '@/documents/store'
 import RewriteBanner from '@/features/links/RewriteBanner.vue'
 import {
@@ -58,7 +59,7 @@ async function start(files: Record<string, string> = FILES): Promise<void> {
 function mountBanner(): HTMLElement {
   const root = document.createElement('div')
   document.body.append(root)
-  const app = createApp(RewriteBanner)
+  const app = tooltipApp(RewriteBanner)
   app.mount(root)
   mounted = { app, root }
   return root

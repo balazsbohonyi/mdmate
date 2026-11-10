@@ -6,7 +6,8 @@
  * rule that only a folder inside a root can be listed.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { createApp, nextTick, type App } from 'vue'
+import { nextTick, type App } from 'vue'
+import { tooltipApp } from '../helpers/tooltips'
 import { problem, resetDocuments } from '@/documents/store'
 import {
   flatten,
@@ -55,13 +56,22 @@ const FILES: Record<string, string> = {
   '/other/x.md': '# x\n',
 }
 
+/** What a mouse over an element does to its tooltip trigger. */
+async function hover(element: Element | null | undefined): Promise<void> {
+  if (!element) throw new Error('nothing to hover')
+  element.dispatchEvent(new MouseEvent('pointermove', { bubbles: true }))
+  await flush()
+}
+const hint = (): string | undefined =>
+  document.body.querySelector('[data-hover-hint]')?.textContent?.trim()
+
 let host: MockHost
 let mounted: { app: App; root: HTMLElement } | undefined
 
 function mountTree(): HTMLElement {
   const root = document.createElement('div')
   document.body.append(root)
-  const app = createApp(FileTree)
+  const app = tooltipApp(FileTree)
   app.mount(root)
   mounted = { app, root }
   return root
@@ -382,6 +392,21 @@ describe('the drawn tree (ISC-99, ISC-105)', () => {
       row.textContent?.trim(),
     )
     expect(shown).toEqual(['work', 'notes', 'readme.md', 'Zeta.txt'])
+  })
+
+  it("shows a row's path in the shadcn tooltip, and no native title (ISC-222)", async () => {
+    start({ roots: ['/work'] })
+    await restoreWorkspace([])
+    await flush()
+    const root = mountTree()
+    await flush()
+    const row = [...root.querySelectorAll<HTMLElement>('[role="treeitem"]')].find(
+      (el) => el.textContent?.trim() === 'readme.md',
+    )
+    expect(row?.hasAttribute('title')).toBe(false)
+    expect(hint()).toBeUndefined()
+    await hover(row)
+    expect(hint()).toContain('/work/readme.md')
   })
 
   it('draws files that are not Markdown dimmed, and Markdown not', async () => {

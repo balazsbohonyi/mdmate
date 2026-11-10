@@ -6,7 +6,8 @@
  * way Rust's drop record does; the folder under the pointer is found through the row it is over.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createApp, nextTick, type App, type Component } from 'vue'
+import { nextTick, type App, type Component } from 'vue'
+import { tooltipApp } from '../helpers/tooltips'
 import { problem, resetDocuments } from '@/documents/store'
 import { handleDrop, installFileDrop } from '@/features/drop'
 import CopyBanner from '@/features/tree/CopyBanner.vue'
@@ -64,7 +65,7 @@ function treeRow(path: string, kind: 'file' | 'folder' | 'root'): Element {
 function mount(component: Component): HTMLElement {
   const root = document.createElement('div')
   document.body.append(root)
-  const app = createApp(component)
+  const app = tooltipApp(component)
   app.mount(root)
   mounted.push({ app, root })
   return root

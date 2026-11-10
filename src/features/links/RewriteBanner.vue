@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
+import HoverHint from '@/components/HoverHint.vue'
 import { baseName } from '@/features/tree/model'
 import { answerRewrite, cancelRewriteScan, dismissRewriteReport, rewriteState } from './rewrite'
 
@@ -123,10 +124,8 @@ watch(
           :key="item.path"
           class="break-words"
         >
-          <span
-            class="font-medium"
-            :title="item.path"
-            >{{ baseName(item.path) }}</span
+          <HoverHint :text="item.path">
+            <span class="font-medium">{{ baseName(item.path) }}</span> </HoverHint
           >: {{ item.reason }}
         </li>
       </ul>
@@ -147,10 +146,8 @@ watch(
           :key="item.path"
           class="break-words"
         >
-          <span
-            class="font-medium"
-            :title="item.path"
-            >{{ baseName(item.path) }}</span
+          <HoverHint :text="item.path">
+            <span class="font-medium">{{ baseName(item.path) }}</span> </HoverHint
           >: {{ item.reason }}
         </li>
       </ul>

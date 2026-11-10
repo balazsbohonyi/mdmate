@@ -8,6 +8,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
+import HoverHint from '@/components/HoverHint.vue'
 import NameInput from './NameInput.vue'
 import { FALLBACK_VIEWPORT_HEIGHT, ROW_HEIGHT, visibleWindow, type TreeRow } from './model'
 import {
@@ -286,6 +287,12 @@ function isDragged(row: TreeRow): boolean {
 function rowKey(row: TreeRow): string {
   return `${row.kind}:${row.path}:${row.name}`
 }
+
+/** The tooltip of a row: its path (a note shows its text). Nothing while the row is a name box. */
+function rowHint(row: TreeRow): string | null {
+  if (row.kind === 'new' || isRenaming(row)) return null
+  return row.kind === 'note' ? row.name : row.path
+}
 </script>
 
 <template>
@@ -306,98 +313,106 @@ function rowKey(row: TreeRow): string {
           class="relative w-full"
           :style="{ height: `${String(treeRows.length * ROW_HEIGHT)}px` }"
         >
-          <div
+          <HoverHint
             v-for="{ row, top } in shown"
             :key="rowKey(row)"
-            :role="row.kind === 'note' || row.kind === 'new' ? 'none' : 'treeitem'"
-            :aria-level="row.depth + 1"
-            :aria-expanded="row.kind === 'root' || row.kind === 'folder' ? row.expanded : undefined"
-            :aria-selected="row.kind !== 'note' && row.kind !== 'new' && row.path === selectedPath"
-            :data-row-path="row.kind === 'note' || row.kind === 'new' ? undefined : row.path"
-            :data-kind="row.kind"
-            :data-drop-target="isDropTarget(row) ? '' : undefined"
-            :data-dragging="isDragged(row) ? '' : undefined"
-            :title="row.kind === 'note' ? row.name : row.path"
-            class="absolute right-0 left-0 flex cursor-default items-center gap-1 pr-2"
-            :class="[
-              row.kind !== 'note' && row.kind !== 'new' && row.path === selectedPath
-                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                : 'hover:bg-sidebar-accent/50',
-              isDropTarget(row) ? 'bg-sidebar-accent ring-1 ring-ring ring-inset' : '',
-              isDragged(row) ? 'opacity-50' : '',
-              row.kind === 'file' && !row.markdown ? 'text-muted-foreground' : '',
-              row.kind === 'note'
-                ? row.tone === 'error'
-                  ? 'text-destructive'
-                  : 'text-muted-foreground'
-                : '',
-              row.kind === 'root' ? 'font-medium' : '',
-            ]"
-            :style="{
-              top: `${String(top)}px`,
-              height: `${String(ROW_HEIGHT)}px`,
-              paddingLeft: indent(row),
-            }"
-            @pointerdown="onPointerDown($event, row)"
-            @click="onRowClick(row)"
+            :text="rowHint(row)"
+            side="right"
           >
-            <template v-if="row.kind === 'root' || row.kind === 'folder'">
-              <component
-                :is="row.expanded ? ChevronDown : ChevronRight"
-                class="size-3.5 shrink-0 text-muted-foreground"
-                :stroke-width="1.5"
-              />
-              <component
-                :is="row.expanded ? FolderOpen : Folder"
-                class="size-4 shrink-0 text-muted-foreground"
-                :stroke-width="1.5"
-              />
-            </template>
-            <template v-else-if="row.kind === 'file'">
-              <span class="size-3.5 shrink-0" />
-              <component
-                :is="row.markdown ? FileText : File"
-                class="size-4 shrink-0"
-                :class="row.markdown ? '' : 'opacity-60'"
-                :stroke-width="1.5"
-              />
-            </template>
-            <template v-else-if="row.kind === 'new'">
-              <span class="size-3.5 shrink-0" />
-              <component
-                :is="row.creates === 'folder' ? Folder : FileText"
-                class="size-4 shrink-0 text-muted-foreground"
-                :stroke-width="1.5"
-              />
-            </template>
-            <span
-              v-else
-              class="size-3.5 shrink-0"
-            />
-            <NameInput
-              v-if="row.kind === 'new'"
-              :initial="''"
-              :stem="false"
-              :error="naming?.error ?? null"
-              :label="row.creates === 'folder' ? 'New folder name' : 'New file name'"
-              @commit="commitNaming"
-              @cancel="cancelNaming"
-            />
-            <NameInput
-              v-else-if="isRenaming(row)"
-              :initial="row.name"
-              :stem="row.kind === 'file'"
-              :error="naming?.error ?? null"
-              :label="`Rename ${row.name}`"
-              @commit="commitNaming"
-              @cancel="cancelNaming"
-            />
-            <span
-              v-else
-              class="truncate"
-              >{{ row.name }}</span
+            <div
+              :role="row.kind === 'note' || row.kind === 'new' ? 'none' : 'treeitem'"
+              :aria-level="row.depth + 1"
+              :aria-expanded="
+                row.kind === 'root' || row.kind === 'folder' ? row.expanded : undefined
+              "
+              :aria-selected="
+                row.kind !== 'note' && row.kind !== 'new' && row.path === selectedPath
+              "
+              :data-row-path="row.kind === 'note' || row.kind === 'new' ? undefined : row.path"
+              :data-kind="row.kind"
+              :data-drop-target="isDropTarget(row) ? '' : undefined"
+              :data-dragging="isDragged(row) ? '' : undefined"
+              class="absolute right-0 left-0 flex cursor-default items-center gap-1 pr-2"
+              :class="[
+                row.kind !== 'note' && row.kind !== 'new' && row.path === selectedPath
+                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                  : 'hover:bg-sidebar-accent/50',
+                isDropTarget(row) ? 'bg-sidebar-accent ring-1 ring-ring ring-inset' : '',
+                isDragged(row) ? 'opacity-50' : '',
+                row.kind === 'file' && !row.markdown ? 'text-muted-foreground' : '',
+                row.kind === 'note'
+                  ? row.tone === 'error'
+                    ? 'text-destructive'
+                    : 'text-muted-foreground'
+                  : '',
+                row.kind === 'root' ? 'font-medium' : '',
+              ]"
+              :style="{
+                top: `${String(top)}px`,
+                height: `${String(ROW_HEIGHT)}px`,
+                paddingLeft: indent(row),
+              }"
+              @pointerdown="onPointerDown($event, row)"
+              @click="onRowClick(row)"
             >
-          </div>
+              <template v-if="row.kind === 'root' || row.kind === 'folder'">
+                <component
+                  :is="row.expanded ? ChevronDown : ChevronRight"
+                  class="size-3.5 shrink-0 text-muted-foreground"
+                  :stroke-width="1.5"
+                />
+                <component
+                  :is="row.expanded ? FolderOpen : Folder"
+                  class="size-4 shrink-0 text-muted-foreground"
+                  :stroke-width="1.5"
+                />
+              </template>
+              <template v-else-if="row.kind === 'file'">
+                <span class="size-3.5 shrink-0" />
+                <component
+                  :is="row.markdown ? FileText : File"
+                  class="size-4 shrink-0"
+                  :class="row.markdown ? '' : 'opacity-60'"
+                  :stroke-width="1.5"
+                />
+              </template>
+              <template v-else-if="row.kind === 'new'">
+                <span class="size-3.5 shrink-0" />
+                <component
+                  :is="row.creates === 'folder' ? Folder : FileText"
+                  class="size-4 shrink-0 text-muted-foreground"
+                  :stroke-width="1.5"
+                />
+              </template>
+              <span
+                v-else
+                class="size-3.5 shrink-0"
+              />
+              <NameInput
+                v-if="row.kind === 'new'"
+                :initial="''"
+                :stem="false"
+                :error="naming?.error ?? null"
+                :label="row.creates === 'folder' ? 'New folder name' : 'New file name'"
+                @commit="commitNaming"
+                @cancel="cancelNaming"
+              />
+              <NameInput
+                v-else-if="isRenaming(row)"
+                :initial="row.name"
+                :stem="row.kind === 'file'"
+                :error="naming?.error ?? null"
+                :label="`Rename ${row.name}`"
+                @commit="commitNaming"
+                @cancel="cancelNaming"
+              />
+              <span
+                v-else
+                class="truncate"
+                >{{ row.name }}</span
+              >
+            </div>
+          </HoverHint>
         </div>
       </div>
     </ContextMenuTrigger>

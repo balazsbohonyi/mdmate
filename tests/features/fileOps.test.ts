@@ -6,7 +6,8 @@
  * only paths inside a root, never a root itself, and a document that stays open moves with its file.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createApp, nextTick, type App } from 'vue'
+import { nextTick, type App } from 'vue'
+import { tooltipApp } from '../helpers/tooltips'
 import { docMeta } from '@/documents/meta'
 import { openPath, problem, resetDocuments } from '@/documents/store'
 import FileTree from '@/features/tree/FileTree.vue'
@@ -58,7 +59,7 @@ let mounted: { app: App; root: HTMLElement } | undefined
 function mountTree(): HTMLElement {
   const root = document.createElement('div')
   document.body.append(root)
-  const app = createApp(FileTree)
+  const app = tooltipApp(FileTree)
   app.mount(root)
   mounted = { app, root }
   return root
@@ -488,6 +489,18 @@ describe('the drawn tree', () => {
     await flush()
     expect(host.files.has('/work/intro.md')).toBe(true)
     expect(root.querySelector('[data-name-input]')).toBeNull()
+  })
+
+  it('shows no tooltip over a row that is a name box (ISC-222)', async () => {
+    const root = await ready()
+    await renameRow('/work/readme.md')
+    await flush()
+    const box = root.querySelector('[data-name-input]')
+    const rowEl = box?.closest('[data-kind]')
+    if (!rowEl) throw new Error('no row')
+    rowEl.dispatchEvent(new MouseEvent('pointermove', { bubbles: true }))
+    await flush()
+    expect(document.body.querySelector('[data-hover-hint]')).toBeNull()
   })
 
   it('Escape drops the box and so does leaving it', async () => {

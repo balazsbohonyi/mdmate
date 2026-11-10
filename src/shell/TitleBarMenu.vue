@@ -12,6 +12,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import HoverHint from '@/components/HoverHint.vue'
 import type { MenuEntry } from './menuEntries'
 
 defineProps<{ entries: readonly MenuEntry[] }>()
@@ -59,21 +60,25 @@ function opened(open: boolean): void {
               <DropdownMenuLabel v-else-if="item.kind === 'heading'">
                 {{ item.label }}
               </DropdownMenuLabel>
-              <DropdownMenuItem
+              <HoverHint
                 v-else
-                class="whitespace-nowrap"
-                :disabled="item.disabled ?? false"
-                :title="item.detail ? `${item.detail}/${item.label}` : item.label"
-                @select="emit('select', item.id)"
+                :text="item.detail ? `${item.detail}/${item.label}` : item.label"
+                side="right"
               >
-                <span class="max-w-64 shrink-0 truncate">{{ item.label }}</span>
-                <span
-                  v-if="item.detail"
-                  class="ml-auto min-w-0 truncate pl-3 text-xs text-muted-foreground"
+                <DropdownMenuItem
+                  class="whitespace-nowrap"
+                  :disabled="item.disabled ?? false"
+                  @select="emit('select', item.id)"
                 >
-                  {{ item.detail }}
-                </span>
-              </DropdownMenuItem>
+                  <span class="max-w-64 shrink-0 truncate">{{ item.label }}</span>
+                  <span
+                    v-if="item.detail"
+                    class="ml-auto min-w-0 truncate pl-3 text-xs text-muted-foreground"
+                  >
+                    {{ item.detail }}
+                  </span>
+                </DropdownMenuItem>
+              </HoverHint>
             </template>
           </DropdownMenuSubContent>
         </DropdownMenuSub>

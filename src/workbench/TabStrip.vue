@@ -7,6 +7,7 @@ import {
   ContextMenuShortcut,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
+import HoverHint from '@/components/HoverHint.vue'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { shortcutLabel } from './commands'
 import { COMMAND_IDS } from './defaultCommands'
@@ -61,17 +62,22 @@ function run(action: () => Promise<unknown> | void): void {
       v-for="tab in tabs"
       :key="tab.id"
     >
-      <ContextMenuTrigger as-child>
-        <TabStripItem
-          :tab="tab"
-          :active="tab.id === activeId"
-          :focused="focused"
-          :dragging="tab.id === draggingId"
-          @select="emit('select', tab.id)"
-          @close="emit('close', tab.id)"
-          @press="(event) => emit('press', tab.id, event)"
-        />
-      </ContextMenuTrigger>
+      <HoverHint
+        :text="tab.title"
+        side="bottom"
+      >
+        <ContextMenuTrigger as-child>
+          <TabStripItem
+            :tab="tab"
+            :active="tab.id === activeId"
+            :focused="focused"
+            :dragging="tab.id === draggingId"
+            @select="emit('select', tab.id)"
+            @close="emit('close', tab.id)"
+            @press="(event) => emit('press', tab.id, event)"
+          />
+        </ContextMenuTrigger>
+      </HoverHint>
       <ContextMenuContent
         data-tab-menu
         @close-auto-focus="keepNameBoxFocus"

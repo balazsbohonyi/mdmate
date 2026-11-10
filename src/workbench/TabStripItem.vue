@@ -27,7 +27,6 @@ function onPointerDown(event: PointerEvent): void {
   <div
     role="tab"
     :aria-selected="active"
-    :title="tab.title"
     :data-tab-id="tab.id"
     class="group flex min-w-24 max-w-56 cursor-default items-center gap-2 border-t-2 pr-1.5 pl-3 text-chrome select-none"
     :class="[

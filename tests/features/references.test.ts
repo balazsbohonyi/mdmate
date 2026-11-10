@@ -6,7 +6,8 @@
  * tests prove the page: what it asks, what it shows and where a click lands.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { createApp, nextTick, type App } from 'vue'
+import { nextTick, type App } from 'vue'
+import { tooltipApp } from '../helpers/tooltips'
 import {
   allDocuments,
   documentOfTab,
@@ -79,10 +80,19 @@ function listed(): string[] {
   return state.found.references.map((reference) => `${reference.path}:${String(reference.line)}`)
 }
 
+/** What a mouse over an element does to its tooltip trigger. */
+async function hover(element: Element | null | undefined): Promise<void> {
+  if (!element) throw new Error('nothing to hover')
+  element.dispatchEvent(new MouseEvent('pointermove', { bubbles: true }))
+  await flush()
+}
+const hint = (): string | undefined =>
+  document.body.querySelector('[data-hover-hint]')?.textContent?.trim()
+
 function mountPanel(): HTMLElement {
   const root = document.createElement('div')
   document.body.append(root)
-  const app = createApp(ReferencesPanel)
+  const app = tooltipApp(ReferencesPanel)
   app.mount(root)
   mounted = { app, root }
   return root
@@ -128,6 +138,16 @@ describe('Find File References (ISC-218)', () => {
     await start()
     await findFileReferences('/work/pic.png')
     expect(listed()).toEqual(['/work/gallery.md:1'])
+  })
+
+  it('shows the full path of a file and of the target in the shadcn tooltip (ISC-222)', async () => {
+    await start()
+    await findFileReferences(TARGET)
+    const root = mountPanel()
+    await flush()
+    expect(root.querySelector('[title]')).toBeNull()
+    await hover(root.querySelector('[data-references-file] > div'))
+    expect(hint()).toMatch(/^\/work\//)
   })
 
   it('says so when nothing links to the file', async () => {

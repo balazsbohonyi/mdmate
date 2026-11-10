@@ -54,7 +54,9 @@ const input = useTemplateRef('input')
 
 - A tooltip is the shadcn `Tooltip` from `components/ui/tooltip`, never the native `title` attribute. The owner ruled this on 2026-11-10.
 - Its content uses theme tokens (`bg-popover`, `text-popover-foreground`), so it follows dark and light with the menus. No hard-coded colors.
-- One `TooltipProvider` lives in `App.vue`. A component test that mounts a tooltip wraps it in a provider.
+- Use `components/HoverHint.vue` (`<HoverHint :text="...">` around one element) for a hint on any element; it holds the shadcn parts, so a template stays short. An empty or null text turns it off, and newlines in the text become lines.
+- One `TooltipProvider` lives in `App.vue`. A component test that draws a hint mounts through `tests/helpers/tooltips.ts` (`tooltipApp`), which adds the provider and the `ResizeObserver` stub jsdom lacks.
+- `tests/shell/noNativeTitle.test.ts` fails the build on a native `title` in any template outside `components/ui/`. Markdown image titles drawn inside a document are document content and are not covered.
 - A disabled control takes no pointer events: put the trigger (`as-child`) on a wrapper element around it.
 
 ## Security

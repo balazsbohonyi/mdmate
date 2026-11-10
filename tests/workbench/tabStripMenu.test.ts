@@ -5,8 +5,8 @@
  * commands, not from the menu.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { createApp, h, nextTick, type App } from 'vue'
-import { TooltipProvider } from '@/components/ui/tooltip'
+import { nextTick, type App } from 'vue'
+import { tooltipApp } from '../helpers/tooltips'
 import { openPath, resetDocuments } from '@/documents/store'
 import { resetTree, restoreWorkspace } from '@/features/tree/store'
 import { setHost } from '@/platform'
@@ -65,12 +65,7 @@ async function openMenuOf(file: string, files: readonly string[]): Promise<void>
   const infos = ids.map((id) => tabInfo(id)).filter((info) => info !== undefined)
   const root = document.createElement('div')
   document.body.append(root)
-  const app = createApp({
-    render: () =>
-      h(TooltipProvider, { delayDuration: 0 }, () =>
-        h(TabStrip, { tabs: infos, activeId: ids[0] ?? null }),
-      ),
-  })
+  const app = tooltipApp(TabStrip, { tabs: infos, activeId: ids[0] ?? null })
   app.mount(root)
   mounted = { app, root }
   await flush()
@@ -121,6 +116,28 @@ describe('Rename in the tab menu of a file outside every open folder (ISC-220)',
     expect(renameItem()?.hasAttribute('data-disabled')).toBe(false)
     await hoverRename()
     expect(why()).toBeUndefined()
+  })
+})
+
+describe('the tab itself (ISC-222)', () => {
+  it('shows its file name in the shadcn tooltip on hover, and has no native title', async () => {
+    await start()
+    const id = await openPath('/work/a.md')
+    const info = tabInfo(id)
+    if (info === undefined) throw new Error('no tab')
+    const root = document.createElement('div')
+    document.body.append(root)
+    const app = tooltipApp(TabStrip, { tabs: [info], activeId: id })
+    app.mount(root)
+    mounted = { app, root }
+    await flush()
+    const tab = root.querySelector('[role=tab]')
+    expect(tab?.hasAttribute('title')).toBe(false)
+    tab?.dispatchEvent(new MouseEvent('pointermove', { bubbles: true }))
+    await flush()
+    expect(document.body.querySelector('[data-hover-hint]')?.textContent.trim()).toContain(
+      info.title,
+    )
   })
 })
 
