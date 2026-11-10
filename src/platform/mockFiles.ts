@@ -148,6 +148,53 @@ export class MockFiles {
     this.#tell(path)
   }
 
+  /**
+   * Moves a file, or a folder with everything below it, to a new path, as a rename does. Returns
+   * each file's old and new path. Tells every listener about the old and the new places.
+   */
+  move(from: string, to: string): { from: string; to: string }[] {
+    const fromKey = pathKey(from).replace(/\/$/, '')
+    const target = to.replaceAll('\\', '/').replace(/\/$/, '')
+    const swap = (written: string): string =>
+      target + written.replaceAll('\\', '/').slice(fromKey.length)
+    const below = (key: string): boolean => key === fromKey || key.startsWith(`${fromKey}/`)
+    const moved: { from: string; to: string }[] = []
+    for (const [key, file] of [...this.#files]) {
+      if (!below(key)) continue
+      const now = swap(file.path)
+      this.#files.delete(key)
+      this.#files.set(pathKey(now), { path: now, raw: file.raw })
+      if (this.#unsupported.delete(key)) this.#unsupported.add(pathKey(now))
+      moved.push({ from: file.path, to: now })
+    }
+    for (const [key, folder] of [...this.#folders]) {
+      if (!below(key)) continue
+      const now = swap(folder)
+      this.#folders.delete(key)
+      this.#folders.set(pathKey(now), now)
+    }
+    for (const place of [from, to, ...moved.flatMap((pair) => [pair.from, pair.to])])
+      this.#tell(place)
+    return moved
+  }
+
+  /** Removes a file, or a folder with everything below it. Returns the files that went. */
+  remove(path: string): { path: string; raw: string }[] {
+    const key = pathKey(path).replace(/\/$/, '')
+    const below = (candidate: string): boolean =>
+      candidate === key || candidate.startsWith(`${key}/`)
+    const gone: { path: string; raw: string }[] = []
+    for (const [fileKey, file] of [...this.#files]) {
+      if (!below(fileKey)) continue
+      this.#files.delete(fileKey)
+      gone.push({ path: file.path, raw: file.raw })
+    }
+    for (const folderKey of [...this.#folders.keys()])
+      if (below(folderKey)) this.#folders.delete(folderKey)
+    for (const place of [path, ...gone.map((file) => file.path)]) this.#tell(place)
+    return gone
+  }
+
   /** True when a folder was made at `path` or a file lies below it. */
   isFolder(path: string): boolean {
     const key = pathKey(path).replace(/\/$/, '')

@@ -1,7 +1,16 @@
 import type { Endings } from '@/lib/endings'
+import { freeName, nameProblem } from '@/lib/fileNames'
 import type { DiskChange, Host, OpenedFile, ReadOnlyReason, WindowControls } from './host'
 import type { LinkInfo } from './links'
-import type { DroppedItem, FileDragEvent, Point } from './workspace'
+import type {
+  ClashAnswer,
+  CopyReport,
+  DroppedItem,
+  FileDragEvent,
+  Moved,
+  MovedDocument,
+  Point,
+} from './workspace'
 import { joinRaw, MockFiles, mockHash, pathKey, splitRaw } from './mockFiles'
 
 /**
@@ -91,6 +100,10 @@ export interface MockHost extends Host {
   simulateDrop(paths: readonly string[], position?: Point): void
   /** Sends a drag event that is not a drop, such as `over`, to the page. */
   simulateDrag(event: FileDragEvent): void
+  /** What the Recycle Bin holds: files sent there by a delete or by Replace, oldest first. */
+  readonly recycled: { path: string; raw: string }[]
+  /** Every path the page asked to show in the file manager, in order. */
+  readonly revealed: string[]
 }
 
 /**
@@ -209,6 +222,14 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
   const drops: string[][] = []
   const dropsKept = 4
 
+  const recycled: { path: string; raw: string }[] = []
+  const revealed: string[] = []
+  const trimmed = (path: string): string => pathKey(path).replace(/\/$/, '')
+  const slashes = (path: string): string => path.replaceAll('\\', '/').replace(/\/$/, '')
+  const parentOf = (path: string): string => slashes(path).split('/').slice(0, -1).join('/')
+  const nameOf = (path: string): string => slashes(path).split('/').pop() ?? ''
+  const exists = (path: string): boolean => files.has(path) || files.isFolder(path)
+
   const insideRoot = (path: string): boolean => {
     const key = pathKey(path).replace(/\/$/, '')
     return roots.some((root) => {
@@ -234,8 +255,64 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
   }
   files.onChange(deliverTree)
 
+  /** An entry of the workspace that is not a root itself, like Rust's `entry_in_root`. */
+  function entryInRoot(path: string): void {
+    if (!insideRoot(path)) throw hostError('not-allowed', `access to ${path} is not allowed`)
+    if (roots.some((root) => trimmed(root) === trimmed(path))) {
+      throw hostError('invalid', 'a workspace folder leaves the workspace with Remove Folder')
+    }
+    if (!exists(path)) throw hostError('not-found', `${path} does not exist`)
+  }
+
+  function folderInRoot(path: string): void {
+    if (!insideRoot(path)) throw hostError('not-allowed', `access to ${path} is not allowed`)
+    if (!files.isFolder(path)) throw hostError('invalid', `${path} is not a folder`)
+  }
+
+  function checkName(name: string): void {
+    const problem = nameProblem(name)
+    if (problem !== null) throw hostError('invalid', problem)
+  }
+
+  /** Points the open documents at a moved file, like Rust's `documents_moved`. */
+  function followMove(from: string, to: string): MovedDocument[] {
+    const fromKey = trimmed(from)
+    const target = slashes(to)
+    const moved: MovedDocument[] = []
+    for (const [id, doc] of open) {
+      const key = pathKey(doc.path)
+      if (key !== fromKey && !key.startsWith(`${fromKey}/`)) continue
+      doc.path = target + slashes(doc.path).slice(fromKey.length)
+      moved.push({ id, path: doc.path })
+    }
+    return moved
+  }
+
+  function requireDropped(paths: readonly string[]): void {
+    const known = new Set(drops.flat().map((path) => pathKey(path)))
+    if (paths.some((path) => !known.has(pathKey(path)))) {
+      throw hostError('not-allowed', 'access to a path no drop delivered is not allowed')
+    }
+  }
+
+  /** Copies a file, or a folder with the files below it. */
+  function copyTree(source: string, target: string): void {
+    if (!files.isFolder(source)) {
+      files.write(target, files.read(source) ?? '')
+      return
+    }
+    files.mkdir(target)
+    const sourceKey = trimmed(source)
+    for (const path of files.paths()) {
+      if (!pathKey(path).startsWith(`${sourceKey}/`)) continue
+      files.write(target + slashes(path).slice(sourceKey.length), files.read(path) ?? '')
+    }
+  }
+
   const host: MockHost = {
     kind: 'browser',
+    recycled,
+    revealed,
     files,
     openDocuments() {
       return new Map([...open].map(([id, doc]) => [id, doc.path]))
@@ -363,6 +440,116 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
           return { path, kind }
         }),
       )
+    },
+    createFile(parent, name) {
+      return attempt(() => {
+        checkName(name)
+        folderInRoot(parent)
+        const path = `${slashes(parent)}/${name}`
+        if (exists(path)) throw hostError('exists', `${name} already exists`)
+        files.write(path, '')
+        return path
+      })
+    },
+    createFolder(parent, name) {
+      return attempt(() => {
+        checkName(name)
+        folderInRoot(parent)
+        const path = `${slashes(parent)}/${name}`
+        if (exists(path)) throw hostError('exists', `${name} already exists`)
+        files.mkdir(path)
+        return path
+      })
+    },
+    renameEntry(path, newName) {
+      return attempt((): Moved => {
+        checkName(newName)
+        entryInRoot(path)
+        const target = `${parentOf(path)}/${newName}`
+        if (slashes(target) === slashes(path)) return { path: target, documents: [] }
+        if (exists(target) && trimmed(target) !== trimmed(path)) {
+          throw hostError('exists', `${newName} already exists`)
+        }
+        files.move(path, target)
+        return { path: target, documents: followMove(path, target) }
+      })
+    },
+    moveEntry(path, into) {
+      return attempt((): Moved => {
+        entryInRoot(path)
+        folderInRoot(into)
+        const [from, destination] = [trimmed(path), trimmed(into)]
+        if (destination === from || destination.startsWith(`${from}/`)) {
+          throw hostError('invalid', 'a folder cannot be moved into itself')
+        }
+        const target = `${slashes(into)}/${nameOf(path)}`
+        if (slashes(target) === slashes(path)) return { path: target, documents: [] }
+        if (exists(target)) throw hostError('exists', `${nameOf(path)} already exists`)
+        files.move(path, target)
+        return { path: target, documents: followMove(path, target) }
+      })
+    },
+    deleteEntry(path) {
+      return attempt(() => {
+        entryInRoot(path)
+        recycled.push(...files.remove(path))
+      })
+    },
+    revealEntry(path) {
+      return attempt(() => {
+        if (!insideRoot(path)) throw hostError('not-allowed', `access to ${path} is not allowed`)
+        revealed.push(path)
+      })
+    },
+    copyClashes(into, paths) {
+      return attempt(() => {
+        folderInRoot(into)
+        requireDropped(paths)
+        return paths.map(nameOf).filter((name) => exists(`${slashes(into)}/${name}`))
+      })
+    },
+    copyDropped(into, paths, answers: readonly ClashAnswer[]) {
+      return attempt((): CopyReport => {
+        folderInRoot(into)
+        requireDropped(paths)
+        const copied: string[] = []
+        const skipped: string[] = []
+        const failed: { name: string; message: string }[] = []
+        for (const source of paths) {
+          const name = nameOf(source)
+          const isFolder = files.isFolder(source)
+          const intoSelf =
+            trimmed(into) === trimmed(source) || trimmed(into).startsWith(`${trimmed(source)}/`)
+          if (isFolder && intoSelf) {
+            failed.push({ name, message: 'a folder cannot be copied into itself' })
+            continue
+          }
+          let target = `${slashes(into)}/${name}`
+          if (exists(target)) {
+            const answer =
+              trimmed(target) === trimmed(source)
+                ? 'keep-both'
+                : (answers.find((clash) => clash.name === name)?.answer ?? 'skip')
+            if (answer === 'skip') {
+              skipped.push(name)
+              continue
+            }
+            if (answer === 'keep-both') {
+              const free = freeName(name, isFolder, (item) => exists(`${slashes(into)}/${item}`))
+              target = `${slashes(into)}/${free}`
+            } else {
+              if (files.isFolder(target) !== isFolder) {
+                failed.push({ name, message: 'a file and a folder cannot replace each other' })
+                continue
+              }
+              recycled.push(...files.remove(target))
+            }
+          }
+          copyTree(source, target)
+          copied.push(target)
+        }
+        return { copied, skipped, failed, linksLeft: 0 }
+      })
     },
     addDroppedRoot(path) {
       const known = new Set(drops.flat().map((entry) => pathKey(entry)))

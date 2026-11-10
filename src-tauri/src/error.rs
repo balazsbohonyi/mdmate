@@ -36,6 +36,9 @@ pub(crate) enum AppError {
     /// The OS could not hand a target to its app.
     #[error("could not open the link: {0}")]
     Open(String),
+    /// A file or folder with that name is already there.
+    #[error("{0} already exists")]
+    Exists(String),
 }
 
 impl AppError {
@@ -57,6 +60,7 @@ impl AppError {
             Self::LinkRefused(_) => "link-refused",
             Self::NeedsConfirmation(_) => "needs-confirmation",
             Self::Open(_) => "open",
+            Self::Exists(_) => "exists",
         }
     }
 }

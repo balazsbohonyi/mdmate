@@ -88,6 +88,14 @@ pub fn run() {
         commands::watch_folders,
         commands::drop_describe,
         commands::add_dropped_root,
+        commands::create_file,
+        commands::create_folder,
+        commands::rename_entry,
+        commands::move_entry,
+        commands::delete_entry,
+        commands::reveal_entry,
+        commands::copy_clashes,
+        commands::copy_dropped,
         commands::perf::perf_config,
         commands::perf::perf_report,
         commands::perf::perf_ready,
@@ -121,7 +129,15 @@ pub fn run() {
         commands::watch_tree,
         commands::watch_folders,
         commands::drop_describe,
-        commands::add_dropped_root
+        commands::add_dropped_root,
+        commands::create_file,
+        commands::create_folder,
+        commands::rename_entry,
+        commands::move_entry,
+        commands::delete_entry,
+        commands::reveal_entry,
+        commands::copy_clashes,
+        commands::copy_dropped
     ]);
     builder
         .run(tauri::generate_context!())

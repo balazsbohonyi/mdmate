@@ -3,7 +3,7 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 124/220
+progress: 134/221
 started: 2026-11-07T00:30:52Z
 updated: 2026-11-09T19:51:17Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
@@ -289,6 +289,7 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-216 | screenshot | reveal a file deep in a root | row selected and in view | Interceptor on pnpm dev | derived: file-management |  |  |
 | ISC-217 | bash | rename command test with links present | links rewritten, tab follows | pnpm test:web tests/features/rename.test.ts | derived: link-rewrite |  |  |
 | ISC-218 | bash | references over the scanner fixture workspace | every linking file and line | pnpm test:web tests/features/references.test.ts | derived: link-navigation |  |  |
+| ISC-219 | bash | rename and move an open file, and a folder holding one, then save it | the save writes the new path and nothing appears at the old one | pnpm test:rust open_documents_follow | derived: safe-with-untrusted-files | critical |  |
 
 ## Features
 
@@ -445,11 +446,11 @@ Why: Markdown lives among other files, so the sidebar must manage them and renam
 - [x] ISC-97: Multiple root folders show in the tree.
 - [x] ISC-98: A loose file opens without any root folder.
 - [x] ISC-99: A 10,000-entry folder renders under 200 rows.
-- [ ] ISC-100: The tree creates a new file.
-- [ ] ISC-101: The tree renames a file.
-- [ ] ISC-102: Dragging in the tree moves a file.
-- [ ] ISC-103: Deleting moves a file to the Recycle Bin.
-- [ ] ISC-104: Reveal in Explorer selects the file.
+- [x] ISC-100: The tree creates a new file.
+- [x] ISC-101: The tree renames a file.
+- [x] ISC-102: Dragging in the tree moves a file.
+- [x] ISC-103: Deleting moves a file to the Recycle Bin.
+- [x] ISC-104: Reveal in Explorer selects the file.
 - [x] ISC-105: Non-Markdown files show dimmed.
 - [ ] ISC-106: Other text files open as plain source.
 - [ ] ISC-107: Images open in an image tab.
@@ -541,10 +542,10 @@ Why: an everyday editor starts, keeps and manages files without sending you to E
 - [x] ISC-193: Removing a root takes it out of the tree and revokes its access.
 - [x] ISC-194: Workspace roots are restored on restart.
 - [x] ISC-195: A folder dropped from Explorer outside the tree becomes a workspace root.
-- [ ] ISC-196: The tree creates a new folder.
-- [ ] ISC-197: Files dropped from Explorer on a tree folder are copied into it.
-- [ ] ISC-198: A folder dropped from Explorer on a tree folder is copied whole.
-- [ ] ISC-199: A name clash on a copy offers Replace, Keep both and Skip.
+- [x] ISC-196: The tree creates a new folder.
+- [x] ISC-197: Files dropped from Explorer on a tree folder are copied into it.
+- [x] ISC-198: A folder dropped from Explorer on a tree folder is copied whole.
+- [x] ISC-199: A name clash on a copy offers Replace, Keep both and Skip.
 - [ ] ISC-200: Markdown and text files dropped from Explorer open in tabs in the pane they land on.
 - [ ] ISC-201: An image dropped from Explorer outside a document's text opens in an image tab.
 - [ ] ISC-202: Anti: a path that no native drop delivered is never opened or copied.
@@ -564,6 +565,7 @@ Why: an everyday editor starts, keeps and manages files without sending you to E
 - [ ] ISC-216: Reveal in Sidebar selects the file in the tree.
 - [ ] ISC-217: F2 renames the active file through the link-rewrite flow.
 - [ ] ISC-218: Find File References lists every file that links to the active file.
+- [x] ISC-219: Anti: renaming or moving a file, or a folder holding open files, in the tree never leaves an open document on the old path; its tab, its saves and its disk watch follow the file.
 
 ## Decisions
 
@@ -626,6 +628,9 @@ Why: an everyday editor starts, keeps and manages files without sending you to E
 - 2026-11-09: Removing a root revokes Rust's access to it at once but not the image protocol's scope for it, which lasts until restart. Why: Tauri's asset scope can only grow, and `forbid_directory` is permanent and beats later allows, which would block adding the same folder again. Images in a removed folder can still be shown until the app restarts (P6-T1).
 - 2026-11-09: The tree lists one folder when it opens (lazily, again at every open) and Rust watches exactly the open folders, not recursively; an event names the folder to list again. Why: a workspace can hold far more files than the sidebar shows, and a recursive watch of every root costs handles and events for rows nobody sees (P6-T1).
 - 2026-11-09: Rust records the paths of each native drop from Tauri's drop event (the last four drops) and `drop_describe` and `add_dropped_root` accept only those; the page never names a path. Why: dropped files can come from anywhere, and the page must not be able to ask for a path it was not given (P6-T1).
+- 2026-11-09: refined: added ISC-219 (F12 · File lifecycle) before building P6-T2. A rename or move in the tree changes the path of a file Rust holds open by id; without it the next save would write the old path and bring back the file that was just renamed, which breaks "the file on disk belongs to the writer". It covers a folder with open files under it. Implied by ISC-101 and ISC-102, but no claim stated it.
+
+- 2026-11-10: P6-T2 choices: blur on the name box cancels, so a click elsewhere never leaves a half-made file; a new file is selected and revealed but not opened; Delete asks nothing, since the Recycle Bin is the undo; a move to another volume is refused; a folder dropped on a row is copied into that folder, and one dropped on blank tree space still becomes a root; a drop while the clash banner is open is ignored; an unanswered clash counts as Skip; Replace sends the old item to the Recycle Bin before the copy. Why: each keeps the file on disk safe first (the bin, nothing half-written, no surprise folder). Rename and move do not rewrite links yet (P6-T4 to T6), so links to a renamed file are stale until then.
 
 ## Verification
 
@@ -763,6 +768,18 @@ Why: an everyday editor starts, keeps and manages files without sending you to E
 - ISC-193: `pnpm test:rust remove_root` shows the removed folder's files refused afterwards while a file opened one by one stays open; in the real window the context menu on a root showed Remove Folder from Workspace, choosing it emptied the tree, `workspace.json` listed no root, `list_dir` on the folder answered `not-allowed`, and the next start showed no tree. Open tabs stay. The image protocol scope keeps the folder until restart, because Tauri cannot shrink it (decision of 2026-11-09) (P6-T1).
 - ISC-194: `pnpm test:web tests/features/workspaceSession.test.ts`: two roots, chosen one after the other, and the open folders (three deep) come back through a restart, also when the session file is missing, damaged or from before the workspace; a remembered folder outside every root is ignored, and a snapshot that names a root adds none. In the real window the second and third launches showed the root and its open folders from `workspace.json` and `session.json`. Each page-side break (forgetting the open folders, trusting folders outside the roots, a restore that keeps only the first root) was caught. In the real window the second and third launches showed one root; the second root is covered by the page test alone (P6-T1).
 - ISC-195: real native drops on the debug build (a WinForms window offering the folder as a file drop, carried by real mouse input at display scale 100%): a folder dropped on the editor area (a pane) became a root, was listed, and was back after a restart, and the first run with the drop on the empty sidebar did the same; a folder dropped onto a tree row became no root; `add_dropped_root` for a path no drop delivered answered `not-allowed` and left `workspace.json` alone. `tests/features/workspaceSession.test.ts` fixes the page side (a drop over a pane and over the empty sidebar make a root, one over a tree row does not) and fails when the on-tree check is dropped or inverted. Two runs in between moved nothing and printed nothing, while the first and the last worked; cause not found (P6-T1).
+
+- ISC-100: `pnpm test:rust create_file` (2 tests, src-tauri/src/workspace/ops.rs): an empty file appears and a taken name is refused; a folder outside the roots and a bad name are refused. Real window: New File from the context menu made an empty `created.md` on disk, selected in the tree, with the name box focused after the menu closed (P6-T2).
+- ISC-101: `pnpm test:rust rename_file` (5 tests): the name changes and the content stays; a taken name is refused and both files stay; a case-only rename works where the file system ignores case; a rename to its own name is a quiet no-op; a root, a path outside the roots and a bad name are refused. Real window: F2 and Rename showed the name with only the stem selected, `readme.md` became `intro.md` on disk and the tab followed (P6-T2).
+- ISC-102: Claude in Chrome on `pnpm dev` (mock host): dragging `notes.md` onto the `docs` folder moved it there, opened the folder and left the file selected (screenshot saved). Real window: the folder under the pointer is outlined during the drag, and `Zeta.txt` and an open `intro.md` moved on disk (P6-T2).
+- ISC-103: real window: Delete from the menu and the Delete key took files off disk and out of the tree, and the Recycle Bin listing (`Shell.Application`, `DeletedFrom`) held them; the test files were restored and removed afterwards (P6-T2).
+- ISC-104: real window: Reveal in Explorer opened an Explorer window on the folder with `reveal-me-t2.md` selected, read back through `Shell.Application.Windows()`; the window was closed (P6-T2).
+- ISC-196: `pnpm test:rust create_folder`; real window: New Folder made `madeDir` on disk and in the tree, a name with a colon was refused with its reason under the box, and Escape created nothing (P6-T2).
+- ISC-197: `pnpm test:rust copy_into_folder` (the copies exist and the sources are untouched); `pnpm test:web tests/features/copyDrop.test.ts` for the page side. Real window: a real OLE drag from a helper window dropped `o1.md` on a folder row; the copy exists in the folder, the source is untouched, it is selected and revealed, and nothing opened (P6-T2).
+- ISC-198: `pnpm test:rust copy_folder_whole` (every file at every depth). Real window: a dropped folder arrived whole at every depth and did not become a root (P6-T2).
+- ISC-199: `pnpm test:web tests/features/copyDrop.test.ts` (19 tests): the banner names the file and offers Replace, Keep both, Skip and Cancel; nothing is copied until every taken name is answered; Replace recycles the old file first, Keep both numbers the copy, Skip leaves it; apply to all, Cancel and a never-answered clash behave as decided. Real window: Keep both gave `taken (2).md` with the new text and the old file unchanged; Replace put the new text in place and the old file was in the Recycle Bin (P6-T2).
+- ISC-219: `pnpm test:rust open_documents_follow` (4 tests: a rename, a move, a folder renamed or moved, a case-only rename): the open document's path follows, so a save writes the new path. Real window: after a rename and after a move, an edit saved to the new path and nothing came back at the old one (P6-T2).
+- Breaks on purpose in Rust and in the page each failed a test (P6-T2).
 
 ## Remaining Work
 

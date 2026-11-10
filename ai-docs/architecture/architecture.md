@@ -38,7 +38,7 @@ mdmate/
 │  ├─ documents/      Document store, master state, save, conflict, session
 │  ├─ workbench/      Split tree model, panes, tabs, pointer drag, commands
 │  ├─ shell/          App layout: title bar with menu and caption buttons, sidebar frame, status bar
-│  ├─ features/       tree/ (model, store, FileTree.vue), drop.ts; later quick-open, palette, search, outline, settings, image-viewer
+│  ├─ features/       tree/ (model, store, ops, FileTree.vue, NameInput.vue, CopyBanner.vue), drop.ts; later quick-open, palette, search, outline, settings, image-viewer
 │  ├─ components/ui/  shadcn-vue, added only with `pnpm ui:add` (never edit by hand)
 │  ├─ lib/            shadcn-vue utilities
 │  └─ styles/         tokens.css (fonts, sizes, Tailwind map), themes/dark.css and light.css (every color)
@@ -47,7 +47,7 @@ mdmate/
 │  ├─ access.rs       Which paths the page may read: files the user chose, plus workspace roots
 │  ├─ documents.rs    Open documents by id, and the open, save and close operations on them
 │  ├─ fs/             Raw frame, encoding, line endings (eol), atomic write, round-trip guard
-│  ├─ workspace/      tree.rs (one folder per listing), roots.rs (workspace.json), folders.rs (watcher for the open folders); file index later
+│  ├─ workspace/      tree.rs (one folder per listing), roots.rs (workspace.json), folders.rs (watcher for the open folders), ops.rs (create, rename, move, delete to the Recycle Bin, copy in); file index later
 │  ├─ drops.rs        The paths of the last native file drops, which are the only ones the page may ask about
 │  ├─ search/         Streaming folder search
 │  ├─ links/          Link guard, scan, rewrite

@@ -39,6 +39,20 @@ export function documentById(id: number): Document | undefined {
   return documents.get(id)
 }
 
+/**
+ * Points an open document at its file's new path after a rename or move, so its tab shows the new
+ * name and the images next to it are found at the new place. Rust has already moved its own record
+ * of the document (saves go by id), so nothing else needs telling.
+ */
+export function documentMoved(id: number, path: string): void {
+  const doc = documents.get(id)
+  if (doc === undefined) return
+  doc.path = path
+  doc.name = path.split(/[\\/]/).pop() ?? path
+  publish(doc)
+  touched()
+}
+
 /** Every open document. */
 export function allDocuments(): Document[] {
   return [...documents.values()]

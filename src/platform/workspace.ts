@@ -22,6 +22,37 @@ export interface DroppedItem {
   readonly kind: DropKind
 }
 
+/** An open document whose file moved. Mirrors `workspace::ops::MovedDocument`. */
+export interface MovedDocument {
+  readonly id: number
+  readonly path: string
+}
+
+/** What a rename or move did. Mirrors `workspace::ops::Moved`. */
+export interface Moved {
+  /** Where the file or folder is now. */
+  readonly path: string
+  /** The open documents that came with it. */
+  readonly documents: readonly MovedDocument[]
+}
+
+/** What to do with a copy whose name is taken. */
+export type ClashChoice = 'replace' | 'keep-both' | 'skip'
+
+/** The answer for one name that was already there. */
+export interface ClashAnswer {
+  readonly name: string
+  readonly answer: ClashChoice
+}
+
+/** What a copy from a drop did. Mirrors `workspace::ops::CopyReport`. */
+export interface CopyReport {
+  readonly copied: readonly string[]
+  readonly skipped: readonly string[]
+  readonly failed: readonly { readonly name: string; readonly message: string }[]
+  readonly linksLeft: number
+}
+
 /** A point in the page's own pixels, the ones CSS and `elementFromPoint` use. */
 export interface Point {
   readonly x: number
@@ -84,6 +115,41 @@ export function parseDroppedItems(value: unknown): DroppedItem[] {
     }
     return { path: textField(entry, 'path'), kind }
   })
+}
+
+/** Checks the answer of `rename_entry` and `move_entry`. */
+export function parseMoved(value: unknown): Moved {
+  const moved = record(value)
+  const documents = moved.documents
+  if (!Array.isArray(documents)) throw new Error('documents is not a list')
+  return {
+    path: textField(moved, 'path'),
+    documents: (documents as unknown[]).map((item) => {
+      const entry = record(item)
+      const id = entry.id
+      if (typeof id !== 'number') throw new Error('id is not a number')
+      return { id, path: textField(entry, 'path') }
+    }),
+  }
+}
+
+/** Checks the answer of `copy_dropped`. */
+export function parseCopyReport(value: unknown): CopyReport {
+  const report = record(value)
+  const names = (field: string): string[] => parsePaths(report[field])
+  const failed = report.failed
+  const linksLeft = report.linksLeft
+  if (!Array.isArray(failed)) throw new Error('failed is not a list')
+  if (typeof linksLeft !== 'number') throw new Error('linksLeft is not a number')
+  return {
+    copied: names('copied'),
+    skipped: names('skipped'),
+    failed: (failed as unknown[]).map((item) => {
+      const entry = record(item)
+      return { name: textField(entry, 'name'), message: textField(entry, 'message') }
+    }),
+    linksLeft,
+  }
 }
 
 /** Checks a list of paths, such as the workspace roots. */

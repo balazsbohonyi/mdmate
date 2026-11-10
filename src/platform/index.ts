@@ -12,7 +12,19 @@ export type {
   WindowControls,
 } from './host'
 export type { FollowedLink, LinkInfo, LinkRefusal } from './links'
-export type { DroppedItem, DropKind, EntryKind, FileDragEvent, Point, TreeEntry } from './workspace'
+export type {
+  ClashAnswer,
+  ClashChoice,
+  CopyReport,
+  DroppedItem,
+  DropKind,
+  EntryKind,
+  FileDragEvent,
+  Moved,
+  MovedDocument,
+  Point,
+  TreeEntry,
+} from './workspace'
 
 let host: Promise<Host> | undefined
 

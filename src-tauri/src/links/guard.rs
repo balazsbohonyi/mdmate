@@ -389,11 +389,16 @@ fn check_name(name: &str) -> Result<(), Refusal> {
     if name.contains(['<', '>', '"', '|', '?', '*']) || name.ends_with(['.', ' ']) {
         return Err(Refusal::BadName);
     }
-    let stem = name.split('.').next().unwrap_or(name).trim_end_matches(' ');
-    if DEVICES.contains(&stem.to_lowercase().as_str()) {
+    if is_device_name(name) {
         return Err(Refusal::BadName);
     }
     Ok(())
+}
+
+/// True for a name Windows reads as a device (`con`, `nul.txt`, `COM1`), whatever its extension.
+pub(crate) fn is_device_name(name: &str) -> bool {
+    let stem = name.split('.').next().unwrap_or(name).trim_end_matches(' ');
+    DEVICES.contains(&stem.to_lowercase().as_str())
 }
 
 fn extension_of(name: &str) -> Option<String> {

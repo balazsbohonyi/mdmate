@@ -87,6 +87,22 @@ impl Documents {
         }
     }
 
+    /// Points a document at the file's new path after a rename or move. False when another open
+    /// document already has that path, which a rename never allows, so nothing changes then.
+    pub(crate) fn rebind(&mut self, id: u32, now: &Resolved) -> bool {
+        if self.by_key.get(&now.key).is_some_and(|&other| other != id) {
+            return false;
+        }
+        let Some(entry) = self.by_id.get_mut(&id) else {
+            return false;
+        };
+        self.by_key.remove(&entry.key);
+        entry.path = now.path.clone();
+        entry.key = now.key.clone();
+        self.by_key.insert(now.key.clone(), id);
+        true
+    }
+
     pub(crate) fn remove(&mut self, id: u32) -> Option<DocEntry> {
         let entry = self.by_id.remove(&id)?;
         self.by_key.remove(&entry.key);
@@ -118,6 +134,47 @@ impl AppState {
             folder_watcher: OnceLock::new(),
             drops: DropRegistry::new(ignore_case),
         }
+    }
+
+    /// Moves every open document that was at `old` (or below it, when `old` was a folder) to the
+    /// same place under `new`, so that a save by id writes the new path and the watcher follows
+    /// the file. Returns the documents that moved, for the page to rename their tabs.
+    pub(crate) fn documents_moved(
+        &self,
+        old: &Resolved,
+        new: &Resolved,
+    ) -> Vec<crate::workspace::ops::MovedDocument> {
+        // The lock on the documents is never held while asking Access, so the two never wait on
+        // each other.
+        let affected: Vec<(u32, PathBuf)> = self
+            .documents()
+            .entries()
+            .filter(|(_, entry)| crate::access::is_inside(&entry.key, &old.key))
+            .map(|(id, entry)| (id, entry.path.clone()))
+            .collect();
+        let mut moved = Vec::new();
+        for (id, was) in affected {
+            let now = match was.strip_prefix(&old.path) {
+                Ok(rest) if rest.as_os_str().is_empty() => new.path.clone(),
+                Ok(rest) => new.path.join(rest),
+                Err(_) => continue,
+            };
+            let Ok(resolved) = self.access().resolve(&now) else {
+                continue;
+            };
+            if !self.documents().rebind(id, &resolved) {
+                continue;
+            }
+            if let Some(watcher) = self.watcher() {
+                watcher.unwatch(id);
+                watcher.watch(id, &resolved.path);
+            }
+            moved.push(crate::workspace::ops::MovedDocument {
+                id,
+                path: display_path(&resolved.path),
+            });
+        }
+        moved
     }
 
     /// A path as the watcher compares it: the way people read it, lower-cased where the file

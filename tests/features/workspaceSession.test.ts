@@ -178,7 +178,7 @@ describe('dropping a folder from Explorer (ISC-195, page side)', () => {
     expect(workspaceRoots.value).toEqual(['/dropped'])
   })
 
-  it('does not make a root of a folder dropped onto the tree', async () => {
+  it('makes a root of a folder dropped on the empty space of the tree', async () => {
     await restoreSession()
     await installFileDrop()
     const tree = document.createElement('div')
@@ -188,7 +188,7 @@ describe('dropping a folder from Explorer (ISC-195, page side)', () => {
     hit = row
     host.simulateDrop(['/dropped'], { x: 5, y: 5 })
     await flush()
-    expect(workspaceRoots.value).toEqual([])
+    expect(workspaceRoots.value).toEqual(['/dropped'])
   })
 
   it('does nothing for a drag that is not a drop', async () => {

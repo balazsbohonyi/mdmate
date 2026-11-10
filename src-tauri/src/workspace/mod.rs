@@ -1,6 +1,7 @@
 //! The workspace: the folders the sidebar shows, their listings and their changes.
 
 pub(crate) mod folders;
+pub(crate) mod ops;
 pub(crate) mod roots;
 pub(crate) mod tree;
 pub(crate) mod watch;

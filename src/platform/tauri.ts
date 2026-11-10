@@ -5,7 +5,9 @@ import { decodeFrame, encodeFrame, openedFromFrame } from './frame'
 import type { DiskChange, Host, PerfConfig, PerfHost, SavedFile } from './host'
 import { parseFollowedLink, parseLinkInfo } from './links'
 import {
+  parseCopyReport,
   parseDroppedItems,
+  parseMoved,
   parsePaths,
   parseTreeEntries,
   toCssPosition,
@@ -145,6 +147,30 @@ export const tauriHost: Host = {
   },
   async addDroppedRoot(path) {
     return invoke<string>('add_dropped_root', { path })
+  },
+  async createFile(parent, name) {
+    return invoke<string>('create_file', { parent, name })
+  },
+  async createFolder(parent, name) {
+    return invoke<string>('create_folder', { parent, name })
+  },
+  async renameEntry(path, newName) {
+    return parseMoved(await invoke<unknown>('rename_entry', { path, newName }))
+  },
+  async moveEntry(path, into) {
+    return parseMoved(await invoke<unknown>('move_entry', { path, into }))
+  },
+  async deleteEntry(path) {
+    await invoke('delete_entry', { path })
+  },
+  async revealEntry(path) {
+    await invoke('reveal_entry', { path })
+  },
+  async copyClashes(into, paths) {
+    return parsePaths(await invoke<unknown>('copy_clashes', { into, paths }))
+  },
+  async copyDropped(into, paths, answers) {
+    return parseCopyReport(await invoke<unknown>('copy_dropped', { into, paths, answers }))
   },
   async readFile(path) {
     return invoke<ArrayBuffer>('read_file', { path })

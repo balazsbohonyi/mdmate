@@ -39,6 +39,15 @@ export type TreeRow =
       readonly markdown: boolean
     }
   | {
+      /** The box where a new file or folder is named, first under the folder it is made in. */
+      readonly kind: 'new'
+      /** The folder the new entry goes in. */
+      readonly path: string
+      readonly name: string
+      readonly depth: number
+      readonly creates: 'file' | 'folder'
+    }
+  | {
       /** A line of text under a folder: it could not be read, or it is still loading. */
       readonly kind: 'note'
       readonly path: string
@@ -60,6 +69,47 @@ export function baseName(path: string): string {
   const trimmed = path.replace(/[\\/]+$/, '')
   const cut = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'))
   return cut === -1 ? trimmed : trimmed.slice(cut + 1)
+}
+
+/** The folder a path is in, or null for a path with no folder part. */
+export function parentPath(path: string): string | null {
+  const trimmed = path.replace(/[\\/]+$/, '')
+  const cut = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'))
+  return cut <= 0 ? null : trimmed.slice(0, cut)
+}
+
+/** The part of a rename that stays when a file is renamed: its name without the extension. */
+export function stemLength(name: string): number {
+  const dot = name.lastIndexOf('.')
+  return dot > 0 ? dot : name.length
+}
+
+/**
+ * Puts `inserted` into the rows right after the row of `folder`, which is where a new entry's
+ * naming box goes. Rows come back unchanged when the folder is not on screen or is closed.
+ */
+export function withNewRow(
+  rows: readonly TreeRow[],
+  folder: string,
+  creates: 'file' | 'folder',
+  keyOf: (path: string) => string,
+): TreeRow[] {
+  const index = rows.findIndex(
+    (row) => (row.kind === 'root' || row.kind === 'folder') && keyOf(row.path) === keyOf(folder),
+  )
+  const parent = rows[index]
+  if (parent === undefined || (parent.kind !== 'root' && parent.kind !== 'folder')) {
+    return [...rows]
+  }
+  if (!parent.expanded) return [...rows]
+  const row: TreeRow = {
+    kind: 'new',
+    path: parent.path,
+    name: '',
+    depth: parent.depth + 1,
+    creates,
+  }
+  return [...rows.slice(0, index + 1), row, ...rows.slice(index + 1)]
 }
 
 /** `parent` and `name` as one path, with the separator the parent already uses. */

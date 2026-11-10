@@ -1,6 +1,13 @@
 import type { Endings } from '@/lib/endings'
 import type { FollowedLink, LinkInfo } from './links'
-import type { DroppedItem, FileDragEvent, TreeEntry } from './workspace'
+import type {
+  ClashAnswer,
+  CopyReport,
+  DroppedItem,
+  FileDragEvent,
+  Moved,
+  TreeEntry,
+} from './workspace'
 
 /** What the perf harness asked this run to do. Mirrors the Rust `PerfConfig`. */
 export interface PerfConfig {
@@ -187,6 +194,38 @@ export interface Host {
   describeDrop(paths: readonly string[]): Promise<DroppedItem[]>
   /** Makes a dropped folder a workspace root. Rejects with `not-allowed` for a path no drop delivered. */
   addDroppedRoot(path: string): Promise<string>
+  /**
+   * Makes an empty file in a folder of the workspace and resolves to its path. Rejects with kind
+   * `exists` when the name is taken and `invalid` when it cannot be a name.
+   */
+  createFile(parent: string, name: string): Promise<string>
+  /** Like `createFile`, for a folder. */
+  createFolder(parent: string, name: string): Promise<string>
+  /**
+   * Renames a file or folder of the workspace. Open documents under it follow the file: the answer
+   * lists them, and a later save by id writes the new path. Never touches a workspace root.
+   */
+  renameEntry(path: string, newName: string): Promise<Moved>
+  /** Moves a file or folder into another folder of the workspace; a folder never into itself. */
+  moveEntry(path: string, into: string): Promise<Moved>
+  /** Sends a file or folder of the workspace to the Recycle Bin. */
+  deleteEntry(path: string): Promise<void>
+  /** Shows a file or folder in the system's file manager, selected. */
+  revealEntry(path: string): Promise<void>
+  /**
+   * Which names of a drop already exist in a folder, so the page can ask what to do about them.
+   * Changes nothing. Rejects with `not-allowed` unless a native drop delivered every path.
+   */
+  copyClashes(into: string, paths: readonly string[]): Promise<string[]>
+  /**
+   * Copies the paths of a native drop into a folder of the workspace. A name that is taken is
+   * handled by its answer, and skipped when there is none: nothing is replaced unasked.
+   */
+  copyDropped(
+    into: string,
+    paths: readonly string[],
+    answers: readonly ClashAnswer[],
+  ): Promise<CopyReport>
   /** Present only where the harness can drive the app. */
   readonly perf?: PerfHost
 }

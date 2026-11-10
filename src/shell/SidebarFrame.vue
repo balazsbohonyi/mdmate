@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CopyBanner from '@/features/tree/CopyBanner.vue'
 import FileTree from '@/features/tree/FileTree.vue'
 import { workspaceRoots } from '@/features/tree/store'
 </script>
@@ -13,6 +14,7 @@ import { workspaceRoots } from '@/features/tree/store'
     >
       Folders
     </div>
+    <CopyBanner />
     <FileTree v-if="workspaceRoots.length > 0" />
     <div
       v-else

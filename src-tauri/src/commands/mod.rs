@@ -11,6 +11,7 @@ use crate::error::AppError;
 use crate::links;
 use crate::platform::{self, Platform as _};
 use crate::session::{self, CloseHook, SessionStore};
+use crate::workspace::ops::{self, ClashAnswer, CopyReport, Moved};
 use crate::workspace::roots::{self, RootStore};
 use crate::workspace::tree::{self, TreeEntry};
 use crate::workspace::watch::DiskChange;
@@ -464,6 +465,104 @@ pub(crate) fn drop_describe(
     paths: Vec<String>,
 ) -> Result<Vec<DroppedItem>, AppError> {
     workspace::describe_drops(&state, &paths)
+}
+
+/// Makes an empty file in a folder of the workspace. Returns its path.
+#[tauri::command]
+pub(crate) fn create_file(
+    state: State<'_, Arc<AppState>>,
+    parent: String,
+    name: String,
+) -> Result<String, AppError> {
+    ops::create_file(&state, std::path::Path::new(&parent), &name)
+}
+
+/// Makes a folder in a folder of the workspace. Returns its path.
+#[tauri::command]
+pub(crate) fn create_folder(
+    state: State<'_, Arc<AppState>>,
+    parent: String,
+    name: String,
+) -> Result<String, AppError> {
+    ops::create_folder(&state, std::path::Path::new(&parent), &name)
+}
+
+/// Renames a file or folder of the workspace; open documents under it follow.
+#[tauri::command]
+pub(crate) fn rename_entry(
+    state: State<'_, Arc<AppState>>,
+    path: String,
+    new_name: String,
+) -> Result<Moved, AppError> {
+    ops::rename_entry(&state, std::path::Path::new(&path), &new_name)
+}
+
+/// Moves a file or folder of the workspace into another folder of it; open documents follow.
+#[tauri::command]
+pub(crate) fn move_entry(
+    state: State<'_, Arc<AppState>>,
+    path: String,
+    into: String,
+) -> Result<Moved, AppError> {
+    ops::move_entry(
+        &state,
+        std::path::Path::new(&path),
+        std::path::Path::new(&into),
+    )
+}
+
+/// Sends a file or folder of the workspace to the Recycle Bin.
+#[tauri::command]
+pub(crate) async fn delete_entry(
+    state: State<'_, Arc<AppState>>,
+    path: String,
+) -> Result<(), AppError> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        ops::delete_entry(&state, &platform::current(), std::path::Path::new(&path))
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Shows a file or folder in the system's file manager.
+#[tauri::command]
+pub(crate) fn reveal_entry(state: State<'_, Arc<AppState>>, path: String) -> Result<(), AppError> {
+    ops::reveal_entry(&state, &platform::current(), std::path::Path::new(&path))
+}
+
+/// Says which names of a drop already exist in a folder, so the page can ask what to do about
+/// them. Changes nothing. Every path must be one a native drop delivered.
+#[tauri::command]
+pub(crate) fn copy_clashes(
+    state: State<'_, Arc<AppState>>,
+    into: String,
+    paths: Vec<String>,
+) -> Result<Vec<String>, AppError> {
+    ops::copy_clashes(&state, std::path::Path::new(&into), &paths)
+}
+
+/// Copies the paths of a native drop into a folder of the workspace, with an answer for each name
+/// that is already there.
+#[tauri::command]
+pub(crate) async fn copy_dropped(
+    state: State<'_, Arc<AppState>>,
+    into: String,
+    paths: Vec<String>,
+    answers: Vec<ClashAnswer>,
+) -> Result<CopyReport, AppError> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        ops::copy_into(
+            &state,
+            &platform::current(),
+            std::path::Path::new(&into),
+            &paths,
+            &answers,
+        )
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
 }
 
 /// Makes a dropped folder a workspace root.
