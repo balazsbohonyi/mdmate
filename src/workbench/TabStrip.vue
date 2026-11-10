@@ -7,6 +7,7 @@ import {
   ContextMenuShortcut,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { shortcutLabel } from './commands'
 import { COMMAND_IDS } from './defaultCommands'
 import { detectPlatform } from './keybinding'
@@ -111,18 +112,25 @@ function run(action: () => Promise<unknown> | void): void {
         </ContextMenuItem>
         <ContextMenuSeparator />
         <!-- A disabled item takes no pointer events, so the tooltip sits on a wrapper. -->
-        <div
-          data-rename-item
-          :title="tabMenuState(tab.id).renameWhyNot ?? undefined"
-        >
-          <ContextMenuItem
-            :disabled="!tabMenuState(tab.id).canRename"
-            @select="run(() => renameTab(tab.id))"
+        <Tooltip :disabled="tabMenuState(tab.id).renameWhyNot === null">
+          <TooltipTrigger as-child>
+            <div data-rename-item>
+              <ContextMenuItem
+                :disabled="!tabMenuState(tab.id).canRename"
+                @select="run(() => renameTab(tab.id))"
+              >
+                Rename...
+                <ContextMenuShortcut>{{ shortcut(COMMAND_IDS.rename) }}</ContextMenuShortcut>
+              </ContextMenuItem>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent
+            data-rename-why
+            side="right"
           >
-            Rename...
-            <ContextMenuShortcut>{{ shortcut(COMMAND_IDS.rename) }}</ContextMenuShortcut>
-          </ContextMenuItem>
-        </div>
+            {{ tabMenuState(tab.id).renameWhyNot }}
+          </TooltipContent>
+        </Tooltip>
         <ContextMenuItem
           :disabled="!tabMenuState(tab.id).hasPath"
           @select="run(() => findTabReferences(tab.id))"

@@ -50,6 +50,13 @@ const input = useTemplateRef('input')
 - Lazy-load palette, settings and search with `defineAsyncComponent`.
 - Prove any speed fix with `app.config.performance` and the DevTools Performance panel.
 
+## Tooltips (project call)
+
+- A tooltip is the shadcn `Tooltip` from `components/ui/tooltip`, never the native `title` attribute. The owner ruled this on 2026-11-10.
+- Its content uses theme tokens (`bg-popover`, `text-popover-foreground`), so it follows dark and light with the menus. No hard-coded colors.
+- One `TooltipProvider` lives in `App.vue`. A component test that mounts a tooltip wraps it in a provider.
+- A disabled control takes no pointer events: put the trigger (`as-child`) on a wrapper element around it.
+
 ## Security
 
 - Render document text with interpolation. `v-html` stays unused.

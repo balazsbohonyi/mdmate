@@ -5,7 +5,8 @@
  * commands, not from the menu.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { createApp, nextTick, type App } from 'vue'
+import { createApp, h, nextTick, type App } from 'vue'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { openPath, resetDocuments } from '@/documents/store'
 import { resetTree, restoreWorkspace } from '@/features/tree/store'
 import { setHost } from '@/platform'
@@ -64,7 +65,12 @@ async function openMenuOf(file: string, files: readonly string[]): Promise<void>
   const infos = ids.map((id) => tabInfo(id)).filter((info) => info !== undefined)
   const root = document.createElement('div')
   document.body.append(root)
-  const app = createApp(TabStrip, { tabs: infos, activeId: ids[0] ?? null })
+  const app = createApp({
+    render: () =>
+      h(TooltipProvider, { delayDuration: 0 }, () =>
+        h(TabStrip, { tabs: infos, activeId: ids[0] ?? null }),
+      ),
+  })
   app.mount(root)
   mounted = { app, root }
   await flush()
@@ -87,20 +93,34 @@ async function start(): Promise<void> {
 const renameWrapper = (): HTMLElement | null => document.body.querySelector('[data-rename-item]')
 const renameItem = (): Element | null | undefined =>
   renameWrapper()?.querySelector('[role=menuitem]')
+const why = (): string | undefined =>
+  document.body.querySelector('[data-rename-why]')?.textContent.trim()
+
+/** A mouse over the wrapper of the Rename item, the way a hover reaches it. */
+async function hoverRename(): Promise<void> {
+  const wrapper = renameWrapper()
+  if (wrapper === null) throw new Error('no Rename item')
+  wrapper.dispatchEvent(new MouseEvent('pointermove', { bubbles: true }))
+  await flush()
+}
 
 describe('Rename in the tab menu of a file outside every open folder (ISC-220)', () => {
-  it('is off and says why in its tooltip', async () => {
+  it('is off and says why in a tooltip on hover, not in a native title', async () => {
     await start()
     await openMenuOf('o.md', ['/outside/o.md'])
     expect(renameItem()?.hasAttribute('data-disabled')).toBe(true)
-    expect(renameWrapper()?.getAttribute('title')).toBe(RENAME_OUTSIDE_FOLDER)
+    expect(why()).toBeUndefined()
+    await hoverRename()
+    expect(why()).toContain(RENAME_OUTSIDE_FOLDER)
+    expect(document.body.querySelector('[data-tab-menu] [title]')).toBeNull()
   })
 
   it('is on, with no tooltip, for a file in an open folder', async () => {
     await start()
     await openMenuOf('a.md', ['/work/a.md'])
     expect(renameItem()?.hasAttribute('data-disabled')).toBe(false)
-    expect(renameWrapper()?.hasAttribute('title')).toBe(false)
+    await hoverRename()
+    expect(why()).toBeUndefined()
   })
 })
 

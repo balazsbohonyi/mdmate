@@ -4,6 +4,7 @@ import { beginJournal, restoreOnStart } from '@/documents/session'
 import { watchDisk } from '@/documents/store'
 import { installFileDrop } from '@/features/drop'
 import { reportWindowShown } from '@/lib/lifecycle'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { getHost } from '@/platform'
 import AppShell from '@/shell/AppShell.vue'
 
@@ -38,5 +39,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <AppShell :platform-name="platformName" />
+  <TooltipProvider :delay-duration="300">
+    <AppShell :platform-name="platformName" />
+  </TooltipProvider>
 </template>
