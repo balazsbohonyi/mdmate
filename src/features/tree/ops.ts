@@ -1,5 +1,6 @@
 import { shallowRef } from 'vue'
 import { describe, documentMoved, problem } from '@/documents/store'
+import { imageTabs, setImagePath } from '@/workbench/store'
 import { nameProblem } from '@/lib/fileNames'
 import { getHost, type ClashAnswer, type ClashChoice, type Moved } from '@/platform'
 import { baseName, parentPath } from './model'
@@ -48,9 +49,15 @@ function refuse(message: string): void {
   if (typing !== null) naming.value = { ...typing, error: message }
 }
 
-/** Points the open tabs at the files a rename or move took along. */
-function followDocuments(moved: Moved): void {
+/**
+ * Points the open tabs at the files a rename or move took along: the documents Rust moved, and
+ * the image tabs, which Rust does not hold, by the same rewrite of the path.
+ */
+function followDocuments(from: string, moved: Moved): void {
   for (const document of moved.documents) documentMoved(document.id, document.path)
+  for (const [id, tab] of imageTabs()) {
+    if (isUnder(tab.path, from)) setImagePath(id, moved.path + tab.path.slice(from.length))
+  }
 }
 
 /**
@@ -86,7 +93,7 @@ export async function commitNaming(name: string): Promise<void> {
 
 /** Updates tabs, open folders and listings after `from` moved to where `moved` says. */
 function afterMove(from: string, moved: Moved): void {
-  followDocuments(moved)
+  followDocuments(from, moved)
   remapPaths(from, moved.path)
   const [was, now] = [parentPath(from), parentPath(moved.path)]
   if (was !== null) void loadFolder(was)

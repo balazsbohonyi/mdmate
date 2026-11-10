@@ -8,6 +8,7 @@ use crate::drops::DropRegistry;
 use crate::error::AppError;
 use crate::fs::document::{Opened, ReadOnlyReason, content_hash};
 use crate::fs::encoding::Format;
+use crate::fs::kind::kind_of;
 use crate::fs::{self, Saved, atomic, frame};
 use crate::workspace::folders::{self, FolderWatcher};
 use crate::workspace::watch::{DiskChange, Watcher};
@@ -122,6 +123,9 @@ pub(crate) struct AppState {
     folder_watcher: OnceLock<FolderWatcher>,
     /// The paths native drops delivered.
     drops: DropRegistry,
+    /// Images the page shows in tabs, by key. They are not documents, so the session learns of
+    /// them here and grants them again at the next start.
+    images: Mutex<std::collections::BTreeMap<String, PathBuf>>,
 }
 
 impl AppState {
@@ -133,7 +137,42 @@ impl AppState {
             watcher: OnceLock::new(),
             folder_watcher: OnceLock::new(),
             drops: DropRegistry::new(ignore_case),
+            images: Mutex::new(std::collections::BTreeMap::new()),
         }
+    }
+
+    /// Notes that the page shows this image in a tab.
+    pub(crate) fn note_image(&self, image: &Resolved) {
+        self.images
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(image.key.clone(), image.path.clone());
+    }
+
+    /// Notes that no tab shows this image any more. A path that is gone matches by its spelling.
+    pub(crate) fn forget_image(&self, path: &Path) {
+        let key = self
+            .access()
+            .resolve(path)
+            .ok()
+            .map(|resolved| resolved.key);
+        let wanted = display_path(path);
+        self.images
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .retain(|image_key, image| {
+                key.as_deref() != Some(image_key.as_str()) && display_path(image) != wanted
+            });
+    }
+
+    /// The images shown in tabs now, as people read their paths.
+    pub(crate) fn image_paths(&self) -> Vec<String> {
+        self.images
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .values()
+            .map(|path| display_path(path))
+            .collect()
     }
 
     /// Moves every open document that was at `old` (or below it, when `old` was a folder) to the
@@ -305,6 +344,7 @@ fn open_frame(id: u32, resolved: &Resolved, opened: &Opened) -> Vec<u8> {
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default();
     header.insert("name".into(), name.into());
+    header.insert("kind".into(), kind_of(&resolved.path).name().into());
     header.insert(
         "encoding".into(),
         opened

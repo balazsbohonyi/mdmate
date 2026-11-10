@@ -38,7 +38,7 @@ mdmate/
 │  ├─ documents/      Document store, master state, save, conflict, session
 │  ├─ workbench/      Split tree model, panes, tabs, pointer drag, commands
 │  ├─ shell/          App layout: title bar with menu and caption buttons, sidebar frame, status bar
-│  ├─ features/       tree/ (model, store, ops, FileTree.vue, NameInput.vue, CopyBanner.vue), drop.ts; later quick-open, palette, search, outline, settings, image-viewer
+│  ├─ features/       tree/ (model, store, ops, FileTree.vue, NameInput.vue, CopyBanner.vue), drop.ts; later quick-open, palette, search, outline, settings
 │  ├─ components/ui/  shadcn-vue, added only with `pnpm ui:add` (never edit by hand)
 │  ├─ lib/            shadcn-vue utilities
 │  └─ styles/         tokens.css (fonts, sizes, Tailwind map), themes/dark.css and light.css (every color)
@@ -46,7 +46,7 @@ mdmate/
 │  ├─ commands/       Thin handlers, no logic
 │  ├─ access.rs       Which paths the page may read: files the user chose, plus workspace roots
 │  ├─ documents.rs    Open documents by id, and the open, save and close operations on them
-│  ├─ fs/             Raw frame, encoding, line endings (eol), atomic write, round-trip guard
+│  ├─ fs/             Raw frame, encoding, line endings (eol), atomic write, round-trip guard, kind (what a file opens as, by extension)
 │  ├─ workspace/      tree.rs (one folder per listing), roots.rs (workspace.json), folders.rs (watcher for the open folders), ops.rs (create, rename, move, delete to the Recycle Bin, copy in); file index later
 │  ├─ drops.rs        The paths of the last native file drops, which are the only ones the page may ask about
 │  ├─ search/         Streaming folder search
@@ -149,6 +149,7 @@ CM6 parsing is budgeted and can stop on huge files, so whole-document features, 
 - A save first compares the file on disk with that hash and refuses (`disk-changed`) when they differ, so a change the watcher missed is still never overwritten. The page then asks: keep mine or load theirs.
 - One `notify` watcher watches the folders of open documents (not the files, since replacing a file drops a watch on some systems). A dedicated thread waits for a path to go quiet for 100 ms, reads the file, and sends `{id, hash}` over a `Channel` when the content is news. A missing or locked file says nothing; the tab keeps its text.
 - The page brings a clean tab up to date with `Document.reload` (new master, fresh undo history, one minimal change to every follower so carets stay put). A tab with edits raises a conflict and keeps them.
+- A file opens by its extension alone (`fs/kind.rs`): Markdown, an image, or text. A tab is a union on `kind`: a Markdown or text tab holds a document (a text tab is plain source, with no parser), an image tab holds a path and a size and no document. The image view (`src/workbench/ImageView.vue`) shows the picture through `<img>` only, from the asset protocol, so an SVG's scripts never run. `image_info` checks access, requires an image kind, allows that one file on the asset scope and notes it, so the session grants it again at the next start; `image_closed` forgets it when the last tab for it closes. A native drop opens through `drop_open`, which refuses the whole drop if one path was not delivered, and the page opens each file in the pane under the pointer.
 - Workspace roots are kept by Rust in `workspace.json` in the data folder, written atomically when one is added or removed and granted again at start; the session snapshot only remembers which folders were open. Removing a root revokes Rust's access at once; the image protocol's scope can only grow, so it keeps the folder until restart.
 - The sidebar lists one folder at a time (`list_dir`, folders first, then case-insensitive names) and asks again whenever a folder opens. A second `notify` watcher, non-recursive, watches exactly the folders the page says are open (`watch_folders`) and sends the changed folder's path over a `Channel`; the page lists that folder again and the newest answer wins.
 - Files and folders dragged in from Explorer reach Rust as `DragDropEvent::Drop`; Rust records the paths of the last four drops, and `drop_describe` and `add_dropped_root` accept only those. The page decides what a drop means from where it landed (positions are divided by `devicePixelRatio`) and never names a path.

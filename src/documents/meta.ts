@@ -14,7 +14,9 @@ export interface DocMeta {
   readonly dirty: boolean
   /** Why the document cannot be saved, or null when it can. */
   readonly readOnly: ReadOnlyReason | null
-  /** Opened as plain source because the file is above the size cutoff. */
+  /** How the file opens: Markdown in the live editor, anything else as plain source. */
+  readonly kind: 'markdown' | 'text'
+  /** Opened as plain source: not Markdown, or Markdown above the size cutoff. */
   readonly plainSource: boolean
   /** The last save failed with this message, or null. */
   readonly saveError: string | null

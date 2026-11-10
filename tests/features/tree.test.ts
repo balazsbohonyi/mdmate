@@ -32,7 +32,8 @@ import {
 } from '@/features/tree/store'
 import { setHost } from '@/platform'
 import { createMockHost, type MockHost } from '@/platform/mock'
-import { resetWorkbench } from '@/workbench/store'
+import { findPane } from '@/workbench/splitTree'
+import { resetWorkbench, tabRecord, workbenchLayout } from '@/workbench/store'
 
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
@@ -402,6 +403,29 @@ describe('the drawn tree (ISC-99, ISC-105)', () => {
     expect(rowFor('Zeta.txt').className).toContain('text-muted-foreground')
     // Folders are never dimmed like a stray file.
     expect(rowFor('notes').className).not.toContain('opacity')
+  })
+
+  it('opens a file in a tab when its row is clicked: Markdown, text and image alike (ISC-106, ISC-107)', async () => {
+    start({ roots: ['/work'] })
+    await restoreWorkspace([])
+    await toggleFolder('/work/notes')
+    await flush()
+    const root = mountTree()
+    await flush()
+    const click = async (path: string): Promise<void> => {
+      root.querySelector<HTMLElement>(`[data-row-path="${path}"]`)?.click()
+      await flush()
+    }
+    const kinds = (): string[] => {
+      const layout = workbenchLayout.value
+      return (findPane(layout, layout.activePane)?.tabs ?? []).map(
+        (tab) => tabRecord(tab)?.kind ?? 'none',
+      )
+    }
+    await click('/work/notes/a.md')
+    await click('/work/Zeta.txt')
+    await click('/work/notes/pic.png')
+    expect(kinds()).toEqual(['markdown', 'text', 'image'])
   })
 
   it('opens a folder when its row is clicked', async () => {

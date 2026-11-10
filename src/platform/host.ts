@@ -5,6 +5,8 @@ import type {
   CopyReport,
   DroppedItem,
   FileDragEvent,
+  FileKind,
+  ImageInfo,
   Moved,
   TreeEntry,
 } from './workspace'
@@ -77,6 +79,8 @@ export interface OpenedFile {
   readonly hash: string
   readonly text: string
   readonly endings: Endings
+  /** How the file opens: Markdown in the live editor, anything else as plain source. */
+  readonly kind: FileKind
 }
 
 /** What a save wrote. */
@@ -192,6 +196,21 @@ export interface Host {
   onFileDrag(handler: (event: FileDragEvent) => void): Promise<() => void>
   /** Says what each dropped path is. Rejects with `not-allowed` unless a native drop delivered every path. */
   describeDrop(paths: readonly string[]): Promise<DroppedItem[]>
+  /**
+   * Lets the page open the files of a native drop, and says what each is. Rejects with
+   * `not-allowed`, granting nothing, unless a native drop delivered every path.
+   */
+  openDropped(paths: readonly string[]): Promise<DroppedItem[]>
+  /** What a file the page may read opens as. Rejects with `not-allowed` for any other path. */
+  fileKind(path: string): Promise<FileKind>
+  /**
+   * Checks that an image may be shown, lets the image protocol serve that one file, and says how
+   * big it is. Rejects with `not-allowed` for a path the page was never given, and `invalid` for
+   * a file that is not an image.
+   */
+  imageInfo(path: string): Promise<ImageInfo>
+  /** Says that no tab shows this image any more, so the next session does not grant it again. */
+  imageClosed(path: string): Promise<void>
   /** Makes a dropped folder a workspace root. Rejects with `not-allowed` for a path no drop delivered. */
   addDroppedRoot(path: string): Promise<string>
   /**

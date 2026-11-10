@@ -49,3 +49,19 @@ Deviations from the plan and choices it left open. Numbers carry the OS they cam
 **The drag-script flake, explained.** In T1 and again at the start of T2 the native-drop helper hung for 45 seconds with no output. A log showed the mouse-down reached the source window and `DoDragDrop` started, then nothing: `DoDragDrop` runs a modal loop on the UI thread, and the timer that drove the mouse lived on the same thread, so it stopped ticking. The fix is a second helper (`drag2.ps1`) that moves the mouse from a second runspace; it worked on all four drops since. The helper is outside the repo.
 
 **Test cleanup.** Test files sent to the Recycle Bin were restored into the temp fixture and deleted again. One "Replace or Skip Files" prompt from Explorer appeared during the restore and was cleared. The real Recycle Bin holds none of them now.
+
+## P6-T3: text and image tabs, drop to open
+
+**What a file opens as.** By extension only, in Rust (`fs/kind.rs`): Markdown (md, markdown, mdown, mkd, mdx), image (png, jpg, jpeg, gif, webp, svg, bmp, ico, avif), anything else text. A text tab is the same document with `parser: false`, so it has no highlighting, preview, link checks, smart paste or list editing. The format keys (bold, italic, code) still act on a text tab, as they do in large-file plain source; I left that alone rather than add a second rule. A binary file opens read-only under the existing encoding notice (seen in the real window).
+
+**One tree click opens any file.** It used to open Markdown only. Image and text rows are no longer dimmed-and-inert.
+
+**Images.** An image tab holds a path and a size, and Rust holds no document for it. `image_info` adds that one file to the asset scope, which cannot shrink until restart (the same Tauri limit as roots; this is the user's call to revisit). Rust keeps a list of shown images so `session::open_paths` grants them at the next start, and `image_closed` drops one when its last tab closes. The page loads the picture through `<img>`, never inline. Zoom and pan are not kept across tab switches (the view is keyed by tab).
+
+**Drops.** `drop_open` describes every path first and grants only if all were delivered, so one stray path grants nothing. The page opens each file in the pane under the pointer (found by `data-pane-id`), or the active pane over blank tree space. A file already open in another pane opens a second tab in the pane it was dropped on. An image dropped on document text does nothing; inserting a link there is P9-T2.
+
+**Mock host.** Images come from `platform/demoImages.ts` (two generated PNGs), and a scripted SVG for the inertness check. The hex colour in the mock was replaced by a named one for check-arch.
+
+**Evidence.** Rust: 202 tests pass, 8 new (`fs/kind`, `drop_paths_only` x4, the image command, the session grant). Web: `kinds` (12), `dropOpen` (10), `imageView` (11), `frame` (9), plus new cases in `tree`, `fileOps` and `session`. On `pnpm dev`: fit, zoom 42% to 89%, pan, details, and an SVG whose script did not run while the same file in `<object>` did. Real window (debug build, Windows 11, display scale 125%, devicePixelRatio 1.25): 17 of 17 checks, with two real OLE drops on a right pane while the left was active, a PNG on the tab strip, a PNG on text (nothing opened), refusals from Rust, and an image tab restored after a restart. Twelve page breaks and six Rust breaks each failed a test.
+
+**Two script mistakes in the real run, not app bugs.** A split clones the open file into the new pane, so the right pane started with `a.md`; and only the active tab draws its image, so the restart check had to select the image tab first.

@@ -176,14 +176,16 @@ impl SessionStore {
     }
 }
 
-/// The paths of the documents open right now: the grants the next run starts with.
+/// The paths of the documents and image tabs open right now: the grants the next run starts with.
 pub(crate) fn open_paths(state: &AppState) -> Vec<String> {
     let mut paths: Vec<String> = state
         .documents()
         .entries()
         .map(|(_, entry)| display_path(&entry.path))
         .collect();
+    paths.extend(state.image_paths());
     paths.sort();
+    paths.dedup();
     paths
 }
 
@@ -408,6 +410,36 @@ mod tests {
         assert!(
             !hook.ask(),
             "a page that is gone cannot ask the close to wait"
+        );
+    }
+    #[test]
+    fn an_open_image_tab_is_granted_again_and_a_closed_one_is_not() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let state = AppState::new(false);
+        let (shown, closed) = (dir.path().join("shown.png"), dir.path().join("closed.png"));
+        for path in [&shown, &closed] {
+            std::fs::write(path, [0_u8; 3]).expect("written");
+            state.access().grant_file(path).expect("grants");
+            crate::workspace::image_info(&state, &path.to_string_lossy()).expect("shown");
+        }
+        state.forget_image(&closed);
+        let paths = open_paths(&state);
+        assert_eq!(paths.len(), 1, "{paths:?}");
+        assert!(paths[0].ends_with("shown.png"));
+
+        let store = SessionStore::new(dir.path().join("data"));
+        write(&state, &store, "{}").expect("writes");
+        let next = AppState::new(false);
+        let ask = |state: &AppState, path: &std::path::Path| {
+            crate::workspace::image_info(state, &path.to_string_lossy())
+        };
+        assert!(ask(&next, &shown).is_err(), "before load");
+        load(&next, &store);
+        assert!(ask(&next, &shown).is_ok(), "the open tab came back");
+        assert_eq!(
+            ask(&next, &closed).expect_err("closed").kind(),
+            "not-allowed",
+            "the closed one stays closed"
         );
     }
 }

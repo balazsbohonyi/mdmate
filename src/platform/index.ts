@@ -20,6 +20,8 @@ export type {
   DropKind,
   EntryKind,
   FileDragEvent,
+  FileKind,
+  ImageInfo,
   Moved,
   MovedDocument,
   Point,

@@ -16,6 +16,7 @@ function open(text = 'hello world\n', changed: (doc: Document) => void = () => u
     readOnly: null,
     size: text.length,
     hash: '0'.repeat(32),
+    kind: 'markdown',
     text,
     endings: uniformEndings(),
   }
@@ -238,6 +239,7 @@ describe('undo and redo (ISC-42)', () => {
       readOnly: 'unsupported-encoding',
       size: 3,
       hash: '1'.repeat(32),
+      kind: 'markdown',
       text: 'abc',
       endings: uniformEndings(),
     }

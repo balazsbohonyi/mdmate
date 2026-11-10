@@ -16,10 +16,39 @@ export interface TreeEntry {
 /** What a dropped path is. Mirrors `workspace::DropKind`. */
 export type DropKind = 'file' | 'folder' | 'other'
 
+/** What a file opens as. Mirrors `fs::kind::FileKind`. */
+export type FileKind = 'markdown' | 'text' | 'image'
+
 /** A path a native drop delivered, as people read it. */
 export interface DroppedItem {
   readonly path: string
   readonly kind: DropKind
+  /** What a file opens as; absent for a folder or anything else. */
+  readonly fileKind?: FileKind
+}
+
+/** An image the page may show. Mirrors `workspace::ImageInfo`. */
+export interface ImageInfo {
+  /** The path as people read it. */
+  readonly path: string
+  /** The size on disk, in bytes. */
+  readonly size: number
+}
+
+/** Checks a file kind from Rust. */
+export function parseFileKind(value: unknown): FileKind {
+  if (value !== 'markdown' && value !== 'text' && value !== 'image') {
+    throw new Error(`unknown file kind ${String(value)}`)
+  }
+  return value
+}
+
+/** Checks the answer of `image_info`. */
+export function parseImageInfo(value: unknown): ImageInfo {
+  const entry = record(value)
+  const size = entry.size
+  if (typeof size !== 'number') throw new Error('size is not a number')
+  return { path: textField(entry, 'path'), size }
 }
 
 /** An open document whose file moved. Mirrors `workspace::ops::MovedDocument`. */
@@ -113,7 +142,10 @@ export function parseDroppedItems(value: unknown): DroppedItem[] {
     if (kind !== 'file' && kind !== 'folder' && kind !== 'other') {
       throw new Error(`unknown drop kind ${kind}`)
     }
-    return { path: textField(entry, 'path'), kind }
+    const fileKind = entry.fileKind === undefined ? undefined : parseFileKind(entry.fileKind)
+    return fileKind === undefined
+      ? { path: textField(entry, 'path'), kind }
+      : { path: textField(entry, 'path'), kind, fileKind }
   })
 }
 

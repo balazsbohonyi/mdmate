@@ -60,6 +60,7 @@ function open(text: string, endings: Endings): Document {
     readOnly: null,
     size: text.length,
     hash: '0'.repeat(32),
+    kind: 'markdown',
     text,
     endings,
   }

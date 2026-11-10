@@ -3,7 +3,7 @@ import type { Text } from '@codemirror/state'
 import { endingsOf } from '@/editor/lineEndings'
 import { expandedFolderPaths, restoreWorkspace } from '@/features/tree/store'
 import { endingsEqual, joinWithEndings, readEndings, type Endings } from '@/lib/endings'
-import { getHost, type OpenedFile } from '@/platform'
+import { getHost, type ImageInfo, type OpenedFile } from '@/platform'
 import {
   allTabs,
   closeTab,
@@ -14,7 +14,7 @@ import {
   type TabId,
 } from '@/workbench/splitTree'
 import { openTabFor, restoreWorkbench, tabRecord, workbenchLayout } from '@/workbench/store'
-import type { TabRecord } from '@/workbench/tabs'
+import { docIdOf, type TabRecord } from '@/workbench/tabs'
 import type { Caret, Document } from './document'
 import { patchDocMeta } from './meta'
 import { allDocuments, documentById, onDocumentsTouched, openDocument, problem } from './store'
@@ -35,6 +35,8 @@ interface SnapshotTab {
   readonly id: TabId
   readonly path: string
   readonly caret: Caret
+  /** Present for an image tab, which has no document and no caret. */
+  readonly kind?: 'image'
 }
 
 /** Unsaved text, with the disk hash it was typed on top of. */
@@ -85,7 +87,12 @@ export function buildSnapshot(): string {
   const tabs: SnapshotTab[] = []
   for (const id of allTabs(layout)) {
     const record = tabRecord(id)
-    const doc = record === undefined ? undefined : documentById(record.docId)
+    if (record?.kind === 'image') {
+      tabs.push({ id, path: record.path, caret: { anchor: 0, head: 0 }, kind: 'image' })
+      continue
+    }
+    const docId = docIdOf(record)
+    const doc = docId === undefined ? undefined : documentById(docId)
     if (doc !== undefined) tabs.push({ id, path: doc.path, caret: doc.caretOf(id) })
   }
   const buffers = allDocuments()
@@ -285,7 +292,12 @@ function readSnapshot(text: string): Snapshot | null {
   const tabs: SnapshotTab[] = []
   for (const tab of Array.isArray(value.tabs) ? (value.tabs as unknown[]) : []) {
     if (!isRecord(tab) || typeof tab.id !== 'string' || typeof tab.path !== 'string') continue
-    tabs.push({ id: tab.id, path: tab.path, caret: readCaret(tab.caret) ?? { anchor: 0, head: 0 } })
+    const caret = readCaret(tab.caret) ?? { anchor: 0, head: 0 }
+    tabs.push(
+      tab.kind === 'image'
+        ? { id: tab.id, path: tab.path, caret, kind: 'image' }
+        : { id: tab.id, path: tab.path, caret },
+    )
   }
   const buffers: RawBuffer[] = []
   for (const buffer of Array.isArray(value.buffers) ? (value.buffers as unknown[]) : []) {
@@ -347,11 +359,22 @@ export async function restoreSession(): Promise<RestoreReport | null> {
     }
   }
 
-  // Open every file the session names, in parallel.
-  const paths = [...new Set([...snapshot.tabs, ...snapshot.buffers].map((entry) => entry.path))]
+  // Open every file the session names, in parallel. Images are not documents: Rust checks each
+  // again and says how big it is now.
+  const imagePaths = [
+    ...new Set(snapshot.tabs.filter((tab) => tab.kind === 'image').map((tab) => tab.path)),
+  ]
+  const paths = [
+    ...new Set(
+      [...snapshot.tabs.filter((tab) => tab.kind !== 'image'), ...snapshot.buffers].map(
+        (entry) => entry.path,
+      ),
+    ),
+  ]
   const opened = new Map<string, { doc: Document; file: OpenedFile }>()
-  await Promise.all(
-    paths.map(async (path) => {
+  const images = new Map<string, ImageInfo>()
+  await Promise.all([
+    ...paths.map(async (path) => {
       try {
         const { doc, opened: file } = await openDocument(path)
         opened.set(path, { doc, file })
@@ -359,7 +382,14 @@ export async function restoreSession(): Promise<RestoreReport | null> {
         // Reported below, for tabs and buffers alike.
       }
     }),
-  )
+    ...imagePaths.map(async (path) => {
+      try {
+        images.set(path, await host.imageInfo(path))
+      } catch {
+        // Reported below, with the tabs.
+      }
+    }),
+  ])
 
   // Unsaved text goes back first, so a tab never shows the disk's version of it for a moment.
   const restored = new Set<number>()
@@ -402,7 +432,7 @@ export async function restoreSession(): Promise<RestoreReport | null> {
     }
   }
 
-  const tabs = restoreTabs(snapshot, opened, notices)
+  const tabs = restoreTabs(snapshot, opened, images, notices)
   if (notices.length > 0) await flushSession() // what was recovered no longer needs the snapshot
   return { tabs, buffers, notices }
 }
@@ -411,17 +441,24 @@ export async function restoreSession(): Promise<RestoreReport | null> {
 function restoreTabs(
   snapshot: Snapshot,
   opened: ReadonlyMap<string, { doc: Document }>,
+  images: ReadonlyMap<string, ImageInfo>,
   notices: string[],
 ): number {
   const byId = new Map(snapshot.tabs.map((tab) => [tab.id, tab]))
   const records = new Map<TabId, TabRecord>()
   for (const tab of snapshot.tabs) {
+    if (tab.kind === 'image') {
+      const image = images.get(tab.path)
+      if (image === undefined) notices.push(`${fileName(tab.path)} could not be opened.`)
+      else records.set(tab.id, { kind: 'image', path: image.path, size: image.size })
+      continue
+    }
     const entry = opened.get(tab.path)
     if (entry === undefined) {
       notices.push(`${fileName(tab.path)} could not be opened.`)
       continue
     }
-    records.set(tab.id, { kind: 'markdown', docId: entry.doc.id })
+    records.set(tab.id, { kind: entry.doc.kind, docId: entry.doc.id })
   }
 
   const parsed = deserialize(snapshot.layout)
@@ -435,7 +472,10 @@ function restoreTabs(
     for (const id of [...records.keys()]) if (!kept.has(id)) records.delete(id)
     restoreWorkbench(layout, records)
     for (const [id, record] of records) {
-      documentById(record.docId)?.seedCaret(id, byId.get(id)?.caret ?? { anchor: 0, head: 0 })
+      const docId = docIdOf(record)
+      if (docId !== undefined) {
+        documentById(docId)?.seedCaret(id, byId.get(id)?.caret ?? { anchor: 0, head: 0 })
+      }
     }
     return records.size
   }
@@ -445,7 +485,10 @@ function restoreTabs(
   restoreWorkbench(createLayout(), new Map())
   for (const [oldId, record] of records) {
     const id = openTabFor(record)
-    documentById(record.docId)?.seedCaret(id, byId.get(oldId)?.caret ?? { anchor: 0, head: 0 })
+    const docId = docIdOf(record)
+    if (docId !== undefined) {
+      documentById(docId)?.seedCaret(id, byId.get(oldId)?.caret ?? { anchor: 0, head: 0 })
+    }
   }
   return records.size
 }

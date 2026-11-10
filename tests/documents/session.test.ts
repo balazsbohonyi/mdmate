@@ -28,6 +28,7 @@ import {
   resizeSplit,
   selectTab,
   splitActivePane,
+  tabRecord,
   workbenchLayout,
 } from '@/workbench/store'
 
@@ -163,6 +164,52 @@ describe('a session written and restored', () => {
   it('does nothing on a first start', async () => {
     expect(await restoreSession()).toBeNull()
     expect(allTabs(workbenchLayout.value)).toEqual([])
+  })
+})
+
+describe('image and text tabs (P6-T3)', () => {
+  it('come back in their panes: an image with a fresh size, a text file as plain source', async () => {
+    host.files.write('C:/notes/pic.png', 'png')
+    host.files.write('C:/notes/todo.txt', 'buy milk\n')
+    const a = await openPath(A)
+    const pic = await openPath('C:/notes/pic.png')
+    const todo = await openPath('C:/notes/todo.txt')
+    splitActivePane('row')
+    const before = workbenchLayout.value
+    await flushSession()
+    newRun(host)
+    // The file grew while the app was closed: the restored tab reports what is on disk now.
+    host.files.write('C:/notes/pic.png', 'a longer png than before')
+    const report = await restoreSession()
+
+    expect(workbenchLayout.value).toEqual(before)
+    expect(report).toMatchObject({ tabs: 4, notices: [] }) // the split pane shows the text file too
+    expect(tabRecord(a)?.kind).toBe('markdown')
+    expect(tabRecord(todo)?.kind).toBe('text')
+    expect(documentOfTab(todo)?.plainSource).toBe(true)
+    expect(tabRecord(pic)).toEqual({ kind: 'image', path: 'C:/notes/pic.png', size: 24 })
+  })
+
+  it('leave a notice, and no tab, for an image that is gone', async () => {
+    host.files.write('C:/notes/pic.png', 'png')
+    await openPath(A)
+    await openPath('C:/notes/pic.png')
+    await flushSession()
+    const next = newRun(host)
+    next.files.remove('C:/notes/pic.png')
+    const report = await restoreSession()
+    expect(report?.tabs).toBe(1)
+    expect(report?.notices).toEqual(['pic.png could not be opened.'])
+  })
+
+  it('read a session an earlier run wrote, with no kind on any tab', async () => {
+    await openPath(A)
+    await flushSession()
+    const written = JSON.parse(host.session ?? '{}') as { tabs: Record<string, unknown>[] }
+    for (const tab of written.tabs) expect(tab.kind).toBeUndefined()
+    newRun(host)
+    const report = await restoreSession()
+    expect(report).toMatchObject({ tabs: 1, notices: [] })
   })
 })
 

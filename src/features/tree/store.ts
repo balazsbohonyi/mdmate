@@ -1,15 +1,7 @@
 import { computed, shallowReactive, shallowRef, watch } from 'vue'
 import { describe, openPath, problem } from '@/documents/store'
 import { getHost } from '@/platform'
-import {
-  flatten,
-  isMarkdownName,
-  parentPath,
-  pathKeyer,
-  withNewRow,
-  type Listing,
-  type TreeRow,
-} from './model'
+import { flatten, parentPath, pathKeyer, withNewRow, type Listing, type TreeRow } from './model'
 
 /**
  * The sidebar's state: the workspace roots, which folders are open and what each holds. Rust is the
@@ -263,12 +255,11 @@ export async function removeRootFolder(path: string): Promise<void> {
   forgetPath(path)
 }
 
-/** What a click on a row does: select it, open or close a folder, open a Markdown file. */
+/** What a click on a row does: select it, open or close a folder, open a file in a tab. */
 export async function activateRow(row: TreeRow): Promise<void> {
   if (row.kind === 'note' || row.kind === 'new') return
   selectedPath.value = row.path
   if (row.kind === 'file') {
-    if (!isMarkdownName(row.name)) return
     try {
       await openPath(row.path)
     } catch (error) {

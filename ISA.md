@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 134/221
+progress: 144/221
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-09T19:51:17Z
+updated: 2026-11-10T09:29:49Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -191,13 +191,13 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-103 | manual | delete a file from the tree | in Recycle Bin | Real app run | derived: file-management | | |
 | ISC-104 | manual | run Reveal in Explorer | file selected | Real app run | derived: file-management | | |
 | ISC-105 | screenshot | mixed folder | others dimmed | Claude in Chrome on pnpm dev | derived: file-management | | |
-| ISC-106 | bash | open a .txt file | kind text | pnpm test:web tests/documents/open.test.ts | derived: file-management | | |
-| ISC-107 | bash | open a .png file | kind image | pnpm test:web tests/documents/open.test.ts | derived: file-management | | |
+| ISC-106 | bash | open a .txt file | kind text | pnpm test:web tests/documents/kinds.test.ts | derived: file-management | | |
+| ISC-107 | bash | open a .png file | kind image | pnpm test:web tests/documents/kinds.test.ts | derived: file-management | | |
 | ISC-108 | screenshot | open a large image | fits pane | Interceptor on pnpm dev | derived: file-management | | |
 | ISC-109 | screenshot | zoom an image | scale changes | Interceptor on pnpm dev | derived: file-management | | |
 | ISC-110 | screenshot | pan a zoomed image | view moves | Interceptor on pnpm dev | derived: file-management | | |
 | ISC-111 | screenshot | open an image tab | details shown | Interceptor on pnpm dev | derived: file-management | | |
-| ISC-112 | screenshot | open SVG with a script | script inert | Interceptor on pnpm dev | derived: safe-with-untrusted-files | | |
+| ISC-112 | screenshot | open SVG with a script | script inert | Interceptor on pnpm dev, and the real window with an <object> control | derived: safe-with-untrusted-files | | |
 | ISC-113 | bash | property test: rename, rescan workspace fixture | 0 old links | pnpm test:rust rewrite_inbound | derived: link-rewrite | critical | |
 | ISC-114 | bash | move a file with relative links | targets valid | pnpm test:rust rewrite_outbound | derived: link-rewrite | | |
 | ISC-115 | bash | rename a folder | 0 old links | pnpm test:rust rewrite_folder | derived: link-rewrite | | |
@@ -452,13 +452,13 @@ Why: Markdown lives among other files, so the sidebar must manage them and renam
 - [x] ISC-103: Deleting moves a file to the Recycle Bin.
 - [x] ISC-104: Reveal in Explorer selects the file.
 - [x] ISC-105: Non-Markdown files show dimmed.
-- [ ] ISC-106: Other text files open as plain source.
-- [ ] ISC-107: Images open in an image tab.
-- [ ] ISC-108: The image tab fits a large image to the pane.
-- [ ] ISC-109: The image tab zooms.
-- [ ] ISC-110: The image tab pans.
-- [ ] ISC-111: The image tab shows dimensions and file size.
-- [ ] ISC-112: Anti: scripts in an SVG never run.
+- [x] ISC-106: Other text files open as plain source.
+- [x] ISC-107: Images open in an image tab.
+- [x] ISC-108: The image tab fits a large image to the pane.
+- [x] ISC-109: The image tab zooms.
+- [x] ISC-110: The image tab pans.
+- [x] ISC-111: The image tab shows dimensions and file size.
+- [x] ISC-112: Anti: scripts in an SVG never run.
 - [ ] ISC-113: After a rename, a rescan finds zero links to the old path in the workspace.
 - [ ] ISC-114: Moving a file updates the relative links inside it.
 - [ ] ISC-115: Renaming a folder updates links to files within it.
@@ -546,9 +546,9 @@ Why: an everyday editor starts, keeps and manages files without sending you to E
 - [x] ISC-197: Files dropped from Explorer on a tree folder are copied into it.
 - [x] ISC-198: A folder dropped from Explorer on a tree folder is copied whole.
 - [x] ISC-199: A name clash on a copy offers Replace, Keep both and Skip.
-- [ ] ISC-200: Markdown and text files dropped from Explorer open in tabs in the pane they land on.
-- [ ] ISC-201: An image dropped from Explorer outside a document's text opens in an image tab.
-- [ ] ISC-202: Anti: a path that no native drop delivered is never opened or copied.
+- [x] ISC-200: Markdown and text files dropped from Explorer open in tabs in the pane they land on.
+- [x] ISC-201: An image dropped from Explorer outside a document's text opens in an image tab.
+- [x] ISC-202: Anti: a path that no native drop delivered is never opened or copied.
 - [ ] ISC-203: Ctrl+N opens an untitled tab.
 - [ ] ISC-204: The first save of an untitled tab writes UTF-8 with LF to the path chosen in the save dialog.
 - [ ] ISC-205: The save dialog suggests a file name from the first heading.
@@ -630,6 +630,7 @@ Why: an everyday editor starts, keeps and manages files without sending you to E
 - 2026-11-09: Rust records the paths of each native drop from Tauri's drop event (the last four drops) and `drop_describe` and `add_dropped_root` accept only those; the page never names a path. Why: dropped files can come from anywhere, and the page must not be able to ask for a path it was not given (P6-T1).
 - 2026-11-09: refined: added ISC-219 (F12 · File lifecycle) before building P6-T2. A rename or move in the tree changes the path of a file Rust holds open by id; without it the next save would write the old path and bring back the file that was just renamed, which breaks "the file on disk belongs to the writer". It covers a folder with open files under it. Implied by ISC-101 and ISC-102, but no claim stated it.
 
+- 2026-11-10: P6-T3 choices: a file opens by its extension alone (Markdown, an image extension, or text), and a file that is not UTF-8 opens read-only under the existing notice; a click on any file row opens it; an image dropped on document text does nothing until P9-T2; an image tab keeps no zoom or pan across tab switches; Rust tracks shown images so a restored session grants them again, and `image_closed` removes the grant when the last tab closes; the asset scope for a single image is added when it opens and cannot shrink until restart (the same Tauri limit as for roots); the mock host draws images from `demoImages.ts`; the format keys still work in text tabs, as in large-file plain source; files dropped on blank tree space open in the active pane, and a file already open in another pane opens a second tab in the pane it was dropped on. Why: each keeps untrusted files inert (an SVG is only ever shown through `<img>`) and keeps Rust the only source of paths.
 - 2026-11-10: P6-T2 choices: blur on the name box cancels, so a click elsewhere never leaves a half-made file; a new file is selected and revealed but not opened; Delete asks nothing, since the Recycle Bin is the undo; a move to another volume is refused; a folder dropped on a row is copied into that folder, and one dropped on blank tree space still becomes a root; a drop while the clash banner is open is ignored; an unanswered clash counts as Skip; Replace sends the old item to the Recycle Bin before the copy. Why: each keeps the file on disk safe first (the bin, nothing half-written, no surprise folder). Rename and move do not rewrite links yet (P6-T4 to T6), so links to a renamed file are stale until then.
 
 ## Verification
@@ -780,6 +781,18 @@ Why: an everyday editor starts, keeps and manages files without sending you to E
 - ISC-199: `pnpm test:web tests/features/copyDrop.test.ts` (19 tests): the banner names the file and offers Replace, Keep both, Skip and Cancel; nothing is copied until every taken name is answered; Replace recycles the old file first, Keep both numbers the copy, Skip leaves it; apply to all, Cancel and a never-answered clash behave as decided. Real window: Keep both gave `taken (2).md` with the new text and the old file unchanged; Replace put the new text in place and the old file was in the Recycle Bin (P6-T2).
 - ISC-219: `pnpm test:rust open_documents_follow` (4 tests: a rename, a move, a folder renamed or moved, a case-only rename): the open document's path follows, so a save writes the new path. Real window: after a rename and after a move, an edit saved to the new path and nothing came back at the old one (P6-T2).
 - Breaks on purpose in Rust and in the page each failed a test (P6-T2).
+- ISC-106: `pnpm test:web tests/documents/kinds.test.ts`: a .txt and a .rs file open in a text tab as plain source with no Markdown parser; Markdown stays live. Real window: `todo.txt` opened from its tree row, and `blob.bin` opened read-only under the existing encoding notice (P6-T3).
+- ISC-107: `pnpm test:web tests/documents/kinds.test.ts` (an image holds no document in Rust, one tab per image per pane, the host is told when the last tab closes) and `pnpm test:rust drop_paths_only an_image_command`. Real window: `pic.png` opened from its tree row and drew at its own width (P6-T3).
+- ISC-108: Claude in Chrome on `pnpm dev`: the 2400 x 1600 `big.png` opened fitted whole to the pane at 42% (screenshot saved); `pnpm test:web tests/workbench/imageView.test.ts` pins the fit rule (P6-T3).
+- ISC-109: Claude in Chrome on `pnpm dev`: five wheel ticks took the view from 42% to 89%, and the status strip shows the new scale; the zoom keeps the pointer's spot fixed (unit test) (P6-T3).
+- ISC-110: Claude in Chrome on `pnpm dev`: dragging the zoomed image moved the view to another part of the picture (screenshots before and after) (P6-T3).
+- ISC-111: Claude in Chrome on `pnpm dev`: the strip under the picture reads "2400 x 1600 px", "6.2 KB" and the scale (P6-T3).
+- ISC-112: Claude in Chrome on `pnpm dev` and the real window: `scripted.svg` drew as an image and its script, which posts a marker to the page, reported nothing; the same file loaded in an `<object>` did report, so the detector works. The page loads the picture through `<img>` only (P6-T3).
+- ISC-200: real window: with the left pane active, a real OLE drop of `x1.md` and `x2.txt` on the right pane opened both there and none in the left; `pnpm test:web tests/features/dropOpen.test.ts` for the rule (P6-T3).
+- ISC-201: real window: a PNG dropped on the tab strip opened an image tab that drew (naturalWidth 80), and a PNG dropped on the text of a document opened nothing, since inserting an image link is P9-T2; `pnpm test:web tests/features/dropOpen.test.ts` (P6-T3).
+- ISC-202: `pnpm test:rust drop_paths_only` (4 tests: one undelivered path in a drop refuses all of it and grants nothing); `pnpm test:web tests/features/dropOpen.test.ts`. Real window: `drop_open` for a path no drop delivered returned not-allowed, and `image_info` for an existing PNG outside every grant returned not-allowed (P6-T3).
+- ISC-219, images: `pnpm test:web tests/features/fileOps.test.ts`: an image tab follows a rename of the file, a rename of its folder and a move of that folder, and an image in another folder stays put (P6-T3).
+- Breaks on purpose in the page (12) and in Rust (6) each failed a test (P6-T3).
 
 ## Remaining Work
 

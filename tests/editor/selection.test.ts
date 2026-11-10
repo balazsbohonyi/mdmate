@@ -22,6 +22,7 @@ function opened(text: string): OpenedFile {
     readOnly: null,
     size: text.length,
     hash: '0'.repeat(32),
+    kind: 'markdown',
     text,
     endings: uniformEndings(),
   }

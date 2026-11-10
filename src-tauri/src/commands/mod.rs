@@ -467,6 +467,49 @@ pub(crate) fn drop_describe(
     workspace::describe_drops(&state, &paths)
 }
 
+/// Lets the page open the files of a native drop. Every path must be one a native drop delivered.
+#[tauri::command]
+pub(crate) fn drop_open(
+    state: State<'_, Arc<AppState>>,
+    paths: Vec<String>,
+) -> Result<Vec<DroppedItem>, AppError> {
+    workspace::open_drops(&state, &paths)
+}
+
+/// What a file the page may read opens as: Markdown, an image or plain text.
+#[tauri::command]
+pub(crate) fn file_kind(
+    state: State<'_, Arc<AppState>>,
+    path: String,
+) -> Result<crate::fs::kind::FileKind, AppError> {
+    workspace::file_kind(&state, &path)
+}
+
+/// Checks that an image may be shown, lets the image protocol serve that one file, and says how
+/// big it is. The page has no command that widens the scope any further.
+#[tauri::command]
+pub(crate) async fn image_info(
+    app: tauri::AppHandle,
+    state: State<'_, Arc<AppState>>,
+    path: String,
+) -> Result<workspace::ImageInfo, AppError> {
+    let state = state.inner().clone();
+    let (info, resolved) =
+        tauri::async_runtime::spawn_blocking(move || workspace::image_info(&state, &path))
+            .await
+            .map_err(|error| AppError::Task(error.to_string()))??;
+    use tauri::Manager as _;
+    // A failure leaves the image unloadable; the tab says so, and nothing else breaks.
+    let _ = app.asset_protocol_scope().allow_file(&resolved);
+    Ok(info)
+}
+
+/// Says that no tab shows this image any more, so the next session does not grant it again.
+#[tauri::command]
+pub(crate) fn image_closed(state: State<'_, Arc<AppState>>, path: String) {
+    state.forget_image(std::path::Path::new(&path));
+}
+
 /// Makes an empty file in a folder of the workspace. Returns its path.
 #[tauri::command]
 pub(crate) fn create_file(

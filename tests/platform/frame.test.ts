@@ -102,6 +102,7 @@ describe('an opened file', () => {
     readOnly: null,
     size: 12,
     hash: 'f'.repeat(32),
+    kind: 'markdown',
   }
 
   it('is read from the open frame', () => {
@@ -122,5 +123,16 @@ describe('an opened file', () => {
     expect(() => decode({ readOnly: 'because' })).toThrow(/readOnly/)
     expect(() => decode({ id: 'seven' })).toThrow(/"id"/)
     expect(decode({ readOnly: 'not-round-trippable' }).readOnly).toBe('not-round-trippable')
+  })
+
+  it('carries what the file opens as, and refuses a kind Rust never sends', () => {
+    const decode = (extra: Record<string, unknown>) =>
+      openedFromFrame(
+        decodeFrame(bufferOf(encodeFrame({ ...header, ...extra }, uniformEndings(), ''))),
+      )
+    expect(decode({ kind: 'text' }).kind).toBe('text')
+    expect(decode({ kind: 'markdown' }).kind).toBe('markdown')
+    expect(() => decode({ kind: 'video' })).toThrow(/file kind/)
+    expect(() => decode({ kind: undefined })).toThrow(/file kind/)
   })
 })

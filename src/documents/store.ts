@@ -1,8 +1,10 @@
 import { computed, shallowRef } from 'vue'
 import { getHost, type OpenedFile } from '@/platform'
+import { isMarkdownName } from '@/features/tree/model'
 import { findPane } from '@/workbench/splitTree'
 import {
   closeTabById,
+  imageTabs,
   onTabClosed,
   openTabFor,
   selectTab,
@@ -10,7 +12,8 @@ import {
   tabsOfDocument,
   workbenchLayout,
 } from '@/workbench/store'
-import type { TabId } from '@/workbench/splitTree'
+import type { PaneId, TabId } from '@/workbench/splitTree'
+import { docIdOf } from '@/workbench/tabs'
 import { Document } from './document'
 import type { Follower } from './follower'
 import { clearDocMeta, docMeta, patchDocMeta, removeDocMeta, setDocMeta } from './meta'
@@ -29,6 +32,7 @@ function publish(doc: Document): void {
     path: doc.path,
     dirty: doc.dirty,
     readOnly: doc.readOnly,
+    kind: doc.kind,
     plainSource: doc.plainSource,
     saveError: docMeta(doc.id)?.saveError ?? null,
     conflict: docMeta(doc.id)?.conflict ?? null,
@@ -76,8 +80,8 @@ export function followerOfTab(tabId: TabId): Follower | undefined {
 
 /** The document shown by a tab, if any. */
 export function documentOfTab(tabId: TabId): Document | undefined {
-  const record = tabRecord(tabId)
-  return record === undefined ? undefined : documents.get(record.docId)
+  const docId = docIdOf(tabRecord(tabId))
+  return docId === undefined ? undefined : documents.get(docId)
 }
 
 /** The document in the focused tab of the focused pane, or undefined when that pane is empty. */
@@ -118,12 +122,16 @@ export function errorKind(error: unknown): string | undefined {
   return undefined
 }
 
-/** The tab to focus for a document that is already open: one in the active pane first. */
-function tabToFocus(docId: number): TabId | undefined {
+/**
+ * The tab to focus for a document that is already open: one in `paneId` (the active pane when
+ * none is named) first. With a pane named and no tab of the document in it, there is none, so the
+ * caller opens one there, as a drop onto a pane asks.
+ */
+function tabToFocus(docId: number, paneId?: PaneId): TabId | undefined {
   const layout = workbenchLayout.value
-  const here = findPane(layout, layout.activePane)?.tabs ?? []
+  const here = findPane(layout, paneId ?? layout.activePane)?.tabs ?? []
   const tabs = tabsOfDocument(docId)
-  return tabs.find((tab) => here.includes(tab)) ?? tabs[0]
+  return tabs.find((tab) => here.includes(tab)) ?? (paneId === undefined ? tabs[0] : undefined)
 }
 
 /**
@@ -150,10 +158,36 @@ export async function openDocument(
 }
 
 /**
- * Opens a file in a tab. A file that is already open is not opened twice: its tab is focused
- * instead. Works with or without a workspace folder, since a file the user chose needs neither.
+ * Opens an image in a tab. Rust checks the path, serves that one file to the image protocol and
+ * says how big it is. An image that is already open is not opened twice: its tab is focused.
  */
-export async function openPath(path: string): Promise<TabId> {
+export async function openImage(path: string, paneId?: PaneId): Promise<TabId> {
+  const host = await getHost()
+  const info = await host.imageInfo(path)
+  const layout = workbenchLayout.value
+  const here = findPane(layout, paneId ?? layout.activePane)?.tabs ?? []
+  const shown = imageTabs().filter(([, tab]) => tab.path === info.path)
+  const existing =
+    shown.find(([id]) => here.includes(id))?.[0] ??
+    (paneId === undefined ? shown[0]?.[0] : undefined)
+  if (existing !== undefined) {
+    selectTab(existing)
+    return existing
+  }
+  return openTabFor({ kind: 'image', path: info.path, size: info.size }, paneId)
+}
+
+/**
+ * Opens a file in a tab: Markdown in the live editor, an image in an image tab, anything else as
+ * plain source. A file that is already open is not opened twice: its tab is focused instead (in
+ * `paneId` when one is named, else in the active pane). Works with or without a workspace folder,
+ * since a file the user chose needs neither.
+ */
+export async function openPath(path: string, paneId?: PaneId): Promise<TabId> {
+  // Markdown is decided by its name here, with no extra round trip; Rust decides everything else.
+  if (!isMarkdownName(path) && (await (await getHost()).fileKind(path)) === 'image') {
+    return openImage(path, paneId)
+  }
   const { doc, opened, isNew } = await openDocument(path)
   if (!isNew) {
     // The file may have changed since this document last read it, with no event to say so (the
@@ -162,13 +196,13 @@ export async function openPath(path: string): Promise<TabId> {
     await noticeDiskChange(present, opened.hash).catch((error: unknown) => {
       reportSyncFailure(present, error)
     })
-    const existing = tabToFocus(doc.id)
+    const existing = tabToFocus(doc.id, paneId)
     if (existing !== undefined) {
       selectTab(existing)
       return existing
     }
   }
-  return openTabFor({ kind: 'markdown', docId: doc.id })
+  return openTabFor({ kind: doc.kind, docId: doc.id }, paneId)
 }
 
 /** Shows the open dialog and opens what the user chose. Failures go to `problem`. */
@@ -358,11 +392,11 @@ export const pendingClose = shallowRef<{ tabId: TabId; docId: number } | null>(n
  * shows closes freely, since its edits stay visible there.
  */
 export function requestCloseTab(tabId: TabId): void {
-  const record = tabRecord(tabId)
-  const doc = record === undefined ? undefined : documents.get(record.docId)
-  if (record !== undefined && doc?.dirty === true && tabsOfDocument(record.docId).length === 1) {
+  const docId = docIdOf(tabRecord(tabId))
+  const doc = docId === undefined ? undefined : documents.get(docId)
+  if (docId !== undefined && doc?.dirty === true && tabsOfDocument(docId).length === 1) {
     selectTab(tabId)
-    pendingClose.value = { tabId, docId: record.docId }
+    pendingClose.value = { tabId, docId }
     return
   }
   closeTabById(tabId)
@@ -390,6 +424,16 @@ function release(docId: number): void {
 }
 
 onTabClosed((tabId, record) => {
+  if (record.kind === 'image') {
+    // Rust forgets the image once no tab shows it, so the next session does not grant it again.
+    if (imageTabs().some(([, tab]) => tab.path === record.path)) return
+    getHost()
+      .then((host) => host.imageClosed(record.path))
+      .catch((error: unknown) => {
+        console.error('Could not tell the host an image closed', error)
+      })
+    return
+  }
   documents.get(record.docId)?.closeFollower(tabId)
   release(record.docId)
 })

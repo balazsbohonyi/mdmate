@@ -101,7 +101,12 @@ export class Document implements FollowerHost {
   path: string
   name: string
   readOnly: ReadOnlyReason | null
-  /** True when the file is above the size cutoff and its tabs show plain source, with no parser. */
+  /** How the file opens: Markdown in the live editor, anything else as plain source. */
+  readonly kind: 'markdown' | 'text'
+  /**
+   * True when its tabs show plain source, with no parser: a file that is not Markdown, or a
+   * Markdown file above the size cutoff.
+   */
   readonly plainSource: boolean
   /** Hash of the bytes last read from or written to disk. */
   diskHash: string
@@ -124,7 +129,8 @@ export class Document implements FollowerHost {
     this.#changed = changed
     this.#touched = options.touched ?? (() => undefined)
     // An explicit choice wins (the perf scenarios make one); otherwise the file's size decides.
-    const parser = options.parser ?? !isLargeFile(opened.size)
+    this.kind = opened.kind === 'markdown' ? 'markdown' : 'text'
+    const parser = options.parser ?? (this.kind === 'markdown' && !isLargeFile(opened.size))
     this.plainSource = !parser
     this.#options = { ...options, parser }
     this.#master = createMasterState(opened.text, [

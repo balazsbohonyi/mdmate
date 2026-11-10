@@ -115,7 +115,7 @@ function resolve(choice: 'save' | 'discard' | 'cancel'): void {
     </button>
   </div>
   <div
-    v-if="!closing && meta?.plainSource"
+    v-if="!closing && meta?.plainSource && meta.kind === 'markdown'"
     role="status"
     data-testid="large-file-notice"
     class="shrink-0 border-b border-border bg-muted px-3 py-1.5 text-chrome"

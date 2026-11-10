@@ -31,7 +31,7 @@ import {
 import { LF, type Endings } from '@/lib/endings'
 import { setHost } from '@/platform'
 import { createMockHost, type MockHost } from '@/platform/mock'
-import { resetWorkbench } from '@/workbench/store'
+import { imageTabs, resetWorkbench } from '@/workbench/store'
 
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
@@ -306,6 +306,32 @@ describe('open documents follow their file (ISC-219)', () => {
     expect(host.files.read('/work/empty/journal/b.md')).toBe('top\n')
     expect(host.files.has('/work/notes/b.md')).toBe(false)
     expect(host.files.has('/work/journal/b.md')).toBe(false)
+  })
+
+  it('an image tab follows a rename, a move, and a folder that holds it, and others stay put', async () => {
+    await start()
+    for (const path of ['/work/notes/deep/p.png', '/work/notes/q.png', '/work/o.png']) {
+      host.files.write(path, 'png')
+      await openPath(path)
+    }
+    const paths = (): string[] =>
+      imageTabs()
+        .map(([, tab]) => tab.path)
+        .sort()
+    expect(paths()).toEqual(['/work/notes/deep/p.png', '/work/notes/q.png', '/work/o.png'].sort())
+    await renameRow('/work/notes/q.png')
+    await commitNaming('r.png')
+    await flush()
+    await renameRow('/work/notes')
+    await commitNaming('journal')
+    await flush()
+    await moveRow('/work/journal', '/work/empty')
+    await flush()
+    expect(paths()).toEqual(
+      ['/work/empty/journal/deep/p.png', '/work/empty/journal/r.png', '/work/o.png'].sort(),
+    )
+    // The moved tab still names a file that is there.
+    expect(host.files.has('/work/empty/journal/r.png')).toBe(true)
   })
 
   it('a deleted file keeps its tab and its text', async () => {

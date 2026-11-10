@@ -16,6 +16,7 @@ function open(path: string, assetUrl?: (path: string) => string): Document {
     readOnly: null,
     size: text.length,
     hash: '0'.repeat(32),
+    kind: 'markdown',
     text,
     endings: uniformEndings(),
   }

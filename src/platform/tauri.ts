@@ -7,6 +7,8 @@ import { parseFollowedLink, parseLinkInfo } from './links'
 import {
   parseCopyReport,
   parseDroppedItems,
+  parseFileKind,
+  parseImageInfo,
   parseMoved,
   parsePaths,
   parseTreeEntries,
@@ -144,6 +146,18 @@ export const tauriHost: Host = {
   },
   async describeDrop(paths) {
     return parseDroppedItems(await invoke<unknown>('drop_describe', { paths }))
+  },
+  async openDropped(paths) {
+    return parseDroppedItems(await invoke<unknown>('drop_open', { paths }))
+  },
+  async fileKind(path) {
+    return parseFileKind(await invoke<unknown>('file_kind', { path }))
+  },
+  async imageInfo(path) {
+    return parseImageInfo(await invoke<unknown>('image_info', { path }))
+  },
+  async imageClosed(path) {
+    await invoke('image_closed', { path })
   },
   async addDroppedRoot(path) {
     return invoke<string>('add_dropped_root', { path })

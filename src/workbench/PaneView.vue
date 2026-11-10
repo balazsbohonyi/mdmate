@@ -2,20 +2,28 @@
 import { computed } from 'vue'
 import { requestCloseTab } from '@/documents/store'
 import EditorHost from './EditorHost.vue'
+import ImageView from './ImageView.vue'
 import PaneNotice from './PaneNotice.vue'
 import type { PaneNode } from './splitTree'
 import { isRaw } from './rawMode'
 import { focusPane, selectTab, tabInfo, tabRecord, tabTitle } from './store'
+import { docIdOf } from './tabs'
 import { beginTabDrag, tabDrag } from './tabDrag'
 import TabStrip from './TabStrip.vue'
 
 const { pane, active } = defineProps<{ pane: PaneNode; active: boolean }>()
 
 const tabs = computed(() => pane.tabs.map(tabInfo))
-/** The document the pane's active tab shows, if it has a tab. */
-const activeDocId = computed(() =>
-  pane.activeTab === null ? null : (tabRecord(pane.activeTab)?.docId ?? null),
+const activeRecord = computed(() =>
+  pane.activeTab === null ? undefined : tabRecord(pane.activeTab),
 )
+/** The document the pane's active tab shows, if it shows one. */
+const activeDocId = computed(() => docIdOf(activeRecord.value) ?? null)
+/** The image the pane's active tab shows, if it shows one. */
+const activeImage = computed(() => {
+  const record = activeRecord.value
+  return record?.kind === 'image' ? record : null
+})
 
 function startDrag(id: string, event: PointerEvent): void {
   beginTabDrag(event, {
@@ -60,6 +68,12 @@ function startDrag(id: string, event: PointerEvent): void {
           />
         </div>
       </template>
+      <ImageView
+        v-else-if="activeImage !== null"
+        :key="pane.activeTab ?? ''"
+        :path="activeImage.path"
+        :size="activeImage.size"
+      />
       <div
         v-else
         class="flex flex-1 items-center justify-center text-muted-foreground"

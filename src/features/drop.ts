@@ -1,5 +1,6 @@
-import { describe, problem } from '@/documents/store'
+import { describe, openPath, problem } from '@/documents/store'
 import { getHost, type Point } from '@/platform'
+import type { PaneId } from '@/workbench/splitTree'
 import { parentPath } from './tree/model'
 import { copyDropInto } from './tree/ops'
 import { addRootFromDrop } from './tree/store'
@@ -23,6 +24,38 @@ function folderUnder(point: Point): string | null {
   return row.dataset.kind === 'file' ? parentPath(path) : path
 }
 
+/** The pane a point is over, or undefined outside every pane (the sidebar, the title bar). */
+function paneUnder(point: Point): PaneId | undefined {
+  const pane = document.elementFromPoint(point.x, point.y)?.closest<HTMLElement>('[data-pane-id]')
+  return pane?.dataset.paneId
+}
+
+/** True when the point is over the text of a document, where an image drop is P9-T2's to handle. */
+function overDocumentText(point: Point): boolean {
+  return document.elementFromPoint(point.x, point.y)?.closest('.cm-content') !== null
+}
+
+/**
+ * Opens the files of a drop in tabs, in the pane they landed on (the active pane when they landed
+ * outside every pane). Rust grants each file only if a native drop delivered it. An image dropped
+ * on a document's text opens nothing here: inserting a link to it is P9-T2.
+ */
+async function openDropped(
+  items: readonly { path: string; fileKind?: string }[],
+  position: Point,
+): Promise<void> {
+  const pane = paneUnder(position)
+  const onText = overDocumentText(position)
+  for (const item of items) {
+    if (item.fileKind === 'image' && onText) continue
+    try {
+      await openPath(item.path, pane)
+    } catch (error) {
+      problem.value = `Could not open ${item.path}: ${describe(error)}`
+    }
+  }
+}
+
 /** Handles one drop at `position`, in page pixels. Failures go to the status bar. */
 export async function handleDrop(paths: readonly string[], position: Point): Promise<void> {
   try {
@@ -43,6 +76,17 @@ export async function handleDrop(paths: readonly string[], position: Point): Pro
     for (const item of items) {
       // A folder anywhere else, including the empty space of the tree, becomes a workspace root.
       if (item.kind === 'folder') await addRootFromDrop(item.path)
+    }
+    // Files anywhere else open in tabs. Rust grants them here, and refuses the lot unless a native
+    // drop delivered every path.
+    if (items.some((item) => item.kind === 'file')) {
+      const opened = await host.openDropped(
+        items.filter((item) => item.kind === 'file').map((item) => item.path),
+      )
+      await openDropped(
+        opened.filter((item) => item.kind === 'file'),
+        position,
+      )
     }
   } catch (error) {
     problem.value = `Could not use the dropped files: ${describe(error)}`

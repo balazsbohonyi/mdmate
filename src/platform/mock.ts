@@ -7,10 +7,12 @@ import type {
   CopyReport,
   DroppedItem,
   FileDragEvent,
+  FileKind,
   Moved,
   MovedDocument,
   Point,
 } from './workspace'
+import { DEMO_IMAGES } from './demoImages'
 import { joinRaw, MockFiles, mockHash, pathKey, splitRaw } from './mockFiles'
 
 /**
@@ -152,6 +154,19 @@ export interface MockHostOptions {
   readonly pickFolder?: () => string | null
   /** Workspace roots the host already has, as if the last run left them. */
   readonly roots?: readonly string[]
+  /**
+   * Pictures the files stand for. The mock's files are text, so an image gets its address and its
+   * size on disk from here; an image not listed is an SVG made from the file's own text, or fails
+   * to load.
+   */
+  readonly images?: Readonly<Record<string, { readonly url: string; readonly bytes: number }>>
+}
+
+/** What a file opens as, by name. Like Rust's `fs::kind`, and just as small. */
+function mockKindOf(path: string): FileKind {
+  if (/.(md|markdown|mdown|mkd|mdx)$/i.test(path)) return 'markdown'
+  if (/.(png|jpe?g|gif|webp|svg|bmp|ico|avif)$/i.test(path)) return 'image'
+  return 'text'
 }
 
 /**
@@ -189,6 +204,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
       readOnly: doc.readOnly,
       size: new TextEncoder().encode(raw).length,
       hash: mockHash(raw),
+      kind: mockKindOf(doc.path),
       text,
       endings,
     }
@@ -441,6 +457,42 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
         }),
       )
     },
+    openDropped(paths) {
+      const known = new Set(drops.flat().map((path) => pathKey(path)))
+      if (paths.some((path) => !known.has(pathKey(path)))) {
+        return Promise.reject(
+          hostError('not-allowed', 'access to a path no drop delivered is not allowed'),
+        )
+      }
+      return Promise.resolve(
+        paths.map((path): DroppedItem => {
+          if (files.isFolder(path)) return { path, kind: 'folder' }
+          if (!files.has(path)) return { path, kind: 'other' }
+          return { path, kind: 'file', fileKind: mockKindOf(path) }
+        }),
+      )
+    },
+    fileKind(path) {
+      return attempt(() => {
+        if (!files.has(path)) throw hostError('not-found', `${path} does not exist`)
+        return mockKindOf(path)
+      })
+    },
+    imageInfo(path) {
+      return attempt(() => {
+        const canonical = files.canonicalPath(path)
+        const raw = files.read(path)
+        if (canonical === undefined || raw === undefined) {
+          throw hostError('not-found', `${path} does not exist`)
+        }
+        if (mockKindOf(canonical) !== 'image') throw hostError('invalid', 'not an image')
+        const listed = options.images?.[canonical]
+        return { path: canonical, size: listed?.bytes ?? new TextEncoder().encode(raw).length }
+      })
+    },
+    imageClosed() {
+      return Promise.resolve()
+    },
     createFile(parent, name) {
       return attempt(() => {
         checkName(name)
@@ -595,6 +647,8 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     },
     windowControls: mockWindowControls(),
     assetUrl(path) {
+      const listed = options.images?.[files.canonicalPath(path) ?? path]
+      if (listed !== undefined) return listed.url
       // The mock's files are text, so an image here is an SVG. Anything else, or a file that is
       // not there, gets an address that fails to load, as a missing file does in the real app.
       const raw = path.toLowerCase().endsWith('.svg') ? files.read(path) : undefined
@@ -691,6 +745,12 @@ const DEMO_FILES: Readonly<Record<string, string>> = {
   '/demo/docs/guide.md': '# Guide\n\nA file in a folder.\n',
   '/demo/docs/todo.txt': 'buy milk\n',
   '/demo/docs/logo.png': 'not really a png',
+  '/demo/docs/big.png': 'a large picture, drawn from demoImages',
+  '/demo/docs/scripted.svg':
+    '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" viewBox="0 0 400 200">' +
+    '<rect width="400" height="200" fill="gold"/>' +
+    '<text x="24" y="112" font-size="26">An SVG with a script in it</text>' +
+    "<script>top.postMessage('SVG-RAN', '*'); document.title = 'SVG-RAN'</script></svg>",
 }
 
 // The Open dialog cycles through the Markdown files that sit directly in the demo folder.
@@ -702,6 +762,7 @@ let demoNext = 0
 /** Browser stand-in, so UI work runs under pnpm dev with no Rust. */
 export const mockHost: MockHost = createMockHost({
   files: DEMO_FILES,
+  images: DEMO_IMAGES,
   // Each time Open is used, the next demo file: there is no real dialog in a browser tab.
   pick: () => {
     const path = demoOrder[demoNext % demoOrder.length]
