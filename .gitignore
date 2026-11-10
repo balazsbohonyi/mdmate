@@ -48,3 +48,6 @@ Thumbs.db
 graphify-out/
 .graphify_*.json
 .graphify_python
+
+# Local notes (UAT lists and the like), not committed
+.docs/
