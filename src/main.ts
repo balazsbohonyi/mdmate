@@ -3,7 +3,10 @@ import App from './App.vue'
 import './styles/tokens.css'
 // Registers the Ctrl+click handler for links with the document store.
 import './documents/links'
+import { blockNativeMenu } from './lib/nativeMenu'
 
+// Before anything draws, so the browser's own menu never shows outside text.
+blockNativeMenu()
 createApp(App).mount('#app')
 performance.mark('app-mounted')
 
