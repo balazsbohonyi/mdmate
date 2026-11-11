@@ -12,7 +12,6 @@ import { FrontmatterWidget } from '@/editor/livePreview/blocks/widgets'
 import {
   FRONTMATTER_MAX_LINES,
   frontmatterEnd,
-  frontmatterKeys,
 } from '@/editor/livePreview/frontmatter'
 import { blockStateOf, drawn, mountPreview } from '../helpers/blocks'
 import { scanPreview } from '@/editor/livePreview/scan'
@@ -78,33 +77,6 @@ describe('where frontmatter is', () => {
   })
 })
 
-describe('the label of the pill', () => {
-  it('lists the top-level keys in order', () => {
-    expect(frontmatterKeys('---\ntitle: A\ntags:\n  - x\n  - y\ndate: 2020-01-01\n---')).toBe(
-      'title, tags, date',
-    )
-  })
-
-  it('skips nested keys, list items, comments and text that is not a key', () => {
-    const source =
-      '---\nroot:\n  child: 1\n- item: 2\n# note: x\nplain text\nhttp://x.test/a\nname: v\n---'
-    expect(frontmatterKeys(source)).toBe('root, name')
-  })
-
-  it('does not take the fences for keys, and is empty when there are none', () => {
-    expect(frontmatterKeys('---\n---')).toBe('')
-    expect(frontmatterKeys('---\njust text\n---')).toBe('')
-  })
-
-  it('cuts a long list with an ellipsis', () => {
-    const keys = Array.from({ length: 30 }, (_, i) => `key${String(i)}: v`)
-    const label = frontmatterKeys(['---', ...keys, '---'].join('\n'))
-    expect(label.endsWith('…')).toBe(true)
-    expect(label.length).toBeLessThanOrEqual(49)
-    expect(label.startsWith('key0, key1, key2')).toBe(true)
-  })
-})
-
 describe('the block layer', () => {
   it('draws the block as one pill over the whole range', () => {
     expect(drawn(blockStateOf(DOC, DOC.length))).toEqual([`frontmatter 0-${String(END)}`])
@@ -117,11 +89,10 @@ describe('the block layer', () => {
     expect(drawn(blockStateOf(DOC, END + 1))).toEqual([`frontmatter 0-${String(END)}`])
   })
 
-  it('carries the label and the source into the widget', () => {
+  it('carries the source into the widget', () => {
     const [info] = blocksOf(blockStateOf(DOC, DOC.length))
     expect(info?.widget).toBeInstanceOf(FrontmatterWidget)
     const widget = info?.widget as FrontmatterWidget
-    expect(widget.keys).toBe('title, tags')
     expect(widget.source).toBe(FRONT)
   })
 
@@ -135,8 +106,8 @@ describe('the block layer', () => {
   })
 
   it('treats the same text as the same widget, and other text as another', () => {
-    expect(new FrontmatterWidget('a', FRONT).eq(new FrontmatterWidget('a', FRONT))).toBe(true)
-    expect(new FrontmatterWidget('a', FRONT).eq(new FrontmatterWidget('a', `${FRONT} `))).toBe(
+    expect(new FrontmatterWidget(FRONT).eq(new FrontmatterWidget(FRONT))).toBe(true)
+    expect(new FrontmatterWidget(FRONT).eq(new FrontmatterWidget(`${FRONT} `))).toBe(
       false,
     )
   })
@@ -200,7 +171,7 @@ describe('the block layer', () => {
     state = state.update({ selection: { anchor: state.doc.length } }).state
     const pills = blocksOf(state)
     expect(pills).toHaveLength(1)
-    expect((pills[0]?.widget as FrontmatterWidget).keys).toBe('author, title, tags')
+    expect((pills[0]?.widget as FrontmatterWidget).source).toContain('author: me')
     expect(pills[0]?.to).toBe(state.doc.toString().indexOf('\n\n# Body'))
   })
 
@@ -263,11 +234,12 @@ describe('the inline layer leaves the block alone', () => {
 })
 
 describe('the page', () => {
-  it('shows a pill with the label and the keys, and none of the YAML', () => {
+  it('shows a pill that says only Frontmatter, no key names and none of the YAML (ISC-238)', () => {
     const view = mount(DOC, DOC.length)
     const pill = view.contentDOM.querySelector('.cm-md-frontmatter-pill')
     expect(pill?.querySelector('.cm-md-frontmatter-label')?.textContent).toBe('Frontmatter')
-    expect(pill?.querySelector('.cm-md-frontmatter-keys')?.textContent).toBe('title, tags')
+    expect(pill?.textContent).toBe('Frontmatter')
+    expect(pill?.children).toHaveLength(1)
     expect(view.contentDOM.textContent).not.toContain('title: Hello')
     expect(view.contentDOM.textContent).toContain('Body')
   })
@@ -276,12 +248,6 @@ describe('the page', () => {
     const pill = mount(DOC, DOC.length).contentDOM.querySelector('.cm-md-frontmatter-pill')
     expect(pill?.getAttribute('data-hint')).toBe('Show the frontmatter')
     expect(pill?.hasAttribute('title')).toBe(false)
-  })
-
-  it('shows no keys part for a block without keys', () => {
-    const view = mount('---\n---\n\nend', 11)
-    expect(view.contentDOM.querySelector('.cm-md-frontmatter-pill')).not.toBeNull()
-    expect(view.contentDOM.querySelector('.cm-md-frontmatter-keys')).toBeNull()
   })
 
   it('opens to the YAML when it is pressed, and closes when the caret leaves', () => {

@@ -31,28 +31,3 @@ export function frontmatterEnd(doc: Text): number | null {
   }
   return null
 }
-
-/** How many characters of keys the pill lists before it stops. */
-const KEYS_LIMIT = 48
-
-/**
- * The top-level keys of a frontmatter block, joined by commas, for the pill. Only a plain `key:`
- * at the start of a line counts; nested keys and list items do not. Long lists are cut with an
- * ellipsis. The text is never parsed as YAML: this is a label, and a wrong guess costs nothing.
- */
-export function frontmatterKeys(source: string): string {
-  const keys: string[] = []
-  const lines = source.split('\n')
-  // The first and last lines are the fences.
-  for (const line of lines.slice(1, -1)) {
-    const match = /^([A-Za-z0-9_][A-Za-z0-9_ .-]*?)[ \t]*:(?:[ \t]|$)/.exec(line)
-    if (match?.[1] !== undefined) keys.push(match[1])
-  }
-  let out = ''
-  for (const key of keys) {
-    const next = out === '' ? key : `${out}, ${key}`
-    if (next.length > KEYS_LIMIT) return `${out === '' ? key.slice(0, KEYS_LIMIT) : out}…`
-    out = next
-  }
-  return out
-}

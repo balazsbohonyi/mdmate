@@ -172,18 +172,16 @@ export class TableWidget extends BlockWidget {
 const PILL_HEIGHT = 44
 
 /**
- * The frontmatter block drawn as a pill: a label and the block's top-level keys. Pressing it puts
+ * The frontmatter block drawn as a pill that says only "Frontmatter". Pressing it puts
  * the caret at the start of the block, which is what makes the pill give way to the YAML.
  */
 export class FrontmatterWidget extends BlockWidget {
   readonly kind = 'frontmatter'
-  readonly keys: string
   /** The block's own text, which is what makes two widgets for it the same widget. */
   readonly source: string
 
-  constructor(keys: string, source: string) {
+  constructor(source: string) {
     super()
-    this.keys = keys
     this.source = source
   }
 
@@ -205,12 +203,6 @@ export class FrontmatterWidget extends BlockWidget {
     label.className = 'cm-md-frontmatter-label'
     label.textContent = 'Frontmatter'
     pill.append(label)
-    if (this.keys !== '') {
-      const keys = document.createElement('span')
-      keys.className = 'cm-md-frontmatter-keys'
-      keys.textContent = this.keys
-      pill.append(keys)
-    }
     wrap.append(pill)
     wrap.addEventListener('mousedown', (event) => {
       if (event.button !== 0) return

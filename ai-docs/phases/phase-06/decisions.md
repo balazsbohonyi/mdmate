@@ -280,3 +280,7 @@ The owner saw F2 beside Rename in the tab menu but not in the tree menu, while b
 - **Known and accepted (untested.md row 44).** Ctrl+W, F2 and Shift+F12 act on the active tab, so a hint on a right-clicked background tab, or on a tree row other than the active tab's file, names the key that works on the active tab. Option B (show them only for the active tab) was not chosen.
 - **Evidence.** Web tests for both menus; four deliberate breaks, each caught; real debug window shows the keys in the tree file menu, the tree folder menu and the tab menu (4 of 4 checks, a screenshot read).
 - **Also fixed while writing this.** Earlier edits had left stray backticks at the start of lines in this file and in `untested.md` (tables did not render) and a few `§` placeholders; both are restored.
+
+## UAT findings, round 2 (ISC-236 onward)
+
+**Frontmatter pill (ISC-238).** The pill shows the word "Frontmatter" and nothing else. The key-listing code was deleted, not hidden: `frontmatterKeys`, the `keys` field on the scan item and the widget, and the style rule. The keys are still one click away, in the YAML the pill gives way to.

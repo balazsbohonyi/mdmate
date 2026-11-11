@@ -6,7 +6,7 @@
  */
 import { syntaxTree } from '@codemirror/language'
 import type { EditorState, Text } from '@codemirror/state'
-import { frontmatterEnd, frontmatterKeys } from '../frontmatter'
+import { frontmatterEnd } from '../frontmatter'
 import { imageContext, resolveImageAddress, type ImageAddress } from './image'
 
 type Tree = ReturnType<typeof syntaxTree>
@@ -67,13 +67,12 @@ export interface ImageItem {
 
 /**
  * The YAML frontmatter at the start of the document, drawn as a pill. It always starts at 0 and
- * ends with its closing line. `keys` is the pill's label.
+ * ends with its closing line. The pill says only "Frontmatter"; the keys are in the text.
  */
 export interface FrontmatterItem {
   readonly kind: 'frontmatter'
   readonly from: 0
   readonly to: number
-  readonly keys: string
   /** The block's own text, which is what makes two widgets for it the same widget. */
   readonly source: string
 }
@@ -311,7 +310,6 @@ export function scanBlocks(
         kind: 'frontmatter',
         from: 0,
         to: frontmatter,
-        keys: frontmatterKeys(source),
         source,
       })
     }
