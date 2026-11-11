@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 /**
- * ISC-242: the browser's own right-click menu (with "Inspect") never shows in the app, except on
- * text, where it is the only way to cut, copy and paste. The app's own menus must still open.
+ * ISC-251 (which replaces ISC-242's exception for text): the browser's own right-click menu (with
+ * "Inspect") never shows anywhere in the app, editor text and text boxes included. The app's own
+ * menus must still open.
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -10,7 +11,7 @@ import { nextTick, type App } from 'vue'
 import { tooltipApp } from '../helpers/tooltips'
 import { openPath, resetDocuments } from '@/documents/store'
 import { resetTree, restoreWorkspace } from '@/features/tree/store'
-import { blockNativeMenu, keepsNativeMenu, opensAppMenu } from '@/lib/nativeMenu'
+import { blockNativeMenu, opensAppMenu } from '@/lib/nativeMenu'
 import { setHost } from '@/platform'
 import { createMockHost } from '@/platform/mock'
 import { clearCommands } from '@/workbench/commands'
@@ -80,7 +81,7 @@ const pick = (page: HTMLElement, id: string): Element => {
   return found
 }
 
-describe('where the browser menu is cancelled (ISC-242)', () => {
+describe('where the browser menu is cancelled (ISC-251)', () => {
   it('cancels it on the sidebar, the status bar, an empty pane, the title bar and an image', () => {
     const page = add(
       '<aside id="s"><p id="header">Folders</p></aside><footer id="f">status</footer><div id="pane"></div><header id="t"></header><img id="i" alt="">',
@@ -89,11 +90,11 @@ describe('where the browser menu is cancelled (ISC-242)', () => {
       expect(rightClick(pick(page, id)), id).toBe(true)
   })
 
-  it('leaves it on editor text, text boxes and editable elements', () => {
+  it('cancels it on editor text, text boxes and editable elements too', () => {
     const page = add(
       '<div class="cm-content"><div class="cm-line"><span id="word">text</span></div></div><input id="in"><textarea id="ta"></textarea><div contenteditable="true"><b id="ce">x</b></div>',
     )
-    for (const id of ['word', 'in', 'ta', 'ce']) expect(rightClick(pick(page, id)), id).toBe(false)
+    for (const id of ['word', 'in', 'ta', 'ce']) expect(rightClick(pick(page, id)), id).toBe(true)
   })
 
   it('cancels it on an element that says it is not editable', () => {
@@ -101,10 +102,9 @@ describe('where the browser menu is cancelled (ISC-242)', () => {
     expect(rightClick(pick(page, 'x'))).toBe(true)
   })
 
-  it('says what keeps the menu, for a target that is not an element too', () => {
-    expect(keepsNativeMenu(null)).toBe(false)
-    expect(keepsNativeMenu(document)).toBe(false)
-    expect(keepsNativeMenu(pick(add('<input id="a">'), 'a'))).toBe(true)
+  it('knows a target that is not an element is not an app menu', () => {
+    expect(opensAppMenu(null)).toBe(false)
+    expect(opensAppMenu(document)).toBe(false)
   })
 
   it('leaves a trigger of an app menu alone, since its menu opens only on an event nobody cancelled', () => {

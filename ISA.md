@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 210/259
+progress: 211/259
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-11T20:20:57Z
+updated: 2026-11-11T20:24:04Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -626,7 +626,7 @@ Why: an everyday editor starts, keeps and manages files without sending you to E
 - [x] ISC-239: While Ctrl (Cmd) is held and the pointer is over a link that Ctrl+click follows, the cursor is a pointer; over plain text, a missing link, a table-cell link or with the keys let go, it is not.
 - [x] ISC-240: While a tree row is dragged the cursor is a closed hand over a folder it may move into and a not-allowed sign everywhere else; the normal cursor is back after a drop or Escape.
 - [x] ISC-241: Pressing a resize handle, the sidebar edge or a split handle between panes, gives the handle keyboard focus, so the Left and Right arrow keys resize it and never move the editor caret.
-- [x] ISC-242: The browser's own right-click menu (the one with "Inspect") never shows anywhere in the app except on editor text and text boxes; the tab menu and the tree menu still open.
+- [x] ISC-242: The browser's own right-click menu (the one with "Inspect") never shows anywhere in the app except on editor text and text boxes; the tab menu and the tree menu still open. (The exception for text was removed on 2026-11-11 by ISC-251.)
 - [x] ISC-243: Copy Path and Copy Relative Path write the same kind of separator: backslashes for a Windows path, forward slashes for any other; the relative path never mixes the two.
 - [x] ISC-244: No error shown to the user contains an OS error code; saving to a file the OS marks read-only says the file is read-only and points to Save As, and other I/O failures are worded in plain sentences.
 - [x] ISC-245: A tab opened for the first time in a pane starts at its caret (the top for a new file), whatever the tab before it was scrolled to; a tab that was shown before comes back to the place it was left.
@@ -635,7 +635,7 @@ Why: an everyday editor starts, keeps and manages files without sending you to E
 - [x] ISC-248: Every scrolling area (editor, sidebar tree, palette and menu lists, panels) shows a thin, rounded, themed scrollbar with no arrow buttons, in both themes; the tab strip shows none.
 - [ ] ISC-249: A setting (and a palette command) turns the F12 developer tools on or off while the app runs; a release build has them off until the setting turns them on.
 - [x] ISC-250: A tab with unsaved changes shows its dot centred exactly where the close button's X appears, in the same 20 px slot, and the tab's label does not change width when the pointer enters the tab.
-- [ ] ISC-251: The browser's right-click menu (Inspect, Cut, Copy, Paste) never appears anywhere in the app, editor text and text boxes included; the tab menu and the file tree menu still open.
+- [x] ISC-251: The browser's right-click menu (Inspect, Cut, Copy, Paste) never appears anywhere in the app, editor text and text boxes included; the tab menu and the file tree menu still open.
 - [ ] ISC-252: Renaming `A/a.md` to `A/b.md` rewrites only the links that lead to `A/a.md`: a link to `B/a.md` is left alone, whether it sits in a file at the root, in `A` or in `B`.
 - [ ] ISC-253: The scans behind rename, move and References read only Markdown files (md, markdown, mdown, mkd, mdx, any case) and never enter a `node_modules` folder; Quick Open still lists every file.
 - [ ] ISC-254: With the sidebar tree focused: Up/Down move the selected row without opening it, Right expands a folder or steps into its first child, Left collapses or steps to the parent, Home and End go to the first and last row, Enter toggles a folder or opens a file and moves focus into it, Space opens a file and keeps focus in the tree; a modified arrow (Alt, Ctrl, Meta) is left to the global shortcuts.
@@ -976,7 +976,7 @@ Why: an everyday editor starts, keeps and manages files without sending you to E
 - ISC-248: `tests/styles/scrollbar.test.ts` (4): the global rules and both token uses are present, both themes define the tokens, no source sets a standard scrollbar property other than none, the tab strip keeps its bar hidden; `tests/styles/themes.test.ts` (token parity and gamut) passes with the new tokens (15 in the folder). Broken on purpose: renaming the arrow-button rule fails the first test. Real debug window: the editor and the tree both measure a 10 px bar, the tab strip 0, the computed thumb is `oklch(0.6 0.014 262 / 0.38)` with a 9999 px radius; screenshots of the sidebar and the editor edge in dark and in light show a thin rounded bar with no arrows. Not run for real: the palette and menu lists (same global rule). Release-build scroll-stability and tab-switch perf are re-run at the end of the round.
 - ISC-249: Open: planned in P8-T1 (`ai-docs/tasks.md`, `ai-docs/phases/phase-08/plan.md`). Phase 6 only established the facts: the source check above, and `[profile.release]` in `Cargo.toml` sets no `debug-assertions`. A try with real F12 on the debug and the release exe could not be automated (a synthetic key press and a focused SendKeys press opened nothing even in the debug build, so the check had no positive control), so the release behaviour rests on the source reading, to be checked by hand: press F12 in a release build.
 - ISC-250: `tests/workbench/tabStripItem.test.ts` (3): the dot and the close button are children of one `size-5` slot (`data-tab-slot`, grid, centred, `ml-auto`) that is the last thing in the tab; the dot is hidden and the button shown on tab hover; a clean tab has no dot and its button stays in the slot. Broken on purpose, caught: `place-items-center` removed from the slot. Real debug window (own WebView2 profile, since the owner's dev app was running): dirty tab with the pointer away shows the 8 px dot, centre (320, 49.5); with the pointer over it the X shows with centre (320, 49.5), a difference of 0 px on both axes; the label (30.41 px) and the tab (96 px) are the same width in both states. Screenshots of both states looked right.
-- ISC-251: Open: in progress.
+- ISC-251: `tests/shell/nativeMenu.test.ts` (8): the browser menu is cancelled on the sidebar, status bar, an empty pane, the title bar, an image, editor text, `input`, `textarea` and editable elements; a trigger of an app menu is left alone; the tab menu still opens; `main.ts` installs it before mount. Broken on purpose, caught: an exception for `input` put back. Real debug window (own WebView2 profile): right-click on the sidebar header, status bar, title bar, empty tab strip, empty tree space, editor text, the palette box and the rename box all cancelled the event (the page's own `contextmenu` listener saw `defaultPrevented`, and no `[role=menu]` appeared); right-click on a tab and on a tree row opened the app's menus (1 menu each); Ctrl+A, Ctrl+C, End, Ctrl+V still copied and pasted in the editor (17 to 30 characters). Not tried: Shift+F10 and the Menu key.
 - ISC-252: Open: in progress.
 - ISC-253: Open: in progress.
 - ISC-254: Open: in progress.
