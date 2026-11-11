@@ -82,7 +82,7 @@ Mark `[x]` only when the task's "Done when" in its phase plan holds. Each task l
 
 ## Phase 8: Configuration ([plan](phases/phase-08/plan.md))
 
-- [ ] P8-T1: Settings and palette toggles — closes ISC-147, ISC-148, ISC-153
+- [ ] P8-T1: Settings and palette toggles — closes ISC-147, ISC-148, ISC-153, ISC-249
 - [ ] P8-T2: Keybindings — closes ISC-149
 - [ ] P8-T3: Theme switching and user themes — closes ISC-145, ISC-146, ISC-150, ISC-151, ISC-173
 - [ ] P8-T4: Portable mode — closes ISC-152

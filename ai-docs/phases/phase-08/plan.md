@@ -6,7 +6,9 @@
 
 `settings.json` opens inside mdmate, validates on save and applies live. Invalid input keeps the last good values with a notice. Common toggles appear in the palette.
 
-**Done when:** a saved change applies with no restart.
+**Developer tools (ISC-249).** A `devtools` setting, with a palette toggle, turns the F12 developer tools on or off. Today they open only in a debug build and never in a release build, because `Cargo.toml` does not enable Tauri's `devtools` feature. The setting needs that feature compiled in and then switches the tools at runtime on the window (`open_devtools`, `close_devtools`), and F12 only does something while the setting is on. The release default is off.
+
+**Done when:** a saved change applies with no restart, and F12 follows the `devtools` setting in a release build.
 
 ## P8-T2: Keybindings
 
