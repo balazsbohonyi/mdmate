@@ -63,6 +63,10 @@ const input = useTemplateRef('input')
 - A menu trigger never sits inside a tooltip trigger. A tooltip and a menu each anchor to the nearest popper root, so a `DropdownMenuTrigger` inside a `HoverHint` leaves its menu with no anchor and it stays at the top-left corner of the window. Put the `HoverHint` around the whole menu (`<HoverHint><span><DropdownMenu>...</DropdownMenu></span></HoverHint>`), as `TabStrip.vue` does. jsdom does not show this; check a menu with a hint in the real window.
 - A disabled control takes no pointer events: put the trigger (`as-child`) on a wrapper element around it.
 
+## Scrollbars (project call)
+
+- One global style in `styles/tokens.css` makes every scrollbar thin and rounded, from the `--scrollbar-thumb` tokens. Do not use a `ScrollArea` component (it would replace the editor's and the tree's scrolling elements) and never set `scrollbar-width` or `scrollbar-color` on an element, which makes Chromium ignore the global rule there. To hide a bar use `[scrollbar-width:none] [&::-webkit-scrollbar]:hidden`, as the tab strip does. `tests/styles/scrollbar.test.ts` checks it.
+
 ## Security
 
 - Render document text with interpolation. `v-html` stays unused.

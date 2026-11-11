@@ -85,6 +85,8 @@
   --color-statusbar-foreground: var(--statusbar-foreground);
   --color-handle: var(--handle);
   --color-handle-active: var(--handle-active);
+  --color-scrollbar-thumb: var(--scrollbar-thumb);
+  --color-scrollbar-thumb-hover: var(--scrollbar-thumb-hover);
   --color-drop-preview: var(--drop-preview);
 
   --color-selection: var(--selection);
@@ -142,4 +144,31 @@ html[data-tree-drag='move'] * {
 html[data-tree-drag='blocked'],
 html[data-tree-drag='blocked'] * {
   cursor: not-allowed !important;
+}
+
+/*
+ * Thin, quiet scrollbars everywhere (ISC-248): a 6px rounded thumb on a clear track, no arrow
+ * buttons, brighter under the pointer. They are WebKit pseudo-elements, which the WebView honours.
+ * Do not add `scrollbar-width` or `scrollbar-color` here: with either set on an element,
+ * Chromium ignores these rules for it. The tab strip hides its bar on its own element.
+ */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+::-webkit-scrollbar-button {
+  display: none;
 }
