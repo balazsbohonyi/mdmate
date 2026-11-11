@@ -14,7 +14,7 @@ import NameInput from './NameInput.vue'
 import { FALLBACK_VIEWPORT_HEIGHT, ROW_HEIGHT, visibleWindow, type TreeRow } from './model'
 import {
   commitNaming,
-  deleteRow,
+  requestDelete,
   deleteSelected,
   moveProblem,
   moveRow,
@@ -148,7 +148,7 @@ function menuRename(): void {
 }
 function menuDelete(): void {
   const path = menuPath()
-  if (path !== null) void deleteRow(path)
+  if (path !== null) void requestDelete(path)
 }
 function menuReveal(): void {
   const path = menuPath()

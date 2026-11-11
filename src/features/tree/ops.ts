@@ -1,7 +1,8 @@
 import { shallowRef } from 'vue'
-import { describe, documentMoved, problem } from '@/documents/store'
+import { allDocuments, describe, documentMoved, problem } from '@/documents/store'
 import { moveWithLinks } from '@/features/links/rewrite'
-import { imageTabs, setImagePath } from '@/workbench/store'
+import type { TabId } from '@/workbench/splitTree'
+import { closeTabById, imageTabs, setImagePath, tabsOfDocument } from '@/workbench/store'
 import { nameProblem } from '@/lib/fileNames'
 import { getHost, type ClashAnswer, type ClashChoice, type Moved } from '@/platform'
 import { baseName, parentPath } from './model'
@@ -17,6 +18,7 @@ import {
   samePath,
   selectedPath,
   startNaming,
+  treeRows,
   workspaceRoots,
 } from './store'
 
@@ -136,9 +138,71 @@ export async function moveRow(path: string, folder: string): Promise<void> {
   }
 }
 
-/** Sends a file or folder to the Recycle Bin. Open tabs keep their text. */
+/** The tabs that show a file, or any file under a folder, and how many hold unsaved edits (ISC-228). */
+function tabsUnder(path: string): { tabs: TabId[]; unsaved: number } {
+  const tabs: TabId[] = []
+  let unsaved = 0
+  for (const [id, tab] of imageTabs()) if (isUnder(tab.path, path)) tabs.push(id)
+  for (const doc of allDocuments()) {
+    if (doc.untitled || !isUnder(doc.path, path)) continue
+    tabs.push(...tabsOfDocument(doc.id))
+    if (doc.dirty) unsaved++
+  }
+  return { tabs, unsaved }
+}
+
+/** The question on screen before a delete, or null (ISC-227). */
+export interface DeletePrompt {
+  readonly path: string
+  readonly name: string
+  readonly folder: boolean
+  /** Open tabs that close with it. */
+  readonly tabs: number
+  /** Of the files behind those tabs, how many hold edits that were never saved. */
+  readonly unsaved: number
+}
+export const deletePrompt = shallowRef<DeletePrompt | null>(null)
+
+/**
+ * Asks before deleting a file or folder. Nothing is deleted until `confirmDelete`. A workspace
+ * root skips the question: it is refused, and the refusal says to use Remove Folder.
+ */
+export function requestDelete(path: string): Promise<void> {
+  if (workspaceRoots.value.some((root) => samePath(root, path))) return deleteRow(path)
+  const row = treeRows.value.find(
+    (r) => (r.kind === 'file' || r.kind === 'folder') && samePath(r.path, path),
+  )
+  const { tabs, unsaved } = tabsUnder(path)
+  deletePrompt.value = {
+    path,
+    name: baseName(path),
+    folder: row?.kind === 'folder',
+    tabs: tabs.length,
+    unsaved,
+  }
+  return Promise.resolve()
+}
+
+/** The owner said no. */
+export function cancelDelete(): void {
+  deletePrompt.value = null
+}
+
+/** The owner said yes. `asked` is the question they answered, for a caller whose own click already closed it. */
+export async function confirmDelete(
+  asked: DeletePrompt | null = deletePrompt.value,
+): Promise<void> {
+  deletePrompt.value = null
+  if (asked !== null) await deleteRow(asked.path)
+}
+
+/**
+ * Sends a file or folder to the Recycle Bin, then closes every tab of it, with or without unsaved
+ * edits: the question was answered before this runs (ISC-228).
+ */
 export async function deleteRow(path: string): Promise<void> {
   problem.value = null
+  const { tabs } = tabsUnder(path)
   try {
     const host = await getHost()
     await host.deleteEntry(path)
@@ -146,6 +210,7 @@ export async function deleteRow(path: string): Promise<void> {
     problem.value = `Could not delete ${baseName(path)}: ${describe(error)}`
     return
   }
+  for (const id of tabs) closeTabById(id)
   forgetPath(path)
   const holder = parentPath(path)
   if (holder !== null) void loadFolder(holder)
@@ -161,10 +226,10 @@ export async function revealInFileManager(path: string): Promise<void> {
   }
 }
 
-/** Deletes the selected row, for the Delete key. */
+/** Asks to delete the selected row, for the Delete key. */
 export function deleteSelected(): Promise<void> {
   const path = selectedPath.value
-  return path === null ? Promise.resolve() : deleteRow(path)
+  return path === null ? Promise.resolve() : requestDelete(path)
 }
 
 /** Renames the selected row, for F2. */

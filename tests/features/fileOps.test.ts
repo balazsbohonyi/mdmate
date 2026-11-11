@@ -9,15 +9,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick, type App } from 'vue'
 import { tooltipApp } from '../helpers/tooltips'
 import { docMeta } from '@/documents/meta'
-import { openPath, problem, resetDocuments } from '@/documents/store'
+import {
+  allDocuments,
+  documentOfTab,
+  followerOfTab,
+  openPath,
+  problem,
+  resetDocuments,
+} from '@/documents/store'
 import FileTree from '@/features/tree/FileTree.vue'
 import {
+  cancelDelete,
   commitNaming,
+  confirmDelete,
+  deletePrompt,
   deleteRow,
   moveRow,
   newFileIn,
   newFolderIn,
   renameRow,
+  requestDelete,
   revealInFileManager,
 } from '@/features/tree/ops'
 import {
@@ -334,15 +345,6 @@ describe('open documents follow their file (ISC-219)', () => {
     // The moved tab still names a file that is there.
     expect(host.files.has('/work/empty/journal/r.png')).toBe(true)
   })
-
-  it('a deleted file keeps its tab and its text', async () => {
-    await start()
-    await openPath('/work/notes/a.md')
-    const id = idAt('/work/notes/a.md')
-    await deleteRow('/work/notes/a.md')
-    await flush()
-    expect(docMeta(id)?.path).toBe('/work/notes/a.md')
-  })
 })
 
 describe('moving (ISC-102)', () => {
@@ -536,7 +538,28 @@ describe('the drawn tree', () => {
       .querySelector('[data-file-tree]')
       ?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true }))
     await flush()
+    // It asks first; nothing is gone yet (ISC-227).
+    expect(deletePrompt.value?.path).toBe('/work/Zeta.txt')
+    expect(host.recycled).toEqual([])
+    await confirmDelete()
+    await flush()
     expect(host.recycled.map((file) => file.path)).toEqual(['/work/Zeta.txt'])
+  })
+
+  it('Delete in the context menu asks first, like the key (ISC-227)', async () => {
+    const root = await ready()
+    row(root, '/work/Zeta.txt').dispatchEvent(
+      new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }),
+    )
+    await flush()
+    const item = [...document.body.querySelectorAll<HTMLElement>('[role=menuitem]')].find(
+      (el) => el.textContent.trim() === 'Delete',
+    )
+    expect(item).toBeDefined()
+    item?.click()
+    await flush()
+    expect(deletePrompt.value?.path).toBe('/work/Zeta.txt')
+    expect(host.recycled).toEqual([])
   })
 
   it('Delete and F2 do nothing while a name is being typed', async () => {
@@ -643,5 +666,99 @@ describe('the drawn tree', () => {
     await toggleFolder('/work/notes')
     await flush()
     expect(root.querySelector('[data-row-path="/work/notes/a.md"]')).not.toBeNull()
+  })
+})
+
+describe('asking before a delete (ISC-227)', () => {
+  it('asks first and deletes nothing until the owner confirms', async () => {
+    await start()
+    await requestDelete('/work/Zeta.txt')
+    expect(deletePrompt.value).toMatchObject({
+      path: '/work/Zeta.txt',
+      name: 'Zeta.txt',
+      folder: false,
+    })
+    expect(host.recycled).toEqual([])
+    expect(host.files.has('/work/Zeta.txt')).toBe(true)
+    await confirmDelete()
+    await flush()
+    expect(deletePrompt.value).toBeNull()
+    expect(host.recycled.map((file) => file.path)).toEqual(['/work/Zeta.txt'])
+  })
+
+  it('leaves the file alone when the owner cancels', async () => {
+    await start()
+    await requestDelete('/work/Zeta.txt')
+    cancelDelete()
+    await flush()
+    expect(deletePrompt.value).toBeNull()
+    expect(host.recycled).toEqual([])
+    expect(host.files.has('/work/Zeta.txt')).toBe(true)
+  })
+
+  it('says a folder is a folder, and does not ask about a workspace root', async () => {
+    await start(['/work/notes'])
+    await requestDelete('/work/notes')
+    expect(deletePrompt.value?.folder).toBe(true)
+    cancelDelete()
+    await requestDelete('/work')
+    expect(deletePrompt.value).toBeNull()
+    expect(problem.value).toContain('Remove Folder')
+  })
+})
+
+describe('deleting closes the tabs (ISC-228)', () => {
+  const tabsOf = (path: string): string[] =>
+    allDocuments()
+      .filter((doc) => doc.path === path)
+      .map((doc) => doc.id.toString())
+
+  it('closes the tab of a deleted file, and the prompt counts it', async () => {
+    await start()
+    await openPath('/work/notes/a.md')
+    await requestDelete('/work/notes/a.md')
+    expect(deletePrompt.value).toMatchObject({ tabs: 1, unsaved: 0 })
+    await confirmDelete()
+    await flush()
+    expect(tabsOf('/work/notes/a.md')).toEqual([])
+    expect(allDocuments().filter((doc) => doc.path.startsWith('/work/notes/a.md'))).toEqual([])
+  })
+
+  it('closes every tab under a deleted folder, unsaved edits included, and counts them', async () => {
+    await start()
+    const a = await openPath('/work/notes/a.md')
+    await openPath('/work/notes/deep/c.md')
+    await openPath('/work/readme.md')
+    followerOfTab(a)?.dispatch({ changes: { from: 0, insert: 'edited ' } })
+    await flush()
+    expect(documentOfTab(a)?.dirty).toBe(true)
+    await requestDelete('/work/notes')
+    expect(deletePrompt.value).toMatchObject({ tabs: 2, unsaved: 1 })
+    await confirmDelete()
+    await flush()
+    expect(allDocuments().map((d) => d.path)).toEqual(['/work/readme.md'])
+  })
+
+  it('closes the image tabs under it, and keeps tabs elsewhere', async () => {
+    await start()
+    host.files.write('/work/notes/pic.png', 'png')
+    await openPath('/work/notes/pic.png')
+    await openPath('/work/readme.md')
+    expect(imageTabs().length).toBe(1)
+    await requestDelete('/work/notes')
+    expect(deletePrompt.value?.tabs).toBe(1)
+    await confirmDelete()
+    await flush()
+    expect(imageTabs()).toEqual([])
+    expect(allDocuments().map((d) => d.path)).toEqual(['/work/readme.md'])
+  })
+
+  it('keeps every tab when the host cannot delete', async () => {
+    await start()
+    await openPath('/work/notes/a.md')
+    vi.spyOn(host, 'deleteEntry').mockRejectedValue(new Error('no'))
+    await deleteRow('/work/notes/a.md')
+    await flush()
+    expect(allDocuments().map((d) => d.path)).toEqual(['/work/notes/a.md'])
   })
 })
