@@ -111,16 +111,26 @@ async function copy(text: string): Promise<void> {
   }
 }
 
+/** Copies a full path. The tab menu and the tree menu both use it. */
+export function copyPath(path: string): Promise<void> {
+  return copy(path)
+}
+
+/** Copies a path from the folder that holds it, or the full path outside every folder. */
+export function copyRelativePath(path: string): Promise<void> {
+  return copy(relativePathOf(path))
+}
+
 /** Copies the file's full path. */
 export async function copyTabPath(tabId: TabId): Promise<void> {
   const path = tabPath(tabId)
-  if (path !== null) await copy(path)
+  if (path !== null) await copyPath(path)
 }
 
 /** Copies the file's path from its folder, or the full path outside every folder. */
 export async function copyTabRelativePath(tabId: TabId): Promise<void> {
   const path = tabPath(tabId)
-  if (path !== null) await copy(relativePathOf(path))
+  if (path !== null) await copyRelativePath(path)
 }
 
 /** Shows the file in the system's file manager. */
@@ -164,13 +174,11 @@ export async function findTabReferences(tabId: TabId): Promise<void> {
   if (path !== null) await findFileReferences(path)
 }
 
-/** What the file manager is called on this system, for the menu item that opens it. */
-export function revealLabel(): string {
-  const agent = typeof navigator === 'undefined' ? '' : navigator.userAgent
-  if (agent.includes('Mac')) return 'Reveal in Finder'
-  if (agent.includes('Windows')) return 'Reveal in File Explorer'
-  return 'Show in File Manager'
-}
+/** The menu item that shows a file in its folder, the same on every system (ISC-230). */
+export const OPEN_CONTAINING_FOLDER = 'Open Containing Folder'
+
+/** The menu item that opens a folder itself in the file manager (ISC-230). */
+export const OPEN_FOLDER = 'Open Folder'
 
 /**
  * Called when the menu closes. A menu gives focus back to what opened it, which would take it from

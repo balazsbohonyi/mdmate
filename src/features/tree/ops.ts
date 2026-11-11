@@ -226,6 +226,16 @@ export async function revealInFileManager(path: string): Promise<void> {
   }
 }
 
+/** Opens a folder itself in the system's file manager. */
+export async function openFolderInFileManager(path: string): Promise<void> {
+  try {
+    const host = await getHost()
+    await host.showFolder(path)
+  } catch (error) {
+    problem.value = `Could not open ${baseName(path)}: ${describe(error)}`
+  }
+}
+
 /** Asks to delete the selected row, for the Delete key. */
 export function deleteSelected(): Promise<void> {
   const path = selectedPath.value

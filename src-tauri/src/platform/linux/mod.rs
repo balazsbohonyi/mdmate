@@ -38,4 +38,10 @@ impl Platform for Native {
         std::thread::spawn(move || child.wait());
         Ok(())
     }
+
+    fn show_folder(&self, path: &Path) -> std::io::Result<()> {
+        let mut child = std::process::Command::new("xdg-open").arg(path).spawn()?;
+        std::thread::spawn(move || child.wait());
+        Ok(())
+    }
 }

@@ -115,4 +115,17 @@ impl Platform for Native {
         std::thread::spawn(move || child.wait());
         Ok(())
     }
+
+    fn show_folder(&self, path: &Path) -> std::io::Result<()> {
+        let shown = crate::access::display_path(path);
+        if shown.contains('"') || shown.contains('\0') {
+            return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput));
+        }
+        let mut child = std::process::Command::new("explorer.exe")
+            .raw_arg(format!("\"{shown}\""))
+            .spawn()?;
+        // Explorer exits with 1 even when it worked, so the result is not read.
+        std::thread::spawn(move || child.wait());
+        Ok(())
+    }
 }

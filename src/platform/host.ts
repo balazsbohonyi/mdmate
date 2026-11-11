@@ -318,6 +318,8 @@ export interface Host {
   deleteEntry(path: string): Promise<void>
   /** Shows a file or folder in the system's file manager, selected. */
   revealEntry(path: string): Promise<void>
+  /** Opens a folder itself in the system's file manager. A file is refused. */
+  showFolder(path: string): Promise<void>
   /**
    * Every link in the open folders that leads to `path`, by file and line, read with the rule a
    * rename uses. `buffers` are the open documents with unsaved edits: their text is read instead of

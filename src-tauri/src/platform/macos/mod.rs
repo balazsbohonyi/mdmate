@@ -40,4 +40,11 @@ impl Platform for Native {
         std::thread::spawn(move || child.wait());
         Ok(())
     }
+
+    fn show_folder(&self, path: &Path) -> std::io::Result<()> {
+        // The path is absolute, so it never reads as an option.
+        let mut child = std::process::Command::new("open").arg(path).spawn()?;
+        std::thread::spawn(move || child.wait());
+        Ok(())
+    }
 }

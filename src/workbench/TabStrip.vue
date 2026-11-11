@@ -21,7 +21,7 @@ import {
   findTabReferences,
   keepNameBoxFocus,
   renameTab,
-  revealLabel,
+  OPEN_CONTAINING_FOLDER,
   revealTabInExplorer,
   revealTabInSidebar,
   tabMenuState,
@@ -102,7 +102,7 @@ function run(action: () => Promise<unknown> | void): void {
           :disabled="!tabMenuState(tab.id).hasPath"
           @select="run(() => revealTabInExplorer(tab.id))"
         >
-          {{ revealLabel() }}
+          {{ OPEN_CONTAINING_FOLDER }}
         </ContextMenuItem>
         <ContextMenuItem
           :disabled="!tabMenuState(tab.id).canRevealInSidebar"

@@ -117,6 +117,8 @@ export interface MockHost extends Host {
   readonly recycled: { path: string; raw: string }[]
   /** Every path the page asked to show in the file manager, in order. */
   readonly revealed: string[]
+  /** The folders opened in the file manager, in order. */
+  readonly openedFolders: string[]
   /** Every text the page put on the clipboard, in order. */
   readonly clipboard: string[]
   /** What the host would offer in Open Recent, newest first, with no check that the entries exist. */
@@ -271,6 +273,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
 
   const recycled: { path: string; raw: string }[] = []
   const revealed: string[] = []
+  const openedFolders: string[] = []
   const clipboard: string[] = []
   const trimmed = (path: string): string => pathKey(path).replace(/\/$/, '')
   const slashes = (path: string): string => path.replaceAll('\\', '/').replace(/\/$/, '')
@@ -538,6 +541,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     kind: 'browser',
     recycled,
     revealed,
+    openedFolders,
     clipboard,
     recent,
     saveDialogs,
@@ -770,6 +774,15 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
           throw hostError('not-allowed', `access to ${path} is not allowed`)
         }
         revealed.push(path)
+      })
+    },
+    showFolder(path) {
+      return attempt(() => {
+        if (!insideRoot(path)) {
+          throw hostError('not-allowed', `access to ${path} is not allowed`)
+        }
+        if (!files.isFolder(path)) throw hostError('invalid', `${path} is not a folder`)
+        openedFolders.push(path)
       })
     },
     async findReferences(path, buffers) {

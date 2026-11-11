@@ -39,6 +39,10 @@ pub(crate) trait Platform {
 
     /// Shows the item in the system's file manager, selected where the OS can do that.
     fn reveal(&self, path: &Path) -> std::io::Result<()>;
+
+    /// Opens a folder itself in the system's file manager. The caller has checked it is a folder:
+    /// the same call on a file would launch the program the OS has for it.
+    fn show_folder(&self, path: &Path) -> std::io::Result<()>;
 }
 
 /// The trash crate's call, shared by every OS. On Windows it asks the shell for an undoable

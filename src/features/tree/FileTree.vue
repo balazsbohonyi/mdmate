@@ -6,10 +6,21 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
+  ContextMenuShortcut,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
+import { findFileReferences } from '@/features/references/store'
 import HoverHint from '@/components/HoverHint.vue'
 import { SLOW_HINT_DELAY } from '@/components/hintDelay'
+import { shortcutLabel } from '@/workbench/commands'
+import { COMMAND_IDS } from '@/workbench/defaultCommands'
+import { detectPlatform } from '@/workbench/keybinding'
+import {
+  OPEN_CONTAINING_FOLDER,
+  OPEN_FOLDER,
+  copyPath,
+  copyRelativePath,
+} from '@/workbench/tabMenu'
 import NameInput from './NameInput.vue'
 import { FALLBACK_VIEWPORT_HEIGHT, ROW_HEIGHT, visibleWindow, type TreeRow } from './model'
 import {
@@ -20,6 +31,7 @@ import {
   moveRow,
   newFileIn,
   newFolderIn,
+  openFolderInFileManager,
   renameRow,
   renameSelected,
   revealInFileManager,
@@ -35,6 +47,7 @@ import {
   treeRows,
 } from './store'
 
+const platform = detectPlatform()
 const scroller = ref<HTMLElement | null>(null)
 const scrollTop = ref(0)
 const viewportHeight = ref(FALLBACK_VIEWPORT_HEIGHT)
@@ -122,13 +135,6 @@ const isFolderRow = computed(
   () => menuRow.value?.kind === 'root' || menuRow.value?.kind === 'folder',
 )
 
-const revealLabel = computed(() => {
-  const agent = typeof navigator === 'undefined' ? '' : navigator.userAgent
-  if (agent.includes('Mac')) return 'Reveal in Finder'
-  if (agent.includes('Windows')) return 'Reveal in File Explorer'
-  return 'Show in File Manager'
-})
-
 function menuPath(): string | null {
   const row = menuRow.value
   return row === null || row.kind === 'note' || row.kind === 'new' ? null : row.path
@@ -152,7 +158,21 @@ function menuDelete(): void {
 }
 function menuReveal(): void {
   const path = menuPath()
-  if (path !== null) void revealInFileManager(path)
+  if (path === null) return
+  // A folder opens itself; a file is shown, selected, in the folder that holds it.
+  void (isFolderRow.value ? openFolderInFileManager(path) : revealInFileManager(path))
+}
+function menuCopyPath(): void {
+  const path = menuPath()
+  if (path !== null) void copyPath(path)
+}
+function menuCopyRelativePath(): void {
+  const path = menuPath()
+  if (path !== null) void copyRelativePath(path)
+}
+function menuFindReferences(): void {
+  const path = menuPath()
+  if (path !== null) void findFileReferences(path)
 }
 function remove(): void {
   const path = menuPath()
@@ -429,7 +449,23 @@ function rowHint(row: TreeRow): string | null {
         <ContextMenuItem @select="menuDelete">Delete</ContextMenuItem>
         <ContextMenuSeparator />
       </template>
-      <ContextMenuItem @select="menuReveal">{{ revealLabel }}</ContextMenuItem>
+      <ContextMenuItem @select="menuCopyPath">Copy Path</ContextMenuItem>
+      <template v-if="menuRow?.kind !== 'root'">
+        <ContextMenuItem @select="menuCopyRelativePath">Copy Relative Path</ContextMenuItem>
+      </template>
+      <ContextMenuSeparator />
+      <ContextMenuItem @select="menuReveal">{{
+        isFolderRow ? OPEN_FOLDER : OPEN_CONTAINING_FOLDER
+      }}</ContextMenuItem>
+      <ContextMenuItem
+        v-if="menuRow?.kind === 'file'"
+        @select="menuFindReferences"
+      >
+        Find File References
+        <ContextMenuShortcut>{{
+          shortcutLabel(COMMAND_IDS.findReferences, platform)
+        }}</ContextMenuShortcut>
+      </ContextMenuItem>
       <template v-if="menuRow?.kind === 'root'">
         <ContextMenuSeparator />
         <ContextMenuItem @select="remove">Remove Folder from Workspace</ContextMenuItem>

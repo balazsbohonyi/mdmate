@@ -208,6 +208,9 @@ export const tauriHost: Host = {
   async revealEntry(path) {
     await invoke('reveal_entry', { path })
   },
+  async showFolder(path) {
+    await invoke('show_folder', { path })
+  },
   async findReferences(path, buffers) {
     return parseReferencesFound(await invoke<unknown>('find_references', { path, buffers }))
   },

@@ -319,6 +319,24 @@ pub(crate) fn reveal_entry(
     Ok(())
 }
 
+/// Shows a folder the app may touch in the system's file manager. A file is refused: opening one
+/// would run whatever program the OS has for it.
+pub(crate) fn show_folder(
+    state: &AppState,
+    platform: &dyn Platform,
+    path: &Path,
+) -> Result<(), AppError> {
+    let resolved = state.access().check(path)?;
+    if !resolved.path.is_dir() {
+        return Err(AppError::Invalid(format!(
+            "{} is not a folder",
+            crate::access::display_path(&resolved.path)
+        )));
+    }
+    platform.show_folder(&resolved.path)?;
+    Ok(())
+}
+
 /// The paths a native drop delivered, or a refusal for any other.
 fn dropped_sources(state: &AppState, paths: &[String]) -> Result<Vec<PathBuf>, AppError> {
     paths
@@ -496,6 +514,7 @@ mod tests {
         bin: PathBuf,
         full: bool,
         trashed: Mutex<Vec<PathBuf>>,
+        opened: Mutex<Vec<PathBuf>>,
     }
 
     impl FakeOs {
@@ -505,6 +524,7 @@ mod tests {
                 bin,
                 full: false,
                 trashed: Mutex::new(Vec::new()),
+                opened: Mutex::new(Vec::new()),
             }
         }
 
@@ -536,6 +556,10 @@ mod tests {
             Ok(())
         }
         fn reveal(&self, _path: &Path) -> io::Result<()> {
+            Ok(())
+        }
+        fn show_folder(&self, path: &Path) -> io::Result<()> {
+            self.opened.lock().expect("lock").push(path.to_path_buf());
             Ok(())
         }
     }
@@ -859,6 +883,32 @@ mod tests {
         assert_eq!(refused.kind(), "not-allowed");
         assert!(w.os.trashed().is_empty());
         assert!(w.root.exists() && w.outside.join("o.md").exists());
+    }
+
+    #[test]
+    fn show_folder_opens_a_folder_of_the_workspace_and_a_root() {
+        let w = workspace();
+        fs::create_dir_all(w.root.join("sub")).expect("sub");
+        show_folder(&w.state, &w.os, &w.root.join("sub")).expect("a folder");
+        show_folder(&w.state, &w.os, &w.root).expect("the root");
+        assert_eq!(
+            w.os.opened.lock().expect("lock").clone(),
+            [w.root.join("sub"), w.root.clone()]
+        );
+    }
+
+    #[test]
+    fn show_folder_refuses_a_file_and_a_path_outside_the_roots() {
+        let w = workspace();
+        write(&w.root.join("a.md"), "x");
+        write(&w.outside.join("o.md"), "x");
+        let refused = show_folder(&w.state, &w.os, &w.root.join("a.md")).expect_err("a file");
+        assert_eq!(refused.kind(), "invalid");
+        let refused = show_folder(&w.state, &w.os, &w.outside).expect_err("outside");
+        assert_eq!(refused.kind(), "not-allowed");
+        let refused = show_folder(&w.state, &w.os, &w.root.join("missing")).expect_err("missing");
+        assert!(refused.kind() == "not-found" || refused.kind() == "not-allowed");
+        assert!(w.os.opened.lock().expect("lock").is_empty());
     }
 
     // ---- open documents follow ----

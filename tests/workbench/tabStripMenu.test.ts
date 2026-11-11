@@ -193,4 +193,14 @@ describe('the shortcuts the menu shows (ISC-221)', () => {
     expect(shown).toContain('Rename... F2')
     expect(shown).toContain('Find File References Shift+F12')
   })
+
+  it('names the file-manager item the same on every system (ISC-230)', async () => {
+    await start()
+    await openMenuOf('a.md', ['/work/a.md'])
+    const shown = [...document.body.querySelectorAll('[role=menuitem]')].map((item) =>
+      item.textContent.replace(/\s+/g, ' ').trim(),
+    )
+    expect(shown).toContain('Open Containing Folder')
+    expect(shown.some((text) => text.startsWith('Reveal in File'))).toBe(false)
+  })
 })

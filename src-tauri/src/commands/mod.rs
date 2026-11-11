@@ -834,6 +834,12 @@ pub(crate) fn reveal_entry(state: State<'_, Arc<AppState>>, path: String) -> Res
     ops::reveal_entry(&state, &platform::current(), std::path::Path::new(&path))
 }
 
+/// Opens a folder of the workspace itself in the system's file manager.
+#[tauri::command]
+pub(crate) fn show_folder(state: State<'_, Arc<AppState>>, path: String) -> Result<(), AppError> {
+    ops::show_folder(&state, &platform::current(), std::path::Path::new(&path))
+}
+
 /// Says which names of a drop already exist in a folder, so the page can ask what to do about
 /// them. Changes nothing. Every path must be one a native drop delivered.
 #[tauri::command]
