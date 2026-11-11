@@ -59,6 +59,7 @@ const input = useTemplateRef('input')
 - `tests/shell/noNativeTitle.test.ts` fails the build on a native `title` in any template outside `components/ui/`. Markdown image titles drawn inside a document are document content and are not covered.
 - `HoverHint` takes `delayDuration` (ms; the provider's 300 ms when left out) and `whenTruncated` (shows only while the slot element is cut off with an ellipsis, measured as the pointer arrives). Tabs and tree rows use `SLOW_HINT_DELAY` (1 s, `components/hintDelay.ts`); the provider's skip delay is 0 so hopping between hints waits too. A tab's hint sits on its label, never on the tab itself, which belongs to the context menu trigger.
 - Inside the editor (CodeMirror, outside Vue) a hint is a `data-hint="..."` attribute on a decoration or widget element; `editor/hoverHints.ts` draws it in the same colors. The scan also covers `.ts` files.
+- A question that needs an answer before something is lost uses the shadcn `AlertDialog` from `components/ui/alert-dialog` (the delete confirmation is the first). Every other question stays an inline banner. The generated overlay is `bg-background/60`, not `bg-black/10`, because the color rule refuses a palette color; `pnpm ui:add alert-dialog --overwrite` would put it back.
 - A disabled control takes no pointer events: put the trigger (`as-child`) on a wrapper element around it.
 
 ## Security

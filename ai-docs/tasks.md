@@ -72,6 +72,7 @@ Mark `[x]` only when the task's "Done when" in its phase plan holds. Each task l
 - [x] P6-T7: Quick open and command palette — closes ISC-130, ISC-131
 - [x] P6-T8: Untitled files, Save As, Revert, Close All, Open Recent — closes ISC-203, ISC-204, ISC-205, ISC-206, ISC-207, ISC-208, ISC-209, ISC-210, ISC-211, ISC-212
 - [x] P6-T9: Tab context menu and Find File References — closes ISC-213, ISC-214, ISC-215, ISC-216, ISC-217, ISC-218
+- [x] P6 follow-ups from the owner's UAT walk (one commit each, no task tag) — closes ISC-223 to ISC-233: tab menu and hints, tooltip arrow, editor hints, delete confirmation and tab closing, sidebar path items and Open Folder, resizable sidebar, images up to the workspace folder, image zoom kept
 
 ## Phase 7: Search and outline ([plan](phases/phase-07/plan.md))
 
