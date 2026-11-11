@@ -249,9 +249,12 @@ mod tests {
         let a = folder(dir.path(), "a");
         let state = state();
         let store = RootStore::new(dir.path().join("data"));
-        add(&state, &store, &a).expect("adds");
+        // The page only ever sends back the path it was shown. That is the resolved one, which can
+        // differ from the temp dir's own spelling (a Windows 8.3 short name such as RUNNER~1), and
+        // a folder that is gone can no longer be resolved to compare by.
+        let shown = add(&state, &store, &a).expect("adds");
         std::fs::remove_dir_all(&a).expect("deletes");
-        remove(&state, &store, &a).expect("removes a folder that is gone");
+        remove(&state, &store, Path::new(&shown)).expect("removes a folder that is gone");
         assert!(current(&state).is_empty());
     }
 
