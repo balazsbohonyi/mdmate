@@ -3,6 +3,8 @@
  * The sidebar's width (ISC-231): dragged from its right edge, held between 12rem and half the
  * window, kept while it is hidden and shown, reset by a double click.
  */
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createApp, nextTick, type App } from 'vue'
 import SidebarFrame from '@/shell/SidebarFrame.vue'
@@ -153,6 +155,32 @@ describe('the handle on the edge', () => {
     expect(sidebarWidth.value).toBe(224)
   })
 
+  it('a press focuses the edge, so the arrow keys resize it and do not move the editor caret (ISC-241)', async () => {
+    const editor = document.createElement('div')
+    editor.tabIndex = 0
+    document.body.append(editor)
+    editor.focus()
+    expect(document.activeElement).toBe(editor)
+    const edge = handle()
+    edge.setPointerCapture = () => undefined
+    edge.dispatchEvent(pointer('pointerdown', 240))
+    expect(document.activeElement).toBe(edge)
+    edge.dispatchEvent(pointer('pointerup', 240))
+    editor.remove()
+  })
+
+  it('a right-button press does not take focus', () => {
+    const editor = document.createElement('div')
+    editor.tabIndex = 0
+    document.body.append(editor)
+    editor.focus()
+    const edge = handle()
+    edge.setPointerCapture = () => undefined
+    edge.dispatchEvent(pointer('pointerdown', 240, 2))
+    expect(document.activeElement).toBe(editor)
+    editor.remove()
+  })
+
   it('a double click puts it back to the default', async () => {
     await dragBy(150)
     expect(sidebarWidth.value).toBe(390)
@@ -160,5 +188,16 @@ describe('the handle on the edge', () => {
     await nextTick()
     expect(sidebarWidth.value).toBeNull()
     expect(asideEl().style.width).toBe('')
+  })
+})
+
+describe('the handles between panes (ISC-241)', () => {
+  // The splitter listens for the press on the whole page, so the press lands on the editor beside
+  // the handle and no component test can click the handle itself; the real window did (a click then
+  // the arrow keys moved the split, and with this removed they did not). This pins where it lives.
+  it('focuses the handle when a drag starts', () => {
+    const source = readFileSync(join(process.cwd(), 'src/workbench/SplitNodeView.vue'), 'utf8')
+    expect(source).toContain('if (isDragging) document.getElementById(handleId)?.focus()')
+    expect(source).toContain('onDragging(isDragging, `${node.id}-handle-${index}`)')
   })
 })

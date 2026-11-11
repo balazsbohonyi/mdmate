@@ -28,8 +28,12 @@ const shownWidth = (): number => frame.value?.getBoundingClientRect().width ?? S
 function startDrag(event: PointerEvent): void {
   if (event.button !== 0) return
   drag = { x: event.clientX, width: shownWidth() }
-  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+  const handle = event.currentTarget as HTMLElement
+  handle.setPointerCapture(event.pointerId)
+  // Stops the text selection a drag would start, which also stops the click from focusing the
+  // handle; so it takes focus here, and the arrow keys then move it instead of the editor's caret.
   event.preventDefault()
+  handle.focus()
 }
 
 function moveDrag(event: PointerEvent): void {
