@@ -73,7 +73,7 @@ function opened(open: boolean): void {
                   <span class="max-w-64 shrink-0 truncate">{{ item.label }}</span>
                   <span
                     v-if="item.detail"
-                    class="ml-auto min-w-0 truncate pl-3 text-xs text-muted-foreground"
+                    class="relative top-[0.75px] ml-auto min-w-0 truncate pl-3 text-xs text-muted-foreground"
                   >
                     {{ item.detail }}
                   </span>
