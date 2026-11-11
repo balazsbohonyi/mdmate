@@ -29,7 +29,8 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
     >
       <slot />
 
-      <TooltipArrow class="size-2.5 rotate-45 rounded-xs bg-popover fill-popover ring-1 ring-foreground/10 z-50 translate-y-[calc(-50%_-_2px)]" />
+      <!-- Only the two outer edges are outlined: a ring would also draw the half that sits inside the box (ISC-225). -->
+      <TooltipArrow class="size-2.5 rotate-45 rounded-br-xs border-r border-b border-foreground/10 bg-popover fill-popover translate-y-[calc(-50%_-_2px)]" />
     </TooltipContent>
   </TooltipPortal>
 </template>
