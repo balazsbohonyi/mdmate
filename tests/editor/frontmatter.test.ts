@@ -272,6 +272,12 @@ describe('the page', () => {
     expect(view.contentDOM.textContent).toContain('Body')
   })
 
+  it('says what a click does in an editor hint, not a native title (ISC-226)', () => {
+    const pill = mount(DOC, DOC.length).contentDOM.querySelector('.cm-md-frontmatter-pill')
+    expect(pill?.getAttribute('data-hint')).toBe('Show the frontmatter')
+    expect(pill?.hasAttribute('title')).toBe(false)
+  })
+
   it('shows no keys part for a block without keys', () => {
     const view = mount('---\n---\n\nend', 11)
     expect(view.contentDOM.querySelector('.cm-md-frontmatter-pill')).not.toBeNull()

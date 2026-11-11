@@ -113,3 +113,23 @@
     @apply bg-background text-chrome text-foreground;
   }
 }
+
+/* A hint drawn inside the editor (ISC-226): the shadcn tooltip's look, from the same tokens. */
+.editor-hint {
+  @apply fixed z-50 w-max max-w-xs rounded-md bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md ring-1 ring-foreground/10;
+  word-break: break-all;
+  white-space: pre-line;
+  pointer-events: none;
+}
+.editor-hint-arrow {
+  @apply absolute -ml-[5px] size-2.5 rotate-45 rounded-br-xs bg-popover;
+}
+/* Only the two outer edges are outlined, as on the shadcn tooltip's arrow (ISC-225). */
+.editor-hint-arrow[data-side='above'] {
+  @apply border-r border-b border-foreground/10;
+  bottom: -5px;
+}
+.editor-hint-arrow[data-side='below'] {
+  @apply border-t border-l border-foreground/10;
+  top: -5px;
+}

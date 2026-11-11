@@ -83,7 +83,7 @@ export function isLocalTarget(href: string): boolean {
 
 const brokenMark = Decoration.mark({
   class: 'cm-md-link-broken',
-  attributes: { title: 'Missing file' },
+  attributes: { 'data-hint': 'Missing file' },
 })
 const refreshed = StateEffect.define<null>()
 

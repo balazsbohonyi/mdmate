@@ -610,4 +610,11 @@ describe('a late image and the first visible line (ISC-72)', () => {
     expect(frame.classList.contains('cm-md-image-failed')).toBe(true)
     expect(frame.style.minHeight).not.toBe('')
   })
+
+  it('gives the reason in an editor hint, not a native title (ISC-226)', () => {
+    const view = mount('![a](file:///x/a.png)\n\nend')
+    const refused = view.contentDOM.querySelector<HTMLElement>('[data-hint]')
+    expect(refused?.dataset.hint).toMatch(/^Not loaded/)
+    expect(view.contentDOM.querySelector('[title]')).toBeNull()
+  })
 })

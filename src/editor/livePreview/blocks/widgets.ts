@@ -200,7 +200,7 @@ export class FrontmatterWidget extends BlockWidget {
     wrap.className = 'cm-md-frontmatter'
     const pill = document.createElement('span')
     pill.className = 'cm-md-frontmatter-pill'
-    pill.title = 'Show the frontmatter'
+    pill.dataset.hint = 'Show the frontmatter'
     const label = document.createElement('span')
     label.className = 'cm-md-frontmatter-label'
     label.textContent = 'Frontmatter'
@@ -346,7 +346,7 @@ export class ImageWidget extends BlockWidget {
       label.className = 'cm-md-image-label'
       label.textContent = this.alt === '' ? 'image' : this.alt
       frame.append(label)
-      wrap.title = reason
+      wrap.dataset.hint = reason
       view.requestMeasure()
     }
 
