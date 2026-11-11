@@ -12,7 +12,7 @@ pub(crate) mod scan;
 pub(crate) mod walk;
 
 use crate::access::display_path;
-use crate::error::AppError;
+use crate::error::{AppError, friendly_io};
 use guard::{Approved, FileKind, FileSystem, Target};
 use serde::Serialize;
 use std::path::Path;
@@ -31,7 +31,7 @@ impl Opener for PlatformOpener {
         use crate::platform::Platform as _;
         crate::platform::current()
             .open_external(target.as_str())
-            .map_err(|error| AppError::Open(error.to_string()))
+            .map_err(|error| AppError::Open(friendly_io(&error)))
     }
 }
 

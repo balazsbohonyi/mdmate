@@ -267,6 +267,18 @@ describe('saving', () => {
     expect(await saveDocument(documentOfTab(tab)?.id ?? -1)).toBe(true)
     expect(docMeta(documentOfTab(tab)?.id ?? -1)?.saveError).toBeNull()
   })
+
+  it('says a read-only file is read-only, and never shows an OS error code (ISC-244)', async () => {
+    const tab = await openPath('C:/notes/a.md')
+    edit(tab, { from: 0, insert: 'X' })
+    const words = 'the file is read-only on disk. Use Save As to keep your changes in a new file'
+    vi.spyOn(host, 'saveFile').mockRejectedValueOnce({ kind: 'file-read-only', message: words })
+    expect(await saveDocument(documentOfTab(tab)?.id ?? -1)).toBe(false)
+    expect(docMeta(documentOfTab(tab)?.id ?? -1)?.saveError).toBe(words)
+    vi.spyOn(host, 'saveFile').mockRejectedValueOnce(new Error('Access is denied. (os error 5)'))
+    expect(await saveDocument(documentOfTab(tab)?.id ?? -1)).toBe(false)
+    expect(docMeta(documentOfTab(tab)?.id ?? -1)?.saveError).toBe('Access is denied.')
+  })
 })
 
 describe('closing a tab', () => {

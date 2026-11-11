@@ -108,13 +108,22 @@ export function setLinkFollower(follow: ((tabId: TabId, href: string) => void) |
   linkFollower = follow
 }
 
-/** An error's message, whatever threw it. */
+/**
+ * Drops the "(os error N)" the operating system's own wording ends with. Rust words its errors
+ * itself and never sends one; this is for any that comes from somewhere else, a plugin or the
+ * browser, so a code never reaches the screen.
+ */
+function withoutOsCode(text: string): string {
+  return text.replace(/ \(os error \d+\)/g, '')
+}
+
+/** An error's message, whatever threw it, with no OS error code in it. */
 export function describe(error: unknown): string {
   if (typeof error === 'object' && error !== null && 'message' in error) {
     const { message } = error
-    if (typeof message === 'string') return message
+    if (typeof message === 'string') return withoutOsCode(message)
   }
-  return error instanceof Error ? error.message : String(error)
+  return withoutOsCode(error instanceof Error ? error.message : String(error))
 }
 
 /** The stable name Rust gives an error, such as `disk-changed`, when the error has one. */

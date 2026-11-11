@@ -2,10 +2,67 @@
 
 use serde::{Serialize, Serializer, ser::SerializeStruct};
 
+/// The words for an I/O failure, in a short plain sentence with no code in it. What the page shows
+/// after "Could not save a.md:", so it starts in lower case and has no full stop.
+///
+/// The kind decides first, since it means the same on every OS. A few Windows codes the standard
+/// library has no kind for are named by number, and only on Windows, where they mean what is said.
+pub(crate) fn friendly_io(error: &std::io::Error) -> String {
+    use std::io::ErrorKind as K;
+    #[cfg(windows)]
+    match error.raw_os_error() {
+        Some(32 | 33) => return "another program is using it".into(),
+        Some(123 | 161) => return "that name is not valid".into(),
+        Some(206) => return "the path is too long".into(),
+        _ => {}
+    }
+    match error.kind() {
+        K::NotFound => "the file or folder was not found, it may have been moved or deleted".into(),
+        K::PermissionDenied => {
+            "permission was denied, the file may be read-only or you may not have access to it"
+                .into()
+        }
+        K::AlreadyExists => "a file or folder with that name already exists".into(),
+        K::StorageFull => "the disk is full".into(),
+        K::ReadOnlyFilesystem => "the disk is read-only".into(),
+        K::ResourceBusy => "another program is using it".into(),
+        K::DirectoryNotEmpty => "the folder is not empty".into(),
+        K::NotADirectory => "that is a file, not a folder".into(),
+        K::IsADirectory => "that is a folder, not a file".into(),
+        K::InvalidInput => "that name is not valid".into(),
+        K::TimedOut => "the operation timed out".into(),
+        _ => plain_text(&error.to_string()),
+    }
+}
+
+/// `text` without any "(os error N)" the standard library adds to an OS error's message.
+pub(crate) fn plain_text(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find(" (os error ") {
+        out.push_str(&rest[..at]);
+        let after = &rest[at + " (os error ".len()..];
+        match after.find(')') {
+            Some(end) if after[..end].bytes().all(|b| b.is_ascii_digit()) => {
+                rest = &after[end + 1..]
+            }
+            _ => {
+                out.push_str(" (os error ");
+                rest = after;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum AppError {
-    #[error(transparent)]
+    #[error("{}", friendly_io(.0))]
     Io(#[from] std::io::Error),
+    /// A save to a file the OS marks read-only. The page shows it after "Could not save a.md:".
+    #[error("the file is read-only on disk. Use Save As to keep your changes in a new file")]
+    FileReadOnly,
     #[error("a background task failed: {0}")]
     Task(String),
     /// The page asked for a path it was never given access to.
@@ -50,6 +107,7 @@ impl AppError {
                 std::io::ErrorKind::PermissionDenied => "permission-denied",
                 _ => "io",
             },
+            Self::FileReadOnly => "file-read-only",
             Self::Task(_) => "task",
             Self::NotAllowed(_) => "not-allowed",
             Self::Invalid(_) => "invalid",
@@ -98,6 +156,60 @@ mod tests {
             "needs-confirmation"
         );
         assert_eq!(AppError::Open("x".into()).kind(), "open");
+    }
+
+    #[test]
+    fn io_errors_are_worded_without_an_os_code() {
+        let say = |k| friendly_io(&Error::from(k));
+        assert!(say(ErrorKind::PermissionDenied).contains("read-only"));
+        assert!(say(ErrorKind::NotFound).contains("not found"));
+        assert!(say(ErrorKind::AlreadyExists).contains("already exists"));
+        assert_eq!(say(ErrorKind::StorageFull), "the disk is full");
+        assert!(say(ErrorKind::ResourceBusy).contains("another program"));
+        // A raw code the standard library words itself is cleaned, and one it has a kind for is
+        // worded by kind: this is Windows "access denied" (5), as the owner saw it on a save.
+        let denied = Error::from_raw_os_error(5);
+        let text = AppError::from(denied).to_string();
+        assert!(!text.contains("os error"), "{text}");
+        assert!(!text.contains('5'), "{text}");
+        let text = AppError::from(Error::other("odd (os error 87)")).to_string();
+        assert_eq!(text, "odd");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_codes_with_no_kind_are_named() {
+        let say = |code| friendly_io(&Error::from_raw_os_error(code));
+        assert_eq!(say(32), "another program is using it");
+        assert_eq!(say(33), "another program is using it");
+        assert_eq!(say(123), "that name is not valid");
+        assert_eq!(say(206), "the path is too long");
+    }
+
+    #[test]
+    fn plain_text_drops_only_a_real_os_code() {
+        assert_eq!(
+            plain_text("Access is denied. (os error 5)"),
+            "Access is denied."
+        );
+        assert_eq!(plain_text("a (os error 2) b (os error 3)"), "a b");
+        assert_eq!(
+            plain_text("keep (os error x) this"),
+            "keep (os error x) this"
+        );
+        assert_eq!(
+            plain_text("keep (os error 12 this"),
+            "keep (os error 12 this"
+        );
+        assert_eq!(plain_text("no code"), "no code");
+    }
+
+    #[test]
+    fn a_save_to_a_read_only_file_has_its_own_kind_and_words() {
+        let error = AppError::FileReadOnly;
+        assert_eq!(error.kind(), "file-read-only");
+        assert!(error.to_string().contains("Save As"));
+        assert!(!error.to_string().contains("error"));
     }
 
     #[test]

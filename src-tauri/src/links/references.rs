@@ -12,7 +12,7 @@ use super::scan::{self, Link};
 use super::walk::{Scan, read_unless_binary, scan_bytes, walk};
 use crate::access::display_path;
 use crate::documents::AppState;
-use crate::error::AppError;
+use crate::error::{AppError, friendly_io};
 use crate::fs::encoding::{self, Decoded};
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
@@ -134,7 +134,7 @@ pub(crate) fn find(
                 Err(error) => {
                     found.skipped.push(Problem {
                         path: display_path(path),
-                        reason: error.to_string(),
+                        reason: friendly_io(&error),
                     });
                     return true;
                 }

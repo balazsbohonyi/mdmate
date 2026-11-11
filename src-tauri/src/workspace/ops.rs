@@ -7,7 +7,7 @@
 
 use crate::access::{Resolved, display_path, is_inside};
 use crate::documents::AppState;
-use crate::error::AppError;
+use crate::error::{AppError, friendly_io, plain_text};
 use crate::links::guard::is_device_name;
 use crate::platform::Platform;
 use serde::{Deserialize, Serialize};
@@ -395,7 +395,7 @@ fn copy_one(
     };
     let meta = match fs::symlink_metadata(source) {
         Ok(meta) => meta,
-        Err(error) => return fail(error.to_string()),
+        Err(error) => return fail(friendly_io(&error)),
     };
     if meta.file_type().is_symlink() {
         report.skipped.push(name);
@@ -432,7 +432,10 @@ fn copy_one(
                     return fail("a file and a folder cannot replace each other".into());
                 }
                 if let Err(error) = platform.move_to_trash(&target) {
-                    return fail(format!("the old one could not be recycled: {error}"));
+                    return fail(format!(
+                        "the old one could not be recycled: {}",
+                        plain_text(&error.to_string())
+                    ));
                 }
             }
         }
@@ -441,7 +444,8 @@ fn copy_one(
     match copy_node(source, &target, &mut report.links_left, &mut done) {
         Ok(()) => report.copied.push(display_path(&target)),
         Err(error) => fail(format!(
-            "{error}; {done} {} copied before it stopped",
+            "{}; {done} {} copied before it stopped",
+            friendly_io(&error),
             if done == 1 { "item was" } else { "items were" }
         )),
     }

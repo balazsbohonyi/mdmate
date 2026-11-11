@@ -18,7 +18,7 @@
 
 use super::scan::{self, Link};
 use super::walk::{Scan, read_unless_binary, scan_bytes, walk};
-use crate::error::AppError;
+use crate::error::{AppError, friendly_io};
 use crate::fs::atomic::{self, Stage};
 use crate::fs::document::content_hash;
 use crate::fs::encoding::{self, Decoded};
@@ -440,7 +440,7 @@ pub(crate) fn plan(
                 Err(error) => {
                     plan.skipped.push(Skipped {
                         path: path.to_path_buf(),
-                        reason: error.to_string(),
+                        reason: friendly_io(&error),
                     });
                     return true;
                 }
@@ -495,11 +495,11 @@ pub(crate) fn apply_with(plan: &Plan, hook: impl Fn(Stage) -> std::io::Result<()
 
 fn write_one(file: &FileEdits, hook: &impl Fn(Stage) -> std::io::Result<()>) -> Result<(), String> {
     let path = &file.after;
-    let meta = std::fs::metadata(path).map_err(|error| error.to_string())?;
+    let meta = std::fs::metadata(path).map_err(|error| friendly_io(&error))?;
     if meta.permissions().readonly() {
         return Err("the file is read-only".into());
     }
-    let bytes = std::fs::read(path).map_err(|error| error.to_string())?;
+    let bytes = std::fs::read(path).map_err(|error| friendly_io(&error))?;
     if content_hash(&bytes) != file.hash {
         return Err("the file changed after the links were read".into());
     }

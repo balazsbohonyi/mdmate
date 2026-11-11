@@ -48,7 +48,8 @@ pub(crate) trait Platform {
 /// The trash crate's call, shared by every OS. On Windows it asks the shell for an undoable
 /// delete and reports a drive with no Recycle Bin as an error instead of deleting for good.
 fn trash_item(path: &Path) -> std::io::Result<()> {
-    trash::delete(path).map_err(|error| std::io::Error::other(error.to_string()))
+    trash::delete(path)
+        .map_err(|error| std::io::Error::other(crate::error::plain_text(&error.to_string())))
 }
 
 /// Holds a file open so that no other reader can open it, for tests of a copy that fails partway.
