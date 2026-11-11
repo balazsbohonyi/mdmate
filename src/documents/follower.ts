@@ -1,5 +1,6 @@
 import {
   EditorSelection,
+  type ChangeDesc,
   type ChangeSet,
   type EditorState,
   type StateEffect,
@@ -31,6 +32,12 @@ export class Follower implements FollowerLink {
   #pending: ChangeSet | null = null
   #view: EditorView | null = null
   readonly #host: FollowerHost
+  /**
+   * Where this tab was scrolled to when it last left the screen, as the effect CodeMirror gives for
+   * it. It names a place in the text, not a number of pixels, so it still means the same place when
+   * the text above it changed meanwhile. Null until the tab has been shown and left once.
+   */
+  #scroll: StateEffect<unknown> | null = null
 
   constructor(id: string, host: FollowerHost, makeState: (link: FollowerLink) => EditorState) {
     this.id = id
@@ -42,6 +49,7 @@ export class Follower implements FollowerLink {
   get state(): EditorState {
     if (this.#view !== null) return this.#view.state
     if (this.#pending !== null) {
+      this.#scroll = this.#scroll?.map(this.#pending) ?? null
       this.#state = this.#state.update({
         changes: this.#pending,
         annotations: syncAnnotation.of(true),
@@ -66,7 +74,15 @@ export class Follower implements FollowerLink {
       const pos = Math.min(this.#revealOnShow, view.state.doc.length)
       this.#revealOnShow = null
       view.dispatch({ effects: EditorView.scrollIntoView(pos, { y: 'start' }) })
+      return
     }
+    // The pane's one view keeps its scroll offset across `setState`, so without this a tab opens
+    // wherever the tab before it was scrolled to. A tab shown before goes back to where it was; a
+    // new one starts at its caret, which is the top for a new file.
+    view.dispatch({
+      effects:
+        this.#scroll ?? EditorView.scrollIntoView(state.selection.main.head, { y: 'center' }),
+    })
   }
 
   /** A position to scroll to the top of the view when this state is next shown. */
@@ -90,6 +106,7 @@ export class Follower implements FollowerLink {
   /** Takes the state back from its view, which is about to show something else. */
   park(): void {
     if (this.#view === null) return
+    this.#scroll = this.#view.scrollSnapshot()
     this.#state = this.#view.state
     this.#view = null
   }
@@ -101,6 +118,7 @@ export class Follower implements FollowerLink {
       return
     }
     const tr = this.state.update(spec)
+    this.#mapScroll(tr.changes)
     this.#state = tr.state
     this.#host.forward(this, [tr])
   }
@@ -115,6 +133,7 @@ export class Follower implements FollowerLink {
         annotations: syncAnnotation.of(true),
       })
     } else if (selection !== undefined) {
+      this.#mapScroll(changes)
       this.#state = this.state.update({
         changes,
         selection,
@@ -123,6 +142,11 @@ export class Follower implements FollowerLink {
     } else {
       this.#pending = this.#pending === null ? changes : this.#pending.compose(changes)
     }
+  }
+
+  /** Keeps the remembered scroll on the same text when a change lands above or inside it. */
+  #mapScroll(changes: ChangeDesc): void {
+    this.#scroll = this.#scroll?.map(changes) ?? null
   }
 
   /** Applies a setting change the document made, such as the file turning read-only. */
