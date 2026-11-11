@@ -255,3 +255,17 @@
 ``**An image path may climb out of the document folder, up to the workspace folder (ISC-232).** `![pic](../img/p.png)` in `notes/b.md` drew only its alt text; it loaded only when `img` was moved into `notes`. The Phase 4 rule (an image must stay in the document's own folder) was cautious, because the parent folder was never granted. A workspace folder is granted to the image protocol as a whole when it is opened, so the limit can move up to it without a Rust change: `resolveImageAddress` takes a boundary, the workspace folder that holds the document (`rootOf`, handed to every document through `provideImageBoundary`), counts how many folders lie between the two, and lets `..` climb that many times and no more. Folder names are compared whole (`/wor` is not `/work`). A document in no workspace folder keeps the old rule. A path out of the workspace folder is still refused, and the protocol itself still answers 403 for a file outside it (checked in the real window: 200 for the file in the workspace folder, 403 for one beside it). The refused-image tooltip now names the workspace folder as well. The boundary is read when the images are scanned, so a folder added after a document opened is picked up the next time its images are scanned (an edit); the placeholder stays until then.
 `
 `**An image tab keeps its zoom and pan (ISC-233).** The pane mounts an `ImageView` for the active tab only and gives it a `:key` of the tab, so a tab switch threw the view away and the next one fitted the picture again. The view is now written down on every change, per tab, in a module-level map in `workbench/imageView.ts`: the zoom and the spot of the picture at the centre of the pane (not the corner's position, so a pane of another size, as after a split or a window resize, still shows the same place), plus whether the tab was ever touched. A touched tab is recalled when its picture loads; an untouched one still fits, and still refits when its pane is resized. Nothing is written before the picture has loaded, because a click on a zoom button then would replace what is remembered. A closed tab is dropped through `onTabClosed`; nothing is saved across a restart (agreed, so that a restart fits every picture again).
+
+**Speed set after the UAT follow-ups.** Run on a fresh release build with the perf driver after the last of the eleven (same machine and scale as the P6-T9 set: Windows 11 Pro 10.0.26200, 125% scale), 5 runs each. No gate was changed and no scenario's way of measuring was touched.
+
+| Claim | Scenario | Result | Target | Before |
+|---|---|---|---|---|
+| ISC-4 | startup, launch to editable | 517.5 ms (repeatable) | 1500 ms | 590.2 ms |
+| ISC-5 | open-1mb, warm open | 24.1 ms (repeatable) | 100 ms | 27.1 ms |
+| ISC-6 | tab-switch, p95 | 16.9 ms (16.6 to 19.1; flagged not repeatable, one run 13% high) | 50 ms | 20.0 ms |
+| ISC-7 | typing-1mb, work per key p95 | 7.3 ms (repeatable) | 16 ms | 7.8 ms |
+| ISC-129 | typing-during-scan, p95 | 7.7 ms (scan 734 ms) | 16 ms | 8.9 ms |
+| ISC-58 | reveal, work per leave p95 | 5.2 ms (repeatable) | 16 ms | 6.3 ms |
+| ISC-63 | decorations-scale, worst deviation | 0.273 (same work at both sizes) | 0.35 | 0.233 |
+
+The tab-switch run is flagged not repeatable again, as in the earlier set; every run is well inside the target. The decorations-scale deviation is higher than before (0.233 to 0.273) but inside the 0.35 limit, with the same decoration work in both sizes; I did not look into why, and no follow-up change touched that code.
