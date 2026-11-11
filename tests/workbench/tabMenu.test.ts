@@ -269,7 +269,7 @@ describe('Copy Path (ISC-214)', () => {
 })
 
 describe('Copy Relative Path (ISC-215)', () => {
-  it('is the path from the folder that holds it, with forward slashes', async () => {
+  it('is the path from the folder that holds it, with the separator of the full path', async () => {
     await start()
     const d = await openPath('/work/deep/er/d.md')
     await openPath('/work/a.md')
@@ -284,12 +284,48 @@ describe('Copy Relative Path (ISC-215)', () => {
     expect(host.clipboard).toEqual(['/outside/o.md'])
   })
 
-  it('turns backslashes into forward slashes and uses the innermost of two folders', async () => {
+  it('uses the innermost of two folders, and forward slashes for a path with both kinds', async () => {
     await start(['/work', '/work/inner'])
     expect(workspaceRoots.value).toHaveLength(2)
     expect(relativePathOf('/work/inner/x.md')).toBe('x.md')
     expect(relativePathOf('/work/deep/er/d.md')).toBe('deep/er/d.md')
     expect(relativePathOf('/work\\deep\\er\\d.md')).toBe('deep/er/d.md')
+  })
+})
+
+describe('Copy Path and Copy Relative Path use one separator (ISC-243)', () => {
+  const WINDOWS: Record<string, string> = {
+    'C:\\work\\deep\\er\\d.md': 'd\n',
+    'C:\\work\\a.md': 'a\n',
+  }
+
+  async function startWindows(): Promise<void> {
+    host = createMockHost({ files: WINDOWS, roots: ['C:\\work'] })
+    setHost(host)
+    await restoreWorkspace([])
+    await flush()
+  }
+
+  it('a Windows path copies as backslashes in both, as Explorer shows it', async () => {
+    await startWindows()
+    const d = await openPath('C:\\work\\deep\\er\\d.md')
+    await copyTabPath(d)
+    await copyTabRelativePath(d)
+    expect(host.clipboard).toEqual(['C:\\work\\deep\\er\\d.md', 'deep\\er\\d.md'])
+    expect(host.clipboard.some((text) => text.includes('/'))).toBe(false)
+  })
+
+  it('a file directly in the folder is its bare name', async () => {
+    await startWindows()
+    expect(relativePathOf('C:\\work\\a.md')).toBe('a.md')
+  })
+
+  it('a path with forward slashes copies as forward slashes in both', async () => {
+    await start()
+    const d = await openPath('/work/deep/er/d.md')
+    await copyTabPath(d)
+    await copyTabRelativePath(d)
+    expect(host.clipboard).toEqual(['/work/deep/er/d.md', 'deep/er/d.md'])
   })
 })
 

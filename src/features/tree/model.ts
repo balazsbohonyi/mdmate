@@ -112,9 +112,17 @@ export function withNewRow(
   return [...rows.slice(0, index + 1), row, ...rows.slice(index + 1)]
 }
 
+/**
+ * The separator a path is written with: a backslash for a path that has backslashes and no forward
+ * slash (a Windows path as Rust gives it), a forward slash for everything else.
+ */
+export function separatorOf(path: string): '\\' | '/' {
+  return path.includes('\\') && !path.includes('/') ? '\\' : '/'
+}
+
 /** `parent` and `name` as one path, with the separator the parent already uses. */
 export function joinPath(parent: string, name: string): string {
-  const separator = parent.includes('\\') && !parent.includes('/') ? '\\' : '/'
+  const separator = separatorOf(parent)
   return parent.endsWith('/') || parent.endsWith('\\')
     ? `${parent}${name}`
     : `${parent}${separator}${name}`

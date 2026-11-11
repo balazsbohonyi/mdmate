@@ -8,6 +8,7 @@ import {
   saveDocumentAs,
 } from '@/documents/store'
 import { findFileReferences } from '@/features/references/store'
+import { separatorOf } from '@/features/tree/model'
 import { renameRow, revealInFileManager } from '@/features/tree/ops'
 import { revealPath, rootOf } from '@/features/tree/store'
 import { getHost } from '@/platform'
@@ -91,14 +92,18 @@ export function closeEveryTab(): Promise<boolean> {
   return closeAllTabs()
 }
 
-/** The path from the folder that holds it, with `/`, or the full path for a file outside every folder. */
+/**
+ * The path from the folder that holds it, written with the separator the full path uses (backslashes
+ * for a Windows path), or the full path for a file outside every folder.
+ */
 export function relativePathOf(path: string): string {
   const root = rootOf(path)
   if (root === undefined) return path
+  const separator = separatorOf(path)
   return path
     .slice(root.length)
     .replace(/^[\\/]+/, '')
-    .replaceAll('\\', '/')
+    .replace(/[\\/]+/g, separator)
 }
 
 async function copy(text: string): Promise<void> {
