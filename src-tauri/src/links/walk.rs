@@ -1,18 +1,33 @@
 //! Walks a folder for the files to scan and reads each one.
 //!
-//! Every file counts except what is in a folder called `.git` and what is binary. A folder the
-//! tree would hide, or one a search would leave out, is walked all the same: a link to a renamed
-//! file can sit anywhere. Links, junctions and mount points are not followed, which also keeps a
-//! loop from running forever.
+//! What is offered depends on the [`Scope`]. The link scans (rename, move, References) look only at
+//! Markdown files, since a link is only a link there, and never enter a `node_modules` folder,
+//! which can hold tens of thousands of files and no notes. Quick Open lists everything. In both, a
+//! folder the tree would hide, or one a search would leave out, is walked all the same, except
+//! `.git`. Links, junctions and mount points are not followed, which also keeps a loop from
+//! running forever.
 
 use super::scan::{Link, scan};
 use crate::fs::encoding::{self, Decoded, Encoding, Format};
+use crate::fs::kind::{FileKind, kind_of};
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
 /// The folder (or file, for a worktree) that is never walked.
 const SKIPPED: &str = ".git";
+
+/// The folder of installed dependencies that the link scans do not enter.
+const DEPENDENCIES: &str = "node_modules";
+
+/// Which files a walk offers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Scope {
+    /// Every file. Quick Open uses this.
+    Everything,
+    /// Markdown files only (by extension), and not inside `node_modules`. The link scans use this.
+    Markdown,
+}
 
 /// How much of a file is read before it is called binary.
 const SNIFF: usize = 8192;
@@ -39,8 +54,9 @@ pub(crate) struct Walked {
     pub(crate) unreadable: Vec<PathBuf>,
 }
 
-/// Calls `visit` for every file under `root`, depth first. `visit` returns false to stop.
-pub(crate) fn walk(root: &Path, mut visit: impl FnMut(&Path) -> bool) -> Walked {
+/// Calls `visit` for every file of `scope` under `root`, depth first. `visit` returns false to
+/// stop.
+pub(crate) fn walk(root: &Path, scope: Scope, mut visit: impl FnMut(&Path) -> bool) -> Walked {
     let mut walked = Walked::default();
     let mut pending = vec![root.to_path_buf()];
     while let Some(folder) = pending.pop() {
@@ -50,7 +66,10 @@ pub(crate) fn walk(root: &Path, mut visit: impl FnMut(&Path) -> bool) -> Walked 
         };
         let mut subfolders = Vec::new();
         for entry in entries.flatten() {
-            if entry.file_name().eq_ignore_ascii_case(SKIPPED) {
+            let name = entry.file_name();
+            if name.eq_ignore_ascii_case(SKIPPED)
+                || (scope == Scope::Markdown && name.eq_ignore_ascii_case(DEPENDENCIES))
+            {
                 continue;
             }
             let Ok(kind) = entry.file_type() else {
@@ -61,6 +80,11 @@ pub(crate) fn walk(root: &Path, mut visit: impl FnMut(&Path) -> bool) -> Walked 
             } else if kind.is_dir() {
                 subfolders.push(entry.path());
             } else if kind.is_file() {
+                // The extension is read from the name alone, so a file that is not offered is
+                // never opened.
+                if scope == Scope::Markdown && kind_of(&entry.path()) != FileKind::Markdown {
+                    continue;
+                }
                 walked.files += 1;
                 if !visit(&entry.path()) {
                     return walked;
@@ -136,9 +160,9 @@ mod tests {
         fs::write(path, bytes).expect("a file can be written");
     }
 
-    fn visited(root: &Path) -> Vec<String> {
+    fn visited(root: &Path, scope: Scope) -> Vec<String> {
         let mut names = Vec::new();
-        walk(root, |path| {
+        walk(root, scope, |path| {
             let relative = path.strip_prefix(root).unwrap_or(path);
             names.push(relative.to_string_lossy().replace('\\', "/"));
             true
@@ -184,7 +208,7 @@ mod tests {
         put(root, "deep/.git/x.md", b"[a](old.md)\n");
         put(root, "deep/.GIT/y.md", b"[a](old.md)\n");
 
-        let names = visited(root);
+        let names = visited(root, Scope::Everything);
         assert_eq!(
             names,
             [
@@ -211,36 +235,88 @@ mod tests {
     }
 
     #[test]
-    fn rewrite_text_files() {
+    fn every_form_of_link_in_a_markdown_file_is_rewritten() {
         let dir = tempfile::tempdir().expect("a temp dir can be made");
         let root = dir.path();
         put(
             root,
-            "notes.txt",
+            "notes.md",
             b"see [the old one](old.md#top) for more\n",
         );
         put(
             root,
-            "page.html",
+            "page.markdown",
             b"<p><a href=\"old.md\">x</a> <img src='old.md' alt=y></p>\n",
         );
-        put(root, "data.json", b"{\"link\": \"[a](old.md)\"}\n");
-        put(root, "README", b"[a]: old.md \"T\"\n");
+        put(root, "data.MD", b"{\"link\": \"[a](old.md)\"}\n");
+        put(root, "README.mdx", b"[a]: old.md \"T\"\n");
         let mut changed = std::collections::BTreeMap::new();
-        for name in visited(root) {
+        for name in visited(root, Scope::Markdown) {
             let out = rewritten(&root.join(&name), "dir/new.md").expect("it is text");
             changed.insert(name, String::from_utf8(out).expect("still UTF-8"));
         }
         assert_eq!(
-            changed["notes.txt"],
+            changed["notes.md"],
             "see [the old one](dir/new.md#top) for more\n"
         );
         assert_eq!(
-            changed["page.html"],
+            changed["page.markdown"],
             "<p><a href=\"dir/new.md\">x</a> <img src='dir/new.md' alt=y></p>\n"
         );
-        assert_eq!(changed["data.json"], "{\"link\": \"[a](dir/new.md)\"}\n");
-        assert_eq!(changed["README"], "[a]: dir/new.md \"T\"\n");
+        assert_eq!(changed["data.MD"], "{\"link\": \"[a](dir/new.md)\"}\n");
+        assert_eq!(changed["README.mdx"], "[a]: dir/new.md \"T\"\n");
+    }
+
+    #[test]
+    fn the_markdown_scope_offers_only_markdown_files_and_skips_node_modules() {
+        let dir = tempfile::tempdir().expect("a temp dir can be made");
+        let root = dir.path();
+        let all_files = [
+            "a.md",
+            "B.MD",
+            "c.markdown",
+            "d.mdown",
+            "e.mkd",
+            "f.mdx",
+            "sub/deep/g.md",
+            ".docs/h.md",
+            "node_modules/pkg/readme.md",
+            "sub2/Node_Modules/pkg/readme.md",
+            "sub/node_modules/pkg/readme.md",
+            "notes.txt",
+            "page.html",
+            "data.json",
+            "README",
+            "image.png",
+            "script.md.js",
+            "mdfile",
+        ];
+        for name in all_files {
+            put(root, name, b"[a](old.md)\n");
+        }
+        put(root, ".git/x.md", b"[a](old.md)\n");
+        let mut markdown = visited(root, Scope::Markdown);
+        markdown.sort();
+        assert_eq!(
+            markdown,
+            [
+                ".docs/h.md",
+                "B.MD",
+                "a.md",
+                "c.markdown",
+                "d.mdown",
+                "e.mkd",
+                "f.mdx",
+                "sub/deep/g.md"
+            ]
+        );
+        // The same tree, for Quick Open, still lists everything except `.git`.
+        let everything = visited(root, Scope::Everything);
+        assert_eq!(everything.len(), all_files.len(), "{everything:?}");
+        assert!(everything.contains(&"notes.txt".to_string()));
+        assert!(everything.contains(&"node_modules/pkg/readme.md".to_string()));
+        // The count is of the files offered, so a big node_modules does not show up in it.
+        assert_eq!(walk(root, Scope::Markdown, |_| true).files, 8);
     }
 
     #[test]
@@ -341,15 +417,15 @@ mod tests {
             put(root, name, b"x");
         }
         let mut seen = 0;
-        walk(root, |_| {
+        walk(root, Scope::Everything, |_| {
             seen += 1;
             seen < 2
         });
         assert_eq!(seen, 2);
-        let walked = walk(root, |_| true);
+        let walked = walk(root, Scope::Everything, |_| true);
         assert_eq!(walked.files, 3);
         assert!(walked.unreadable.is_empty());
-        let missing = walk(&root.join("nope"), |_| true);
+        let missing = walk(&root.join("nope"), Scope::Everything, |_| true);
         assert_eq!(missing.unreadable.len(), 1);
     }
 
@@ -381,7 +457,7 @@ mod tests {
             return;
         }
         let mut names = Vec::new();
-        let walked = walk(root, |path| {
+        let walked = walk(root, Scope::Everything, |path| {
             names.push(path.to_string_lossy().into_owned());
             true
         });

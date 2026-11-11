@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 212/259
+progress: 213/259
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-11T20:27:21Z
+updated: 2026-11-11T20:36:27Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -209,7 +209,7 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-121 | bash | excluded folder fixture | rewritten | pnpm test:rust rewrite_excluded | derived: link-rewrite | | |
 | ISC-122 | bash | closed file fixture | written | pnpm test:rust rewrite_closed | derived: link-rewrite | | |
 | ISC-123 | bash | dirty document test | undoable, unsaved | pnpm test:web tests/documents/rewrite.test.ts | derived: link-rewrite | | |
-| ISC-124 | bash | .txt and .html fixtures | rewritten | pnpm test:rust rewrite_text_files | derived: link-rewrite | | |
+| ISC-124 | bash | .txt and .html fixtures | rewritten (since ISC-253: only Markdown-named files) | pnpm test:rust every_form_of_link_in_a_markdown_file_is_rewritten | derived: link-rewrite | | |
 | ISC-125 | bash | property test: byte diff after rewrite | targets only | pnpm test:rust rewrite_minimal | derived: byte-exact | critical | |
 | ISC-126 | screenshot | rename with links present | counts shown | Interceptor on pnpm dev | derived: link-rewrite | | |
 | ISC-127 | bash | setting off, rename | no prompt | pnpm test:web tests/features/rename.test.ts | derived: link-rewrite | | |
@@ -508,7 +508,7 @@ Why: Markdown lives among other files, so the sidebar must manage them and renam
 - [x] ISC-121: Link rewrite covers folders excluded from the tree.
 - [x] ISC-122: Link rewrite writes closed files directly.
 - [x] ISC-123: Link rewrite gives dirty tabs undoable, unsaved edits.
-- [x] ISC-124: Link rewrite covers other text files.
+- [x] ISC-124: Link rewrite covers other text files. (Since 2026-11-11 it covers only Markdown files, by ISC-253.)
 - [x] ISC-175: Link rewrite reloads clean open tabs.
 - [x] ISC-125: Anti: link rewrite never changes bytes outside link targets.
 - [x] ISC-126: A rename shows the number of links and files first.
@@ -637,7 +637,7 @@ Why: an everyday editor starts, keeps and manages files without sending you to E
 - [x] ISC-250: A tab with unsaved changes shows its dot centred exactly where the close button's X appears, in the same 20 px slot, and the tab's label does not change width when the pointer enters the tab.
 - [x] ISC-251: The browser's right-click menu (Inspect, Cut, Copy, Paste) never appears anywhere in the app, editor text and text boxes included; the tab menu and the file tree menu still open.
 - [x] ISC-252: Renaming `A/a.md` to `A/b.md` rewrites only the links that lead to `A/a.md`: a link to `B/a.md` is left alone, whether it sits in a file at the root, in `A` or in `B`.
-- [ ] ISC-253: The scans behind rename, move and References read only Markdown files (md, markdown, mdown, mkd, mdx, any case) and never enter a `node_modules` folder; Quick Open still lists every file.
+- [x] ISC-253: The scans behind rename, move and References read only Markdown files (md, markdown, mdown, mkd, mdx, any case) and never enter a `node_modules` folder; Quick Open still lists every file.
 - [ ] ISC-254: With the sidebar tree focused: Up/Down move the selected row without opening it, Right expands a folder or steps into its first child, Left collapses or steps to the parent, Home and End go to the first and last row, Enter toggles a folder or opens a file and moves focus into it, Space opens a file and keeps focus in the tree; a modified arrow (Alt, Ctrl, Meta) is left to the global shortcuts.
 - [ ] ISC-255: A single click on a file in the tree opens it and leaves focus on its row (no caret in the editor); a double click opens it and puts the caret in the editor; a double click on a folder toggles it once; Quick Open, the open dialog, links, history, references and tab clicks still move focus into the editor.
 - [ ] ISC-256: Focus stays in the tree after a rename, a delete and a drag-move; the selected row is drawn strong while the tree has focus and dimmer when it does not, with no outline ring.
@@ -653,7 +653,7 @@ Why: an everyday editor starts, keeps and manages files without sending you to E
 - 2026-11-07: Stored resized images as `<img src width>`, since that renders on GitHub while `=WxH` and `|300` do not.
 - 2026-11-07: Chose pointer-based dragging, because `dragDropEnabled: false` would lose the real file paths on native drops.
 - 2026-11-07: Dropped `panic = abort`, so a crashed background thread can't take down the app and lose unsaved typing.
-- 2026-11-07: Link rewrite scans every text file in the workspace, including folders hidden from the tree. Only `.git` and binary files are skipped.
+- 2026-11-07: Link rewrite scans every text file in the workspace, including folders hidden from the tree. Only `.git` and binary files are skipped. (Replaced on 2026-11-11 by ISC-253: Markdown files only, and not inside `node_modules`.)
 - 2026-11-07: Structural probes run through `scripts/check-arch.mjs`, since regex pipes would break the Test Strategy table.
 - 2026-11-07: refined: ISC-51 split into ISC-51.1, ISC-51.2 and ISC-51.3, since one claim bundled three probes.
 - 2026-11-07: refined: added ISC-169 and ISC-170, since building the task list showed LICENSE and README had no claims.
@@ -912,7 +912,7 @@ Why: an everyday editor starts, keeps and manages files without sending you to E
 - ISC-119: `pnpm test:rust rewrite_angle`: `<...>` stays, spaces and parentheses stay raw inside it, an escaped target in angle brackets stays escaped, a bare link gets its space escaped, a title is kept (P6-T4).
 - ISC-120: `pnpm test:rust rewrite_anchor`: the span ends before `#`, so the anchor survives in an inline link, an angle link, a link with a title, an `<a href>` and a definition; a link that is only an anchor is not a target (P6-T4).
 - ISC-121: `pnpm test:rust rewrite_excluded`: `node_modules`, `.obsidian`, `build` and `.github` are walked and their links rewritten byte for byte, while `.git` (at any depth, any case) is not. The tree hides nothing today and `folder_exclude_patterns` exists only in the plan, so this proves the walker applies no exclusion of its own (P6-T4).
-- ISC-124: `pnpm test:rust rewrite_text_files`: a `.txt`, an `.html`, a `.json` and an extensionless file are scanned and rewritten; binary files and files in other encodings are reported, not scanned (`binary_files_and_other_encodings_are_not_scanned_and_say_so`) (P6-T4).
+- ISC-124: `pnpm test:rust every_form_of_link_in_a_markdown_file_is_rewritten` (was `rewrite_text_files`, which rewrote a `.txt`, an `.html`, a `.json` and an extensionless file until ISC-253 limited the scans to Markdown; the same four link forms are now in `.md`, `.markdown`, `.MD` and `.mdx` files): binary files and files in other encodings are reported, not scanned (`binary_files_and_other_encodings_are_not_scanned_and_say_so`) (P6-T4).
 - ISC-125 groundwork: `an_edit_keeps_crlf_and_a_byte_order_mark_and_changes_only_the_target` and `a_utf16_file_is_scanned_not_skipped_as_binary` (P6-T4); closed in P6-T5, see below.
 - Breaks on purpose in the scanner and the walker: 22 tried, 19 failed a test at once; three survived and were handled (a redundant scheme check removed, a link-skip test made to run with a junction and then caught both breaks, and the early NUL sniff, which only reads less and changes no result) (P6-T4).
 - ISC-113: `pnpm test:rust rewrite_inbound` (critical): 120 random workspaces (folders and files with spaces, parentheses and non-ASCII names, links in ten forms, CRLF, a BOM and UTF-16, a code fence holding a link, broken links), one random file or folder renamed on disk, the plan applied, then every file read again: no link leads to the old path, and every link that worked leads to the same file as before, checked with the OS (`canonicalize`). Pure cases pin the exact output for renames from other folders, `./`, trailing slashes, escapes and case (P6-T5).
@@ -978,7 +978,7 @@ Why: an everyday editor starts, keeps and manages files without sending you to E
 - ISC-250: `tests/workbench/tabStripItem.test.ts` (3): the dot and the close button are children of one `size-5` slot (`data-tab-slot`, grid, centred, `ml-auto`) that is the last thing in the tab; the dot is hidden and the button shown on tab hover; a clean tab has no dot and its button stays in the slot. Broken on purpose, caught: `place-items-center` removed from the slot. Real debug window (own WebView2 profile, since the owner's dev app was running): dirty tab with the pointer away shows the 8 px dot, centre (320, 49.5); with the pointer over it the X shows with centre (320, 49.5), a difference of 0 px on both axes; the label (30.41 px) and the tab (96 px) are the same width in both states. Screenshots of both states looked right.
 - ISC-251: `tests/shell/nativeMenu.test.ts` (8): the browser menu is cancelled on the sidebar, status bar, an empty pane, the title bar, an image, editor text, `input`, `textarea` and editable elements; a trigger of an app menu is left alone; the tab menu still opens; `main.ts` installs it before mount. Broken on purpose, caught: an exception for `input` put back. Real debug window (own WebView2 profile): right-click on the sidebar header, status bar, title bar, empty tab strip, empty tree space, editor text, the palette box and the rename box all cancelled the event (the page's own `contextmenu` listener saw `defaultPrevented`, and no `[role=menu]` appeared); right-click on a tab and on a tree row opened the app's menus (1 menu each); Ctrl+A, Ctrl+C, End, Ctrl+V still copied and pasted in the editor (17 to 30 characters). Not tried: Shift+F10 and the Menu key.
 - ISC-252: Rust (`pnpm test:rust`): `links::rewrite::tests::one_file_name_in_two_folders_is_told_apart_by_the_folder` (A/a.md to A/b.md: from the root `A/a.md`, `./A/a.md`, `<A/a.md#x>` and the reference definition follow, `B/a.md` and `B/a.md#A/a.md` do not; from inside A, `a.md` and `../A/a.md` follow and `../B/a.md` does not; from inside B, `a.md` and `../B/a.md` stay and `../A/a.md` follows) and `links::flow::tests::renaming_one_of_two_files_with_the_same_name_leaves_the_links_to_the_other_alone` (the same on disk through plan and finish). Broken on purpose, both caught: `Abs::under` comparing only the last name. No code change was needed; the code compares whole path components after resolving each link against its own file's folder. Real debug window: workspace with A/a.md, B/a.md and an index.md linking both, A/a.md renamed to b.md with F2; the banner asked "Update 3 links in 2 files?"; after Update links, index.md read `[a](A/b.md) [b](B/a.md) [a2](./A/b.md#x) [b2](./B/a.md#x)`, B/a.md pointed at `../A/b.md` and A/b.md still at `../B/a.md`.
-- ISC-253: Open: in progress.
+- ISC-253: Rust (`pnpm test:rust`, 329 pass): `links::walk::tests::the_markdown_scope_offers_only_markdown_files_and_skips_node_modules` (md, MD, markdown, mdown, mkd, mdx and a dot-folder are offered; `node_modules` at the root, in a subfolder and as `Node_Modules`, .txt, .html, .json, extensionless, .png, `script.md.js`, `mdfile` and `.git` are not; the `Everything` scope lists all but `.git`; the count is of files offered), `every_form_of_link_in_a_markdown_file_is_rewritten` (the old `.txt`/`.html`/`.json` rewrite test, now over `.md`, `.markdown`, `.MD`, `.mdx`), `links::rewrite::tests::the_plan_reads_only_markdown_files_and_never_enters_node_modules` (links 2, scanned 3, no skipped or binary, only `a.md` and `UP.MD` planned while a .txt, .html, .json and two `node_modules` files link to the moved file), `references_every_form_in_the_fixture_workspace` (a .txt that links to the target is no longer listed, files 3), the random-world tests (`rewrite_inbound`, `rewrite_outbound`, `rewrite_folder`, `rewrite_minimal`) now put links only in `.md` files, and `workspace::quick::tests::every_kind_of_file_is_listed_even_in_node_modules_unlike_the_link_scans`. Broken on purpose, each caught: the extension test removed (4 fail), the `node_modules` skip removed (2 fail), Quick Open moved to the Markdown scope (1 fails). Timing, debug build, 300 notes plus 30,000 files in `node_modules` (a throwaway test, removed): read every file 2.7 to 3.0 s, Markdown scope 18 to 23 ms (300 files read instead of 30,300). Real debug window: renaming `old.md` with a `.txt`, a `.html`, a `node_modules/pkg/readme.md` and a `node_modules/pkg/index.js` all linking to it asked "Update 1 links in 1 files?" and after Update links only `a.md` changed, the four others kept their bytes. The cancel flag is still checked per Markdown file, not per folder (a walk over folders with no Markdown cannot be cancelled; only listing them is left). `pnpm perf typing-during-scan` is in the end-of-round perf run.
 - ISC-254: Open: in progress.
 - ISC-255: Open: in progress.
 - ISC-256: Open: in progress.

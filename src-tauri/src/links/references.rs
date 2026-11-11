@@ -9,7 +9,7 @@
 use super::flow::{Buffer, Problem};
 use super::rewrite::{Wanted, place_key};
 use super::scan::{self, Link};
-use super::walk::{Scan, read_unless_binary, scan_bytes, walk};
+use super::walk::{Scan, Scope, read_unless_binary, scan_bytes, walk};
 use crate::access::display_path;
 use crate::documents::AppState;
 use crate::error::{AppError, friendly_io};
@@ -113,7 +113,7 @@ pub(crate) fn find(
         if found.truncated {
             break;
         }
-        walk(root, |path| {
+        walk(root, Scope::Markdown, |path| {
             let Some(key) = place_key(path, ignore_case) else {
                 return true;
             };
@@ -247,7 +247,7 @@ mod tests {
         put(root, "docs/notes.txt", b"see [t](target.md)\n");
         put(root, ".git/config.md", b"[a](../docs/target.md)\n");
         put(root, "bin.dat", b"\x00\x01[a](docs/target.md)\n");
-        put(root, "latin.txt", b"caf\xE9 [a](docs/target.md)\n");
+        put(root, "latin.md", b"caf\xE9 [a](docs/target.md)\n");
         dir
     }
 
@@ -266,7 +266,6 @@ mod tests {
         assert_eq!(
             listed(root, &found),
             [
-                "docs/notes.txt:1",
                 "docs/sub/deep.md:1",
                 "docs/sub/deep.md:2",
                 "docs/target.md:3",
@@ -278,11 +277,12 @@ mod tests {
                 "index.md:7",
             ]
         );
-        assert_eq!(found.files, 4); // notes.txt, deep.md, target.md itself, index.md
+        // notes.txt and bin.dat are not Markdown, so they are never read.
+        assert_eq!(found.files, 3); // deep.md, target.md itself, index.md
         assert!(!found.truncated);
         // The Latin-1 file could not be checked, and says so; the binary file is just not text.
         assert_eq!(found.skipped.len(), 1, "{:?}", found.skipped);
-        assert!(found.skipped[0].path.ends_with("latin.txt"));
+        assert!(found.skipped[0].path.ends_with("latin.md"));
     }
 
     #[test]

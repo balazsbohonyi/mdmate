@@ -12,7 +12,7 @@
 
 use crate::access::display_path;
 use crate::documents::AppState;
-use crate::links::walk::walk;
+use crate::links::walk::{Scope, walk};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};
@@ -87,7 +87,7 @@ pub(crate) fn build(roots: &[PathBuf], max_files: usize) -> Index {
     'roots: for root in roots {
         let label = root_label(root);
         let mut over = false;
-        walk(root, |file| {
+        walk(root, Scope::Everything, |file| {
             if index.entries.len() >= max_files {
                 over = true;
                 return false;
@@ -673,6 +673,23 @@ mod tests {
         let mut found = names(&answer);
         found.sort_unstable();
         assert_eq!(found, ["a/b/c/deep.md", "top.md"]);
+    }
+
+    #[test]
+    fn every_kind_of_file_is_listed_even_in_node_modules_unlike_the_link_scans() {
+        let dir = temp();
+        put(&dir.path().join("a.md"));
+        put(&dir.path().join("notes.txt"));
+        put(&dir.path().join("pic.png"));
+        put(&dir.path().join("node_modules/pkg/index.js"));
+        let state = state_with(&[dir.path()]);
+        let answer = QuickOpen::default().query(&state, "", 50);
+        let mut found = names(&answer);
+        found.sort_unstable();
+        assert_eq!(
+            found,
+            ["a.md", "node_modules/pkg/index.js", "notes.txt", "pic.png"]
+        );
     }
 
     #[test]

@@ -17,7 +17,7 @@
 //! since it was read is never overwritten.
 
 use super::scan::{self, Link};
-use super::walk::{Scan, read_unless_binary, scan_bytes, walk};
+use super::walk::{Scan, Scope, read_unless_binary, scan_bytes, walk};
 use crate::error::{AppError, friendly_io};
 use crate::fs::atomic::{self, Stage};
 use crate::fs::document::content_hash;
@@ -418,7 +418,7 @@ pub(crate) fn plan(
         if stopped {
             break;
         }
-        walk(root, |path| {
+        walk(root, Scope::Markdown, |path| {
             let Some(file) = Abs::of(path) else {
                 return true;
             };
@@ -1058,13 +1058,55 @@ mod tests {
     }
 
     #[test]
+    fn the_plan_reads_only_markdown_files_and_never_enters_node_modules() {
+        let dir = tempfile::tempdir().expect("a temp dir");
+        let root = dir.path();
+        put(root, "old.md", b"x\n");
+        put(root, "a.md", b"[a](old.md)\n");
+        put(root, "UP.MD", b"[a](old.md)\n");
+        put(root, "notes.txt", b"[a](old.md)\n");
+        put(root, "page.html", b"<a href=\"old.md\">x</a>\n");
+        put(root, "data.json", b"{\"l\": \"[a](old.md)\"}\n");
+        put(root, "node_modules/pkg/readme.md", b"[a](../../old.md)\n");
+        put(
+            root,
+            "sub/node_modules/pkg/readme.md",
+            b"[a](../../../old.md)\n",
+        );
+        let mv = Move {
+            from: root.join("old.md"),
+            to: root.join("new.md"),
+        };
+        let plan = plan(&[root.to_path_buf()], &mv, ignore_case(), |_| true).expect("planned");
+        // Only a.md and UP.MD hold a link that follows; old.md is read too, and has none.
+        assert_eq!(plan.links(), 2);
+        assert_eq!(plan.scanned, 3);
+        assert_eq!((plan.binary, plan.skipped.len()), (0, 0));
+        let mut names: Vec<String> = plan
+            .files
+            .iter()
+            .map(|file| {
+                file.before
+                    .file_name()
+                    .expect("a name")
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+        names.sort();
+        assert_eq!(names, ["UP.MD", "a.md"]);
+    }
+
+    #[test]
     fn the_plan_reports_what_it_could_not_read_and_stops_when_asked() {
         let dir = tempfile::tempdir().expect("a temp dir");
         let root = dir.path();
         put(root, "old.md", b"x\n");
         put(root, "a.md", b"[a](old.md)\n");
-        put(root, "latin.txt", b"caf\xE9 [a](old.md)\n");
-        put(root, "blob.bin", b"\x00\x01\x02");
+        put(root, "latin.md", b"caf\xE9 [a](old.md)\n");
+        put(root, "blob.md", b"\x00\x01\x02");
+        // Not Markdown, so never read.
+        put(root, "other.txt", b"[a](old.md)\n");
         let mv = Move {
             from: root.join("old.md"),
             to: root.join("new.md"),
@@ -1079,7 +1121,7 @@ mod tests {
         assert_eq!(plan.links(), 1);
         assert_eq!(plan.binary, 1);
         assert_eq!(plan.skipped.len(), 1);
-        assert!(plan.skipped[0].path.ends_with("latin.txt"));
+        assert!(plan.skipped[0].path.ends_with("latin.md"));
         // Two roots that overlap read each file once.
         assert_eq!(plan.scanned, 2);
         // A "no" from the progress callback ends the walk: it is asked once and never again.
@@ -1233,7 +1275,9 @@ mod tests {
         for file in &files {
             let mut lines = vec!["# title".to_owned()];
             let dir: Rel = file[..file.len() - 1].to_vec();
-            for _ in 0..rng.below(6) {
+            // Only Markdown files hold links the scans look at; the others are only targets.
+            let holds_links = file.last().is_some_and(|name| name.ends_with(".md"));
+            for _ in 0..if holds_links { rng.below(6) } else { 0 } {
                 let roll = rng.below(20);
                 let (target, is_dir) = if roll < 16 {
                     (rng.pick(&files).clone(), false)
@@ -1246,7 +1290,7 @@ mod tests {
                 };
                 lines.push(link_line(rng, &relative(&dir, &target), is_dir));
             }
-            if rng.below(4) == 0 {
+            if holds_links && rng.below(4) == 0 {
                 let target = rng.pick(&files).clone();
                 lines.push(format!(
                     "```\n[never]({})\n```",
