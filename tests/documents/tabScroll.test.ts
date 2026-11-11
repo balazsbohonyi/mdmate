@@ -45,6 +45,11 @@ function shownWith(view: EditorView, show: () => void): Target[] {
   return seen
 }
 
+/** A saved scroll place, in the type `scrollSnapshot` returns. */
+function scrollTarget(pos: number): ReturnType<EditorView['scrollSnapshot']> {
+  return EditorView.scrollIntoView(pos, { y: 'start' }) as ReturnType<EditorView['scrollSnapshot']>
+}
+
 function mounted(): EditorView {
   const parent = document.createElement('div')
   document.body.append(parent)
@@ -59,14 +64,12 @@ describe('a tab keeps its own scroll position (ISC-245)', () => {
     const view = mounted()
     a.show(view)
     // The pane's one view is scrolled down while A is on screen.
-    vi.spyOn(view, 'scrollSnapshot').mockReturnValue(
-      EditorView.scrollIntoView(9999, { y: 'start' }),
-    )
+    vi.spyOn(view, 'scrollSnapshot').mockReturnValue(scrollTarget(9999))
     a.park()
     const seen = shownWith(view, () => b.show(view))
     expect(seen).toHaveLength(1)
-    expect(seen[0].range.head).toBe(0)
-    expect(seen[0].y).toBe('center')
+    expect(seen[0]?.range.head).toBe(0)
+    expect(seen[0]?.y).toBe('center')
     b.park()
     view.destroy()
   })
@@ -76,12 +79,12 @@ describe('a tab keeps its own scroll position (ISC-245)', () => {
     if (a === undefined) throw new Error('no follower')
     const view = mounted()
     a.show(view)
-    vi.spyOn(view, 'scrollSnapshot').mockReturnValue(EditorView.scrollIntoView(7, { y: 'start' }))
+    vi.spyOn(view, 'scrollSnapshot').mockReturnValue(scrollTarget(7))
     a.park()
     const seen = shownWith(view, () => a.show(view))
     expect(seen).toHaveLength(1)
-    expect(seen[0].range.head).toBe(7)
-    expect(seen[0].y).toBe('start')
+    expect(seen[0]?.range.head).toBe(7)
+    expect(seen[0]?.y).toBe('start')
     a.park()
     view.destroy()
   })
@@ -91,11 +94,11 @@ describe('a tab keeps its own scroll position (ISC-245)', () => {
     if (a === undefined) throw new Error('no follower')
     const view = mounted()
     a.show(view)
-    vi.spyOn(view, 'scrollSnapshot').mockReturnValue(EditorView.scrollIntoView(7, { y: 'start' }))
+    vi.spyOn(view, 'scrollSnapshot').mockReturnValue(scrollTarget(7))
     a.park()
     a.dispatch({ changes: { from: 0, insert: '12345' } })
     const seen = shownWith(view, () => a.show(view))
-    expect(seen[0].range.head).toBe(12)
+    expect(seen[0]?.range.head).toBe(12)
     a.park()
     view.destroy()
   })
@@ -105,12 +108,12 @@ describe('a tab keeps its own scroll position (ISC-245)', () => {
     if (a === undefined) throw new Error('no follower')
     const view = mounted()
     a.show(view)
-    vi.spyOn(view, 'scrollSnapshot').mockReturnValue(EditorView.scrollIntoView(2, { y: 'start' }))
+    vi.spyOn(view, 'scrollSnapshot').mockReturnValue(scrollTarget(2))
     a.park()
     a.reveal(8)
     const seen = shownWith(view, () => a.show(view))
     expect(seen).toHaveLength(1)
-    expect(seen[0].range.head).toBe(8)
+    expect(seen[0]?.range.head).toBe(8)
     a.park()
     view.destroy()
   })

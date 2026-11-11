@@ -304,6 +304,17 @@ export async function openPath(path: string, paneId?: PaneId): Promise<TabId> {
   return openTabFor({ kind: doc.kind, docId: doc.id }, paneId)
 }
 
+/**
+ * Opens a file the user picked by hand (a tree click, Quick Open, the open dialog) in the active
+ * pane: its tab there when it has one, else a new tab there, even when another pane already shows
+ * the file. That is how the same file gets a tab in each pane, with its own caret and scroll over
+ * one shared text. A link, a history step, a reference or a recent file goes through `openPath`
+ * with no pane, which jumps to the tab that already shows the file wherever it is.
+ */
+export function openInActivePane(path: string): Promise<TabId> {
+  return openPath(path, workbenchLayout.value.activePane)
+}
+
 /** Shows the open dialog and opens what the user chose. Failures go to `problem`. */
 export async function openFromDialog(): Promise<void> {
   problem.value = null
@@ -311,7 +322,7 @@ export async function openFromDialog(): Promise<void> {
     const host = await getHost()
     for (const path of await host.pickFiles()) {
       try {
-        await openPath(path)
+        await openInActivePane(path)
       } catch (error) {
         problem.value = `Could not open ${path}: ${describe(error)}`
       }

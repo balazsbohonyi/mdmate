@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, useTemplateRef, watch } from 'vue'
-import { describe, openPath, problem } from '@/documents/store'
+import { describe, openInActivePane, problem } from '@/documents/store'
 import { getHost } from '@/platform'
 import type { QuickOpenAnswer } from '@/platform/quickOpen'
 import { commandForEvent, runCommand } from '@/workbench/commands'
@@ -112,7 +112,7 @@ async function accept(at: number): Promise<void> {
   if (row === undefined || row.disabled) return
   closePalette()
   try {
-    if (mode === 'files') await openPath(row.key)
+    if (mode === 'files') await openInActivePane(row.key)
     else await runCommand(row.key)
   } catch (error) {
     if (mode === 'files') problem.value = `Could not open ${row.key}: ${describe(error)}`

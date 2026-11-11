@@ -1,5 +1,5 @@
 import { computed, shallowReactive, shallowRef, watch } from 'vue'
-import { describe, openPath, problem, provideImageBoundary } from '@/documents/store'
+import { describe, openInActivePane, problem, provideImageBoundary } from '@/documents/store'
 import { getHost } from '@/platform'
 import { flatten, parentPath, pathKeyer, withNewRow, type Listing, type TreeRow } from './model'
 
@@ -274,7 +274,7 @@ export async function activateRow(row: TreeRow): Promise<void> {
   selectedPath.value = row.path
   if (row.kind === 'file') {
     try {
-      await openPath(row.path)
+      await openInActivePane(row.path)
     } catch (error) {
       problem.value = `Could not open ${row.path}: ${describe(error)}`
     }
