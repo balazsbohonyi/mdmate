@@ -9,10 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { EditorView } from '@codemirror/view'
 import { blocksOf, scanBlocks } from '@/editor/livePreview/blocks'
 import { FrontmatterWidget } from '@/editor/livePreview/blocks/widgets'
-import {
-  FRONTMATTER_MAX_LINES,
-  frontmatterEnd,
-} from '@/editor/livePreview/frontmatter'
+import { FRONTMATTER_MAX_LINES, frontmatterEnd } from '@/editor/livePreview/frontmatter'
 import { blockStateOf, drawn, mountPreview } from '../helpers/blocks'
 import { scanPreview } from '@/editor/livePreview/scan'
 import { lineClasses, markedText, scanAll, stateOf } from '../helpers/preview'
@@ -107,9 +104,7 @@ describe('the block layer', () => {
 
   it('treats the same text as the same widget, and other text as another', () => {
     expect(new FrontmatterWidget(FRONT).eq(new FrontmatterWidget(FRONT))).toBe(true)
-    expect(new FrontmatterWidget(FRONT).eq(new FrontmatterWidget(`${FRONT} `))).toBe(
-      false,
-    )
+    expect(new FrontmatterWidget(FRONT).eq(new FrontmatterWidget(`${FRONT} `))).toBe(false)
   })
 
   it('draws no table, image or other block inside the range', () => {

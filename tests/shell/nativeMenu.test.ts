@@ -85,7 +85,8 @@ describe('where the browser menu is cancelled (ISC-242)', () => {
     const page = add(
       '<aside id="s"><p id="header">Folders</p></aside><footer id="f">status</footer><div id="pane"></div><header id="t"></header><img id="i" alt="">',
     )
-    for (const id of ['header', 's', 'f', 'pane', 't', 'i']) expect(rightClick(pick(page, id)), id).toBe(true)
+    for (const id of ['header', 's', 'f', 'pane', 't', 'i'])
+      expect(rightClick(pick(page, id)), id).toBe(true)
   })
 
   it('leaves it on editor text, text boxes and editable elements', () => {

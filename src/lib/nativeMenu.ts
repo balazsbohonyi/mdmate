@@ -3,7 +3,8 @@
  * menu the user sees is the app's own. It is kept only where it does something the app has no menu
  * for, which is cutting, copying and pasting text: the editor text and text boxes.
  */
-const TEXT_SURFACE = '.cm-content, input, textarea, [contenteditable]:not([contenteditable="false"])'
+const TEXT_SURFACE =
+  '.cm-content, input, textarea, [contenteditable]:not([contenteditable="false"])'
 
 /**
  * The elements an app menu opens from. Reka opens its menu only if nobody has cancelled the event

@@ -35,6 +35,7 @@ describe('the status bar (UAT round 2)', () => {
   })
 
   it('takes no platform prop', () => {
-    expect(Object.keys(StatusBar.props ?? {})).not.toContain('platformName')
+    const props = (StatusBar as { props?: Record<string, unknown> }).props ?? {}
+    expect(Object.keys(props)).not.toContain('platformName')
   })
 })

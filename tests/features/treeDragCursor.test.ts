@@ -25,7 +25,6 @@ async function flush(): Promise<void> {
 }
 
 let mounted: { app: App; root: HTMLElement } | undefined
-const original = document.elementFromPoint
 
 beforeEach(async () => {
   resetTree()
@@ -51,7 +50,8 @@ afterEach(() => {
   mounted?.app.unmount()
   mounted?.root.remove()
   mounted = undefined
-  document.elementFromPoint = original
+  // jsdom has no such method; the test adds one.
+  Reflect.deleteProperty(document, 'elementFromPoint')
   document.documentElement.removeAttribute('data-tree-drag')
   document.body.replaceChildren()
   setHost(undefined)
@@ -71,7 +71,7 @@ function press(path: string): void {
   )
 }
 function moveOver(target: Element | null, x = 200): void {
-  document.elementFromPoint = () => target
+  Object.assign(document, { elementFromPoint: () => target })
   window.dispatchEvent(new PointerEvent('pointermove', { clientX: x, clientY: 80 }))
 }
 
@@ -116,7 +116,11 @@ describe('the cursor of a tree drag (ISC-240)', () => {
 
   it('turns the attribute into cursors on every element, with !important', () => {
     const css = readFileSync(join(process.cwd(), 'src/styles/tokens.css'), 'utf8')
-    expect(css).toMatch(/html\[data-tree-drag='move'\][^{]*\*\s*\{[^}]*cursor:\s*grabbing\s*!important/s)
-    expect(css).toMatch(/html\[data-tree-drag='blocked'\][^{]*\*\s*\{[^}]*cursor:\s*not-allowed\s*!important/s)
+    expect(css).toMatch(
+      /html\[data-tree-drag='move'\][^{]*\*\s*\{[^}]*cursor:\s*grabbing\s*!important/s,
+    )
+    expect(css).toMatch(
+      /html\[data-tree-drag='blocked'\][^{]*\*\s*\{[^}]*cursor:\s*not-allowed\s*!important/s,
+    )
   })
 })

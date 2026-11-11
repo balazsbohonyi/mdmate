@@ -155,7 +155,7 @@ describe('the handle on the edge', () => {
     expect(sidebarWidth.value).toBe(224)
   })
 
-  it('a press focuses the edge, so the arrow keys resize it and do not move the editor caret (ISC-241)', async () => {
+  it('a press focuses the edge, so the arrow keys resize it and do not move the editor caret (ISC-241)', () => {
     const editor = document.createElement('div')
     editor.tabIndex = 0
     document.body.append(editor)

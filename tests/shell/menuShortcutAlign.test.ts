@@ -23,7 +23,10 @@ describe('menu key baseline (ISC-237)', () => {
 
   it('keeps the font sizes: the label stays text-sm and the key text-xs', () => {
     const item = readFileSync(join(SRC, 'components/ui/context-menu/ContextMenuItem.vue'), 'utf8')
-    const key = readFileSync(join(SRC, 'components/ui/context-menu/ContextMenuShortcut.vue'), 'utf8')
+    const key = readFileSync(
+      join(SRC, 'components/ui/context-menu/ContextMenuShortcut.vue'),
+      'utf8',
+    )
     expect(item).toMatch(/\btext-sm\b/)
     expect(key).toMatch(/\btext-xs\b/)
   })

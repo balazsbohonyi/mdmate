@@ -333,7 +333,10 @@ describe('the pointer cursor over a link while Ctrl is held (ISC-239)', () => {
   function mountedView() {
     const parent = document.createElement('div')
     document.body.append(parent)
-    const view = new EditorView({ state: createState(DOC, [linkNavigation(() => undefined)]), parent })
+    const view = new EditorView({
+      state: createState(DOC, [linkNavigation(() => undefined)]),
+      parent,
+    })
     ensureSyntaxTree(view.state, view.state.doc.length, 5000)
     return view
   }
@@ -342,7 +345,9 @@ describe('the pointer cursor over a link while Ctrl is held (ISC-239)', () => {
   function move(view: EditorView, pos: number, init: MouseEventInit, on?: Element): void {
     view.posAtCoords = () => pos
     const line = on ?? view.contentDOM.querySelector('.cm-line')
-    line?.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 30, clientY: 10, ...init }))
+    line?.dispatchEvent(
+      new MouseEvent('mousemove', { bubbles: true, clientX: 30, clientY: 10, ...init }),
+    )
   }
 
   const pointer = (view: EditorView): boolean => view.dom.classList.contains('cm-follow-link')
@@ -395,10 +400,9 @@ describe('the pointer cursor over a link while Ctrl is held (ISC-239)', () => {
     const view = mountedView()
     const line = view.contentDOM.querySelector('.cm-line')
     move(view, LINK_AT, {})
-    const original = document.elementFromPoint
-    document.elementFromPoint = () => line ?? null
+    Object.assign(document, { elementFromPoint: () => line ?? null })
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Control', ctrlKey: true }))
-    document.elementFromPoint = original
+    Reflect.deleteProperty(document, 'elementFromPoint')
     expect(pointer(view)).toBe(true)
     view.destroy()
   })
