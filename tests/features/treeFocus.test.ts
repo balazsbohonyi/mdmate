@@ -29,6 +29,8 @@ import {
   holdingEditorFocus,
   isEditorFocusHeld,
 } from '@/workbench/focus'
+import { resetFind } from '@/workbench/find'
+import { installKeybindings } from '@/workbench/keyboard'
 import { resetSidebar, showSidebar, sidebarPanel, sidebarVisible } from '@/workbench/sidebar'
 import { findPane } from '@/workbench/splitTree'
 import { focusPane, resetWorkbench, splitActivePane, workbenchLayout } from '@/workbench/store'
@@ -463,5 +465,53 @@ describe('Focus Sidebar (ISC-257)', () => {
     await flush()
     expect(treeHasFocus()).toBe(true)
     expect(selectedPath.value).toBe('/work')
+  })
+})
+
+describe('find keys work from the tree (ISC-262)', () => {
+  const findBox = (): HTMLInputElement | null =>
+    document.querySelector<HTMLInputElement>('[data-find-input]')
+
+  async function withKeys(run: () => Promise<void>): Promise<void> {
+    const uninstall = installKeybindings(document, 'other')
+    try {
+      await run()
+    } finally {
+      uninstall()
+      resetFind()
+    }
+  }
+
+  it('Ctrl+F with the tree focused opens the bar in the active pane with focus in its box', async () => {
+    await withKeys(async () => {
+      await start()
+      await click('/work/notes/a.md')
+      expect(treeHasFocus()).toBe(true)
+      const event = await press('f', { ctrlKey: true })
+      expect(event.defaultPrevented).toBe(true)
+      expect(findBox()).not.toBeNull()
+      expect(document.activeElement).toBe(findBox())
+    })
+  })
+
+  it('Ctrl+H does the same with the replace row open', async () => {
+    await withKeys(async () => {
+      await start()
+      await click('/work/notes/a.md')
+      await press('h', { ctrlKey: true })
+      expect(document.activeElement).toBe(findBox())
+      expect(document.querySelector('[data-replace-input]')).not.toBeNull()
+    })
+  })
+
+  it('F3 with the tree focused opens the bar but leaves focus on the tree', async () => {
+    await withKeys(async () => {
+      await start()
+      await click('/work/notes/a.md')
+      const event = await press('F3')
+      expect(event.defaultPrevented).toBe(true)
+      expect(findBox()).not.toBeNull()
+      expect(treeHasFocus()).toBe(true)
+    })
   })
 })

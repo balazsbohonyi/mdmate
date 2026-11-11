@@ -2,6 +2,7 @@ import { defaultKeymap, history, historyKeymap, indentLess, insertTab } from '@c
 import { indentUnit, syntaxHighlighting } from '@codemirror/language'
 import { EditorState, type EditorSelection, type Extension, type Text } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
+import { findSupport } from './find'
 import { tokenHighlight } from './highlight'
 import { listEditing } from './lists'
 import { hoverHints } from './hoverHints'
@@ -61,6 +62,7 @@ const common: Extension = [
   frame,
   tabKeys,
   textDrag(),
+  findSupport(),
 ]
 const withParser: Extension = [
   common,
@@ -110,6 +112,8 @@ const followerBase: Extension = [
   tabKeys,
   // Drag-to-move for selected text, on pointer events (P5-T7).
   textDrag(),
+  // Find and replace: the query lives on the state, the bar in the pane (P7-T1).
+  findSupport(),
   // Hints for things drawn in the editor, in the shadcn tooltip's colors (ISC-226).
   hoverHints(),
 ]

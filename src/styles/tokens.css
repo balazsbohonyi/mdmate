@@ -88,6 +88,8 @@
   --color-scrollbar-thumb: var(--scrollbar-thumb);
   --color-scrollbar-thumb-hover: var(--scrollbar-thumb-hover);
   --color-drop-preview: var(--drop-preview);
+  --color-find-match: var(--find-match);
+  --color-find-match-active: var(--find-match-active);
 
   --color-selection: var(--selection);
   --color-caret: var(--caret);

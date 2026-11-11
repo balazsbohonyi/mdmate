@@ -1,0 +1,13 @@
+# Phase 7: what was not tested, and how to test it later
+
+Everything below was skipped on purpose or could not be done in the Phase 7 runs. Each entry says why, and how to check it when there is time. The decisions behind them are in [decisions.md](decisions.md).
+
+| # | Gap | Why it was skipped | How to test it |
+|---|---|---|---|
+| 1 | Ctrl+F, Ctrl+H and F3 with focus in the file tree, in the real window (P7-T1) | The real run had no folder open (it used an untitled tab), so the tree could not take focus; Ctrl+Shift+E left the caret in the editor. Page tests cover it with the tree and panes drawn together (`treeFocus.test.ts`), which shows the tree does not cancel the keys but not what WebView2 does. | Open a folder, click a row so the tree has focus, press Ctrl+F, Ctrl+H and F3. Ctrl+F and Ctrl+H should open the bar with focus in its box; F3 should open it and leave focus on the tree. |
+| 2 | Typing in the editor while the find bar is open on a large file (ISC-260) | The count itself was timed in the real window (20 to 26 ms for a rare word on 10.85 million characters, see decisions.md), but typing with the bar open was not measured: the scenario `typing-find-open` is written with the other perf scenarios at the end of Phase 7. | Open `realistic-10mb.md`, press Ctrl+F, type `e`, then type in the editor and watch for stalls; run `pnpm perf typing-find-open`. |
+| 3 | Match marks in a table cell or an image caption while the table is drawn | The page test shows that Find Next reveals the source of a hidden table, frontmatter, link target and image source. Marks inside a drawn table widget (not selected) were not looked at. | Search for a word that appears in a table with the caret outside it. The word is in a widget; check that nothing looks broken. |
+| 4 | Light theme look of the bar and the marks | The real run used the dark theme only. | Switch the OS to light mode (themes switch in P8-T3), open the bar and look at the marks and the toggles. |
+| 5 | A very long line in the find box and a narrow pane | Not tried. | Split a pane to about 300 px wide and open the bar with the replace row; the buttons should not overlap the boxes. |
+| 6 | Right-click on the bar in the real window | Pinned by a page test of the global guard, not run in the real window. | Right-click the find box and a toggle in the real app; no menu should appear. |
+| 7 | Cmd+H on macOS (Replace) | `Mod+H` is Cmd+H on a Mac, which the system uses for Hide App. I did not check whether Tauri's default macOS menu takes the key before the page does. Mac builds only compile in CI; nothing ran. | On a Mac, press Cmd+H in the editor. If the app hides, rebind Replace on Mac (Cmd+Alt+F is the usual choice) in `defaultCommands.ts` and the menu test. |

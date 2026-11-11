@@ -64,6 +64,11 @@ export class Follower implements FollowerLink {
     return this.#view !== null
   }
 
+  /** The view that shows this state, or null. Find and replace run their commands on it. */
+  get view(): EditorView | null {
+    return this.#view
+  }
+
   /** Puts this state in `view`, which must not be showing another follower. */
   show(view: EditorView): void {
     const state = this.state
