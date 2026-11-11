@@ -384,6 +384,51 @@ mod tests {
     }
 
     #[test]
+    fn renaming_one_of_two_files_with_the_same_name_leaves_the_links_to_the_other_alone() {
+        let w = workspace();
+        put(
+            &w.root.join("A/a.md"),
+            "# A
+[self](a.md) [other](../B/a.md)
+",
+        );
+        put(
+            &w.root.join("B/a.md"),
+            "# B
+[self](a.md) [other](../A/a.md)
+",
+        );
+        put(
+            &w.root.join("index.md"),
+            "[a](A/a.md) [b](B/a.md) [a2](./A/a.md#x) [b2](./B/a.md#x)
+",
+        );
+
+        let planned = plan_of(&w, &w.root.join("A/a.md"), &rename("b.md"), &[]);
+        let done = finish(&w.state, planned.token, &[]).expect("done");
+        assert_eq!(done.failed, []);
+        assert_eq!(
+            fs::read_to_string(w.root.join("index.md")).expect("read"),
+            "[a](A/b.md) [b](B/a.md) [a2](./A/b.md#x) [b2](./B/a.md#x)
+"
+        );
+        // The renamed file keeps pointing at itself and at the other one.
+        assert_eq!(
+            fs::read_to_string(w.root.join("A/b.md")).expect("read"),
+            "# A
+[self](b.md) [other](../B/a.md)
+"
+        );
+        // The other file points at the renamed one by its new name, and at itself as before.
+        assert_eq!(
+            fs::read_to_string(w.root.join("B/a.md")).expect("read"),
+            "# B
+[self](a.md) [other](../A/b.md)
+"
+        );
+    }
+
+    #[test]
     fn a_plan_with_nothing_to_do_has_no_token_and_a_name_that_is_taken_is_refused_first() {
         let w = workspace();
         put(&w.root.join("a.md"), "x\n");

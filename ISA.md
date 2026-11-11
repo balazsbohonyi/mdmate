@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 211/259
+progress: 212/259
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-11T20:24:04Z
+updated: 2026-11-11T20:27:21Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -636,7 +636,7 @@ Why: an everyday editor starts, keeps and manages files without sending you to E
 - [ ] ISC-249: A setting (and a palette command) turns the F12 developer tools on or off while the app runs; a release build has them off until the setting turns them on.
 - [x] ISC-250: A tab with unsaved changes shows its dot centred exactly where the close button's X appears, in the same 20 px slot, and the tab's label does not change width when the pointer enters the tab.
 - [x] ISC-251: The browser's right-click menu (Inspect, Cut, Copy, Paste) never appears anywhere in the app, editor text and text boxes included; the tab menu and the file tree menu still open.
-- [ ] ISC-252: Renaming `A/a.md` to `A/b.md` rewrites only the links that lead to `A/a.md`: a link to `B/a.md` is left alone, whether it sits in a file at the root, in `A` or in `B`.
+- [x] ISC-252: Renaming `A/a.md` to `A/b.md` rewrites only the links that lead to `A/a.md`: a link to `B/a.md` is left alone, whether it sits in a file at the root, in `A` or in `B`.
 - [ ] ISC-253: The scans behind rename, move and References read only Markdown files (md, markdown, mdown, mkd, mdx, any case) and never enter a `node_modules` folder; Quick Open still lists every file.
 - [ ] ISC-254: With the sidebar tree focused: Up/Down move the selected row without opening it, Right expands a folder or steps into its first child, Left collapses or steps to the parent, Home and End go to the first and last row, Enter toggles a folder or opens a file and moves focus into it, Space opens a file and keeps focus in the tree; a modified arrow (Alt, Ctrl, Meta) is left to the global shortcuts.
 - [ ] ISC-255: A single click on a file in the tree opens it and leaves focus on its row (no caret in the editor); a double click opens it and puts the caret in the editor; a double click on a folder toggles it once; Quick Open, the open dialog, links, history, references and tab clicks still move focus into the editor.
@@ -977,7 +977,7 @@ Why: an everyday editor starts, keeps and manages files without sending you to E
 - ISC-249: Open: planned in P8-T1 (`ai-docs/tasks.md`, `ai-docs/phases/phase-08/plan.md`). Phase 6 only established the facts: the source check above, and `[profile.release]` in `Cargo.toml` sets no `debug-assertions`. A try with real F12 on the debug and the release exe could not be automated (a synthetic key press and a focused SendKeys press opened nothing even in the debug build, so the check had no positive control), so the release behaviour rests on the source reading, to be checked by hand: press F12 in a release build.
 - ISC-250: `tests/workbench/tabStripItem.test.ts` (3): the dot and the close button are children of one `size-5` slot (`data-tab-slot`, grid, centred, `ml-auto`) that is the last thing in the tab; the dot is hidden and the button shown on tab hover; a clean tab has no dot and its button stays in the slot. Broken on purpose, caught: `place-items-center` removed from the slot. Real debug window (own WebView2 profile, since the owner's dev app was running): dirty tab with the pointer away shows the 8 px dot, centre (320, 49.5); with the pointer over it the X shows with centre (320, 49.5), a difference of 0 px on both axes; the label (30.41 px) and the tab (96 px) are the same width in both states. Screenshots of both states looked right.
 - ISC-251: `tests/shell/nativeMenu.test.ts` (8): the browser menu is cancelled on the sidebar, status bar, an empty pane, the title bar, an image, editor text, `input`, `textarea` and editable elements; a trigger of an app menu is left alone; the tab menu still opens; `main.ts` installs it before mount. Broken on purpose, caught: an exception for `input` put back. Real debug window (own WebView2 profile): right-click on the sidebar header, status bar, title bar, empty tab strip, empty tree space, editor text, the palette box and the rename box all cancelled the event (the page's own `contextmenu` listener saw `defaultPrevented`, and no `[role=menu]` appeared); right-click on a tab and on a tree row opened the app's menus (1 menu each); Ctrl+A, Ctrl+C, End, Ctrl+V still copied and pasted in the editor (17 to 30 characters). Not tried: Shift+F10 and the Menu key.
-- ISC-252: Open: in progress.
+- ISC-252: Rust (`pnpm test:rust`): `links::rewrite::tests::one_file_name_in_two_folders_is_told_apart_by_the_folder` (A/a.md to A/b.md: from the root `A/a.md`, `./A/a.md`, `<A/a.md#x>` and the reference definition follow, `B/a.md` and `B/a.md#A/a.md` do not; from inside A, `a.md` and `../A/a.md` follow and `../B/a.md` does not; from inside B, `a.md` and `../B/a.md` stay and `../A/a.md` follows) and `links::flow::tests::renaming_one_of_two_files_with_the_same_name_leaves_the_links_to_the_other_alone` (the same on disk through plan and finish). Broken on purpose, both caught: `Abs::under` comparing only the last name. No code change was needed; the code compares whole path components after resolving each link against its own file's folder. Real debug window: workspace with A/a.md, B/a.md and an index.md linking both, A/a.md renamed to b.md with F2; the banner asked "Update 3 links in 2 files?"; after Update links, index.md read `[a](A/b.md) [b](B/a.md) [a2](./A/b.md#x) [b2](./B/a.md#x)`, B/a.md pointed at `../A/b.md` and A/b.md still at `../B/a.md`.
 - ISC-253: Open: in progress.
 - ISC-254: Open: in progress.
 - ISC-255: Open: in progress.

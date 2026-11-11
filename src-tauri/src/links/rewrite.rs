@@ -642,6 +642,52 @@ mod tests {
     }
 
     #[test]
+    fn one_file_name_in_two_folders_is_told_apart_by_the_folder() {
+        // A/a.md becomes A/b.md; B/a.md has the same name and stays. Only links that lead to
+        // A/a.md follow, whichever file they are in and however they are spelled.
+        let from = "/w/A/a.md";
+        let to = "/w/A/b.md";
+        let from_the_root =
+            "[1](A/a.md) [2](./A/a.md) [3](B/a.md) [4](<A/a.md#x>) [5](B/a.md#A/a.md)
+[r]: A/a.md
+[s]: B/a.md
+";
+        assert_eq!(
+            rewritten("/w/index.md", from_the_root, from, to, false),
+            "[1](A/b.md) [2](./A/b.md) [3](B/a.md) [4](<A/b.md#x>) [5](B/a.md#A/a.md)
+[r]: A/b.md
+[s]: B/a.md
+"
+        );
+        // From inside A: `a.md` is the file that moves, `../B/a.md` is the other one.
+        assert_eq!(
+            rewritten(
+                "/w/A/p.md",
+                "[1](a.md) [2](../B/a.md) [3](../A/a.md)
+",
+                from,
+                to,
+                false
+            ),
+            "[1](b.md) [2](../B/a.md) [3](b.md)
+"
+        );
+        // From inside B: `a.md` is B's own file, `../A/a.md` is the one that moves.
+        assert_eq!(
+            rewritten(
+                "/w/B/p.md",
+                "[1](a.md) [2](../A/a.md) [3](../B/a.md)
+",
+                from,
+                to,
+                false
+            ),
+            "[1](a.md) [2](../A/b.md) [3](../B/a.md)
+"
+        );
+    }
+
+    #[test]
     fn a_folder_that_moves_keeps_the_links_inside_it_and_fixes_the_ones_to_it() {
         // Inside the folder, links between its own files and to its own subfolders stay as they are.
         let inside = "[a](b.md) [c](deep/c.md) [d](./deep/d.md)\n";
