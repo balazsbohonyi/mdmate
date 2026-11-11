@@ -71,6 +71,7 @@ function startDrag(id: string, event: PointerEvent): void {
       <ImageView
         v-else-if="activeImage !== null"
         :key="pane.activeTab ?? ''"
+        :tab-id="pane.activeTab ?? ''"
         :path="activeImage.path"
         :size="activeImage.size"
       />

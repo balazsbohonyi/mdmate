@@ -2,7 +2,18 @@
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { formatBytes } from '@/lib/bytes'
 import { getHost } from '@/platform'
-import { actualView, fitView, panBy, zoomAbout, type Size, type View } from './imageView'
+import {
+  actualView,
+  fitView,
+  panBy,
+  recall,
+  remember,
+  rememberedView,
+  rememberView,
+  zoomAbout,
+  type Size,
+  type View,
+} from './imageView'
 
 /**
  * An image tab: the picture, fitted to the pane to start with, with zoom, pan, and its dimensions
@@ -10,7 +21,7 @@ import { actualView, fitView, panBy, zoomAbout, type Size, type View } from './i
  * scripts of an SVG file cannot run.
  */
 
-const { path, size } = defineProps<{ path: string; size: number }>()
+const { tabId, path, size } = defineProps<{ tabId: string; path: string; size: number }>()
 
 const pane = useTemplateRef<HTMLElement>('pane')
 const url = ref<string | null>(null)
@@ -50,7 +61,15 @@ function loaded(event: Event): void {
   // An SVG with no width or height has no size of its own; the browser's default stands in.
   natural.value = { width: image.naturalWidth || 300, height: image.naturalHeight || 150 }
   failed.value = false
-  fit()
+  // Coming back to a tab the owner zoomed or moved puts the picture back as it was (ISC-233); a
+  // tab that was never touched fits the pane as before.
+  const saved = rememberedView(tabId)
+  if (saved === undefined || saved.fitted) {
+    fit()
+    return
+  }
+  view.value = recall(saved, paneSize())
+  fitted.value = false
 }
 
 function onWheel(event: WheelEvent): void {
@@ -112,6 +131,10 @@ watch(
     })
   },
 )
+// Every change of the picture's place is written down, once the picture is there to place.
+watch([view, fitted], () => {
+  if (natural.value !== null) rememberView(tabId, remember(view.value, paneSize(), fitted.value))
+})
 onBeforeUnmount(() => {
   observer?.disconnect()
 })

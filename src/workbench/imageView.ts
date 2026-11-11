@@ -2,6 +2,8 @@
  * How an image tab places its picture: fit, zoom about a point, and the limits. Pure numbers, so
  * the rules are testable without a browser.
  */
+import type { TabId } from './splitTree'
+import { onTabClosed } from './store'
 
 export interface View {
   /** Display scale: 1 shows the picture at its own pixel size. */
@@ -62,3 +64,56 @@ export function zoomAbout(view: View, factor: number, cx: number, cy: number): V
 export function panBy(view: View, dx: number, dy: number): View {
   return { scale: view.scale, x: view.x + dx, y: view.y + dy }
 }
+
+/**
+ * What an image tab remembers while another tab is shown: how far in it was zoomed and which spot
+ * of the picture was in the middle of the pane. The spot, not the corner's position, is kept so
+ * the picture comes back centred on the same place if the pane has a different size by then.
+ */
+export interface RememberedView {
+  readonly scale: number
+  /** The point of the picture (in its own pixels) that was at the centre of the pane. */
+  readonly cx: number
+  readonly cy: number
+  /** True when the tab was never zoomed or moved: it fits the pane again, whatever the pane is now. */
+  readonly fitted: boolean
+}
+
+export function remember(view: View, pane: Size, fitted: boolean): RememberedView {
+  return {
+    scale: view.scale,
+    cx: (pane.width / 2 - view.x) / view.scale,
+    cy: (pane.height / 2 - view.y) / view.scale,
+    fitted,
+  }
+}
+
+/** The view that puts the remembered spot at the centre of the pane at the remembered zoom. */
+export function recall(saved: RememberedView, pane: Size): View {
+  return {
+    scale: saved.scale,
+    x: pane.width / 2 - saved.cx * saved.scale,
+    y: pane.height / 2 - saved.cy * saved.scale,
+  }
+}
+
+/** One entry per open image tab, kept in memory only: a restart fits every picture again. */
+const remembered = new Map<TabId, RememberedView>()
+
+export function rememberedView(tabId: TabId): RememberedView | undefined {
+  return remembered.get(tabId)
+}
+
+export function rememberView(tabId: TabId, saved: RememberedView): void {
+  remembered.set(tabId, saved)
+}
+
+/** For tests. */
+export function resetRememberedViews(): void {
+  remembered.clear()
+}
+
+// A closed tab takes its zoom with it.
+onTabClosed((tabId) => {
+  remembered.delete(tabId)
+})
