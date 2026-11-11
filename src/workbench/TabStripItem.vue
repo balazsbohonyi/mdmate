@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { X } from '@lucide/vue'
+import HoverHint from '@/components/HoverHint.vue'
+import { SLOW_HINT_DELAY } from '@/components/hintDelay'
 import type { TabInfo } from './tabs'
 
 const {
@@ -43,7 +45,20 @@ function onPointerDown(event: PointerEvent): void {
     @dragstart.prevent
     @click="emit('select')"
   >
-    <span class="truncate">{{ tab.title }}</span>
+    <!-- The hint is on the label, not on the tab, so the tab's context menu never meets it (ISC-223). -->
+    <HoverHint
+      :text="tab.title"
+      side="bottom"
+      when-truncated
+      :delay-duration="SLOW_HINT_DELAY"
+    >
+      <span
+        data-tab-label
+        class="truncate"
+      >
+        {{ tab.title }}
+      </span>
+    </HoverHint>
     <span
       v-if="tab.dirty"
       data-dirty

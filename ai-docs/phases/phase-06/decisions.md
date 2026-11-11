@@ -235,3 +235,9 @@ Deviations from the plan and choices it left open. Numbers carry the OS they cam
 **Fog.** The ISA's `Not yet specified` section is empty, so there is no fog to resolve or turn into claims.
 
 **Note on ISC-6.** The tab-switch spread is run 4 alone (24.9 ms); medians are 17.2 ms and the other four p95 values are 19.2 to 20.5 ms.
+
+## Owner UAT findings (ISC-223 to ISC-233)
+
+The owner walked `.docs/uat-phase-06.md` on 2026-11-11 and sent 11 findings. A grilling round settled every design question and the owner agreed with all of it. Each finding below is one commit.
+
+**Tab menu and tab hints (ISC-223, ISC-224).** The reported "no context menu on tabs" did not reproduce at the commit before the fix: a real OS right click opened the menu with the hint showing and without. I could not find a cause, so it is recorded as not reproduced. The hint still moved off the tab onto its label, which restores the old shape (`ContextMenuTrigger` wraps the tab alone) and is where the truncation check belongs. A tab hint shows only while the name is cut off; tabs and tree rows wait 1 s (`SLOW_HINT_DELAY`); other hints keep 300 ms. The provider's skip delay is 0, otherwise a second hint right after the first would open at once. A tree row still shows its full path when its name fits, because the path is not otherwise on screen.

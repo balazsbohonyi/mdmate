@@ -39,7 +39,10 @@ onMounted(async () => {
 </script>
 
 <template>
-  <TooltipProvider :delay-duration="300">
+  <TooltipProvider
+    :delay-duration="300"
+    :skip-delay-duration="0"
+  >
     <AppShell :platform-name="platformName" />
   </TooltipProvider>
 </template>

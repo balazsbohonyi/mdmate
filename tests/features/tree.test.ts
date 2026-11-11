@@ -406,8 +406,11 @@ describe('the drawn tree (ISC-99, ISC-105)', () => {
     expect(row?.hasAttribute('title')).toBe(false)
     expect(hint()).toBeUndefined()
     await hover(row)
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    expect(hint()).toBeUndefined() // a tree row waits 1 s (ISC-224)
+    await new Promise((resolve) => setTimeout(resolve, 700))
     expect(hint()).toContain('/work/readme.md')
-  })
+  }, 10_000)
 
   it('draws files that are not Markdown dimmed, and Markdown not', async () => {
     start({ roots: ['/work'] })

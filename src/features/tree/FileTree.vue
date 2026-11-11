@@ -9,6 +9,7 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
 import HoverHint from '@/components/HoverHint.vue'
+import { SLOW_HINT_DELAY } from '@/components/hintDelay'
 import NameInput from './NameInput.vue'
 import { FALLBACK_VIEWPORT_HEIGHT, ROW_HEIGHT, visibleWindow, type TreeRow } from './model'
 import {
@@ -318,6 +319,7 @@ function rowHint(row: TreeRow): string | null {
             :key="rowKey(row)"
             :text="rowHint(row)"
             side="right"
+            :delay-duration="SLOW_HINT_DELAY"
           >
             <div
               :role="row.kind === 'note' || row.kind === 'new' ? 'none' : 'treeitem'"

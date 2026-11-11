@@ -119,26 +119,68 @@ describe('Rename in the tab menu of a file outside every open folder (ISC-220)',
   })
 })
 
-describe('the tab itself (ISC-222)', () => {
-  it('shows its file name in the shadcn tooltip on hover, and has no native title', async () => {
-    await start()
-    const id = await openPath('/work/a.md')
-    const info = tabInfo(id)
-    if (info === undefined) throw new Error('no tab')
-    const root = document.createElement('div')
-    document.body.append(root)
-    const app = tooltipApp(TabStrip, { tabs: [info], activeId: id })
-    app.mount(root)
-    mounted = { app, root }
+const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+const hint = (): string | undefined =>
+  document.body.querySelector('[data-hover-hint]')?.textContent.trim()
+
+/** Draws one tab; `cutOff` makes its label wider than the room it has, as a long name is. */
+async function drawTab(
+  cutOff: boolean,
+): Promise<{ tab: HTMLElement; label: HTMLElement; title: string }> {
+  await start()
+  const id = await openPath('/work/a.md')
+  const info = tabInfo(id)
+  if (info === undefined) throw new Error('no tab')
+  const root = document.createElement('div')
+  document.body.append(root)
+  const app = tooltipApp(TabStrip, { tabs: [info], activeId: id })
+  app.mount(root)
+  mounted = { app, root }
+  await flush()
+  const tab = root.querySelector<HTMLElement>('[role=tab]')
+  const label = root.querySelector<HTMLElement>('[data-tab-label]')
+  if (tab === null || label === null) throw new Error('no tab drawn')
+  Object.defineProperty(label, 'scrollWidth', { value: cutOff ? 300 : 80 })
+  Object.defineProperty(label, 'clientWidth', { value: 80 })
+  return { tab, label, title: info.title }
+}
+async function hover(label: HTMLElement): Promise<void> {
+  label.dispatchEvent(new MouseEvent('pointerenter'))
+  label.dispatchEvent(new MouseEvent('pointermove', { bubbles: true }))
+  await flush()
+}
+
+describe('the tab itself (ISC-222, ISC-224)', () => {
+  it('shows its full name in the shadcn tooltip only after 1 s, and has no native title', async () => {
+    const { tab, label, title } = await drawTab(true)
+    expect(tab.hasAttribute('title')).toBe(false)
+    await hover(label)
+    await wait(500)
+    expect(hint()).toBeUndefined()
+    await wait(700)
+    expect(hint()).toContain(title)
+  }, 10_000)
+
+  it('shows no tooltip when its name fits', async () => {
+    const { label } = await drawTab(false)
+    await hover(label)
+    await wait(1300)
+    expect(hint()).toBeUndefined()
+  }, 10_000)
+})
+
+describe('a right click on a tab (ISC-223)', () => {
+  it('opens the menu while the tooltip of that tab is showing, and closes the tooltip', async () => {
+    const { tab, label } = await drawTab(true)
+    await hover(label)
+    await wait(1200)
+    expect(hint()).toBeDefined()
+    tab.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 2 }))
+    tab.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }))
     await flush()
-    const tab = root.querySelector('[role=tab]')
-    expect(tab?.hasAttribute('title')).toBe(false)
-    tab?.dispatchEvent(new MouseEvent('pointermove', { bubbles: true }))
-    await flush()
-    expect(document.body.querySelector('[data-hover-hint]')?.textContent.trim()).toContain(
-      info.title,
-    )
-  })
+    expect(document.body.querySelector('[data-tab-menu]')).not.toBeNull()
+    expect(hint()).toBeUndefined()
+  }, 10_000)
 })
 
 describe('the shortcuts the menu shows (ISC-221)', () => {
