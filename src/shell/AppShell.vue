@@ -14,8 +14,6 @@ import SidebarFrame from './SidebarFrame.vue'
 import StatusBar from './StatusBar.vue'
 import TitleBar from './TitleBar.vue'
 
-defineProps<{ platformName: string }>()
-
 // The pickers are code the user may never need, so they load the first time one opens.
 const PaletteHost = defineAsyncComponent(() => import('@/features/palette/PaletteHost.vue'))
 
@@ -59,7 +57,7 @@ function menuOpened(): void {
         <WorkbenchView />
       </main>
     </div>
-    <StatusBar :platform-name="platformName" />
+    <StatusBar />
     <PaletteHost
       v-if="paletteMode !== null"
       :key="paletteMode"

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted } from 'vue'
 import { beginJournal, restoreOnStart } from '@/documents/session'
 import { watchDisk } from '@/documents/store'
 import { installFileDrop } from '@/features/drop'
@@ -7,8 +7,6 @@ import { reportWindowShown } from '@/lib/lifecycle'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { getHost } from '@/platform'
 import AppShell from '@/shell/AppShell.vue'
-
-const platformName = ref('')
 
 /** Resolves after the browser has painted the current frame. */
 function afterPaint(): Promise<void> {
@@ -23,7 +21,6 @@ function afterPaint(): Promise<void> {
 
 onMounted(async () => {
   const host = await getHost()
-  platformName.value = await host.platformName()
   // Before the first paint, so the window opens with the tabs the last run left.
   const restored = await restoreOnStart()
   await afterPaint()
@@ -43,6 +40,6 @@ onMounted(async () => {
     :delay-duration="300"
     :skip-delay-duration="0"
   >
-    <AppShell :platform-name="platformName" />
+    <AppShell />
   </TooltipProvider>
 </template>
