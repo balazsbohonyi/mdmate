@@ -5,16 +5,13 @@ use serde::{Serialize, Serializer, ser::SerializeStruct};
 /// The words for an I/O failure, in a short plain sentence with no code in it. What the page shows
 /// after "Could not save a.md:", so it starts in lower case and has no full stop.
 ///
-/// The kind decides first, since it means the same on every OS. A few Windows codes the standard
-/// library has no kind for are named by number, and only on Windows, where they mean what is said.
+/// The OS names the few codes the standard library has no kind for (the platform layer), then the
+/// kind decides, since it means the same on every OS.
 pub(crate) fn friendly_io(error: &std::io::Error) -> String {
+    use crate::platform::Platform as _;
     use std::io::ErrorKind as K;
-    #[cfg(windows)]
-    match error.raw_os_error() {
-        Some(32 | 33) => return "another program is using it".into(),
-        Some(123 | 161) => return "that name is not valid".into(),
-        Some(206) => return "the path is too long".into(),
-        _ => {}
+    if let Some(words) = crate::platform::current().os_error_words(error) {
+        return words.into();
     }
     match error.kind() {
         K::NotFound => "the file or folder was not found, it may have been moved or deleted".into(),
@@ -174,16 +171,6 @@ mod tests {
         assert!(!text.contains('5'), "{text}");
         let text = AppError::from(Error::other("odd (os error 87)")).to_string();
         assert_eq!(text, "odd");
-    }
-
-    #[cfg(windows)]
-    #[test]
-    fn windows_codes_with_no_kind_are_named() {
-        let say = |code| friendly_io(&Error::from_raw_os_error(code));
-        assert_eq!(say(32), "another program is using it");
-        assert_eq!(say(33), "another program is using it");
-        assert_eq!(say(123), "that name is not valid");
-        assert_eq!(say(206), "the path is too long");
     }
 
     #[test]

@@ -29,6 +29,13 @@ pub(crate) trait Platform {
     /// Windows reports while a file is being replaced. Such a read is worth trying again shortly.
     fn file_is_busy(&self, error: &std::io::Error) -> bool;
 
+    /// Plain words for an OS error code that `std::io::ErrorKind` has no name for, or None to let
+    /// the caller word it by kind. The words follow "Could not save a.md:", so they start in lower
+    /// case and have no full stop.
+    fn os_error_words(&self, _error: &std::io::Error) -> Option<&'static str> {
+        None
+    }
+
     /// Hands a URL or a file path to the app the OS uses for it. Only the link guard calls this,
     /// with a target it approved (`links::guard::Approved`); nothing else may.
     fn open_external(&self, target: &str) -> std::io::Result<()>;
@@ -120,5 +127,19 @@ mod tests {
     fn case_sensitivity_matches_the_default_file_system_of_this_os() {
         let expected = !cfg!(target_os = "linux");
         assert_eq!(current().paths_ignore_case(), expected);
+    }
+    #[test]
+    fn codes_with_no_error_kind_are_named_on_windows_and_left_to_the_kind_elsewhere() {
+        let words = |code| current().os_error_words(&std::io::Error::from_raw_os_error(code));
+        if cfg!(target_os = "windows") {
+            assert_eq!(words(32), Some("another program is using it"));
+            assert_eq!(words(33), Some("another program is using it"));
+            assert_eq!(words(123), Some("that name is not valid"));
+            assert_eq!(words(206), Some("the path is too long"));
+            // Access denied has a kind, so the caller words it, not this.
+            assert_eq!(words(5), None);
+        } else {
+            assert_eq!(words(32), None);
+        }
     }
 }

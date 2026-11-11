@@ -56,6 +56,15 @@ impl Platform for Native {
             || error.kind() == std::io::ErrorKind::PermissionDenied
     }
 
+    fn os_error_words(&self, error: &std::io::Error) -> Option<&'static str> {
+        match error.raw_os_error()? {
+            32 | 33 => Some("another program is using it"),
+            123 | 161 => Some("that name is not valid"),
+            206 => Some("the path is too long"),
+            _ => None,
+        }
+    }
+
     fn open_external(&self, target: &str) -> std::io::Result<()> {
         if target.contains('\0') {
             return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput));
