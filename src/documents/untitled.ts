@@ -1,5 +1,5 @@
 import { rootOf } from '@/features/tree/store'
-import { findPane } from '@/workbench/splitTree'
+import { findPane, type PaneId } from '@/workbench/splitTree'
 import { openTabFor, workbenchLayout } from '@/workbench/store'
 import {
   createUntitled,
@@ -28,12 +28,15 @@ export function resetUntitled(): void {
   counter = 0
 }
 
-/** Opens a new empty Markdown tab in the focused pane. Failures go to `problem`. */
-export async function newUntitledTab(): Promise<void> {
+/**
+ * Opens a new empty Markdown tab in `paneId`, or in the focused pane when none is named. Failures
+ * go to `problem`.
+ */
+export async function newUntitledTab(paneId?: PaneId): Promise<void> {
   problem.value = null
   try {
     const doc = await createUntitled(++counter)
-    openTabFor({ kind: 'markdown', docId: doc.id })
+    openTabFor({ kind: 'markdown', docId: doc.id }, paneId)
   } catch (error) {
     problem.value = `Could not make a new file: ${describe(error)}`
   }

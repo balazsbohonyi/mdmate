@@ -20,8 +20,8 @@ import { setHost } from '@/platform'
 import { createMockHost, type MockHost } from '@/platform/mock'
 import { clearCommands, isCommandEnabled, runCommand } from '@/workbench/commands'
 import { COMMAND_IDS, registerDefaultCommands } from '@/workbench/defaultCommands'
-import { allTabs } from '@/workbench/splitTree'
-import { resetWorkbench, tabTitle, workbenchLayout } from '@/workbench/store'
+import { allTabs, panesOf } from '@/workbench/splitTree'
+import { resetWorkbench, splitActivePane, tabTitle, workbenchLayout } from '@/workbench/store'
 
 const A = 'C:/notes/a.md'
 const OTHER = 'D:/elsewhere/x.md'
@@ -91,6 +91,19 @@ describe('the new-file command', () => {
     requestCloseTab(first)
     await newUntitledTab()
     expect(tabTitle(activeTab())).toBe('Untitled-3')
+  })
+
+  it('opens in the pane it is told to, not only the focused one (the + of a tab strip, ISC-247)', async () => {
+    await openPath(A)
+    splitActivePane('row')
+    const [left, right] = panesOf(workbenchLayout.value)
+    expect(workbenchLayout.value.activePane).toBe(right?.id)
+    await newUntitledTab(left?.id)
+    const [leftNow, rightNow] = panesOf(workbenchLayout.value)
+    const titles = (tabs: readonly string[] | undefined) => tabs?.map(tabTitle) ?? []
+    expect(titles(leftNow?.tabs)).toContain('Untitled-1')
+    expect(titles(rightNow?.tabs)).not.toContain('Untitled-1')
+    expect(tabTitle(leftNow?.activeTab ?? '')).toBe('Untitled-1')
   })
 
   it('is a document Rust knows by id only: no file listing, no path', async () => {

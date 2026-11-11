@@ -196,7 +196,7 @@ function rectOf(element: Element): Rect {
 function readGeometry(): readonly PaneGeometry[] {
   const panes: PaneGeometry[] = []
   for (const section of document.querySelectorAll<HTMLElement>('section[data-pane-id]')) {
-    const strip = section.querySelector('[role="tablist"]')
+    const strip = section.querySelector('[data-tab-strip]')
     const body = section.querySelector('[data-pane-body]')
     const paneId = section.dataset.paneId
     if (!strip || !body || !paneId) continue

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { requestCloseTab } from '@/documents/store'
+import { newUntitledTab } from '@/documents/untitled'
 import EditorHost from './EditorHost.vue'
 import ImageView from './ImageView.vue'
 import PaneNotice from './PaneNotice.vue'
@@ -50,6 +51,7 @@ function startDrag(id: string, event: PointerEvent): void {
       @select="selectTab"
       @close="requestCloseTab"
       @press="startDrag"
+      @new="void newUntitledTab(pane.id)"
     />
     <div
       data-pane-body
