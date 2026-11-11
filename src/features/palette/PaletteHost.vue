@@ -4,6 +4,7 @@ import { describe, openInActivePane, problem } from '@/documents/store'
 import { getHost } from '@/platform'
 import type { QuickOpenAnswer } from '@/platform/quickOpen'
 import { commandForEvent, runCommand } from '@/workbench/commands'
+import { focusActiveEditor } from '@/workbench/focus'
 import { detectPlatform } from '@/workbench/keybinding'
 import { commandRows, fileRow, segments, type PickRow } from './rows'
 import { closePalette, PALETTE_COMMAND_IDS, type PaletteMode } from './state'
@@ -112,8 +113,11 @@ async function accept(at: number): Promise<void> {
   if (row === undefined || row.disabled) return
   closePalette()
   try {
-    if (mode === 'files') await openInActivePane(row.key)
-    else await runCommand(row.key)
+    if (mode === 'files') {
+      await openInActivePane(row.key)
+      // The tab may already have been the one shown, which wakes no editor (ISC-255).
+      focusActiveEditor()
+    } else await runCommand(row.key)
   } catch (error) {
     if (mode === 'files') problem.value = `Could not open ${row.key}: ${describe(error)}`
     else console.error(`Command "${row.key}" failed`, error)

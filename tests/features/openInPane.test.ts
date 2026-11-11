@@ -12,7 +12,8 @@ const read = (path: string): string => readFileSync(join(process.cwd(), path), '
  */
 describe('who opens a file in the active pane (ISC-246)', () => {
   it('a tree click and Quick Open use it', () => {
-    expect(read('src/features/tree/store.ts')).toMatch(/await openInActivePane\(row\.path\)/)
+    // The tree shows a file without taking focus (ISC-255) and still opens it in the active pane.
+    expect(read('src/features/tree/store.ts')).toMatch(/openInActivePane\(path\)/)
     expect(read('src/features/tree/store.ts')).not.toMatch(/\bopenPath\(/)
     expect(read('src/features/palette/PaletteHost.vue')).toMatch(
       /await openInActivePane\(row\.key\)/,

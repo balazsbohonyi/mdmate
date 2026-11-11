@@ -2,6 +2,7 @@ import { computed, shallowRef, watch } from 'vue'
 import { uniformEndings, type Endings } from '@/lib/endings'
 import { getHost, type OpenedFile, type SaveAsHint } from '@/platform'
 import { isMarkdownName } from '@/features/tree/model'
+import { focusActiveEditor } from '@/workbench/focus'
 import { allTabs, findPane } from '@/workbench/splitTree'
 import {
   closeTabById,
@@ -323,6 +324,7 @@ export async function openFromDialog(): Promise<void> {
     for (const path of await host.pickFiles()) {
       try {
         await openInActivePane(path)
+        focusActiveEditor()
       } catch (error) {
         problem.value = `Could not open ${path}: ${describe(error)}`
       }

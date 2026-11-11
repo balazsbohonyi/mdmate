@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { requestCloseTab } from '@/documents/store'
 import { newUntitledTab } from '@/documents/untitled'
 import EditorHost from './EditorHost.vue'
+import { focusActiveEditor } from './focus'
 import ImageView from './ImageView.vue'
 import PaneNotice from './PaneNotice.vue'
 import type { PaneNode } from './splitTree'
@@ -26,6 +27,12 @@ const activeImage = computed(() => {
   return record?.kind === 'image' ? record : null
 })
 
+/** A click on a tab puts the caret in its editor, also when that tab was already the one shown (ISC-255). */
+function onSelect(id: string): void {
+  selectTab(id)
+  focusActiveEditor()
+}
+
 function startDrag(id: string, event: PointerEvent): void {
   beginTabDrag(event, {
     id,
@@ -48,7 +55,7 @@ function startDrag(id: string, event: PointerEvent): void {
       :active-id="pane.activeTab"
       :focused="active"
       :dragging-id="tabDrag?.tabId ?? null"
-      @select="selectTab"
+      @select="onSelect"
       @close="requestCloseTab"
       @press="startDrag"
       @new="void newUntitledTab(pane.id)"

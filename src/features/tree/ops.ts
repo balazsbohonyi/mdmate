@@ -2,6 +2,7 @@ import { shallowRef } from 'vue'
 import { allDocuments, describe, documentMoved, problem } from '@/documents/store'
 import { moveWithLinks } from '@/features/links/rewrite'
 import type { TabId } from '@/workbench/splitTree'
+import { holdingEditorFocus } from '@/workbench/focus'
 import { closeTabById, imageTabs, setImagePath, tabsOfDocument } from '@/workbench/store'
 import { nameProblem } from '@/lib/fileNames'
 import { getHost, type ClashAnswer, type ClashChoice, type Moved } from '@/platform'
@@ -14,6 +15,7 @@ import {
   naming,
   openFolderRow,
   remapPaths,
+  restoreTreeFocus,
   revealPath,
   samePath,
   selectedPath,
@@ -86,6 +88,8 @@ export async function commitNaming(name: string): Promise<void> {
       )
       cancelNaming()
       if (moved !== null) afterMove(typing.path, moved)
+      // The question banner took focus while it was up; the keyboard goes back to the tree.
+      restoreTreeFocus()
       return
     }
     const made =
@@ -133,6 +137,7 @@ export async function moveRow(path: string, folder: string): Promise<void> {
     if (moved === null) return
     await openFolderRow(folder)
     afterMove(path, moved)
+    restoreTreeFocus()
   } catch (error) {
     problem.value = `Could not move ${baseName(path)}: ${describe(error)}`
   }
@@ -210,10 +215,14 @@ export async function deleteRow(path: string): Promise<void> {
     problem.value = `Could not delete ${baseName(path)}: ${describe(error)}`
     return
   }
-  for (const id of tabs) closeTabById(id)
+  // Closing the tabs shows a neighbour, whose editor would take focus; it stays in the tree.
+  await holdingEditorFocus(() => {
+    for (const id of tabs) closeTabById(id)
+  })
   forgetPath(path)
   const holder = parentPath(path)
   if (holder !== null) void loadFolder(holder)
+  restoreTreeFocus()
 }
 
 /** Shows a file or folder in the system's file manager. */

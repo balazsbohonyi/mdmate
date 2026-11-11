@@ -23,7 +23,16 @@ import {
 } from '@/workbench/tabMenu'
 import { setDragCursor } from './dragCursor'
 import NameInput from './NameInput.vue'
-import { FALLBACK_VIEWPORT_HEIGHT, ROW_HEIGHT, visibleWindow, type TreeRow } from './model'
+import {
+  FALLBACK_VIEWPORT_HEIGHT,
+  ROW_HEIGHT,
+  TREE_KEYS,
+  isSelectable,
+  keyAction,
+  rowDomId,
+  visibleWindow,
+  type TreeRow,
+} from './model'
 import {
   commitNaming,
   requestDelete,
@@ -45,8 +54,13 @@ import {
   removeRootFolder,
   samePath,
   scrollRequest,
+  requestScroll,
   selectedPath,
+  takeTreeFocusRequest,
+  toggleFolder,
+  treeFocusRequest,
   treeRows,
+  type TreeFocusRequest,
 } from './store'
 
 const platform = detectPlatform()
@@ -65,6 +79,10 @@ onMounted(() => {
   measure()
   observer = new ResizeObserver(measure)
   observer.observe(element)
+})
+// A request made while the tree was not drawn (Focus Sidebar with the sidebar hidden) is met here.
+onMounted(() => {
+  applyFocusRequest(takeTreeFocusRequest())
 })
 onBeforeUnmount(() => {
   observer?.disconnect()
@@ -193,15 +211,62 @@ function onMenuClosed(event: Event): void {
 
 // ---- the keyboard ----
 
+/**
+ * Moves keyboard focus to the tree when it was asked to: always for `force`, otherwise only when
+ * focus was lost to the page (a name box or a dialog that closed), never from something that has it.
+ * Focus Sidebar also selects the first row when nothing is selected, so the arrow keys have a place.
+ */
+function applyFocusRequest(request: TreeFocusRequest | null): void {
+  if (request === null) return
+  void nextTick(() => {
+    const element = scroller.value
+    if (element === null) return
+    const active = document.activeElement
+    if (!request.force && active !== null && active !== document.body) return
+    element.focus()
+    if (request.force && selectedPath.value === null) {
+      const first = treeRows.value.find(isSelectable)
+      if (first !== undefined) selectedPath.value = first.path
+    }
+  })
+}
+watch(treeFocusRequest, () => {
+  applyFocusRequest(takeTreeFocusRequest())
+})
+
 function onKeydown(event: KeyboardEvent): void {
   // The box a name is typed in handles its own keys.
   if (naming.value !== null || event.target !== scroller.value) return
+  // A key with Ctrl, Alt or Meta is a shortcut of the app (history, headings, save...) and passes.
+  if (event.ctrlKey || event.altKey || event.metaKey) return
+  if (!event.shiftKey && TREE_KEYS.includes(event.key)) {
+    // Space and the arrows would scroll the list; the tree moves the selection itself.
+    event.preventDefault()
+    if (event.repeat && (event.key === 'Enter' || event.key === ' ')) return
+    runKeyAction(keyAction(treeRows.value, selectedPath.value, event.key))
+    return
+  }
   if (event.key === 'F2') {
     event.preventDefault()
     void renameSelected()
   } else if (event.key === TREE_DELETE_KEY) {
     event.preventDefault()
     void deleteSelected()
+  }
+}
+
+function runKeyAction(action: ReturnType<typeof keyAction>): void {
+  if (action === null) return
+  if (action.kind === 'select') {
+    selectedPath.value = action.path
+    requestScroll(action.path)
+  } else if (action.kind === 'toggle') {
+    void toggleFolder(action.path)
+  } else {
+    const row = treeRows.value.find(
+      (candidate) => isSelectable(candidate) && candidate.path === action.path,
+    )
+    if (row !== undefined) void activateRow(row, { focusEditor: action.focusEditor })
   }
 }
 
@@ -276,9 +341,17 @@ function stopDrag(): void {
   window.removeEventListener('keydown', onDragKey, true)
 }
 
-function onRowClick(row: TreeRow): void {
+function onRowClick(event: MouseEvent, row: TreeRow): void {
   if (swallowClick) return
+  // The second click of a double click: the first one already did its work (a folder toggled once,
+  // a file shown), and a double click on a file is the dblclick below.
+  if (event.detail >= 2) return
   void activateRow(row)
+}
+
+/** A double click on a file shows it and puts the caret in it, like Enter. */
+function onRowDoubleClick(row: TreeRow): void {
+  if (row.kind === 'file') void activateRow(row, { focusEditor: true })
 }
 
 // ---- drawing ----
@@ -329,7 +402,8 @@ function rowHint(row: TreeRow): string | null {
         aria-label="Workspace files"
         data-file-tree
         tabindex="0"
-        class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto text-chrome outline-none select-none"
+        :aria-activedescendant="selectedPath === null ? undefined : rowDomId(selectedPath)"
+        class="group/tree min-h-0 flex-1 overflow-x-hidden overflow-y-auto text-chrome outline-none select-none"
         @scroll.passive="onScroll"
         @contextmenu.capture="onContextMenu"
         @keydown="onKeydown"
@@ -346,6 +420,7 @@ function rowHint(row: TreeRow): string | null {
             :delay-duration="SLOW_HINT_DELAY"
           >
             <div
+              :id="row.kind === 'note' || row.kind === 'new' ? undefined : rowDomId(row.path)"
               :role="row.kind === 'note' || row.kind === 'new' ? 'none' : 'treeitem'"
               :aria-level="row.depth + 1"
               :aria-expanded="
@@ -361,7 +436,7 @@ function rowHint(row: TreeRow): string | null {
               class="absolute right-0 left-0 flex cursor-default items-center gap-1 pr-2"
               :class="[
                 row.kind !== 'note' && row.kind !== 'new' && row.path === selectedPath
-                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                  ? 'bg-sidebar-accent/60 text-sidebar-accent-foreground group-focus-within/tree:bg-sidebar-accent'
                   : 'hover:bg-sidebar-accent/50',
                 isDropTarget(row) ? 'bg-sidebar-accent ring-1 ring-ring ring-inset' : '',
                 isDragged(row) ? 'opacity-50' : '',
@@ -379,7 +454,8 @@ function rowHint(row: TreeRow): string | null {
                 paddingLeft: indent(row),
               }"
               @pointerdown="onPointerDown($event, row)"
-              @click="onRowClick(row)"
+              @click="onRowClick($event, row)"
+              @dblclick="onRowDoubleClick(row)"
             >
               <template v-if="row.kind === 'root' || row.kind === 'folder'">
                 <component

@@ -63,6 +63,13 @@ const input = useTemplateRef('input')
 - A menu trigger never sits inside a tooltip trigger. A tooltip and a menu each anchor to the nearest popper root, so a `DropdownMenuTrigger` inside a `HoverHint` leaves its menu with no anchor and it stays at the top-left corner of the window. Put the `HoverHint` around the whole menu (`<HoverHint><span><DropdownMenu>...</DropdownMenu></span></HoverHint>`), as `TabStrip.vue` does. jsdom does not show this; check a menu with a hint in the real window.
 - A disabled control takes no pointer events: put the trigger (`as-child`) on a wrapper element around it.
 
+## Keyboard focus when showing a file (project call)
+
+- An editor takes focus when its tab is shown in the active pane; that is how a link, a history step or a tab click lands the caret. Code that wants to show a file **without** taking focus (a sidebar click, Space) wraps the open in `holdingEditorFocus` from `workbench/focus.ts`, and never reaches into an editor.
+- Code that wants the caret **on purpose** (Enter, a double click, a tab click, Quick Open, the open dialog) calls `focusActiveEditor()` after the open. Opening a file that is already shown changes no tab, so nothing else would do it.
+- The sidebar tree asks for its own focus back with `restoreTreeFocus()` (only if focus fell to `<body>`) or `focusTree()` (always). Its keys are `keyAction` in `features/tree/model.ts`, a pure function; add a key there and its test, not in the component.
+- Dev server (`pnpm tauri dev`): after a stash or a checkout that rewrites files, Vite can serve one module under two `?t=` URLs, which makes two copies of a module-level store. Symptoms: a ref set in one place is never seen in another. Touch the files that import the module, or restart the dev server.
+
 ## Scrollbars (project call)
 
 - One global style in `styles/tokens.css` makes every scrollbar thin and rounded, from the `--scrollbar-thumb` tokens. Do not use a `ScrollArea` component (it would replace the editor's and the tree's scrolling elements) and never set `scrollbar-width` or `scrollbar-color` on an element, which makes Chromium ignore the global rule there. To hide a bar use `[scrollbar-width:none] [&::-webkit-scrollbar]:hidden`, as the tab strip does. `tests/styles/scrollbar.test.ts` checks it.

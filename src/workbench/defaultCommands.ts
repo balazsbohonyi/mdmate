@@ -25,13 +25,13 @@ import {
 import { newUntitledTab } from '@/documents/untitled'
 import { canGoBack, canGoForward, goBack, goForward } from '@/documents/history'
 import { togglePalette } from '@/features/palette/state'
-import { openFolderDialog } from '@/features/tree/store'
+import { focusTree, openFolderDialog } from '@/features/tree/store'
 import { getHost } from '@/platform'
 import { registerCommand, removeCommand } from './commands'
 import { findPane } from './splitTree'
 import { splitActivePane, workbenchLayout } from './store'
 import { toggleRaw } from './rawMode'
-import { toggleSidebar } from './sidebar'
+import { showSidebar, toggleSidebar } from './sidebar'
 import { activeTabId, findTabReferences, renameTab, tabMenuState, tabPath } from './tabMenu'
 
 export const COMMAND_IDS = {
@@ -51,6 +51,7 @@ export const COMMAND_IDS = {
   closeTab: 'workbench.closeTab',
   closeAll: 'workbench.closeAll',
   toggleSidebar: 'view.toggleSidebar',
+  focusSidebar: 'view.focusSidebar',
   toggleRawSource: 'view.toggleRawSource',
   back: 'navigate.back',
   forward: 'navigate.forward',
@@ -264,6 +265,16 @@ export function registerDefaultCommands(): () => void {
       title: 'Toggle Sidebar',
       keybinding: 'Mod+Shift+B',
       run: toggleSidebar,
+    }),
+    registerCommand({
+      id: COMMAND_IDS.focusSidebar,
+      title: 'Focus Sidebar',
+      keybinding: 'Mod+Shift+E',
+      // The tree is in the Folders panel; show that panel, and the sidebar if it was hidden.
+      run: () => {
+        showSidebar('folders')
+        focusTree()
+      },
     }),
     registerCommand({
       id: COMMAND_IDS.toggleRawSource,

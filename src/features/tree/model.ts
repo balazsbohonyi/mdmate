@@ -198,3 +198,104 @@ export function visibleWindow(
     end: Math.min(total, first + count + OVERSCAN),
   }
 }
+
+// ---- the keyboard ----
+
+/** A row the user can select: not a note and not the box a new name is typed in. */
+export type SelectableRow = Exclude<TreeRow, { readonly kind: 'note' | 'new' }>
+
+export function isSelectable(row: TreeRow): row is SelectableRow {
+  return row.kind !== 'note' && row.kind !== 'new'
+}
+
+/** The id of a row's element, for `aria-activedescendant`. Percent-escaped, so it never holds a space. */
+export function rowDomId(path: string): string {
+  return `tree-row-${encodeURIComponent(path)}`
+}
+
+/** What a key does to the tree. `open` shows a file; `focusEditor` also puts the caret in it. */
+export type KeyAction =
+  | { readonly kind: 'select'; readonly path: string }
+  | { readonly kind: 'toggle'; readonly path: string }
+  | { readonly kind: 'open'; readonly path: string; readonly focusEditor: boolean }
+
+/** The keys the tree reads, with no modifier held. */
+export const TREE_KEYS: readonly string[] = [
+  'ArrowUp',
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowRight',
+  'Home',
+  'End',
+  'Enter',
+  ' ',
+]
+
+/**
+ * Where the selection is among the rows. A selected row that is hidden (inside a folder that was
+ * closed since) counts as its nearest ancestor that is on screen; with no selection, or none of its
+ * ancestors on screen, there is no current row.
+ */
+function currentIndex(rows: readonly TreeRow[], selected: string | null): number {
+  let path: string | null = selected
+  while (path !== null) {
+    const found = rows.findIndex((row) => isSelectable(row) && row.path === path)
+    if (found !== -1) return found
+    path = parentPath(path)
+  }
+  return -1
+}
+
+/**
+ * What `key` does to the tree, given the rows on screen and the selected path, or null when it
+ * does nothing. Up and Down only move the selection: opening a file takes Enter, Space or a click.
+ * Right opens a folder, then steps into it; Left closes it, then steps out to its parent. Enter and
+ * Space open or close a folder; on a file Enter opens it and takes focus, Space opens it and keeps
+ * focus in the tree.
+ */
+export function keyAction(
+  rows: readonly TreeRow[],
+  selected: string | null,
+  key: string,
+): KeyAction | null {
+  const selectable = rows.filter(isSelectable)
+  const first = selectable[0]
+  const last = selectable.at(-1)
+  if (first === undefined || last === undefined) return null
+  const index = currentIndex(rows, selected)
+  const current = index === -1 ? undefined : rows[index]
+  if (key === 'Home') return { kind: 'select', path: first.path }
+  if (key === 'End') return { kind: 'select', path: last.path }
+  if (key === 'ArrowDown' || key === 'ArrowUp') {
+    if (current === undefined || !isSelectable(current)) return { kind: 'select', path: first.path }
+    const among = selectable.indexOf(current)
+    const next = selectable[key === 'ArrowDown' ? among + 1 : among - 1]
+    return next === undefined ? null : { kind: 'select', path: next.path }
+  }
+  if (current === undefined || !isSelectable(current)) return null
+  const folder = current.kind === 'root' || current.kind === 'folder'
+  if (key === 'ArrowRight') {
+    if (!folder) return null
+    if (!current.expanded) return { kind: 'toggle', path: current.path }
+    const child = rows[index + 1]
+    return child !== undefined && isSelectable(child) && child.depth > current.depth
+      ? { kind: 'select', path: child.path }
+      : null
+  }
+  if (key === 'ArrowLeft') {
+    if (folder && current.expanded) return { kind: 'toggle', path: current.path }
+    for (let at = index - 1; at >= 0; at--) {
+      const row = rows[at]
+      if (row !== undefined && isSelectable(row) && row.depth < current.depth) {
+        return { kind: 'select', path: row.path }
+      }
+    }
+    return null
+  }
+  if (key === 'Enter' || key === ' ') {
+    return folder
+      ? { kind: 'toggle', path: current.path }
+      : { kind: 'open', path: current.path, focusEditor: key === 'Enter' }
+  }
+  return null
+}

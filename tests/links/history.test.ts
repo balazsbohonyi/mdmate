@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { EditorView } from '@codemirror/view'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import {
   canGoBack,
   canGoForward,
@@ -19,6 +19,13 @@ import { registerDefaultCommands } from '@/workbench/defaultCommands'
 import { installKeybindings } from '@/workbench/keyboard'
 import { findPane } from '@/workbench/splitTree'
 import { closeTabById, resetWorkbench, workbenchLayout } from '@/workbench/store'
+
+beforeAll(() => {
+  // jsdom has no layout; CodeMirror's measuring asks ranges for their boxes.
+  const empty = { length: 0, item: () => null, [Symbol.iterator]: () => [][Symbol.iterator]() }
+  Range.prototype.getClientRects = () => empty
+  Range.prototype.getBoundingClientRect = () => new DOMRect()
+})
 
 const files = {
   'C:/notes/a.md': '# A\n\nIntro with [b](b.md) and [down](#later).\n\n## Later\n\nend\n',

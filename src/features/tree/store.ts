@@ -1,6 +1,7 @@
 import { computed, shallowReactive, shallowRef, watch } from 'vue'
 import { describe, openInActivePane, problem, provideImageBoundary } from '@/documents/store'
 import { getHost } from '@/platform'
+import { focusActiveEditor, holdingEditorFocus } from '@/workbench/focus'
 import { flatten, parentPath, pathKeyer, withNewRow, type Listing, type TreeRow } from './model'
 
 /**
@@ -206,6 +207,7 @@ export async function startNaming(next: Naming): Promise<void> {
 /** Stops typing a name without doing anything. */
 export function cancelNaming(): void {
   naming.value = null
+  restoreTreeFocus()
 }
 
 /** Opens a folder, or closes it when it is open. */
@@ -268,19 +270,69 @@ export async function removeRootFolder(path: string): Promise<void> {
   forgetPath(path)
 }
 
-/** What a click on a row does: select it, open or close a folder, open a file in a tab. */
-export async function activateRow(row: TreeRow): Promise<void> {
-  if (row.kind === 'note' || row.kind === 'new') return
+/** The newest file the tree asked to open, so a double click waits for the click before it. */
+let opening: Promise<void> = Promise.resolve()
+
+/**
+ * What a click or a key on a row does: select it, open or close a folder, open a file in a tab.
+ * A file opens without taking focus from the tree, like a click in the sidebar of VS Code, unless
+ * `focusEditor` is set (Enter, a double click), which puts the caret in the file (ISC-255). The
+ * opens run one after another, so a double click focuses the editor only once the click has shown
+ * the file.
+ */
+export function activateRow(row: TreeRow, how: { focusEditor?: boolean } = {}): Promise<void> {
+  if (row.kind === 'note' || row.kind === 'new') return Promise.resolve()
   selectedPath.value = row.path
-  if (row.kind === 'file') {
+  if (row.kind !== 'file') return toggleFolder(row.path)
+  const { path } = row
+  const focusEditor = how.focusEditor === true
+  opening = opening.then(async () => {
     try {
-      await openInActivePane(row.path)
+      if (focusEditor) {
+        await openInActivePane(path)
+        focusActiveEditor()
+      } else {
+        await holdingEditorFocus(() => openInActivePane(path))
+      }
     } catch (error) {
-      problem.value = `Could not open ${row.path}: ${describe(error)}`
+      problem.value = `Could not open ${path}: ${describe(error)}`
     }
-    return
-  }
-  await toggleFolder(row.path)
+  })
+  return opening
+}
+
+// ---- keeping the keyboard in the tree ----
+
+/** A request for the tree to take keyboard focus. `force` takes it from whatever has it. */
+export interface TreeFocusRequest {
+  readonly force: boolean
+  readonly n: number
+}
+
+const focusRequest = shallowRef<TreeFocusRequest | null>(null)
+let focusCount = 0
+
+/** The pending request, for the tree to watch. */
+export const treeFocusRequest = computed(() => focusRequest.value)
+
+/**
+ * Asks for focus to come back to the tree when it was lost to the page (a box or a dialog that
+ * closed). Focus that sits somewhere else on purpose is left alone.
+ */
+export function restoreTreeFocus(): void {
+  focusRequest.value = { force: false, n: ++focusCount }
+}
+
+/** Asks for focus to move to the tree whatever has it now (the Focus Sidebar command). */
+export function focusTree(): void {
+  focusRequest.value = { force: true, n: ++focusCount }
+}
+
+/** Takes the pending request, so a tree that is drawn later still hears one made before. */
+export function takeTreeFocusRequest(): TreeFocusRequest | null {
+  const pending = focusRequest.value
+  focusRequest.value = null
+  return pending
 }
 
 /** Listens for changes Rust sees in the open folders and lists those folders again. */
@@ -343,4 +395,6 @@ export function resetTree(): void {
   selectedPath.value = null
   naming.value = null
   scrollRequest.value = null
+  focusRequest.value = null
+  opening = Promise.resolve()
 }
