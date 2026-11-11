@@ -87,8 +87,11 @@ const summary = computed(() => {
           class="flex w-full cursor-default items-baseline gap-2 py-0.5 pr-3 pl-6 text-left hover:bg-sidebar-accent/50 focus-visible:bg-sidebar-accent/50 focus-visible:outline-none"
           @click="openReference(reference)"
         >
-          <span class="w-8 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
-            {{ reference.line }}
+          <span
+            data-reference-line
+            class="min-w-16 shrink-0 text-right text-xs whitespace-nowrap text-muted-foreground tabular-nums"
+          >
+            Line {{ reference.line }}:
           </span>
           <span class="min-w-0 truncate">{{ reference.text }}</span>
         </button>

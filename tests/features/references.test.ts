@@ -289,6 +289,10 @@ describe('the References panel', () => {
     const index = files.find((file) => file.textContent.includes('index.md'))
     const rows = [...(index?.querySelectorAll('[data-reference]') ?? [])]
     expect(rows.map((row) => row.getAttribute('data-line'))).toEqual(['2', '3', '6'])
+    // The number says what it is: a line, with the colon that sets it off from the text.
+    expect(
+      rows.map((row) => row.querySelector('[data-reference-line]')?.textContent.trim()),
+    ).toEqual(['Line 2:', 'Line 3:', 'Line 6:'])
     expect(rows[2]?.textContent).toContain('last [t](docs/target.md) and more')
   })
 
