@@ -73,6 +73,7 @@ Mark `[x]` only when the task's "Done when" in its phase plan holds. Each task l
 - [x] P6-T8: Untitled files, Save As, Revert, Close All, Open Recent — closes ISC-203, ISC-204, ISC-205, ISC-206, ISC-207, ISC-208, ISC-209, ISC-210, ISC-211, ISC-212
 - [x] P6-T9: Tab context menu and Find File References — closes ISC-213, ISC-214, ISC-215, ISC-216, ISC-217, ISC-218
 - [x] P6 follow-ups from the owner's UAT walk (one commit each, no task tag) — closes ISC-223 to ISC-233: tab menu and hints, tooltip arrow, editor hints, delete confirmation and tab closing, sidebar path items and Open Folder, resizable sidebar, images up to the workspace folder, image zoom kept
+- [x] P6 follow-ups from the owner's second UAT walk (one commit each, no task tag) — closes ISC-236 to ISC-248: status bar without the OS name, menu shortcut baseline, plain frontmatter pill, pointer cursor over followable links, tree drag cursors, resize handles that take the keys, no WebView context menu, one path separator in both copies, plain file errors, scroll position per tab, the same file in two panes, a scrolling tab strip with + and a tab list, thin scrollbars. F12 as a setting moved to P8-T1 (ISC-249)
 
 ## Phase 7: Search and outline ([plan](phases/phase-07/plan.md))
 
