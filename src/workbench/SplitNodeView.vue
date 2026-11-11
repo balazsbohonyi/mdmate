@@ -32,7 +32,13 @@ function onLayout(sizes: number[]): void {
   if (!dragging && !sameSizes(sizes)) resizeSplit(node.id, sizes)
 }
 
-function onDragging(isDragging: boolean): void {
+/**
+ * The splitter listens for the press on the whole page, so the press lands on the editor next to
+ * the handle, and its own focus is cancelled. The handle is focused when a drag starts instead, so
+ * the arrow keys, which resize a focused handle, do not go to the editor's caret.
+ */
+function onDragging(isDragging: boolean, handleId: string): void {
+  if (isDragging) document.getElementById(handleId)?.focus()
   dragging = isDragging
   if (!isDragging && node.kind === 'split') resizeSplit(node.id, latest)
 }
@@ -59,7 +65,7 @@ function onDragging(isDragging: boolean): void {
         v-if="index > 0"
         :id="`${node.id}-handle-${index}`"
         class="after:min-w-1.5 hover:bg-handle-active data-[state=drag]:bg-handle-active"
-        @dragging="onDragging"
+        @dragging="(isDragging: boolean) => onDragging(isDragging, `${node.id}-handle-${index}`)"
       />
       <ResizablePanel
         :id="child.id"

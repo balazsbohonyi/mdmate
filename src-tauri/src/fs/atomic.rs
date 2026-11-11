@@ -68,7 +68,16 @@ fn write_then_swap(
         std::fs::set_permissions(temp, meta.permissions())?;
     }
     hook(Stage::BeforeRename)?;
-    std::fs::rename(temp, target)?;
+    std::fs::rename(temp, target).map_err(|error| {
+        // A read-only file refuses the rename with "access denied", which says nothing; name it.
+        if error.kind() == std::io::ErrorKind::PermissionDenied
+            && std::fs::metadata(target).is_ok_and(|meta| meta.permissions().readonly())
+        {
+            AppError::FileReadOnly
+        } else {
+            AppError::Io(error)
+        }
+    })?;
     let _ = hook(Stage::AfterRename);
     Ok(())
 }
@@ -172,8 +181,13 @@ mod tests {
         let result = write_atomic(&path, b"new");
 
         // Windows refuses the rename; Unix lets the owner replace a file in a writable folder.
-        if result.is_err() {
+        if let Err(error) = &result {
             assert_eq!(std::fs::read(&path).expect("readable"), b"locked");
+            // And it says why in words, with no OS code: the file is read-only.
+            assert_eq!(error.kind(), "file-read-only");
+            let message = error.to_string();
+            assert!(message.contains("read-only"), "{message}");
+            assert!(!message.contains("os error"), "{message}");
         }
         assert!(leftovers(dir.path()).is_empty());
         let mut permissions = std::fs::metadata(&path).expect("metadata").permissions();

@@ -5,6 +5,7 @@ pub(crate) mod document;
 pub(crate) mod encoding;
 pub(crate) mod eol;
 pub(crate) mod frame;
+pub(crate) mod kind;
 
 use crate::error::AppError;
 use crate::platform::{self, Platform as _};

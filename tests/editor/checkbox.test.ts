@@ -98,6 +98,7 @@ function rig(raw: string, readOnly: ReadOnlyReason | null = null): Rig {
     readOnly,
     size: raw.length,
     hash: '0'.repeat(32),
+    kind: 'markdown',
     text,
     endings,
   }

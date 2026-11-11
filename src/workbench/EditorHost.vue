@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
 import { followerOfTab } from '@/documents/store'
+import { editorFocusRequest, isEditorFocusHeld } from './focus'
 import { PaneEditor } from './paneEditor'
 
 const { tabId, active, raw } = defineProps<{ tabId: string; active: boolean; raw: boolean }>()
@@ -17,7 +18,8 @@ function show(id: string): void {
     editor = new PaneEditor(host.value)
     editor.setRaw(raw)
   }
-  editor.show(follower, active)
+  // A tree click shows a file without taking focus away from the tree (ISC-255).
+  editor.show(follower, active && !isEditorFocusHeld())
 }
 
 onMounted(() => {
@@ -32,9 +34,13 @@ watch(
 watch(
   () => active,
   (isActive) => {
-    if (isActive) editor?.focus()
+    if (isActive && !isEditorFocusHeld()) editor?.focus()
   },
 )
+// Enter or a double click on a file in the tree asks for the caret, even when the tab did not change.
+watch(editorFocusRequest, () => {
+  if (active) editor?.focus()
+})
 watch(
   () => raw,
   (isRaw) => {

@@ -5,6 +5,7 @@ import {
   documentOfTab,
   followerOfTab,
   openFromDialog,
+  openInActivePane,
   openPath,
   pendingClose,
   problem,
@@ -149,6 +150,72 @@ describe('opening a file that is already open', () => {
   })
 })
 
+describe('the same file in two panes (ISC-246)', () => {
+  it('a hand-picked file opens a second tab in the active pane even when another pane shows it', async () => {
+    await openPath('C:/notes/a.md')
+    splitActivePane('row')
+    const inRight = await openPath('C:/notes/b.md') // goes into the active (right) pane
+    const [left] = panesOf(workbenchLayout.value)
+    expect(panesOf(workbenchLayout.value)[1]?.tabs).toContain(inRight)
+    selectTab(left?.tabs[0] ?? '')
+    expect(workbenchLayout.value.activePane).toBe(left?.id)
+
+    const inLeft = await openInActivePane('C:/notes/b.md')
+    expect(inLeft).not.toBe(inRight)
+    const [leftNow, rightNow] = panesOf(workbenchLayout.value)
+    expect(leftNow?.tabs).toContain(inLeft)
+    expect(rightNow?.tabs).toContain(inRight)
+    // One document under both tabs: they share the text.
+    expect(documentOfTab(inLeft)).toBe(documentOfTab(inRight))
+    expect(workbenchLayout.value.activePane).toBe(left?.id)
+    expect(host.openDocuments().size).toBe(2)
+
+    // Picking it again in the same pane finds that pane's tab; there is no third.
+    expect(await openInActivePane('C:/notes/b.md')).toBe(inLeft)
+    expect(leftNow?.tabs.filter((tab) => documentOfTab(tab)?.name === 'b.md')).toHaveLength(1)
+  })
+
+  it('an edit in one tab shows in the other and either can undo it', async () => {
+    const a = await openPath('C:/notes/a.md')
+    splitActivePane('row')
+    const [left] = panesOf(workbenchLayout.value)
+    selectTab(left?.tabs[0] ?? a)
+    const second = await openInActivePane('C:/notes/a.md')
+    const first = left?.tabs[0] ?? a
+    expect(second === first).toBe(true) // that pane already holds it
+    const [, right] = panesOf(workbenchLayout.value)
+    selectTab(right?.tabs[0] ?? a)
+    const inRight = await openInActivePane('C:/notes/a.md')
+    expect(inRight).not.toBe(first)
+    edit(first, { from: 0, insert: 'X' })
+    expect(followerOfTab(inRight)?.state.doc.toString()).toBe('X# A\n\nfirst\n')
+  })
+
+  it('a link, history or reference still jumps to the tab that shows the file, wherever it is', async () => {
+    await openPath('C:/notes/a.md')
+    splitActivePane('row')
+    const [left, right] = panesOf(workbenchLayout.value)
+    const inRight = await openPath('C:/notes/b.md')
+    selectTab(left?.tabs[0] ?? '')
+    expect(await openPath('C:/notes/b.md')).toBe(inRight)
+    expect(workbenchLayout.value.activePane).toBe(right?.id)
+  })
+
+  it('the open dialog opens its files in the active pane', async () => {
+    await openPath('C:/notes/a.md')
+    splitActivePane('row')
+    const inRight = await openPath('C:/notes/b.md')
+    const [left] = panesOf(workbenchLayout.value)
+    selectTab(left?.tabs[0] ?? '')
+    picks = [['C:/notes/b.md']]
+    await openFromDialog()
+    const [leftNow, rightNow] = panesOf(workbenchLayout.value)
+    // The right pane is untouched: it still has its one tab of b.md.
+    expect(rightNow?.tabs.filter((tab) => documentOfTab(tab)?.name === 'b.md')).toEqual([inRight])
+    expect(leftNow?.tabs.some((tab) => documentOfTab(tab)?.name === 'b.md')).toBe(true)
+  })
+})
+
 describe('saving', () => {
   it('marks a document dirty when it is edited and clean when it is saved', async () => {
     const tab = await openPath('C:/notes/a.md')
@@ -266,6 +333,18 @@ describe('saving', () => {
     expect(tabInfo(tab).dirty).toBe(true)
     expect(await saveDocument(documentOfTab(tab)?.id ?? -1)).toBe(true)
     expect(docMeta(documentOfTab(tab)?.id ?? -1)?.saveError).toBeNull()
+  })
+
+  it('says a read-only file is read-only, and never shows an OS error code (ISC-244)', async () => {
+    const tab = await openPath('C:/notes/a.md')
+    edit(tab, { from: 0, insert: 'X' })
+    const words = 'the file is read-only on disk. Use Save As to keep your changes in a new file'
+    vi.spyOn(host, 'saveFile').mockRejectedValueOnce({ kind: 'file-read-only', message: words })
+    expect(await saveDocument(documentOfTab(tab)?.id ?? -1)).toBe(false)
+    expect(docMeta(documentOfTab(tab)?.id ?? -1)?.saveError).toBe(words)
+    vi.spyOn(host, 'saveFile').mockRejectedValueOnce(new Error('Access is denied. (os error 5)'))
+    expect(await saveDocument(documentOfTab(tab)?.id ?? -1)).toBe(false)
+    expect(docMeta(documentOfTab(tab)?.id ?? -1)?.saveError).toBe('Access is denied.')
   })
 })
 

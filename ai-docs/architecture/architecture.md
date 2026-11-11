@@ -38,7 +38,7 @@ mdmate/
 │  ├─ documents/      Document store, master state, save, conflict, session
 │  ├─ workbench/      Split tree model, panes, tabs, pointer drag, commands
 │  ├─ shell/          App layout: title bar with menu and caption buttons, sidebar frame, status bar
-│  ├─ features/       tree, quick-open, palette, search, outline, settings, image-viewer
+│  ├─ features/       tree/ (model, store, ops, FileTree.vue, NameInput.vue, CopyBanner.vue), drop.ts, palette/ (state, rows, PaletteHost.vue); later search, outline, settings
 │  ├─ components/ui/  shadcn-vue, added only with `pnpm ui:add` (never edit by hand)
 │  ├─ lib/            shadcn-vue utilities
 │  └─ styles/         tokens.css (fonts, sizes, Tailwind map), themes/dark.css and light.css (every color)
@@ -46,10 +46,11 @@ mdmate/
 │  ├─ commands/       Thin handlers, no logic
 │  ├─ access.rs       Which paths the page may read: files the user chose, plus workspace roots
 │  ├─ documents.rs    Open documents by id, and the open, save and close operations on them
-│  ├─ fs/             Raw frame, encoding, line endings (eol), atomic write, round-trip guard
-│  ├─ workspace/      Lazy tree, watcher, file index
+│  ├─ fs/             Raw frame, encoding, line endings (eol), atomic write, round-trip guard, kind (what a file opens as, by extension)
+│  ├─ workspace/      tree.rs (one folder per listing), roots.rs (workspace.json), folders.rs (watcher for the open folders), ops.rs (create, rename, move, delete to the Recycle Bin, copy in); file index later
+│  ├─ drops.rs        The paths of the last native file drops, which are the only ones the page may ask about
 │  ├─ search/         Streaming folder search
-│  ├─ links/          Link guard, scan, rewrite
+│  ├─ links/          Link guard (guard.rs), scanner (scan.rs), file walker (walk.rs), rewrite engine (rewrite.rs)
 │  ├─ session/        Hot-exit store
 │  ├─ settings/       Settings and keybinding files
 │  ├─ paths.rs        Installed or portable data folder
@@ -76,6 +77,7 @@ sequenceDiagram
 ```
 
 - Open documents live in a plain map in `src/documents/`. The chrome reads only a small reactive record per document (name, path, dirty, read-only reason, last save error), so editor objects stay out of Vue. A tab is a `{ kind, docId }` record, and several tabs can show one document. A document is dirty when its text or endings differ from the last saved snapshot, and it lives until its last tab closes.
+- Deleting a file or folder from the tree asks first in a shadcn alert dialog (a modal, the owner's call; every other question in the app stays an inline banner), and closes the tabs of what it deleted.
 - Closing the last tab of a dirty document asks first (Save, Don't save, Cancel) in a banner inside the pane. Closing the app asks nothing: hot exit keeps the edits.
 - Each tab has a follower: a state with no history of its own, wired to the master. A follower that no view shows only notes the changes made elsewhere, as one composed change set, and applies it when its tab is next shown, so typing in one pane costs the parked tabs nothing.
 - Undo and redo keys call the document, which runs them on the master and shows the result in every follower; the follower that asked also gets the caret the edit was made from.
@@ -92,6 +94,13 @@ sequenceDiagram
 - The page writes one snapshot of the session to `session.json` in the data folder: the split layout, each tab's file and caret, and every unsaved buffer with its text, its line endings and the hash of the file it was typed on. Rust adds the paths of the documents it has open, writes the file with the same temp-file-and-rename as a save, and at the next start grants exactly those paths. The data folder is Tauri's app data folder, or `MDMATE_DATA_DIR` when set.
 - The journal (`src/documents/session.ts`) writes 1000 ms after the first change, one write at a time, and skips a snapshot equal to the last. Closing the window is stopped in Rust, the page flushes and calls `quit_app`, and Rust closes anyway after 3 s. The app never asks.
 - A start restores before the first paint: files open, unsaved buffers go back into their documents, then the layout and tabs. A file that changed since the buffer was typed raises the P2-T5 conflict banner. Text that cannot go back in a tab is kept in `recovered/` with a notice.
+
+### Untitled documents, Save As and Open Recent
+
+- An untitled document is an id in Rust (`Documents.untitled`) with no path and no table entry; the page's `Document` has an empty path and an untitled number. A save of it, and every Save As, goes through `save_as::save_as`, which takes the dialog as a parameter, refuses a file open in another tab, and on success gives the id its file (`promote`) and the page moves the same `Document` to it (`relocate`), keeping undo history.
+- Hot exit stores an untitled tab as a tab with no path plus its buffer, both carrying its number; a restart gives it a new id and counts it as edited.
+- Open Recent is `recent.json` in the data folder, owned by Rust: newest first, 10 files and 5 folders, atomic write, pruned of missing paths when read. Only Rust adds to it, and a recent entry is granted access again only if it is on the list.
+- Close All, Close Others and similar commands go through one queue (`closeTabs`) that asks per dirty document in the pane banner, and Revert asks the same way.
 
 ## Live preview
 
@@ -119,6 +128,11 @@ Built so far are the inline layer and the block layer (tables, images, frontmatt
 - One filter is still needed, for a different reason: CodeMirror's vertical step lands on the line below a block widget and never inside it, because the widget has no line of text. `stepIntoBlock` (in `blocks/field.ts`) turns a keyboard step onto the line just past a drawn block into a step onto its first (down) or last (up) line. Clicks, searches and long jumps are left alone. jsdom has no layout, so the real behaviour is checked in a browser and in the real window.
 - Each pane shows live preview or raw Markdown by its own flag (`src/workbench/rawMode.ts`, Ctrl+E). `PaneEditor` (`src/workbench/paneEditor.ts`) owns the pane's view and applies the pane's mode every time a tab is shown, so a tab moved between panes follows the pane it is in. The switch is a `Compartment` (`src/editor/previewMode.ts`) holding the same constant extension, reconfigured through the follower so it is never an edit. A plain-source tab has no compartment, so the toggle does nothing there.
 
+### Tab menu and Find File References
+
+- The tab context menu (`workbench/tabMenu.ts`, drawn in `TabStrip.vue`) works on the right-clicked tab, not the active one: copy path (native, through the page clipboard), copy path from the innermost open folder (`/`), reveal in the file manager or in the sidebar, rename (the tree's name box, so the link rewrite flow applies; Save As for an untitled tab), close, close others (`closeTabs`) and close all. F2 and the menu share one rename function. Rename and Reveal in Sidebar are off for a file outside every open folder (the tree has no row for it), and the off Rename item shows the reason in a shadcn tooltip. Shift+F12 runs Find File References.
+- `find_references` (`links/references.rs`) walks the open folders, reads each file once (open unsaved documents from their buffers) and keeps the links whose target is the file, using the same `Wanted` resolution as the rewrite plan, so a listed link is one a rename would change. At most 2000 links; files it could not read are listed. The page shows the answer in a References panel in the sidebar (`features/references/`, panel state in `workbench/sidebar.ts`).
+
 ### Links
 
 - Ctrl+click (Cmd+click on a Mac) on a link follows it; any other click only places the caret. `src/editor/links.ts` finds the link under the pointer and its target as written (reference definitions are looked up in the text), and hands it to the `followLink` option each `Document` passes to its tabs.
@@ -141,13 +155,17 @@ CM6 parsing is budgeted and can stop on huge files, so whole-document features, 
 - File reads return `tauri::ipc::Response`, and writes send raw bytes, avoiding JSON.
 - A document crosses IPC as one raw frame in both directions: a JSON header, the line-ending exceptions as `u32` pairs, then the text with `\n` as its only break (layout in `src-tauri/src/fs/frame.rs`). Rust decodes and encodes; the page never sees a BOM, a UTF-16 byte or a `\r`.
 - The page opens a file and gets a document id, then saves by that id. It never names a path to write to.
-- Rust allows a path only if it saw the user choose it (the open dialog, a restored session) or it lies inside an open workspace folder. Paths are compared with symlinks resolved, and network paths are refused. The page has no command that names a path to grant. The one way a link widens access is `follow_link` on a Markdown target: Rust resolves it against its own record of the linking document and grants that one file.
+- Rust allows a path only if it saw the user choose it (the open or folder dialog, a restored session, a native drop) or it lies inside a workspace root. Paths are compared with symlinks resolved, and network paths are refused. The page has no command that names a path to grant. The one way a link widens access is `follow_link` on a Markdown target: Rust resolves it against its own record of the linking document and grants that one file.
 - A file that would not decode and encode back to the same bytes opens read-only, as does any encoding other than UTF-8 and UTF-16 with a BOM.
 - Saves write a temp file in the same folder, then rename.
 - Each save records the hash of what it writes before it writes, so the watcher can ignore mdmate's own writes. Rust decides whether a file changed by comparing content hashes, never by event or timestamp: it keeps, per open document, the hash the page last read or wrote, and says nothing about a file whose content matches it.
 - A save first compares the file on disk with that hash and refuses (`disk-changed`) when they differ, so a change the watcher missed is still never overwritten. The page then asks: keep mine or load theirs.
 - One `notify` watcher watches the folders of open documents (not the files, since replacing a file drops a watch on some systems). A dedicated thread waits for a path to go quiet for 100 ms, reads the file, and sends `{id, hash}` over a `Channel` when the content is news. A missing or locked file says nothing; the tab keeps its text.
 - The page brings a clean tab up to date with `Document.reload` (new master, fresh undo history, one minimal change to every follower so carets stay put). A tab with edits raises a conflict and keeps them.
+- A file opens by its extension alone (`fs/kind.rs`): Markdown, an image, or text. A tab is a union on `kind`: a Markdown or text tab holds a document (a text tab is plain source, with no parser), an image tab holds a path and a size and no document. The image view (`src/workbench/ImageView.vue`) shows the picture through `<img>` only, from the asset protocol, so an SVG's scripts never run. `image_info` checks access, requires an image kind, allows that one file on the asset scope and notes it, so the session grants it again at the next start; `image_closed` forgets it when the last tab for it closes. A native drop opens through `drop_open`, which refuses the whole drop if one path was not delivered, and the page opens each file in the pane under the pointer.
+- Workspace roots are kept by Rust in `workspace.json` in the data folder, written atomically when one is added or removed and granted again at start; the session snapshot only remembers which folders were open. Removing a root revokes Rust's access at once; the image protocol's scope can only grow, so it keeps the folder until restart.
+- The sidebar lists one folder at a time (`list_dir`, folders first, then case-insensitive names) and asks again whenever a folder opens. A second `notify` watcher, non-recursive, watches exactly the folders the page says are open (`watch_folders`) and sends the changed folder's path over a `Channel`; the page lists that folder again and the newest answer wins.
+- Files and folders dragged in from Explorer reach Rust as `DragDropEvent::Drop`; Rust records the paths of the last four drops, and `drop_describe` and `add_dropped_root` accept only those. The page decides what a drop means from where it landed (positions are divided by `devicePixelRatio`) and never names a path.
 - Search, watcher and rewrite results stream over `Channel`.
 - Hot exit journals dirty buffers to the data folder on a measured interval.
 
@@ -169,12 +187,22 @@ flowchart LR
 
 The scan covers all workspace roots at any depth, plus open tabs outside the roots. Only `.git` and binary files are skipped.
 
+The page runs it in two calls (`src/features/links/rewrite.ts`). `rewrite_plan` scans in the background with progress and returns the counts under a token; the banner in the sidebar asks, unless `settings.links.confirmRewrite` is false; `rewrite_move` then moves and applies. Rust (`links/flow.rs`) never writes a file that is open: it names the clean ones for the page to reload and returns text edits for the dirty ones, which the page applies to the editor as one undoable step.
+
+## Quick open and command palette
+
+Ctrl+P lists files and Ctrl+Shift+P lists commands, in one picker (`src/features/palette/`). `state.ts` is the only part in the entry chunk (which picker is open, and focus handling); `PaletteHost.vue` and `rows.ts` load with `import()` the first time one opens, and the `palette-lazy` rule in `check-arch` keeps it so.
+
+Files come from Rust. `workspace/quick.rs` keeps a list of every file under every root except `.git` (the link scan's walk), builds it on the first query and again in the background each time the picker opens, and answers `quick_open_query(query, limit)` with the best matches and the letters to mark, as UTF-16 offsets. The page never holds the file list. Commands come from the registry; their titles are ranked by `src/lib/fuzzy.ts`, which uses the same points as the Rust scorer. The browser host answers the same two calls from its in-memory files with `fuzzy.ts`.
+
 ## Security
 
 Markdown content is untrusted, and people will open files they did not write.
 
 - Document content never reaches `innerHTML` or `v-html`. `<img>` tags are read for attributes only.
 - `tauri-plugin-fs` stays out. All file access goes through our commands, keeping capabilities small.
+- The link scanner (`links/scan.rs`) is pure: `scan(&str)` returns every link to a local file with the byte span of its path part, the raw and decoded path, its form, how it is wrapped and its line. `Link::render` writes a new path in the same style and `splice` and `apply` replace spans, so an edit never touches an anchor, a title or a quote. `links/walk.rs` walks a folder (skipping `.git` and links, junctions and mount points) and reads each file: UTF-8 and UTF-16 text is scanned on the text it decodes to, line endings intact, so an edit written back with the file's own encoding changes only target bytes; a file with a NUL byte and no UTF-16 mark is binary and a file in an encoding mdmate does not write is reported.
+- The rewrite engine (`links/rewrite.rs`) is two calls around a move. `plan(roots, move, ignore_case, progress)` runs before it: it reads every text file under the roots and, for each link, works out where it leads now and where that place will be afterwards, using names only (the old place no longer exists once the move is done). A link is edited only when the same text from the file's new folder would no longer reach the same place; the new target is the relative path from the file's new folder, in the old link's style. It returns the edits per file with the hash of the bytes it read. `apply(plan)` runs after the move: for each file it refuses a read-only file or one whose bytes no longer match the hash, checks that each span still holds the planned text, writes through the atomic writer in the file's own encoding, and lists failures without stopping.
 - One Rust module, `src-tauri/src/links/guard.rs`, decides what a link target may do. The page sends `describe_link` or `follow_link` the document id and the target as written; the folder comes from Rust's record of the document, and the page never names a path or URL to open.
 - The guard reads the text first, with no file system call: only `http`, `https` and `mailto` pass as schemes (`file:` is refused), a path is percent-decoded once before any check, and rooted, network (`\\host`, `//host`, `\\?\UNC\`, encoded spellings), drive and stream paths, device names and executable types are refused. Only then does a relative path touch the file system, and the resolved path is checked again.
 - Only a value the guard approved reaches the opener, which is `open_external` behind the platform trait (`ShellExecuteW` on Windows, with no parameters).

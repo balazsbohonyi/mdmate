@@ -23,6 +23,7 @@ import { probePreview } from './previewProbe'
 import { reveal } from './reveal'
 import { scrollStability } from './scrollStability'
 import { typing } from './typing'
+import { typingDuringScan } from './typingDuringScan'
 
 /** The size-cutoff scenarios: open and type in a generated document of each size, in MB. */
 function sizedScenarios(): Record<string, (ctx: ScenarioContext) => Promise<ScenarioOutput>> {
@@ -41,6 +42,7 @@ const scenarios: Record<string, (ctx: ScenarioContext) => Promise<ScenarioOutput
   'tab-switch': tabSwitch,
   'typing-1mb': (ctx) => typing(ctx, 'dispatch'),
   'typing-1mb-trusted': (ctx) => typing(ctx, 'trusted'),
+  'typing-during-scan': typingDuringScan,
   ...sizedScenarios(),
   'crash-restore': crashRestore,
   'journal-cost': journalCost,

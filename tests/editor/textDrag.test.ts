@@ -242,6 +242,7 @@ describe('drag-to-move in the app (P5-T7)', () => {
         readOnly: null,
         size: text.length,
         hash: '0'.repeat(32),
+        kind: 'markdown',
         text,
         endings: uniformEndings(),
       },

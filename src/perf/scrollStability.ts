@@ -17,6 +17,13 @@ const STEP = 60
 const LIMIT_PX = 2
 /** The control must drift at least this much, or the measurement cannot see a shift at all. */
 const CONTROL_MIN_PX = 10
+/**
+ * How far the control pushes the page beyond the step on purpose. It is a scroll the measurement is
+ * not told about, so it shows up as exactly this much unexplained movement of the top line.
+ */
+const INJECTED_PX = 40
+/** How many steps the control walk takes. */
+const CONTROL_STEPS = 20
 /** The walk must have asked for at least this many of the images, or the page never loaded them. */
 const MIN_IMAGES = 40
 
@@ -104,11 +111,15 @@ function topLine(view: EditorView): { pos: number; top: number } | undefined {
  * the step, so whatever else moved it (an image that finished loading above it, a height that was
  * guessed wrong) is the drift. Every step is measured against the line that was on top before it.
  */
-async function walk(view: EditorView, direction: 'up' | 'down'): Promise<Walk> {
+async function walk(
+  view: EditorView,
+  direction: 'up' | 'down',
+  control: { jumpPx: number; steps: number } | null = null,
+): Promise<Walk> {
   const scroller = view.scrollDOM
   const drifts: number[] = []
   const steps: Step[] = []
-  for (let i = 0; i < 2000; i++) {
+  for (let i = 0; i < (control?.steps ?? 2000); i++) {
     const before = scroller.scrollTop
     const room = scroller.scrollHeight - scroller.clientHeight
     if (direction === 'up' ? before < STEP : before + STEP > room) break
@@ -119,7 +130,8 @@ async function walk(view: EditorView, direction: 'up' | 'down'): Promise<Walk> {
     }
     const delta = direction === 'up' ? -STEP : STEP
     const heightBefore = scroller.scrollHeight
-    scroller.scrollTop = before + delta
+    // The control adds a jump the measurement below does not know about.
+    scroller.scrollTop = before + delta + (control?.jumpPx ?? 0)
     await framePresented()
     const midway = {
       scrollTop: scroller.scrollTop,
@@ -162,6 +174,7 @@ async function measure(
   text: string,
   folder: string,
   naive: boolean,
+  control: { jumpPx: number; steps: number } | null = null,
 ): Promise<Variant> {
   const perf = ctx.host.perf
   if (!perf) throw new Error('this scenario needs the perf bridge')
@@ -171,6 +184,7 @@ async function measure(
   const run = `${String(Date.now())}${naive ? 'n' : 'r'}`
   const context = imageContext.of({
     folder: () => folder,
+    boundary: () => null,
     url: (path) => `${perf.assetUrl(path)}?run=${run}`,
   })
   let state = createState(text, [context], { parser: true, preview: !naive })
@@ -189,11 +203,12 @@ async function measure(
   view.scrollDOM.scrollTop = view.scrollDOM.scrollHeight
   await framePresented()
   await sleep(300)
-  const up = await walk(view, 'up')
+  const up = await walk(view, 'up', control)
   view.scrollDOM.scrollTop = 0
   await framePresented()
   await sleep(300)
-  const down = await walk(view, 'down')
+  const down =
+    control === null ? await walk(view, 'down') : { worst: [], max: 0, p99: 0, frames: 0 }
 
   const imagesRequested = performance
     .getEntriesByType('resource')
@@ -210,9 +225,12 @@ async function measure(
  * 60 px. After each step the line at the top of the view is looked for, and it must be exactly
  * where the scroll put it, to within 2 px, however many images finished loading in between.
  *
- * The same walk runs over a control, an image widget with no reserved space and no measure
- * request. That one must drift by at least 10 px, or the check could not see a shift and a pass for
- * the real widget would mean nothing.
+ * The same walk runs again as a control, with a 40 px jump added to each of 20 steps that the
+ * measurement is not told about. It must read at least 10 px of drift, or the check could not see a
+ * shift and a pass for the real widget would mean nothing. The control does not depend on how fast
+ * images load or on the display scale. An image widget with no reserved space is still walked and
+ * reported (`naiveImage...`), but not gated: CodeMirror keeps the top line still for it on this
+ * build, so it moves too little to serve as the control (found 2026-11-11).
  */
 export async function scrollStability(ctx: ScenarioContext): Promise<ScenarioOutput> {
   const perf = ctx.host.perf
@@ -224,10 +242,18 @@ export async function scrollStability(ctx: ScenarioContext): Promise<ScenarioOut
   await perf.allowAssetDirectory(folder)
 
   const real = await measure(ctx, text, folder, false)
-  const control = await measure(ctx, text, folder, true)
+  // The control: the same walk over the real widget, with a jump added to each step that the
+  // measurement is not told about. It must read that jump back, or a flat result proves nothing.
+  const control = await measure(ctx, text, folder, false, {
+    jumpPx: INJECTED_PX,
+    steps: CONTROL_STEPS,
+  })
+  // Reported, not gated: an image widget with no reserved space. CodeMirror keeps the top line
+  // still for it on this build, so on its own it is no longer a dependable control.
+  const naive = await measure(ctx, text, folder, true)
 
   const worstReal = Math.max(real.up.max, real.down.max)
-  const worstControl = Math.max(control.up.max, control.down.max)
+  const worstControl = control.up.max
   const problems: string[] = []
   if (!(worstReal < LIMIT_PX)) {
     problems.push(
@@ -259,10 +285,13 @@ export async function scrollStability(ctx: ScenarioContext): Promise<ScenarioOut
       realStepsUp: real.up.frames,
       realStepsDown: real.down.frames,
       realImagesRequested: real.imagesRequested,
+      controlInjectedPx: INJECTED_PX,
       controlMaxDriftUpPx: control.up.max,
-      controlMaxDriftDownPx: control.down.max,
       controlStepsUp: control.up.frames,
-      controlImagesRequested: control.imagesRequested,
+      naiveImageMaxDriftUpPx: naive.up.max,
+      naiveImageMaxDriftDownPx: naive.down.max,
+      naiveImageStepsUp: naive.up.frames,
+      naiveImagesRequested: naive.imagesRequested,
     },
     notes: { problems, worstRealUp: real.up.worst, worstRealDown: real.down.worst },
   }

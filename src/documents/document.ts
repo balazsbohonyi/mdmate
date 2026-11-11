@@ -18,7 +18,7 @@ import { endingsOf, lineEndingsFor } from '@/editor/lineEndings'
 import { sourceCopy } from '@/editor/sourceCopy'
 import { carriedAnnotations, followerSync } from '@/editor/sync'
 import { endingsEqual, type Endings } from '@/lib/endings'
-import type { OpenedFile, ReadOnlyReason, SavedFile } from '@/platform'
+import type { OpenedFile, ReadOnlyReason, SavedAs, SavedFile } from '@/platform'
 import { Follower, type FollowerHost } from './follower'
 
 /** What a save sends: the text and endings as they were at one moment. */
@@ -76,10 +76,14 @@ export interface DocumentOptions {
   readonly extensions?: Extension
   /** Turns the path of a file on disk into an address the webview can load, for images. */
   readonly assetUrl?: (path: string) => string
+  /** The workspace folder that holds a file, or null: how far up an image path may climb. */
+  readonly imageBoundary?: (path: string) => string | null
   /** Called whenever something a session snapshot holds may have changed: text, caret, saved state. */
   readonly touched?: () => void
   /** Called on Ctrl+click on a link in a tab of this document, with the target as written. */
   readonly followLink?: (tabId: string, href: string) => void
+  /** The number in the name of an untitled document, which has no path. */
+  readonly untitledNumber?: number
   /** Says which link targets are missing files, for the broken-link style. Without it, none is drawn. */
   readonly checkLinks?: (hrefs: readonly string[]) => Promise<readonly boolean[]>
 }
@@ -101,8 +105,15 @@ export class Document implements FollowerHost {
   path: string
   name: string
   readOnly: ReadOnlyReason | null
-  /** True when the file is above the size cutoff and its tabs show plain source, with no parser. */
+  /** How the file opens: Markdown in the live editor, anything else as plain source. */
+  readonly kind: 'markdown' | 'text'
+  /**
+   * True when its tabs show plain source, with no parser: a file that is not Markdown, or a
+   * Markdown file above the size cutoff.
+   */
   readonly plainSource: boolean
+  /** The number in the name of an untitled document, or null for one that has a file. */
+  untitledNumber: number | null
   /** Hash of the bytes last read from or written to disk. */
   diskHash: string
   #master: EditorState
@@ -121,10 +132,12 @@ export class Document implements FollowerHost {
     this.name = opened.name
     this.readOnly = opened.readOnly
     this.diskHash = opened.hash
+    this.untitledNumber = options.untitledNumber ?? null
     this.#changed = changed
     this.#touched = options.touched ?? (() => undefined)
     // An explicit choice wins (the perf scenarios make one); otherwise the file's size decides.
-    const parser = options.parser ?? !isLargeFile(opened.size)
+    this.kind = opened.kind === 'markdown' ? 'markdown' : 'text'
+    const parser = options.parser ?? (this.kind === 'markdown' && !isLargeFile(opened.size))
     this.plainSource = !parser
     this.#options = { ...options, parser }
     this.#master = createMasterState(opened.text, [
@@ -132,6 +145,11 @@ export class Document implements FollowerHost {
       readOnlyFacet(opened.readOnly),
     ])
     this.#saved = { doc: this.#master.doc, endings: endingsOf(this.#master) }
+  }
+
+  /** True for a new document that has no file yet. */
+  get untitled(): boolean {
+    return this.path === ''
   }
 
   /** The state that owns the document. Read it; change it only through a follower. */
@@ -203,6 +221,7 @@ export class Document implements FollowerHost {
         const cut = Math.max(this.path.lastIndexOf('/'), this.path.lastIndexOf('\\'))
         return cut <= 0 ? null : this.path.slice(0, cut)
       },
+      boundary: () => (this.untitled ? null : (this.#options.imageBoundary?.(this.path) ?? null)),
       url,
     })
   }
@@ -263,6 +282,25 @@ export class Document implements FollowerHost {
     this.#refreshDirty()
   }
 
+  /**
+   * Changes the text the way typing would: one step of history that undo takes back, the same
+   * change in every follower, and the document counts as edited. For edits that come from the app
+   * itself, such as rewritten links. Positions are in the master's text.
+   */
+  applyEdits(edits: readonly { from: number; to: number; insert: string }[]): void {
+    if (edits.length === 0) return
+    const master = this.#master
+    const changes = ChangeSet.of(
+      edits.map((edit) => ({ from: edit.from, to: edit.to, insert: edit.insert })),
+      master.doc.length,
+      master.lineBreak,
+    )
+    this.#master = master.update({ changes, userEvent: 'input.rewrite' }).state
+    for (const follower of this.#followers.values()) follower.receive(changes)
+    this.#touched()
+    this.#refreshDirty()
+  }
+
   /** The line ending of every break, as the file had them. Followers hold `\n` only. */
   endings(): Endings {
     return endingsOf(this.#master)
@@ -319,6 +357,23 @@ export class Document implements FollowerHost {
     this.diskHash = saved.hash
     this.#touched()
     this.#refreshDirty()
+  }
+
+  /**
+   * Gives the document the file a Save As wrote: it follows the file, `snapshot` is what that file
+   * holds, and the history stays. A document that could not be saved (a file in an encoding mdmate
+   * cannot write) can be saved from now on, since what was written is UTF-8.
+   */
+  relocate(snapshot: Snapshot, saved: SavedAs): void {
+    this.path = saved.path
+    this.name = saved.name
+    this.untitledNumber = null
+    this.#saved = { doc: snapshot.doc, endings: snapshot.endings }
+    this.diskHash = saved.hash
+    this.#applyReadOnly(null)
+    this.#touched()
+    this.#refreshDirty()
+    this.#changed(this)
   }
 
   /**

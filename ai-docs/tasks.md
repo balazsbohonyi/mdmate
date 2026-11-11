@@ -63,15 +63,17 @@ Mark `[x]` only when the task's "Done when" in its phase plan holds. Each task l
 
 ## Phase 6: Workspace ([plan](phases/phase-06/plan.md))
 
-- [ ] P6-T1: File tree, Open and Remove Folder — closes ISC-97, ISC-99, ISC-105, ISC-132, ISC-192, ISC-193, ISC-194, ISC-195
-- [ ] P6-T2: File operations and copy on drop — closes ISC-100, ISC-101, ISC-102, ISC-103, ISC-104, ISC-196, ISC-197, ISC-198, ISC-199
-- [ ] P6-T3: Text and image tabs, drop to open — closes ISC-106, ISC-107, ISC-108, ISC-109, ISC-110, ISC-111, ISC-112, ISC-200, ISC-201, ISC-202
-- [ ] P6-T4: Link scanner — closes ISC-116, ISC-117, ISC-118, ISC-119, ISC-120, ISC-121, ISC-124
-- [ ] P6-T5: Rewrite engine — closes ISC-113, ISC-114, ISC-115, ISC-122, ISC-125, ISC-128
-- [ ] P6-T6: Rewrite UI — closes ISC-123, ISC-126, ISC-127, ISC-129, ISC-175
-- [ ] P6-T7: Quick open and command palette — closes ISC-130, ISC-131
-- [ ] P6-T8: Untitled files, Save As, Revert, Close All, Open Recent — closes ISC-203, ISC-204, ISC-205, ISC-206, ISC-207, ISC-208, ISC-209, ISC-210, ISC-211, ISC-212
-- [ ] P6-T9: Tab context menu and Find File References — closes ISC-213, ISC-214, ISC-215, ISC-216, ISC-217, ISC-218
+- [x] P6-T1: File tree, Open and Remove Folder — closes ISC-97, ISC-99, ISC-105, ISC-132, ISC-192, ISC-193, ISC-194, ISC-195
+- [x] P6-T2: File operations and copy on drop — closes ISC-100, ISC-101, ISC-102, ISC-103, ISC-104, ISC-196, ISC-197, ISC-198, ISC-199
+- [x] P6-T3: Text and image tabs, drop to open — closes ISC-106, ISC-107, ISC-108, ISC-109, ISC-110, ISC-111, ISC-112, ISC-200, ISC-201, ISC-202
+- [x] P6-T4: Link scanner — closes ISC-116, ISC-117, ISC-118, ISC-119, ISC-120, ISC-121, ISC-124
+- [x] P6-T5: Rewrite engine — closes ISC-113, ISC-114, ISC-115, ISC-122, ISC-125, ISC-128
+- [x] P6-T6: Rewrite UI — closes ISC-123, ISC-126, ISC-127, ISC-129, ISC-175
+- [x] P6-T7: Quick open and command palette — closes ISC-130, ISC-131
+- [x] P6-T8: Untitled files, Save As, Revert, Close All, Open Recent — closes ISC-203, ISC-204, ISC-205, ISC-206, ISC-207, ISC-208, ISC-209, ISC-210, ISC-211, ISC-212
+- [x] P6-T9: Tab context menu and Find File References — closes ISC-213, ISC-214, ISC-215, ISC-216, ISC-217, ISC-218
+- [x] P6 follow-ups from the owner's UAT walk (one commit each, no task tag) — closes ISC-223 to ISC-233: tab menu and hints, tooltip arrow, editor hints, delete confirmation and tab closing, sidebar path items and Open Folder, resizable sidebar, images up to the workspace folder, image zoom kept
+- [x] P6 follow-ups from the owner's second UAT walk (one commit each, no task tag) — closes ISC-236 to ISC-248: status bar without the OS name, menu shortcut baseline, plain frontmatter pill, pointer cursor over followable links, tree drag cursors, resize handles that take the keys, no WebView context menu, one path separator in both copies, plain file errors, scroll position per tab, the same file in two panes, a scrolling tab strip with + and a tab list, thin scrollbars. F12 as a setting moved to P8-T1 (ISC-249)
 
 ## Phase 7: Search and outline ([plan](phases/phase-07/plan.md))
 
@@ -81,7 +83,7 @@ Mark `[x]` only when the task's "Done when" in its phase plan holds. Each task l
 
 ## Phase 8: Configuration ([plan](phases/phase-08/plan.md))
 
-- [ ] P8-T1: Settings and palette toggles — closes ISC-147, ISC-148, ISC-153
+- [ ] P8-T1: Settings and palette toggles — closes ISC-147, ISC-148, ISC-153, ISC-249
 - [ ] P8-T2: Keybindings — closes ISC-149
 - [ ] P8-T3: Theme switching and user themes — closes ISC-145, ISC-146, ISC-150, ISC-151, ISC-173
 - [ ] P8-T4: Portable mode — closes ISC-152

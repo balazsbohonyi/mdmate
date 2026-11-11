@@ -3,11 +3,12 @@
  *
  * A Markdown file is untrusted text, so its image addresses are an allowlist, not a blocklist:
  *
- * - a relative path that stays inside the document's own folder, or
+ * - a relative path that stays inside the document's own folder, or inside the workspace folder
+ *   the document is in (so `../img/p.png` works from `notes/b.md`), or
  * - an `https` address.
  *
  * Everything else is refused: `http`, `file`, `data`, any other scheme, an absolute path, a drive
- * letter, a network (UNC) path, a path that leaves the folder, a Windows device name. Reading a
+ * letter, a network (UNC) path, a path that leaves that boundary, a Windows device name. Reading a
  * network path makes Windows contact that host, and an absolute path would reach any file the
  * asset protocol is allowed to serve, so neither is ever asked for.
  */
@@ -17,6 +18,11 @@ import { Facet } from '@codemirror/state'
 export interface ImageContext {
   /** The folder the document lives in, or null for a document with no file. Read at scan time. */
   folder(): string | null
+  /**
+   * The workspace folder that holds the document, or null when it is in none. A relative path may
+   * climb out of the document's folder, but never out of this one. Read at scan time.
+   */
+  boundary(): string | null
   /** The address the webview loads for a file on disk (the asset protocol). */
   url(path: string): string
 }
@@ -49,7 +55,19 @@ function decode(text: string): string {
   }
 }
 
-function resolveLocal(address: string, folder: string): ImageAddress {
+/** How many folders there are from `boundary` down to `folder`: how far up a path may climb. */
+function climbAllowance(folder: string, boundary: string | null): number {
+  if (boundary === null) return 0
+  const top = boundary.replace(/[\\/]+$/, '')
+  const base = folder.replace(/[\\/]+$/, '')
+  if (!base.startsWith(top)) return 0
+  const rest = base.slice(top.length)
+  // Whole folder names only: `/a/bc` is not inside `/a/b`.
+  if (rest !== '' && !/^[\\/]/.test(rest)) return 0
+  return rest.split(/[\\/]/).filter((part) => part !== '').length
+}
+
+function resolveLocal(address: string, folder: string, boundary: string | null): ImageAddress {
   // The query or fragment is not part of a file name.
   const cut = address.search(/[?#]/)
   const raw = cut < 0 ? address : address.slice(0, cut)
@@ -60,11 +78,16 @@ function resolveLocal(address: string, folder: string): ImageAddress {
   if (unified.startsWith('/')) return REFUSED
 
   const parts: string[] = []
+  const mayClimb = climbAllowance(folder, boundary)
+  let climbed = 0
   for (const part of unified.split('/')) {
     if (part === '' || part === '.') continue
     if (part === '..') {
-      // One step above the document's folder is a different folder.
-      if (parts.pop() === undefined) return REFUSED
+      if (parts.pop() !== undefined) continue
+      // Above the document's folder is another folder: allowed up to the workspace folder, and no
+      // further. A document in no workspace folder may not climb at all.
+      if (climbed >= mayClimb) return REFUSED
+      climbed++
       continue
     }
     // Windows drops trailing dots and spaces, so `a.png.` and `a.png` would be one file.
@@ -77,7 +100,10 @@ function resolveLocal(address: string, folder: string): ImageAddress {
 
   // The separator is the folder's own, read before a root such as `D:\` loses its trailing one.
   const separator = folder.includes('\\') && !folder.includes('/') ? '\\' : '/'
-  const base = folder.replace(/[\\/]+$/, '')
+  let base = folder.replace(/[\\/]+$/, '')
+  for (let step = 0; step < climbed; step++) {
+    base = base.slice(0, Math.max(base.lastIndexOf('/'), base.lastIndexOf('\\')))
+  }
   if (base === '') return REFUSED
   return { kind: 'local', path: `${base}${separator}${parts.join(separator)}` }
 }
@@ -97,9 +123,14 @@ function resolveRemote(address: string): ImageAddress {
 
 /**
  * Decides what an image address in the document may load. `folder` is the document's folder, or
- * null when it has none (then no relative path can resolve).
+ * null when it has none (then no relative path can resolve). `boundary` is the workspace folder
+ * the document is in: a path may climb out of `folder` as far as it, and no further.
  */
-export function resolveImageAddress(raw: string, folder: string | null): ImageAddress {
+export function resolveImageAddress(
+  raw: string,
+  folder: string | null,
+  boundary: string | null = null,
+): ImageAddress {
   let address = raw.trim()
   if (address.startsWith('<') && address.endsWith('>')) address = address.slice(1, -1).trim()
   if (address === '' || CONTROL.test(address)) return REFUSED
@@ -108,7 +139,7 @@ export function resolveImageAddress(raw: string, folder: string | null): ImageAd
     return /^https:/i.test(address) ? resolveRemote(address) : REFUSED
   }
   if (folder === null) return REFUSED
-  return resolveLocal(address, folder)
+  return resolveLocal(address, folder, boundary)
 }
 
 export interface ImageSize {

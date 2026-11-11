@@ -40,11 +40,6 @@ export const blockTheme = EditorView.baseTheme({
     cursor: 'pointer',
   },
   '.cm-md-frontmatter-label': { fontWeight: '650', color: 'var(--foreground)' },
-  '.cm-md-frontmatter-keys': {
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-  },
   '.cm-md-image-block': { padding: '14px 0' },
   '.cm-md-image-frame': {
     display: 'inline-block',

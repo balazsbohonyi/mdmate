@@ -4,13 +4,16 @@
 //! that id, so a save can only reach a file Rust has already checked. Ids come from Rust.
 
 use crate::access::{Access, Resolved, display_path};
+use crate::drops::DropRegistry;
 use crate::error::AppError;
 use crate::fs::document::{Opened, ReadOnlyReason, content_hash};
 use crate::fs::encoding::Format;
+use crate::fs::kind::kind_of;
 use crate::fs::{self, Saved, atomic, frame};
+use crate::workspace::folders::{self, FolderWatcher};
 use crate::workspace::watch::{DiskChange, Watcher};
 use serde_json::{Map, Value};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 
@@ -33,6 +36,9 @@ pub(crate) struct Documents {
     next_id: u32,
     by_id: HashMap<u32, DocEntry>,
     by_key: HashMap<String, u32>,
+    /// Documents with no file yet (an untitled tab). They have an id and nothing else, so they are
+    /// in no listing of open files, are never watched, and are never granted at the next start.
+    untitled: HashSet<u32>,
 }
 
 impl Documents {
@@ -64,6 +70,50 @@ impl Documents {
         id
     }
 
+    /// Gives an untitled document an id. It has no path, so a save by id refuses it; only Save As
+    /// (see `save_as`) can give it one.
+    pub(crate) fn register_untitled(&mut self) -> u32 {
+        self.next_id += 1;
+        self.untitled.insert(self.next_id);
+        self.next_id
+    }
+
+    pub(crate) fn is_untitled(&self, id: u32) -> bool {
+        self.untitled.contains(&id)
+    }
+
+    /// Whether this path is the file of another open document than `id`.
+    pub(crate) fn path_is_open_elsewhere(&self, key: &str, id: u32) -> bool {
+        self.by_key.get(key).is_some_and(|&other| other != id)
+    }
+
+    /// Gives an untitled document its file, after the file was written. False (and nothing
+    /// changes) when the id is not an untitled document or another document has that path.
+    pub(crate) fn promote(
+        &mut self,
+        id: u32,
+        resolved: &Resolved,
+        format: Option<Format>,
+        hash: u128,
+    ) -> bool {
+        if !self.untitled.contains(&id) || self.path_is_open_elsewhere(&resolved.key, id) {
+            return false;
+        }
+        self.untitled.remove(&id);
+        self.by_key.insert(resolved.key.clone(), id);
+        self.by_id.insert(
+            id,
+            DocEntry {
+                path: resolved.path.clone(),
+                key: resolved.key.clone(),
+                format,
+                known_hash: hash,
+                reported_hash: None,
+            },
+        );
+        true
+    }
+
     pub(crate) fn get(&self, id: u32) -> Option<&DocEntry> {
         self.by_id.get(&id)
     }
@@ -85,7 +135,24 @@ impl Documents {
         }
     }
 
+    /// Points a document at the file's new path after a rename or move. False when another open
+    /// document already has that path, which a rename never allows, so nothing changes then.
+    pub(crate) fn rebind(&mut self, id: u32, now: &Resolved) -> bool {
+        if self.by_key.get(&now.key).is_some_and(|&other| other != id) {
+            return false;
+        }
+        let Some(entry) = self.by_id.get_mut(&id) else {
+            return false;
+        };
+        self.by_key.remove(&entry.key);
+        entry.path = now.path.clone();
+        entry.key = now.key.clone();
+        self.by_key.insert(now.key.clone(), id);
+        true
+    }
+
     pub(crate) fn remove(&mut self, id: u32) -> Option<DocEntry> {
+        self.untitled.remove(&id);
         let entry = self.by_id.remove(&id)?;
         self.by_key.remove(&entry.key);
         Some(entry)
@@ -100,6 +167,20 @@ pub(crate) struct AppState {
     documents: Mutex<Documents>,
     /// Started when the page first asks for changes; see [`AppState::start_watcher`].
     watcher: OnceLock<Watcher>,
+    /// Watches the folders the sidebar has open; see [`AppState::start_folder_watcher`].
+    folder_watcher: OnceLock<FolderWatcher>,
+    /// The paths native drops delivered.
+    drops: DropRegistry,
+    /// Images the page shows in tabs, by key. They are not documents, so the session learns of
+    /// them here and grants them again at the next start.
+    images: Mutex<std::collections::BTreeMap<String, PathBuf>>,
+    /// The rewrite plan waiting for the page's answer; see [`crate::links::flow`].
+    rewrite: Mutex<Option<crate::links::flow::Pending>>,
+    /// Set by the page to stop a scan that is running.
+    rewrite_stop: std::sync::atomic::AtomicBool,
+    rewrite_tokens: std::sync::atomic::AtomicU64,
+    /// The file index behind Ctrl+P; built when the page first asks.
+    quick_open: crate::workspace::quick::QuickOpen,
 }
 
 impl AppState {
@@ -109,7 +190,115 @@ impl AppState {
             access: Mutex::new(Access::new(ignore_case)),
             documents: Mutex::new(Documents::default()),
             watcher: OnceLock::new(),
+            folder_watcher: OnceLock::new(),
+            drops: DropRegistry::new(ignore_case),
+            images: Mutex::new(std::collections::BTreeMap::new()),
+            rewrite: Mutex::new(None),
+            rewrite_stop: std::sync::atomic::AtomicBool::new(false),
+            rewrite_tokens: std::sync::atomic::AtomicU64::new(0),
+            quick_open: crate::workspace::quick::QuickOpen::default(),
         }
+    }
+
+    /// Whether this file system treats names that differ in case as one.
+    pub(crate) fn ignore_case(&self) -> bool {
+        self.ignore_case
+    }
+
+    /// The file index behind Ctrl+P.
+    pub(crate) fn quick_open(&self) -> &crate::workspace::quick::QuickOpen {
+        &self.quick_open
+    }
+
+    /// The rewrite plan the page has not answered yet.
+    pub(crate) fn rewrite_slot(&self) -> MutexGuard<'_, Option<crate::links::flow::Pending>> {
+        self.rewrite.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    pub(crate) fn rewrite_stop(&self) -> &std::sync::atomic::AtomicBool {
+        &self.rewrite_stop
+    }
+
+    /// A new name for a rewrite plan; never zero.
+    pub(crate) fn next_token(&self) -> u64 {
+        self.rewrite_tokens
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            + 1
+    }
+
+    /// Notes that the page shows this image in a tab.
+    pub(crate) fn note_image(&self, image: &Resolved) {
+        self.images
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(image.key.clone(), image.path.clone());
+    }
+
+    /// Notes that no tab shows this image any more. A path that is gone matches by its spelling.
+    pub(crate) fn forget_image(&self, path: &Path) {
+        let key = self
+            .access()
+            .resolve(path)
+            .ok()
+            .map(|resolved| resolved.key);
+        let wanted = display_path(path);
+        self.images
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .retain(|image_key, image| {
+                key.as_deref() != Some(image_key.as_str()) && display_path(image) != wanted
+            });
+    }
+
+    /// The images shown in tabs now, as people read their paths.
+    pub(crate) fn image_paths(&self) -> Vec<String> {
+        self.images
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .values()
+            .map(|path| display_path(path))
+            .collect()
+    }
+
+    /// Moves every open document that was at `old` (or below it, when `old` was a folder) to the
+    /// same place under `new`, so that a save by id writes the new path and the watcher follows
+    /// the file. Returns the documents that moved, for the page to rename their tabs.
+    pub(crate) fn documents_moved(
+        &self,
+        old: &Resolved,
+        new: &Resolved,
+    ) -> Vec<crate::workspace::ops::MovedDocument> {
+        // The lock on the documents is never held while asking Access, so the two never wait on
+        // each other.
+        let affected: Vec<(u32, PathBuf)> = self
+            .documents()
+            .entries()
+            .filter(|(_, entry)| crate::access::is_inside(&entry.key, &old.key))
+            .map(|(id, entry)| (id, entry.path.clone()))
+            .collect();
+        let mut moved = Vec::new();
+        for (id, was) in affected {
+            let now = match was.strip_prefix(&old.path) {
+                Ok(rest) if rest.as_os_str().is_empty() => new.path.clone(),
+                Ok(rest) => new.path.join(rest),
+                Err(_) => continue,
+            };
+            let Ok(resolved) = self.access().resolve(&now) else {
+                continue;
+            };
+            if !self.documents().rebind(id, &resolved) {
+                continue;
+            }
+            if let Some(watcher) = self.watcher() {
+                watcher.unwatch(id);
+                watcher.watch(id, &resolved.path);
+            }
+            moved.push(crate::workspace::ops::MovedDocument {
+                id,
+                path: display_path(&resolved.path),
+            });
+        }
+        moved
     }
 
     /// A path as the watcher compares it: the way people read it, lower-cased where the file
@@ -150,6 +339,27 @@ impl AppState {
 
     pub(crate) fn watcher(&self) -> Option<&Watcher> {
         self.watcher.get()
+    }
+
+    /// Starts the watcher for the sidebar's open folders and sends the folder whose listing went
+    /// out of date to `sink`. Called again, it only replaces the sink.
+    pub(crate) fn start_folder_watcher(&self, sink: folders::Sink) -> Result<(), AppError> {
+        if let Some(watcher) = self.folder_watcher.get() {
+            watcher.set_sink(sink);
+            return Ok(());
+        }
+        // Losing the race to another call leaves that one's watcher in place, which is fine.
+        let _ = self.folder_watcher.set(FolderWatcher::start(sink)?);
+        Ok(())
+    }
+
+    pub(crate) fn folder_watcher(&self) -> Option<&FolderWatcher> {
+        self.folder_watcher.get()
+    }
+
+    /// The paths native drops delivered.
+    pub(crate) fn drops(&self) -> &DropRegistry {
+        &self.drops
     }
 
     // A thread that panicked while holding a lock must not take the whole app down with it, so a
@@ -219,6 +429,7 @@ fn open_frame(id: u32, resolved: &Resolved, opened: &Opened) -> Vec<u8> {
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default();
     header.insert("name".into(), name.into());
+    header.insert("kind".into(), kind_of(&resolved.path).name().into());
     header.insert(
         "encoding".into(),
         opened
@@ -326,6 +537,34 @@ mod tests {
 
     fn edit_frame(text: &str) -> Vec<u8> {
         frame::encode(Map::new(), &Endings::uniform(Ending::CrLf), text)
+    }
+
+    #[test]
+    fn promote_gives_an_untitled_document_its_file_once_and_never_over_another_documents() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let state = state_with(dir.path(), &["taken.md", "free.md"]);
+        let taken = dir.path().join("taken.md");
+        state.access().grant_file(&taken).expect("granted");
+        open_document(&state, &taken).expect("opens");
+        let resolved_taken = state.access().check(&taken).expect("allowed");
+        let free = state
+            .access()
+            .grant_file(&dir.path().join("free.md"))
+            .expect("granted");
+
+        let mut documents = state.documents();
+        let id = documents.register_untitled();
+        assert!(documents.is_untitled(id));
+        // Another document already has that path: nothing changes.
+        assert!(!documents.promote(id, &resolved_taken, None, 1));
+        assert!(documents.is_untitled(id));
+        assert!(documents.get(id).is_none());
+        // A free path works, once. An id that was never untitled cannot be promoted at all.
+        assert!(documents.promote(id, &free, None, 2));
+        assert!(!documents.is_untitled(id));
+        assert_eq!(documents.get(id).map(|entry| entry.known_hash), Some(2));
+        assert!(!documents.promote(id, &free, None, 3));
+        assert!(!documents.promote(9999, &free, None, 4));
     }
 
     #[test]

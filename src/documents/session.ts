@@ -1,8 +1,10 @@
 import { watch } from 'vue'
 import type { Text } from '@codemirror/state'
 import { endingsOf } from '@/editor/lineEndings'
+import { expandedFolderPaths, restoreWorkspace } from '@/features/tree/store'
+import { currentWindowWidth, setSidebarWidth, sidebarWidth } from '@/workbench/sidebar'
 import { endingsEqual, joinWithEndings, readEndings, type Endings } from '@/lib/endings'
-import { getHost, type OpenedFile } from '@/platform'
+import { getHost, type ImageInfo, type OpenedFile } from '@/platform'
 import {
   allTabs,
   closeTab,
@@ -12,11 +14,26 @@ import {
   type Layout,
   type TabId,
 } from '@/workbench/splitTree'
-import { openTabFor, restoreWorkbench, tabRecord, workbenchLayout } from '@/workbench/store'
-import type { TabRecord } from '@/workbench/tabs'
+import {
+  openTabFor,
+  restoreWorkbench,
+  tabRecord,
+  tabsOfDocument,
+  workbenchLayout,
+} from '@/workbench/store'
+import { docIdOf, type TabRecord } from '@/workbench/tabs'
 import type { Caret, Document } from './document'
 import { patchDocMeta } from './meta'
-import { allDocuments, documentById, onDocumentsTouched, openDocument, problem } from './store'
+import {
+  allDocuments,
+  createUntitled,
+  discardUnused,
+  documentById,
+  onDocumentsTouched,
+  openDocument,
+  problem,
+} from './store'
+import { noteUntitledNumber } from './untitled'
 
 /**
  * Hot exit, page side. The session is one JSON snapshot: the layout, each tab's file and caret, and
@@ -34,6 +51,10 @@ interface SnapshotTab {
   readonly id: TabId
   readonly path: string
   readonly caret: Caret
+  /** Present for a tab that is not a file: an image, which has no document and no caret, or a new file. */
+  readonly kind?: 'image' | 'untitled'
+  /** For a new file's tab: the number in its name. */
+  readonly untitled?: number
 }
 
 /** Unsaved text, with the disk hash it was typed on top of. */
@@ -42,6 +63,8 @@ interface SnapshotBuffer {
   readonly base: string
   readonly text: string
   readonly endings: Endings
+  /** For the text of a new file, which has no path: the number in its name. */
+  readonly untitled?: number
 }
 
 // ---- writing -----------------------------------------------------------------------------------
@@ -72,6 +95,7 @@ function bufferOf(doc: Document): string {
     base: doc.diskHash,
     text: master.doc.toString(),
     endings,
+    ...(doc.untitledNumber === null ? {} : { untitled: doc.untitledNumber }),
   }
   const json = JSON.stringify(buffer)
   bufferJson.set(master.doc, { doc, endings, base: doc.diskHash, json })
@@ -84,13 +108,30 @@ export function buildSnapshot(): string {
   const tabs: SnapshotTab[] = []
   for (const id of allTabs(layout)) {
     const record = tabRecord(id)
-    const doc = record === undefined ? undefined : documentById(record.docId)
-    if (doc !== undefined) tabs.push({ id, path: doc.path, caret: doc.caretOf(id) })
+    if (record?.kind === 'image') {
+      tabs.push({ id, path: record.path, caret: { anchor: 0, head: 0 }, kind: 'image' })
+      continue
+    }
+    const docId = docIdOf(record)
+    const doc = docId === undefined ? undefined : documentById(docId)
+    if (doc === undefined) continue
+    const caret = doc.caretOf(id)
+    tabs.push(
+      doc.untitledNumber === null
+        ? { id, path: doc.path, caret }
+        : { id, path: '', caret, kind: 'untitled', untitled: doc.untitledNumber },
+    )
   }
   const buffers = allDocuments()
     .filter((doc) => doc.dirty && doc.readOnly === null)
     .map(bufferOf)
-  return `{"version":${String(VERSION)},"layout":${JSON.stringify(serialize(layout))},"tabs":${JSON.stringify(tabs)},"buffers":[${buffers.join(',')}]}`
+  // Which folders are open is the page's to remember. Which folders are roots is not: Rust keeps
+  // that list itself, so a snapshot can never add one.
+  const workspace = JSON.stringify({
+    expanded: expandedFolderPaths.value,
+    ...(sidebarWidth.value === null ? {} : { sidebarWidth: sidebarWidth.value }),
+  })
+  return `{"version":${String(VERSION)},"layout":${JSON.stringify(serialize(layout))},"tabs":${JSON.stringify(tabs)},"buffers":[${buffers.join(',')}],"workspace":${workspace}}`
 }
 
 /** What the journal has done, for the perf scenarios and the tests. */
@@ -113,6 +154,8 @@ let inFlight: Promise<void> | null = null
 let wanted = false
 let lastWritten: string | null = null
 let stopLayoutWatch: (() => void) | undefined
+let stopTreeWatch: (() => void) | undefined
+let stopSidebarWatch: (() => void) | undefined
 
 async function writeOnce(): Promise<void> {
   const began = performance.now()
@@ -192,6 +235,8 @@ export async function startJournal(options: JournalOptions = {}): Promise<void> 
   intervalMs = options.intervalMs ?? JOURNAL_INTERVAL_MS
   onDocumentsTouched(touch)
   stopLayoutWatch = watch(workbenchLayout, touch)
+  stopTreeWatch = watch(expandedFolderPaths, touch)
+  stopSidebarWatch = watch(sidebarWidth, touch)
   try {
     const host = await getHost()
     await host.watchClose(() => {
@@ -213,6 +258,10 @@ export function stopJournal(): void {
   onDocumentsTouched(undefined)
   stopLayoutWatch?.()
   stopLayoutWatch = undefined
+  stopTreeWatch?.()
+  stopTreeWatch = undefined
+  stopSidebarWatch?.()
+  stopSidebarWatch = undefined
 }
 
 /** True when the session on disk is the one the workbench would write right now. */
@@ -243,16 +292,26 @@ interface RawBuffer {
   readonly base: string
   readonly text: string
   readonly endings: unknown
+  readonly untitled: number | null
 }
 
 interface Snapshot {
   readonly layout: string
   readonly tabs: readonly SnapshotTab[]
   readonly buffers: readonly RawBuffer[]
+  /** The folders that were open in the sidebar. A snapshot from before Phase 6 has none. */
+  readonly expanded: readonly string[]
+  /** How wide the sidebar was dragged, in px, or null for the default. */
+  readonly sidebarWidth: number | null
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** A whole number of at least 1, as the numbers in `Untitled-N` are, or null. */
+function readNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 1 ? value : null
 }
 
 function readCaret(value: unknown): Caret | null {
@@ -275,22 +334,52 @@ function readSnapshot(text: string): Snapshot | null {
   const tabs: SnapshotTab[] = []
   for (const tab of Array.isArray(value.tabs) ? (value.tabs as unknown[]) : []) {
     if (!isRecord(tab) || typeof tab.id !== 'string' || typeof tab.path !== 'string') continue
-    tabs.push({ id: tab.id, path: tab.path, caret: readCaret(tab.caret) ?? { anchor: 0, head: 0 } })
+    const caret = readCaret(tab.caret) ?? { anchor: 0, head: 0 }
+    if (tab.kind === 'image') {
+      tabs.push({ id: tab.id, path: tab.path, caret, kind: 'image' })
+    } else if (tab.kind === 'untitled') {
+      const number = readNumber(tab.untitled)
+      if (number !== null)
+        tabs.push({ id: tab.id, path: '', caret, kind: 'untitled', untitled: number })
+    } else {
+      tabs.push({ id: tab.id, path: tab.path, caret })
+    }
   }
   const buffers: RawBuffer[] = []
   for (const buffer of Array.isArray(value.buffers) ? (value.buffers as unknown[]) : []) {
     if (!isRecord(buffer)) continue
     const { path, base, text: bufferText, endings } = buffer
     if (typeof path !== 'string' || typeof bufferText !== 'string') continue
-    buffers.push({ path, base: typeof base === 'string' ? base : '', text: bufferText, endings })
+    buffers.push({
+      path,
+      base: typeof base === 'string' ? base : '',
+      text: bufferText,
+      endings,
+      untitled: readNumber(buffer.untitled),
+    })
   }
-  return { layout: value.layout, tabs, buffers }
+  const expanded: string[] = []
+  const workspace = isRecord(value.workspace) ? value.workspace : {}
+  for (const path of Array.isArray(workspace.expanded) ? (workspace.expanded as unknown[]) : []) {
+    if (typeof path === 'string') expanded.push(path)
+  }
+  return {
+    layout: value.layout,
+    tabs,
+    buffers,
+    expanded,
+    sidebarWidth: readNumber(workspace.sidebarWidth),
+  }
 }
 
 function countBreaks(text: string): number {
   let count = 0
   for (let at = text.indexOf('\n'); at !== -1; at = text.indexOf('\n', at + 1)) count++
   return count
+}
+
+function bufferName(buffer: RawBuffer): string {
+  return buffer.untitled === null ? fileName(buffer.path) : `Untitled-${String(buffer.untitled)}`
 }
 
 function fileName(path: string): string {
@@ -314,10 +403,16 @@ export interface RestoreReport {
 export async function restoreSession(): Promise<RestoreReport | null> {
   const host = await getHost()
   const text = await host.loadSession()
+  const snapshot = text === null ? null : readSnapshot(text)
+  // The roots come from Rust's own list, so they come back even when the snapshot is damaged or
+  // missing. A failure here costs the sidebar, never the tabs.
+  setSidebarWidth(snapshot?.sidebarWidth ?? null, currentWindowWidth())
+  await restoreWorkspace(snapshot?.expanded ?? []).catch((error: unknown) => {
+    problem.value = `Could not restore the workspace: ${error instanceof Error ? error.message : JSON.stringify(error)}`
+  })
   if (text === null) return null
   const notices: string[] = []
 
-  const snapshot = readSnapshot(text)
   if (snapshot === null) {
     const kept = await host.recoverBuffer('session', text)
     return {
@@ -327,11 +422,37 @@ export async function restoreSession(): Promise<RestoreReport | null> {
     }
   }
 
-  // Open every file the session names, in parallel.
-  const paths = [...new Set([...snapshot.tabs, ...snapshot.buffers].map((entry) => entry.path))]
+  // Open every file the session names, in parallel. Images are not documents: Rust checks each
+  // again and says how big it is now.
+  const imagePaths = [
+    ...new Set(snapshot.tabs.filter((tab) => tab.kind === 'image').map((tab) => tab.path)),
+  ]
+  const paths = [
+    ...new Set(
+      [
+        ...snapshot.tabs.filter((tab) => tab.kind === undefined),
+        ...snapshot.buffers.filter((buffer) => buffer.untitled === null),
+      ].map((entry) => entry.path),
+    ),
+  ]
+  /** Saves text that cannot go back in a tab to a file in the data folder, and says where. */
+  async function recover(buffer: RawBuffer, why: string): Promise<void> {
+    const endings = readEndings(buffer.endings, countBreaks(buffer.text))
+    const raw = endings === null ? buffer.text : joinWithEndings(buffer.text, endings)
+    const name = bufferName(buffer)
+    try {
+      const kept = await host.recoverBuffer(name, raw)
+      notices.push(`${why}: the unsaved text of ${name} is in ${kept}.`)
+    } catch (error) {
+      notices.push(
+        `${why}, and its unsaved text could not be kept: ${error instanceof Error ? error.message : JSON.stringify(error)}`,
+      )
+    }
+  }
   const opened = new Map<string, { doc: Document; file: OpenedFile }>()
-  await Promise.all(
-    paths.map(async (path) => {
+  const images = new Map<string, ImageInfo>()
+  await Promise.all([
+    ...paths.map(async (path) => {
       try {
         const { doc, opened: file } = await openDocument(path)
         opened.set(path, { doc, file })
@@ -339,24 +460,55 @@ export async function restoreSession(): Promise<RestoreReport | null> {
         // Reported below, for tabs and buffers alike.
       }
     }),
+    ...imagePaths.map(async (path) => {
+      try {
+        images.set(path, await host.imageInfo(path))
+      } catch {
+        // Reported below, with the tabs.
+      }
+    }),
+  ])
+
+  // New files have no file to come back from: the snapshot holds all they were. Each gets a fresh
+  // document with its old number, and its text goes in as an edit, so it counts as unsaved.
+  const untitledDocs = new Map<number, Document>()
+  const untitledNumbers = new Set<number>([
+    ...snapshot.tabs.flatMap((tab) => (tab.untitled === undefined ? [] : [tab.untitled])),
+    ...snapshot.buffers.flatMap((buffer) => (buffer.untitled === null ? [] : [buffer.untitled])),
+  ])
+  await Promise.all(
+    [...untitledNumbers].map(async (number) => {
+      const buffer = snapshot.buffers.find((candidate) => candidate.untitled === number)
+      const endings =
+        buffer === undefined ? null : readEndings(buffer.endings, countBreaks(buffer.text))
+      try {
+        const doc = await createUntitled(
+          number,
+          buffer === undefined || endings === null ? undefined : { text: buffer.text, endings },
+        )
+        untitledDocs.set(number, doc)
+        noteUntitledNumber(number)
+        if (buffer !== undefined && endings === null) {
+          await recover(buffer, `The saved line endings of Untitled-${String(number)} are damaged`)
+        }
+      } catch (error) {
+        notices.push(
+          `Untitled-${String(number)} could not be brought back: ${error instanceof Error ? error.message : JSON.stringify(error)}`,
+        )
+        if (buffer !== undefined) await recover(buffer, `Untitled-${String(number)}`)
+      }
+    }),
   )
 
   // Unsaved text goes back first, so a tab never shows the disk's version of it for a moment.
   const restored = new Set<number>()
   let buffers = 0
-  const recover = async (buffer: RawBuffer, why: string): Promise<void> => {
-    const endings = readEndings(buffer.endings, countBreaks(buffer.text))
-    const raw = endings === null ? buffer.text : joinWithEndings(buffer.text, endings)
-    try {
-      const kept = await host.recoverBuffer(fileName(buffer.path), raw)
-      notices.push(`${why}: the unsaved text of ${fileName(buffer.path)} is in ${kept}.`)
-    } catch (error) {
-      notices.push(
-        `${why}, and its unsaved text could not be kept: ${error instanceof Error ? error.message : JSON.stringify(error)}`,
-      )
-    }
-  }
+
   for (const buffer of snapshot.buffers) {
+    if (buffer.untitled !== null) {
+      if (untitledDocs.has(buffer.untitled)) buffers++
+      continue
+    }
     const entry = opened.get(buffer.path)
     if (entry === undefined) {
       await recover(buffer, `${fileName(buffer.path)} could not be opened`)
@@ -382,7 +534,16 @@ export async function restoreSession(): Promise<RestoreReport | null> {
     }
   }
 
-  const tabs = restoreTabs(snapshot, opened, notices)
+  const tabs = restoreTabs(snapshot, opened, untitledDocs, images, notices)
+  // A new file whose tab did not come back (a damaged layout) must not keep its text only in memory.
+  for (const [number, doc] of untitledDocs) {
+    if (tabsOfDocument(doc.id).length > 0) continue
+    const buffer = snapshot.buffers.find((candidate) => candidate.untitled === number)
+    if (buffer !== undefined && buffer.text !== '') {
+      await recover(buffer, `Untitled-${String(number)} had no tab to come back to`)
+    }
+    discardUnused(doc.id)
+  }
   if (notices.length > 0) await flushSession() // what was recovered no longer needs the snapshot
   return { tabs, buffers, notices }
 }
@@ -391,17 +552,30 @@ export async function restoreSession(): Promise<RestoreReport | null> {
 function restoreTabs(
   snapshot: Snapshot,
   opened: ReadonlyMap<string, { doc: Document }>,
+  untitledDocs: ReadonlyMap<number, Document>,
+  images: ReadonlyMap<string, ImageInfo>,
   notices: string[],
 ): number {
   const byId = new Map(snapshot.tabs.map((tab) => [tab.id, tab]))
   const records = new Map<TabId, TabRecord>()
   for (const tab of snapshot.tabs) {
+    if (tab.kind === 'image') {
+      const image = images.get(tab.path)
+      if (image === undefined) notices.push(`${fileName(tab.path)} could not be opened.`)
+      else records.set(tab.id, { kind: 'image', path: image.path, size: image.size })
+      continue
+    }
+    if (tab.kind === 'untitled') {
+      const doc = tab.untitled === undefined ? undefined : untitledDocs.get(tab.untitled)
+      if (doc !== undefined) records.set(tab.id, { kind: doc.kind, docId: doc.id })
+      continue
+    }
     const entry = opened.get(tab.path)
     if (entry === undefined) {
       notices.push(`${fileName(tab.path)} could not be opened.`)
       continue
     }
-    records.set(tab.id, { kind: 'markdown', docId: entry.doc.id })
+    records.set(tab.id, { kind: entry.doc.kind, docId: entry.doc.id })
   }
 
   const parsed = deserialize(snapshot.layout)
@@ -415,7 +589,10 @@ function restoreTabs(
     for (const id of [...records.keys()]) if (!kept.has(id)) records.delete(id)
     restoreWorkbench(layout, records)
     for (const [id, record] of records) {
-      documentById(record.docId)?.seedCaret(id, byId.get(id)?.caret ?? { anchor: 0, head: 0 })
+      const docId = docIdOf(record)
+      if (docId !== undefined) {
+        documentById(docId)?.seedCaret(id, byId.get(id)?.caret ?? { anchor: 0, head: 0 })
+      }
     }
     return records.size
   }
@@ -425,7 +602,10 @@ function restoreTabs(
   restoreWorkbench(createLayout(), new Map())
   for (const [oldId, record] of records) {
     const id = openTabFor(record)
-    documentById(record.docId)?.seedCaret(id, byId.get(oldId)?.caret ?? { anchor: 0, head: 0 })
+    const docId = docIdOf(record)
+    if (docId !== undefined) {
+      documentById(docId)?.seedCaret(id, byId.get(oldId)?.caret ?? { anchor: 0, head: 0 })
+    }
   }
   return records.size
 }

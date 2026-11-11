@@ -1,7 +1,30 @@
 import type { Endings } from '@/lib/endings'
-import type { DiskChange, Host, OpenedFile, ReadOnlyReason, WindowControls } from './host'
+import { freeName, nameProblem } from '@/lib/fileNames'
+import type {
+  DiskChange,
+  Host,
+  OpenedFile,
+  ReadOnlyReason,
+  SaveAsHint,
+  WindowControls,
+} from './host'
 import type { LinkInfo } from './links'
+import type {
+  ClashAnswer,
+  CopyReport,
+  DroppedItem,
+  FileDragEvent,
+  FileKind,
+  Moved,
+  MovedDocument,
+  Point,
+} from './workspace'
+import { DEMO_IMAGES } from './demoImages'
 import { joinRaw, MockFiles, mockHash, pathKey, splitRaw } from './mockFiles'
+import { mockQuickOpen } from './mockQuickOpen'
+import { applyEdits, isScannable, mockEdits, mockReferences, movedPath } from './mockRewrite'
+import type { Reference } from './references'
+import type { RewriteChange, RewriteDone, RewritePlanned, TextChange } from './rewrite'
 
 /**
  * Window controls for the browser. Maximize flips a flag so the title bar's icon can be seen
@@ -48,6 +71,15 @@ function hostError(kind: string, message: string): MockHostError {
   return new MockHostError(kind, message)
 }
 
+/** Runs `run` and hands back what it returns, or what it throws, as a promise. */
+function attempt<T>(run: () => T): Promise<T> {
+  try {
+    return Promise.resolve(run())
+  } catch (error) {
+    return Promise.reject(error instanceof Error ? error : new Error(String(error)))
+  }
+}
+
 export interface MockHost extends Host {
   /** The files the app can open. Change them to act as another program editing the disk. */
   readonly files: MockFiles
@@ -70,6 +102,29 @@ export interface MockHost extends Host {
   readonly opened: string[]
   /** How many times the page asked which links are missing. */
   checks: number
+  /** The workspace roots the host keeps, as Rust does between runs. */
+  readonly roots: readonly string[]
+  /** The folders the page last asked to have watched. */
+  watchedFolders(): readonly string[]
+  /**
+   * Acts as the OS delivering a drop of these paths: Rust's record learns them, and the page
+   * hears a drag-drop event at `position` (page pixels).
+   */
+  simulateDrop(paths: readonly string[], position?: Point): void
+  /** Sends a drag event that is not a drop, such as `over`, to the page. */
+  simulateDrag(event: FileDragEvent): void
+  /** What the Recycle Bin holds: files sent there by a delete or by Replace, oldest first. */
+  readonly recycled: { path: string; raw: string }[]
+  /** Every path the page asked to show in the file manager, in order. */
+  readonly revealed: string[]
+  /** The folders opened in the file manager, in order. */
+  readonly openedFolders: string[]
+  /** Every text the page put on the clipboard, in order. */
+  readonly clipboard: string[]
+  /** What the host would offer in Open Recent, newest first, with no check that the entries exist. */
+  readonly recent: { files: string[]; folders: string[] }
+  /** The hints the save dialog was shown, in order. */
+  readonly saveDialogs: SaveAsHint[]
 }
 
 /**
@@ -114,6 +169,30 @@ export interface MockHostOptions {
   readonly files?: Readonly<Record<string, string>>
   /** What the open dialog returns each time it is shown. Default: no files, as if cancelled. */
   readonly pick?: () => string[]
+  /** What the folder dialog returns each time it is shown. Default: null, as if cancelled. */
+  readonly pickFolder?: () => string | null
+  /** Workspace roots the host already has, as if the last run left them. */
+  readonly roots?: readonly string[]
+  /**
+   * What the save dialog returns each time it is shown, given what the page suggested. Default:
+   * null, as if cancelled.
+   */
+  readonly pickSave?: (hint: SaveAsHint) => string | null
+  /** Open Recent entries the host already has, as if the last run left them. */
+  readonly recent?: { readonly files?: readonly string[]; readonly folders?: readonly string[] }
+  /**
+   * Pictures the files stand for. The mock's files are text, so an image gets its address and its
+   * size on disk from here; an image not listed is an SVG made from the file's own text, or fails
+   * to load.
+   */
+  readonly images?: Readonly<Record<string, { readonly url: string; readonly bytes: number }>>
+}
+
+/** What a file opens as, by name. Like Rust's `fs::kind`, and just as small. */
+function mockKindOf(path: string): FileKind {
+  if (/.(md|markdown|mdown|mkd|mdx)$/i.test(path)) return 'markdown'
+  if (/.(png|jpe?g|gif|webp|svg|bmp|ico|avif)$/i.test(path)) return 'image'
+  return 'text'
 }
 
 /**
@@ -135,6 +214,13 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     reported: string | null
   }
   const open = new Map<number, Open>()
+  /** Documents with no file yet. They have an id and nothing else. */
+  const untitled = new Set<number>()
+  const recent = {
+    files: [...(options.recent?.files ?? [])],
+    folders: [...(options.recent?.folders ?? [])],
+  }
+  const saveDialogs: SaveAsHint[] = []
   let nextId = 0
   let listener: ((change: DiskChange) => void) | undefined
   let deaf = false
@@ -151,6 +237,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
       readOnly: doc.readOnly,
       size: new TextEncoder().encode(raw).length,
       hash: mockHash(raw),
+      kind: mockKindOf(doc.path),
       text,
       endings,
     }
@@ -175,8 +262,289 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
   }
   files.onChange(deliver)
 
+  // ---- the workspace, as Rust keeps it ----
+  const roots: string[] = [...(options.roots ?? [])]
+  let watched: string[] = []
+  let treeListener: ((folder: string) => void) | undefined
+  let dragListener: ((event: FileDragEvent) => void) | undefined
+  /** The paths of the last few native drops, newest last. */
+  const drops: string[][] = []
+  const dropsKept = 4
+
+  const recycled: { path: string; raw: string }[] = []
+  const revealed: string[] = []
+  const openedFolders: string[] = []
+  const clipboard: string[] = []
+  const trimmed = (path: string): string => pathKey(path).replace(/\/$/, '')
+  const slashes = (path: string): string => path.replaceAll('\\', '/').replace(/\/$/, '')
+  const parentOf = (path: string): string => slashes(path).split('/').slice(0, -1).join('/')
+  const nameOf = (path: string): string => slashes(path).split('/').pop() ?? ''
+  const exists = (path: string): boolean => files.has(path) || files.isFolder(path)
+
+  const insideRoot = (path: string): boolean => {
+    const key = pathKey(path).replace(/\/$/, '')
+    return roots.some((root) => {
+      const rootKey = pathKey(root).replace(/\/$/, '')
+      return key === rootKey || key.startsWith(`${rootKey}/`)
+    })
+  }
+
+  const addRoot = (path: string): string => {
+    if (!files.isFolder(path)) throw hostError('not-found', `${path} does not exist`)
+    if (!roots.some((root) => pathKey(root) === pathKey(path))) roots.push(path)
+    return path
+  }
+
+  /** Puts a path first on a recent list, once, keeping the newest `max`. */
+  function remember(list: string[], path: string, max: number): void {
+    const key = pathKey(path)
+    const at = list.findIndex((entry) => pathKey(entry) === key)
+    if (at !== -1) list.splice(at, 1)
+    list.unshift(path)
+    list.length = Math.min(list.length, max)
+  }
+
+  /** Tells the page which watched folder holds a path that changed. */
+  function deliverTree(path: string): void {
+    const parts = path.replaceAll('\\', '/').split('/')
+    parts.pop()
+    const parent = parts.join('/')
+    const own = watched.find((folder) => pathKey(folder) === pathKey(path))
+    const holder = watched.find((folder) => pathKey(folder) === pathKey(parent))
+    for (const folder of [holder, own]) if (folder !== undefined) treeListener?.(folder)
+  }
+  files.onChange(deliverTree)
+
+  /** An entry of the workspace that is not a root itself, like Rust's `entry_in_root`. */
+  function entryInRoot(path: string): void {
+    if (!insideRoot(path)) throw hostError('not-allowed', `access to ${path} is not allowed`)
+    if (roots.some((root) => trimmed(root) === trimmed(path))) {
+      throw hostError('invalid', 'a workspace folder leaves the workspace with Remove Folder')
+    }
+    if (!exists(path)) throw hostError('not-found', `${path} does not exist`)
+  }
+
+  function folderInRoot(path: string): void {
+    if (!insideRoot(path)) throw hostError('not-allowed', `access to ${path} is not allowed`)
+    if (!files.isFolder(path)) throw hostError('invalid', `${path} is not a folder`)
+  }
+
+  function checkName(name: string): void {
+    const problem = nameProblem(name)
+    if (problem !== null) throw hostError('invalid', problem)
+  }
+
+  /** Points the open documents at a moved file, like Rust's `documents_moved`. */
+  function followMove(from: string, to: string): MovedDocument[] {
+    const fromKey = trimmed(from)
+    const target = slashes(to)
+    const moved: MovedDocument[] = []
+    for (const [id, doc] of open) {
+      const key = pathKey(doc.path)
+      if (key !== fromKey && !key.startsWith(`${fromKey}/`)) continue
+      doc.path = target + slashes(doc.path).slice(fromKey.length)
+      moved.push({ id, path: doc.path })
+    }
+    return moved
+  }
+
+  /** Renames, like Rust's `rename_entry`. */
+  function rename(path: string, newName: string): Moved {
+    const target = renameTarget(path, newName)
+    if (target === null) return { path: `${parentOf(path)}/${newName}`, documents: [] }
+    files.move(path, target)
+    return { path: target, documents: followMove(path, target) }
+  }
+
+  /** Moves into a folder, like Rust's `move_entry`. */
+  function moveInto(path: string, into: string): Moved {
+    const target = moveTarget(path, into)
+    if (target === null) return { path: `${slashes(into)}/${nameOf(path)}`, documents: [] }
+    files.move(path, target)
+    return { path: target, documents: followMove(path, target) }
+  }
+
+  /** Where a rename puts `path` after the checks; null when the name is the one it has. */
+  function renameTarget(path: string, newName: string): string | null {
+    checkName(newName)
+    entryInRoot(path)
+    const target = `${parentOf(path)}/${newName}`
+    if (slashes(target) === slashes(path)) return null
+    if (exists(target) && trimmed(target) !== trimmed(path)) {
+      throw hostError('exists', `${newName} already exists`)
+    }
+    return target
+  }
+
+  /** Where a move puts `path` after the checks; null when it is in that folder already. */
+  function moveTarget(path: string, into: string): string | null {
+    entryInRoot(path)
+    folderInRoot(into)
+    const [from, destination] = [trimmed(path), trimmed(into)]
+    if (destination === from || destination.startsWith(`${from}/`)) {
+      throw hostError('invalid', 'a folder cannot be moved into itself')
+    }
+    const target = `${slashes(into)}/${nameOf(path)}`
+    if (slashes(target) === slashes(path)) return null
+    if (exists(target)) throw hostError('exists', `${nameOf(path)} already exists`)
+    return target
+  }
+
+  // ---- link rewrite, in the small: inline links only (see mockRewrite.ts) ----
+  interface Planned {
+    token: number
+    path: string
+    change: RewriteChange
+    target: string
+    /** The files to write and the edits for each, with the hash of what was read. */
+    files: { path: string; hash: string; edits: TextChange[] }[]
+  }
+  let pending: Planned | null = null
+  let cancelled = false
+  let lastToken = 0
+
+  function targetOf(path: string, change: RewriteChange): string | null {
+    return change.kind === 'rename'
+      ? renameTarget(path, change.name)
+      : moveTarget(path, change.into)
+  }
+
+  async function planRewrite(
+    path: string,
+    change: RewriteChange,
+    buffers: readonly { id: number; text: string }[],
+    onProgress: (scanned: number) => void,
+  ): Promise<RewritePlanned> {
+    const empty: RewritePlanned = {
+      token: 0,
+      links: 0,
+      files: 0,
+      scanned: 0,
+      binary: 0,
+      skipped: [],
+      unrelatable: 0,
+      cancelled: false,
+      buffers: [],
+    }
+    const target = targetOf(path, change)
+    if (target === null) return empty
+    cancelled = false
+    const held = new Map<string, TextChange[]>()
+    for (const buffer of buffers) {
+      const doc = open.get(buffer.id)
+      if (doc === undefined) continue
+      held.set(pathKey(doc.path), mockEdits(doc.path, buffer.text, path, target))
+    }
+    const found: Planned['files'] = []
+    let scanned = 0
+    for (const file of files.paths()) {
+      if (!insideRoot(file) || !isScannable(file) || held.has(pathKey(file))) continue
+      // Give the page a turn between files, as the real scan does by running on another thread.
+      await Promise.resolve()
+      if (cancelled) return { ...empty, cancelled: true }
+      scanned += 1
+      onProgress(scanned)
+      const raw = files.read(file) ?? ''
+      const edits = mockEdits(file, raw, path, target)
+      if (edits.length > 0) found.push({ path: file, hash: mockHash(raw), edits })
+    }
+    const links =
+      found.reduce((sum, file) => sum + file.edits.length, 0) +
+      [...held.values()].reduce((sum, edits) => sum + edits.length, 0)
+    const count = found.length + [...held.values()].filter((edits) => edits.length > 0).length
+    lastToken += 1
+    pending = { token: lastToken, path, change, target, files: found }
+    return {
+      ...empty,
+      token: lastToken,
+      links,
+      files: count,
+      scanned,
+      buffers: buffers.map((b) => b.id),
+    }
+  }
+
+  function finishRewrite(
+    token: number,
+    buffers: readonly { id: number; text: string }[],
+  ): RewriteDone {
+    const plan = pending
+    if (plan?.token !== token) {
+      throw hostError('invalid', 'the plan is out of date: start the rename again')
+    }
+    pending = null
+    const held = new Map<number, { key: string; edits: TextChange[] }>()
+    for (const buffer of buffers) {
+      const doc = open.get(buffer.id)
+      if (doc === undefined) continue
+      held.set(buffer.id, {
+        key: pathKey(doc.path),
+        edits: mockEdits(doc.path, buffer.text, plan.path, plan.target),
+      })
+    }
+    const heldKeys = new Set([...held.values()].map((doc) => doc.key))
+    const moved =
+      plan.change.kind === 'rename'
+        ? rename(plan.path, plan.change.name)
+        : moveInto(plan.path, plan.change.into)
+    const written: string[] = []
+    const failed: { path: string; reason: string }[] = []
+    for (const file of plan.files) {
+      if (heldKeys.has(pathKey(file.path))) continue
+      const now = movedPath(file.path, plan.path, plan.target)
+      const raw = files.read(now)
+      if (raw === undefined || mockHash(raw) !== file.hash) {
+        failed.push({ path: now, reason: 'it changed since it was scanned' })
+        continue
+      }
+      files.write(now, applyEdits(raw, file.edits))
+      written.push(now)
+    }
+    const writtenKeys = new Set(written.map((path) => pathKey(path)))
+    const reload = [...open]
+      .filter(([, doc]) => writtenKeys.has(pathKey(doc.path)))
+      .map(([id]) => id)
+    return {
+      moved,
+      written,
+      failed,
+      reload,
+      edits: [...held]
+        .filter(([, doc]) => doc.edits.length > 0)
+        .map(([id, doc]) => ({ id, changes: doc.edits })),
+      unrelatable: 0,
+    }
+  }
+
+  function requireDropped(paths: readonly string[]): void {
+    const known = new Set(drops.flat().map((path) => pathKey(path)))
+    if (paths.some((path) => !known.has(pathKey(path)))) {
+      throw hostError('not-allowed', 'access to a path no drop delivered is not allowed')
+    }
+  }
+
+  /** Copies a file, or a folder with the files below it. */
+  function copyTree(source: string, target: string): void {
+    if (!files.isFolder(source)) {
+      files.write(target, files.read(source) ?? '')
+      return
+    }
+    files.mkdir(target)
+    const sourceKey = trimmed(source)
+    for (const path of files.paths()) {
+      if (!pathKey(path).startsWith(`${sourceKey}/`)) continue
+      files.write(target + slashes(path).slice(sourceKey.length), files.read(path) ?? '')
+    }
+  }
+
   const host: MockHost = {
     kind: 'browser',
+    recycled,
+    revealed,
+    openedFolders,
+    clipboard,
+    recent,
+    saveDialogs,
     files,
     openDocuments() {
       return new Map([...open].map(([id, doc]) => [id, doc.path]))
@@ -238,6 +606,275 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
       closeListener?.()
       return closeListener !== undefined
     },
+    get roots() {
+      return roots
+    },
+    watchedFolders() {
+      return watched
+    },
+    simulateDrop(paths, position = { x: 0, y: 0 }) {
+      drops.push([...paths])
+      while (drops.length > dropsKept) drops.shift()
+      dragListener?.({ type: 'drop', position, paths })
+    },
+    simulateDrag(event) {
+      dragListener?.(event)
+    },
+    openFolder() {
+      const picked = options.pickFolder?.() ?? null
+      return attempt(() => {
+        if (picked === null) return null
+        const root = addRoot(picked)
+        remember(recent.folders, root, 5)
+        return root
+      })
+    },
+    loadWorkspace() {
+      // Like Rust: a folder that is gone is not a root any more.
+      for (const root of [...roots]) if (!files.isFolder(root)) roots.splice(roots.indexOf(root), 1)
+      return Promise.resolve([...roots])
+    },
+    removeRoot(path) {
+      const index = roots.findIndex((root) => pathKey(root) === pathKey(path))
+      if (index === -1) return Promise.reject(hostError('invalid', 'not a workspace folder'))
+      roots.splice(index, 1)
+      return Promise.resolve()
+    },
+    listDir(path) {
+      if (!insideRoot(path))
+        return Promise.reject(hostError('not-allowed', `access to ${path} is not allowed`))
+      const listed = files.listDir(path)
+      if (listed === undefined)
+        return Promise.reject(hostError('not-found', `${path} does not exist`))
+      return Promise.resolve(listed)
+    },
+    watchTree(onChange) {
+      treeListener = onChange
+      return Promise.resolve(() => {
+        if (treeListener === onChange) treeListener = undefined
+      })
+    },
+    watchFolders(paths) {
+      watched = paths.filter((path) => insideRoot(path) && files.isFolder(path))
+      return Promise.resolve()
+    },
+    onFileDrag(handler) {
+      dragListener = handler
+      return Promise.resolve(() => {
+        if (dragListener === handler) dragListener = undefined
+      })
+    },
+    describeDrop(paths) {
+      const known = new Set(drops.flat().map((path) => pathKey(path)))
+      if (paths.some((path) => !known.has(pathKey(path)))) {
+        return Promise.reject(
+          hostError('not-allowed', 'access to a path no drop delivered is not allowed'),
+        )
+      }
+      return Promise.resolve(
+        paths.map((path): DroppedItem => {
+          const kind = files.isFolder(path) ? 'folder' : files.has(path) ? 'file' : 'other'
+          return { path, kind }
+        }),
+      )
+    },
+    openDropped(paths) {
+      const known = new Set(drops.flat().map((path) => pathKey(path)))
+      if (paths.some((path) => !known.has(pathKey(path)))) {
+        return Promise.reject(
+          hostError('not-allowed', 'access to a path no drop delivered is not allowed'),
+        )
+      }
+      return Promise.resolve(
+        paths.map((path): DroppedItem => {
+          if (files.isFolder(path)) return { path, kind: 'folder' }
+          if (!files.has(path)) return { path, kind: 'other' }
+          return { path, kind: 'file', fileKind: mockKindOf(path) }
+        }),
+      )
+    },
+    fileKind(path) {
+      return attempt(() => {
+        if (!files.has(path)) throw hostError('not-found', `${path} does not exist`)
+        return mockKindOf(path)
+      })
+    },
+    imageInfo(path) {
+      return attempt(() => {
+        const canonical = files.canonicalPath(path)
+        const raw = files.read(path)
+        if (canonical === undefined || raw === undefined) {
+          throw hostError('not-found', `${path} does not exist`)
+        }
+        if (mockKindOf(canonical) !== 'image') throw hostError('invalid', 'not an image')
+        const listed = options.images?.[canonical]
+        return { path: canonical, size: listed?.bytes ?? new TextEncoder().encode(raw).length }
+      })
+    },
+    imageClosed() {
+      return Promise.resolve()
+    },
+    createFile(parent, name) {
+      return attempt(() => {
+        checkName(name)
+        folderInRoot(parent)
+        const path = `${slashes(parent)}/${name}`
+        if (exists(path)) throw hostError('exists', `${name} already exists`)
+        files.write(path, '')
+        return path
+      })
+    },
+    createFolder(parent, name) {
+      return attempt(() => {
+        checkName(name)
+        folderInRoot(parent)
+        const path = `${slashes(parent)}/${name}`
+        if (exists(path)) throw hostError('exists', `${name} already exists`)
+        files.mkdir(path)
+        return path
+      })
+    },
+    renameEntry(path, newName) {
+      return attempt(() => rename(path, newName))
+    },
+    moveEntry(path, into) {
+      return attempt(() => moveInto(path, into))
+    },
+    rewritePlan(path, change, buffers, onProgress) {
+      return planRewrite(path, change, buffers, onProgress)
+    },
+    rewriteMove(token, buffers) {
+      return attempt(() => finishRewrite(token, buffers))
+    },
+    rewriteCancel() {
+      cancelled = true
+      return Promise.resolve()
+    },
+    rewriteDiscard(token) {
+      if (pending?.token === token) pending = null
+      return Promise.resolve()
+    },
+    quickOpenQuery(query, limit) {
+      return Promise.resolve(mockQuickOpen(files.paths(), roots, query, limit))
+    },
+    quickOpenRefresh() {
+      return Promise.resolve(true)
+    },
+    deleteEntry(path) {
+      return attempt(() => {
+        entryInRoot(path)
+        recycled.push(...files.remove(path))
+      })
+    },
+    revealEntry(path) {
+      return attempt(() => {
+        // A file the user opened is shown wherever it is; anything else must be inside a root.
+        const isOpen = [...open.values()].some((doc) => pathKey(doc.path) === pathKey(path))
+        if (!insideRoot(path) && !isOpen) {
+          throw hostError('not-allowed', `access to ${path} is not allowed`)
+        }
+        revealed.push(path)
+      })
+    },
+    showFolder(path) {
+      return attempt(() => {
+        if (!insideRoot(path)) {
+          throw hostError('not-allowed', `access to ${path} is not allowed`)
+        }
+        if (!files.isFolder(path)) throw hostError('invalid', `${path} is not a folder`)
+        openedFolders.push(path)
+      })
+    },
+    async findReferences(path, buffers) {
+      const held = new Map<string, string>()
+      for (const buffer of buffers) {
+        const doc = open.get(buffer.id)
+        if (doc !== undefined) held.set(pathKey(doc.path), buffer.text)
+      }
+      const references: Reference[] = []
+      const withLinks = new Set<string>()
+      let scanned = 0
+      for (const file of files.paths()) {
+        if (!insideRoot(file) || !isScannable(file)) continue
+        await Promise.resolve()
+        scanned += 1
+        const text = held.get(pathKey(file)) ?? files.read(file) ?? ''
+        for (const hit of mockReferences(file, text, path)) {
+          references.push({ path: file, ...hit })
+          withLinks.add(pathKey(file))
+        }
+      }
+      references.sort(
+        (a, b) =>
+          a.path.toLowerCase().localeCompare(b.path.toLowerCase()) ||
+          a.line - b.line ||
+          a.column - b.column,
+      )
+      return { references, files: withLinks.size, scanned, skipped: [], truncated: false }
+    },
+    writeClipboard(text) {
+      clipboard.push(text)
+      return Promise.resolve()
+    },
+    copyClashes(into, paths) {
+      return attempt(() => {
+        folderInRoot(into)
+        requireDropped(paths)
+        return paths.map(nameOf).filter((name) => exists(`${slashes(into)}/${name}`))
+      })
+    },
+    copyDropped(into, paths, answers: readonly ClashAnswer[]) {
+      return attempt((): CopyReport => {
+        folderInRoot(into)
+        requireDropped(paths)
+        const copied: string[] = []
+        const skipped: string[] = []
+        const failed: { name: string; message: string }[] = []
+        for (const source of paths) {
+          const name = nameOf(source)
+          const isFolder = files.isFolder(source)
+          const intoSelf =
+            trimmed(into) === trimmed(source) || trimmed(into).startsWith(`${trimmed(source)}/`)
+          if (isFolder && intoSelf) {
+            failed.push({ name, message: 'a folder cannot be copied into itself' })
+            continue
+          }
+          let target = `${slashes(into)}/${name}`
+          if (exists(target)) {
+            const answer =
+              trimmed(target) === trimmed(source)
+                ? 'keep-both'
+                : (answers.find((clash) => clash.name === name)?.answer ?? 'skip')
+            if (answer === 'skip') {
+              skipped.push(name)
+              continue
+            }
+            if (answer === 'keep-both') {
+              const free = freeName(name, isFolder, (item) => exists(`${slashes(into)}/${item}`))
+              target = `${slashes(into)}/${free}`
+            } else {
+              if (files.isFolder(target) !== isFolder) {
+                failed.push({ name, message: 'a file and a folder cannot replace each other' })
+                continue
+              }
+              recycled.push(...files.remove(target))
+            }
+          }
+          copyTree(source, target)
+          copied.push(target)
+        }
+        return { copied, skipped, failed, linksLeft: 0 }
+      })
+    },
+    addDroppedRoot(path) {
+      const known = new Set(drops.flat().map((entry) => pathKey(entry)))
+      if (!known.has(pathKey(path))) {
+        return Promise.reject(
+          hostError('not-allowed', 'access to a path no drop delivered is not allowed'),
+        )
+      }
+      return attempt(() => addRoot(path))
+    },
     loadSession() {
       return Promise.resolve(host.session)
     },
@@ -273,6 +910,8 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     },
     windowControls: mockWindowControls(),
     assetUrl(path) {
+      const listed = options.images?.[files.canonicalPath(path) ?? path]
+      if (listed !== undefined) return listed.url
       // The mock's files are text, so an image here is an SVG. Anything else, or a file that is
       // not there, gets an address that fails to load, as a missing file does in the real app.
       const raw = path.toLowerCase().endsWith('.svg') ? files.read(path) : undefined
@@ -287,7 +926,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     pickFiles() {
       return Promise.resolve(options.pick?.() ?? [])
     },
-    openFile(path): Promise<OpenedFile> {
+    openFile(path, rememberIt): Promise<OpenedFile> {
       const raw = files.read(path)
       const canonical = files.canonicalPath(path)
       if (raw === undefined || canonical === undefined) {
@@ -301,6 +940,8 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
       }
       // Like Rust: a file that is already open keeps what the host recorded for it. The page holds
       // the text it read earlier, and decides what the fresh content means.
+      // Like Rust, a file the user chose goes on the recent list every time, open already or not.
+      if (rememberIt === true) remember(recent.files, canonical, 10)
       const existing = open.get(id)
       if (existing !== undefined) return Promise.resolve(describe(id, existing, raw))
       const readOnly: ReadOnlyReason | null = files.isUnsupported(canonical)
@@ -309,6 +950,119 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
       const doc: Open = { path: canonical, readOnly, known: mockHash(raw), reported: null }
       open.set(id, doc)
       return Promise.resolve(describe(id, doc, raw))
+    },
+    newUntitled() {
+      const id = ++nextId
+      untitled.add(id)
+      return Promise.resolve(id)
+    },
+    saveAs(id, text, endings, hint) {
+      const doc = open.get(id)
+      if (!untitled.has(id) && doc === undefined) {
+        return Promise.reject(hostError('not-open', `no open document ${id}`))
+      }
+      saveDialogs.push(hint)
+      const chosen = options.pickSave?.(hint) ?? null
+      if (chosen === null) return Promise.resolve(null)
+      let target = slashes(chosen)
+      if (untitled.has(id) && !/\.[^/]+$/.test(nameOf(target))) {
+        // Like Rust: a name with no extension becomes .md, and never replaces a file unasked.
+        target = `${target}.md`
+        if (files.has(target)) {
+          return Promise.reject(hostError('exists', `${target} already exists`))
+        }
+      }
+      const canonical = files.canonicalPath(target) ?? target
+      const key = canonical.toLowerCase()
+      if (key === doc?.path.toLowerCase()) {
+        // The document's own file: an ordinary save, and an unwritable original is never replaced.
+        if (doc.readOnly !== null) {
+          return Promise.reject(
+            hostError('read-only', 'choose a different file name; the original is left as it is'),
+          )
+        }
+        return host.saveFile(id, text, endings).then((saved) => ({
+          path: doc.path,
+          name: nameOf(doc.path),
+          hash: saved.hash,
+          size: saved.size,
+          kind: mockKindOf(doc.path),
+          encoding: 'utf-8',
+          bom: false,
+        }))
+      }
+      const other = ids.get(key)
+      if (other !== undefined && other !== id && open.has(other)) {
+        return Promise.reject(
+          hostError(
+            'invalid',
+            `${nameOf(canonical)} is open in another tab; close it or choose another name`,
+          ),
+        )
+      }
+      const raw = joinRaw(text, endings)
+      const hash = mockHash(raw)
+      // Like Rust, the file is written before the document is pointed at it, and its hash is
+      // recorded, so the write is not news to the watcher.
+      files.write(canonical, raw)
+      if (doc === undefined) {
+        untitled.delete(id)
+        open.set(id, { path: canonical, readOnly: null, known: hash, reported: null })
+      } else {
+        ids.delete(doc.path.toLowerCase())
+        doc.path = canonical
+        doc.readOnly = null
+        doc.known = hash
+        doc.reported = null
+      }
+      ids.set(key, id)
+      remember(recent.files, canonical, 10)
+      return Promise.resolve({
+        path: canonical,
+        name: nameOf(canonical),
+        hash,
+        size: new TextEncoder().encode(raw).length,
+        kind: mockKindOf(canonical),
+        encoding: 'utf-8',
+        bom: false,
+      })
+    },
+    documentExists(id) {
+      const doc = open.get(id)
+      if (doc === undefined) return Promise.reject(hostError('not-open', `no open document ${id}`))
+      return Promise.resolve(files.has(doc.path))
+    },
+    recentList() {
+      return Promise.resolve({
+        files: recent.files.filter((path) => files.has(path)),
+        folders: recent.folders.filter((path) => files.isFolder(path)),
+      })
+    },
+    recentClear() {
+      recent.files.length = 0
+      recent.folders.length = 0
+      return Promise.resolve()
+    },
+    recentOpenFile(path) {
+      const key = pathKey(path)
+      const entry = recent.files.find((file) => pathKey(file) === key)
+      if (entry === undefined) {
+        return Promise.reject(hostError('not-allowed', `access to ${path} is not allowed`))
+      }
+      remember(recent.files, entry, 10)
+      return Promise.resolve(entry)
+    },
+    recentOpenFolder(path) {
+      const key = pathKey(path)
+      const entry = recent.folders.find((folder) => pathKey(folder) === key)
+      if (entry === undefined) {
+        return Promise.reject(hostError('not-allowed', `access to ${path} is not allowed`))
+      }
+      return attempt(() => {
+        const root = addRoot(entry)
+        remember(recent.folders, root, 5)
+        return root
+      })
     },
     saveFile(id: number, text: string, endings: Endings) {
       const doc = open.get(id)
@@ -333,6 +1087,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     },
     closeDocument(id) {
       open.delete(id)
+      untitled.delete(id)
       return Promise.resolve()
     },
     reloadDocument(id) {
@@ -365,18 +1120,33 @@ const DEMO_FILES: Readonly<Record<string, string>> = {
   '/demo/crlf.md': '# Windows file\r\n\r\nEvery line here ends in CRLF.\r\nSo does this one.\r\n',
   '/demo/mixed.md': 'LF line\nCRLF line\r\nold Mac line\rlast line\n',
   '/demo/roadmap.md': '# Roadmap\n\n1. Documents\n2. Preview\n3. Links\n',
+  // Not Markdown, and one level down: they give the sidebar something to dim and to open.
+  '/demo/docs/guide.md': '# Guide\n\nA file in a folder.\n',
+  '/demo/docs/todo.txt': 'buy milk\n',
+  '/demo/docs/logo.png': 'not really a png',
+  '/demo/docs/big.png': 'a large picture, drawn from demoImages',
+  '/demo/docs/scripted.svg':
+    '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" viewBox="0 0 400 200">' +
+    '<rect width="400" height="200" fill="gold"/>' +
+    '<text x="24" y="112" font-size="26">An SVG with a script in it</text>' +
+    "<script>top.postMessage('SVG-RAN', '*'); document.title = 'SVG-RAN'</script></svg>",
 }
 
-const demoOrder = Object.keys(DEMO_FILES)
+// The Open dialog cycles through the Markdown files that sit directly in the demo folder.
+const demoOrder = Object.keys(DEMO_FILES).filter(
+  (path) => path.endsWith('.md') && !path.startsWith('/demo/docs/'),
+)
 let demoNext = 0
 
 /** Browser stand-in, so UI work runs under pnpm dev with no Rust. */
 export const mockHost: MockHost = createMockHost({
   files: DEMO_FILES,
+  images: DEMO_IMAGES,
   // Each time Open is used, the next demo file: there is no real dialog in a browser tab.
   pick: () => {
     const path = demoOrder[demoNext % demoOrder.length]
     demoNext++
     return path === undefined ? [] : [path]
   },
+  pickFolder: () => '/demo',
 })

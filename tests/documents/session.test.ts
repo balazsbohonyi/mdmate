@@ -9,18 +9,28 @@ import {
   startJournal,
 } from '@/documents/session'
 import {
+  allDocuments,
   documentOfTab,
   followerOfTab,
   openPath,
   problem,
+  requestCloseTab,
   resetDocuments,
+  resolvePendingClose,
   saveDocument,
 } from '@/documents/store'
+import { newUntitledTab, resetUntitled } from '@/documents/untitled'
 import { endingsOf } from '@/editor/lineEndings'
 import { CRLF, LF } from '@/lib/endings'
 import { setHost } from '@/platform'
 import { createMockHost, type MockHost } from '@/platform/mock'
 import { joinRaw } from '@/platform/mockFiles'
+import {
+  currentWindowWidth,
+  resetSidebar,
+  setSidebarWidth,
+  sidebarWidth,
+} from '@/workbench/sidebar'
 import { allTabs } from '@/workbench/splitTree'
 import {
   moveTabTo,
@@ -28,6 +38,7 @@ import {
   resizeSplit,
   selectTab,
   splitActivePane,
+  tabRecord,
   workbenchLayout,
 } from '@/workbench/store'
 
@@ -44,6 +55,7 @@ const FILES: Record<string, string> = {
 }
 
 let host: MockHost
+let picked: string | null = null
 
 const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
@@ -67,10 +79,11 @@ function rawFiles(from: MockHost): Record<string, string> {
 
 /** A new run of the app: fresh host and page state, same files, and the session the old run left. */
 function newRun(old: MockHost): MockHost {
-  const next = createMockHost({ files: rawFiles(old) })
+  const next = createMockHost({ files: rawFiles(old), pickSave: () => picked })
   next.session = old.session
   resetSession()
   resetDocuments()
+  resetUntitled()
   resetWorkbench()
   setHost(next)
   host = next
@@ -78,15 +91,19 @@ function newRun(old: MockHost): MockHost {
 }
 
 beforeEach(() => {
-  host = createMockHost({ files: FILES })
+  picked = null
+  host = createMockHost({ files: FILES, pickSave: () => picked })
   setHost(host)
   resetWorkbench()
   resetDocuments()
+  resetUntitled()
   resetSession()
+  resetSidebar()
 })
 
 afterEach(() => {
   vi.useRealTimers()
+  resetSidebar()
   resetSession()
   resetWorkbench()
   resetDocuments()
@@ -163,6 +180,52 @@ describe('a session written and restored', () => {
   it('does nothing on a first start', async () => {
     expect(await restoreSession()).toBeNull()
     expect(allTabs(workbenchLayout.value)).toEqual([])
+  })
+})
+
+describe('image and text tabs (P6-T3)', () => {
+  it('come back in their panes: an image with a fresh size, a text file as plain source', async () => {
+    host.files.write('C:/notes/pic.png', 'png')
+    host.files.write('C:/notes/todo.txt', 'buy milk\n')
+    const a = await openPath(A)
+    const pic = await openPath('C:/notes/pic.png')
+    const todo = await openPath('C:/notes/todo.txt')
+    splitActivePane('row')
+    const before = workbenchLayout.value
+    await flushSession()
+    newRun(host)
+    // The file grew while the app was closed: the restored tab reports what is on disk now.
+    host.files.write('C:/notes/pic.png', 'a longer png than before')
+    const report = await restoreSession()
+
+    expect(workbenchLayout.value).toEqual(before)
+    expect(report).toMatchObject({ tabs: 4, notices: [] }) // the split pane shows the text file too
+    expect(tabRecord(a)?.kind).toBe('markdown')
+    expect(tabRecord(todo)?.kind).toBe('text')
+    expect(documentOfTab(todo)?.plainSource).toBe(true)
+    expect(tabRecord(pic)).toEqual({ kind: 'image', path: 'C:/notes/pic.png', size: 24 })
+  })
+
+  it('leave a notice, and no tab, for an image that is gone', async () => {
+    host.files.write('C:/notes/pic.png', 'png')
+    await openPath(A)
+    await openPath('C:/notes/pic.png')
+    await flushSession()
+    const next = newRun(host)
+    next.files.remove('C:/notes/pic.png')
+    const report = await restoreSession()
+    expect(report?.tabs).toBe(1)
+    expect(report?.notices).toEqual(['pic.png could not be opened.'])
+  })
+
+  it('read a session an earlier run wrote, with no kind on any tab', async () => {
+    await openPath(A)
+    await flushSession()
+    const written = JSON.parse(host.session ?? '{}') as { tabs: Record<string, unknown>[] }
+    for (const tab of written.tabs) expect(tab.kind).toBeUndefined()
+    newRun(host)
+    const report = await restoreSession()
+    expect(report).toMatchObject({ tabs: 1, notices: [] })
   })
 })
 
@@ -490,5 +553,207 @@ describe('closing the app', () => {
     expect(textOf(b)).toBe('before closing one\ntwo\nthree\n')
     expect(endingsOf(documentOfTab(b)!.master).dominant).toBe(CRLF)
     expect(endingsOf(documentOfTab(b)!.master).dominant).not.toBe(LF)
+  })
+})
+
+describe('untitled tabs (P6-T8)', () => {
+  async function untitledTab(text: string): Promise<string> {
+    await newUntitledTab()
+    const layout = workbenchLayout.value
+    const tab = allTabs(layout).find(
+      (id) => documentOfTab(id)?.untitled === true && textOf(id) === '',
+    )
+    if (tab === undefined) throw new Error('no fresh untitled tab')
+    if (text !== '') typeInto(tab, 0, text)
+    return tab
+  }
+
+  it('keeps the text of an unsaved untitled tab across a restart, still unsaved', async () => {
+    const tab = await untitledTab('# Draft\n\nnot saved yet\n')
+    await flushSession()
+    const snapshot = JSON.parse(host.session ?? '{}') as {
+      tabs: { path: string; kind?: string; untitled?: number }[]
+      buffers: { path: string; untitled?: number; text: string }[]
+    }
+    expect(snapshot.tabs[0]).toMatchObject({ path: '', kind: 'untitled', untitled: 1 })
+    expect(snapshot.buffers[0]).toMatchObject({
+      path: '',
+      untitled: 1,
+      text: '# Draft\n\nnot saved yet\n',
+    })
+
+    newRun(host)
+    const report = await restoreSession()
+    expect(report).toMatchObject({ tabs: 1, buffers: 1, notices: [] })
+    expect(allTabs(workbenchLayout.value)).toEqual([tab])
+    expect(textOf(tab)).toBe('# Draft\n\nnot saved yet\n')
+    expect(metaOf(tab)).toMatchObject({ name: 'Untitled-1', untitled: true, dirty: true, path: '' })
+    // And it can still be saved: Rust has a document id for it again.
+    picked = 'C:/notes/draft.md'
+    expect(await saveDocument(documentOfTab(tab)!.id)).toBe(true)
+    expect(host.files.read(picked)).toBe('# Draft\n\nnot saved yet\n')
+  })
+
+  it('brings back an empty untitled tab as an empty, clean one', async () => {
+    const tab = await untitledTab('')
+    await flushSession()
+    newRun(host)
+    await restoreSession()
+    expect(textOf(tab)).toBe('')
+    expect(metaOf(tab)).toMatchObject({ name: 'Untitled-1', dirty: false })
+  })
+
+  it('keeps each tab’s number, and the next new tab goes past the highest', async () => {
+    await untitledTab('one')
+    const second = await untitledTab('two')
+    const third = await untitledTab('three')
+    requestCloseTab(second)
+    await resolvePendingClose('discard')
+    await flushSession()
+
+    newRun(host)
+    await restoreSession()
+    const names = allTabs(workbenchLayout.value).map((id) => metaOf(id)?.name)
+    expect(names).toEqual(['Untitled-1', 'Untitled-3'])
+    expect(textOf(third)).toBe('three')
+    await newUntitledTab()
+    const latest = allTabs(workbenchLayout.value).at(-1)!
+    expect(metaOf(latest)?.name).toBe('Untitled-4')
+  })
+
+  it('puts the tab back next to the files it was between, in the same panes', async () => {
+    const a = await openPath(A)
+    splitActivePane('row')
+    const u = await untitledTab('draft')
+    selectTab(a)
+    const before = workbenchLayout.value
+    await flushSession()
+    newRun(host)
+    await restoreSession()
+    expect(workbenchLayout.value).toEqual(before)
+    expect(textOf(u)).toBe('draft')
+  })
+
+  it('writes no untitled entry once the tab has been saved: it is a file by then', async () => {
+    const tab = await untitledTab('saved soon')
+    picked = 'C:/notes/soon.md'
+    await saveDocument(documentOfTab(tab)!.id)
+    const snapshot = JSON.parse(buildSnapshot()) as {
+      tabs: { path: string; kind?: string }[]
+      buffers: unknown[]
+    }
+    expect(snapshot.tabs).toEqual([expect.objectContaining({ path: picked })])
+    expect(snapshot.tabs[0]?.kind).toBeUndefined()
+    expect(snapshot.buffers).toEqual([])
+  })
+
+  it('keeps its text in a file, and says so, when the tab cannot come back', async () => {
+    await untitledTab('rescue me')
+    await flushSession()
+    // A snapshot whose layout lost the untitled tab but still holds its text.
+    const written = JSON.parse(host.session ?? '{}') as { tabs: unknown[] }
+    written.tabs = []
+    newRun(host)
+    host.session = JSON.stringify(written)
+    const report = await restoreSession()
+    expect(allTabs(workbenchLayout.value)).toEqual([])
+    expect(host.recovered).toEqual([{ name: 'Untitled-1', text: 'rescue me' }])
+    expect(report?.notices.join(' ')).toMatch(/Untitled-1 had no tab to come back to/)
+    expect(allDocuments()).toEqual([]) // and no document is left behind without a tab
+    expect(host.openDocuments().size).toBe(0)
+  })
+
+  it('ignores an entry whose number is not a whole number from 1', async () => {
+    await untitledTab('text')
+    await flushSession()
+    const written = JSON.parse(host.session ?? '{}') as {
+      tabs: { untitled: unknown }[]
+      buffers: { untitled: unknown }[]
+    }
+    written.tabs[0]!.untitled = 0
+    written.buffers = []
+    newRun(host)
+    host.session = JSON.stringify(written)
+    await restoreSession()
+    expect(allTabs(workbenchLayout.value)).toEqual([])
+    expect(allDocuments()).toEqual([])
+  })
+
+  it('keeps the text in a file when its saved line endings are damaged', async () => {
+    await untitledTab('keep this')
+    await flushSession()
+    const written = JSON.parse(host.session ?? '{}') as { buffers: { endings: unknown }[] }
+    written.buffers[0]!.endings = { dominant: 9, at: [], codes: [] }
+    newRun(host)
+    host.session = JSON.stringify(written)
+    const report = await restoreSession()
+    expect(host.recovered).toEqual([{ name: 'Untitled-1', text: 'keep this' }])
+    expect(report?.notices.join(' ')).toMatch(/line endings of Untitled-1 are damaged/)
+    expect(allTabs(workbenchLayout.value)).toHaveLength(1) // the tab still comes back, empty
+  })
+
+  it('survives a forced restart: the journal alone wrote it, with no close request', async () => {
+    await startJournal({ intervalMs: 5 })
+    await untitledTab('typed just now')
+    await new Promise<void>((resolve) => setTimeout(resolve, 60)) // the journal's own timer
+    expect(journalStats.writes).toBeGreaterThan(0)
+    newRun(host) // the process was killed: nothing but the written session is left
+    await restoreSession()
+    const [tab] = allTabs(workbenchLayout.value)
+    expect(textOf(tab!)).toBe('typed just now')
+  })
+})
+
+describe('the sidebar width (ISC-231)', () => {
+  it('comes back after a restart', async () => {
+    await openPath(A)
+    setSidebarWidth(333, 1200)
+    await flushSession()
+    expect(JSON.parse(host.session ?? '{}')).toMatchObject({ workspace: { sidebarWidth: 333 } })
+    newRun(host)
+    resetSidebar()
+    await restoreSession()
+    expect(sidebarWidth.value).toBe(333)
+  })
+
+  it('is left out while it is the default, and a session from before has none', async () => {
+    await openPath(A)
+    await flushSession()
+    const written = JSON.parse(host.session ?? '{}') as { workspace: object }
+    expect(written.workspace).not.toHaveProperty('sidebarWidth')
+    newRun(host)
+    resetSidebar()
+    await restoreSession()
+    expect(sidebarWidth.value).toBeNull()
+  })
+
+  it('does not trust a width that is not a number, and holds a huge one to half the window', async () => {
+    await openPath(A)
+    await flushSession()
+    const snapshot = JSON.parse(host.session ?? '{}') as { workspace: Record<string, unknown> }
+    snapshot.workspace.sidebarWidth = 'wide'
+    host.session = JSON.stringify(snapshot)
+    newRun(host)
+    resetSidebar()
+    await restoreSession()
+    expect(sidebarWidth.value).toBeNull()
+
+    snapshot.workspace.sidebarWidth = 900000
+    host.session = JSON.stringify(snapshot)
+    newRun(host)
+    resetSidebar()
+    await restoreSession()
+    expect(sidebarWidth.value).toBe(Math.floor(currentWindowWidth() / 2))
+  })
+
+  it('is written when it changes, with nothing else changing', async () => {
+    vi.useFakeTimers()
+    await startJournal({ intervalMs: 1000 })
+    await vi.advanceTimersByTimeAsync(1100)
+    const before = journalStats.writes
+    setSidebarWidth(280, 1200)
+    await vi.advanceTimersByTimeAsync(1100)
+    expect(journalStats.writes).toBe(before + 1)
+    expect(JSON.parse(host.session ?? '{}')).toMatchObject({ workspace: { sidebarWidth: 280 } })
   })
 })

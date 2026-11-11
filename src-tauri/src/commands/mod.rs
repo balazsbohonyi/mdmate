@@ -10,8 +10,14 @@ use crate::documents::{self, AppState};
 use crate::error::AppError;
 use crate::links;
 use crate::platform::{self, Platform as _};
+use crate::recent::{self, RecentStore};
+use crate::save_as::{self, SaveRequest, SavedAs};
 use crate::session::{self, CloseHook, SessionStore};
+use crate::workspace::ops::{self, ClashAnswer, CopyReport, Moved};
+use crate::workspace::roots::{self, RootStore};
+use crate::workspace::tree::{self, TreeEntry};
 use crate::workspace::watch::DiskChange;
+use crate::workspace::{self, DroppedItem};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::State;
@@ -74,12 +80,22 @@ pub(crate) async fn pick_files(
 pub(crate) async fn open_file(
     app: tauri::AppHandle,
     state: State<'_, Arc<AppState>>,
+    recent: State<'_, Arc<RecentStore>>,
     path: String,
+    remember: Option<bool>,
 ) -> Result<tauri::ipc::Response, AppError> {
     let state = state.inner().clone();
+    let recent = recent.inner().clone();
     let (frame, images) = tauri::async_runtime::spawn_blocking(move || {
         let path = PathBuf::from(path);
         let frame = documents::open_document(&state, &path)?;
+        // Only what the user chose to open goes on the Open Recent list, not a file a restored
+        // session opens again. Failing to write the list never fails the open.
+        if remember == Some(true)
+            && let Ok(resolved) = state.access().check(&path)
+        {
+            let _ = recent.record_file(&resolved.path);
+        }
         // The document opened, so the path was allowed and resolves again.
         let images = state
             .access()
@@ -140,6 +156,146 @@ pub(crate) async fn save_file(
         hash: documents::hash_hex(saved.hash),
         size: saved.size,
     })
+}
+
+/// Gives a new untitled tab its document id. The document has no file until Save As.
+#[tauri::command]
+pub(crate) fn document_new_untitled(state: State<'_, Arc<AppState>>) -> u32 {
+    state.documents().register_untitled()
+}
+
+/// Whether an open document's file is still on disk, for Revert File.
+#[tauri::command]
+pub(crate) async fn document_exists(
+    state: State<'_, Arc<AppState>>,
+    id: u32,
+) -> Result<bool, AppError> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = state
+            .documents()
+            .get(id)
+            .map(|entry| entry.path.clone())
+            .ok_or(AppError::NotOpen(id))?;
+        Ok(path.is_file())
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Shows the system's save dialog and writes the document into the file the user chooses: the
+/// first save of an untitled tab, or Save As. The body is the document frame; its header holds the
+/// suggested `name` and start `folder`. Choosing the file is what grants it. Returns nothing when
+/// the user cancels.
+#[tauri::command]
+pub(crate) async fn document_save_as(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    state: State<'_, Arc<AppState>>,
+    recent: State<'_, Arc<RecentStore>>,
+    request: tauri::ipc::Request<'_>,
+) -> Result<Option<SavedAs>, AppError> {
+    let tauri::ipc::InvokeBody::Raw(body) = request.body() else {
+        return Err(AppError::Invalid("the body must be raw bytes".into()));
+    };
+    let id = request
+        .headers()
+        .get("x-document-id")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse::<u32>().ok())
+        .ok_or_else(|| AppError::Invalid("missing or bad x-document-id header".into()))?;
+    let body = body.clone();
+    let (state, recent) = (state.inner().clone(), recent.inner().clone());
+    let saved = tauri::async_runtime::spawn_blocking(move || {
+        let choose = |request: &SaveRequest| {
+            let mut dialog = rfd::FileDialog::new()
+                .set_parent(&window)
+                .set_title("Save As")
+                .set_file_name(&request.name)
+                .add_filter(
+                    "Markdown and text",
+                    &["md", "markdown", "mdown", "mkd", "mdx", "txt"],
+                )
+                .add_filter("All files", &["*"]);
+            if let Some(folder) = &request.folder {
+                dialog = dialog.set_directory(folder);
+            }
+            dialog.save_file()
+        };
+        let saved = save_as::save_as(&state, id, &body, &choose)?;
+        if let Some(saved) = &saved {
+            let path = PathBuf::from(&saved.path);
+            let _ = recent.record_file(&path);
+            if let Some(folder) = path.parent() {
+                allow_images_from(&app, folder);
+            }
+        }
+        Ok::<_, AppError>(saved)
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))??;
+    Ok(saved)
+}
+
+/// The files and folders on the Open Recent list, newest first, with any that are gone dropped.
+#[tauri::command]
+pub(crate) async fn recent_list(
+    recent: State<'_, Arc<RecentStore>>,
+) -> Result<recent::Lists, AppError> {
+    let recent = recent.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || recent.list())
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))
+}
+
+/// Empties the Open Recent list.
+#[tauri::command]
+pub(crate) async fn recent_clear(recent: State<'_, Arc<RecentStore>>) -> Result<(), AppError> {
+    let recent = recent.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || recent.clear())
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Grants a file on the Open Recent list so the page can open it. A path that is not on the list
+/// is refused, whatever the page says.
+#[tauri::command]
+pub(crate) async fn recent_open_file(
+    state: State<'_, Arc<AppState>>,
+    recent: State<'_, Arc<RecentStore>>,
+    path: String,
+) -> Result<String, AppError> {
+    let (state, recent) = (state.inner().clone(), recent.inner().clone());
+    tauri::async_runtime::spawn_blocking(move || recent::grant_file(&state, &recent, &path))
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Makes a folder on the Open Recent list a workspace root again. A path that is not on the list
+/// is refused.
+#[tauri::command]
+pub(crate) async fn recent_open_folder(
+    app: tauri::AppHandle,
+    state: State<'_, Arc<AppState>>,
+    store: State<'_, Arc<RootStore>>,
+    recent: State<'_, Arc<RecentStore>>,
+    path: String,
+) -> Result<String, AppError> {
+    let (state, store, recent) = (
+        state.inner().clone(),
+        store.inner().clone(),
+        recent.inner().clone(),
+    );
+    tauri::async_runtime::spawn_blocking(move || {
+        if !recent.has_folder(&path) {
+            return Err(AppError::NotAllowed(path));
+        }
+        let shown = add_root_and_allow_images(&app, &state, &store, std::path::Path::new(&path))?;
+        let _ = recent.record_folder(std::path::Path::new(&shown));
+        Ok(shown)
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
 }
 
 /// Forgets a document once its last tab is gone.
@@ -320,6 +476,417 @@ pub(crate) async fn follow_link(
             &links::PlatformOpener,
             |path| Ok(display_path(&state.access().grant_file(path)?.path)),
         )
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Grants a folder to the sidebar and to the image protocol, and returns it as people read it.
+fn add_root_and_allow_images(
+    app: &tauri::AppHandle,
+    state: &AppState,
+    store: &RootStore,
+    path: &std::path::Path,
+) -> Result<String, AppError> {
+    let shown = roots::add(state, store, path)?;
+    // The images of a workspace folder load without opening a document first. The scope can only
+    // grow while the app runs (Tauri has no way to shrink it), so removing the folder later
+    // revokes Rust's file access but not this.
+    allow_images_from(app, std::path::Path::new(&shown));
+    Ok(shown)
+}
+
+/// Shows the system's folder dialog and makes the chosen folder a workspace root. Choosing is what
+/// grants it, here and never on the page's say-so. Returns the folder, or nothing when the user
+/// cancels.
+#[tauri::command]
+pub(crate) async fn open_folder(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    state: State<'_, Arc<AppState>>,
+    store: State<'_, Arc<RootStore>>,
+    recent: State<'_, Arc<RecentStore>>,
+) -> Result<Option<String>, AppError> {
+    let picked = tauri::async_runtime::spawn_blocking(move || {
+        rfd::FileDialog::new()
+            .set_parent(&window)
+            .set_title("Open Folder")
+            .pick_folder()
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?;
+    let Some(picked) = picked else {
+        return Ok(None);
+    };
+    let (state, store, recent) = (
+        state.inner().clone(),
+        store.inner().clone(),
+        recent.inner().clone(),
+    );
+    tauri::async_runtime::spawn_blocking(move || {
+        let shown = add_root_and_allow_images(&app, &state, &store, &picked)?;
+        let _ = recent.record_folder(std::path::Path::new(&shown));
+        Ok(Some(shown))
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Grants the folders the last run had open and returns the workspace roots, in order. The page
+/// calls it once at startup; the list comes from Rust's own record, never from the session
+/// snapshot the page wrote.
+#[tauri::command]
+pub(crate) async fn workspace_load(
+    app: tauri::AppHandle,
+    state: State<'_, Arc<AppState>>,
+    store: State<'_, Arc<RootStore>>,
+) -> Result<Vec<String>, AppError> {
+    let (state, store) = (state.inner().clone(), store.inner().clone());
+    tauri::async_runtime::spawn_blocking(move || {
+        let restored = roots::restore(&state, &store);
+        for root in &restored {
+            allow_images_from(&app, std::path::Path::new(root));
+        }
+        restored
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))
+}
+
+/// Takes a folder out of the workspace and revokes the page's access to it.
+#[tauri::command]
+pub(crate) async fn remove_root(
+    state: State<'_, Arc<AppState>>,
+    store: State<'_, Arc<RootStore>>,
+    path: String,
+) -> Result<(), AppError> {
+    let (state, store) = (state.inner().clone(), store.inner().clone());
+    tauri::async_runtime::spawn_blocking(move || {
+        roots::remove(&state, &store, &PathBuf::from(path))
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Lists one folder of the workspace: its files and folders, folders first. Only a folder inside
+/// a workspace root can be listed.
+#[tauri::command]
+pub(crate) async fn list_dir(
+    state: State<'_, Arc<AppState>>,
+    path: String,
+) -> Result<Vec<TreeEntry>, AppError> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let resolved = state.access().check(&PathBuf::from(path))?;
+        tree::list_dir(&resolved.path)
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Starts telling the page which folder of the sidebar went out of date. Once at startup; calling
+/// it again replaces the channel.
+#[tauri::command]
+pub(crate) fn watch_tree(
+    state: State<'_, Arc<AppState>>,
+    on_event: Channel<String>,
+) -> Result<(), AppError> {
+    state.start_folder_watcher(Box::new(move |folder| {
+        // A page that has gone away has nobody to tell; the next subscription replaces this one.
+        let _ = on_event.send(folder);
+    }))
+}
+
+/// Says which folders the sidebar has open, so Rust watches exactly those. A folder outside the
+/// workspace is skipped.
+#[tauri::command]
+pub(crate) fn watch_folders(
+    state: State<'_, Arc<AppState>>,
+    paths: Vec<String>,
+) -> Result<(), AppError> {
+    let watcher = state
+        .folder_watcher()
+        .ok_or_else(|| AppError::Invalid("watch_tree comes first".into()))?;
+    let folders: Vec<PathBuf> = paths
+        .iter()
+        .filter_map(|path| state.access().check(&PathBuf::from(path)).ok())
+        .filter(|resolved| resolved.path.is_dir())
+        .map(|resolved| PathBuf::from(display_path(&resolved.path)))
+        .collect();
+    watcher.set_folders(&folders);
+    Ok(())
+}
+
+/// Says what each path of a drop is. Every path must be one a native drop delivered.
+#[tauri::command]
+pub(crate) fn drop_describe(
+    state: State<'_, Arc<AppState>>,
+    paths: Vec<String>,
+) -> Result<Vec<DroppedItem>, AppError> {
+    workspace::describe_drops(&state, &paths)
+}
+
+/// Lets the page open the files of a native drop. Every path must be one a native drop delivered.
+#[tauri::command]
+pub(crate) fn drop_open(
+    state: State<'_, Arc<AppState>>,
+    paths: Vec<String>,
+) -> Result<Vec<DroppedItem>, AppError> {
+    workspace::open_drops(&state, &paths)
+}
+
+/// What a file the page may read opens as: Markdown, an image or plain text.
+#[tauri::command]
+pub(crate) fn file_kind(
+    state: State<'_, Arc<AppState>>,
+    path: String,
+) -> Result<crate::fs::kind::FileKind, AppError> {
+    workspace::file_kind(&state, &path)
+}
+
+/// Checks that an image may be shown, lets the image protocol serve that one file, and says how
+/// big it is. The page has no command that widens the scope any further.
+#[tauri::command]
+pub(crate) async fn image_info(
+    app: tauri::AppHandle,
+    state: State<'_, Arc<AppState>>,
+    path: String,
+) -> Result<workspace::ImageInfo, AppError> {
+    let state = state.inner().clone();
+    let (info, resolved) =
+        tauri::async_runtime::spawn_blocking(move || workspace::image_info(&state, &path))
+            .await
+            .map_err(|error| AppError::Task(error.to_string()))??;
+    use tauri::Manager as _;
+    // A failure leaves the image unloadable; the tab says so, and nothing else breaks.
+    let _ = app.asset_protocol_scope().allow_file(&resolved);
+    Ok(info)
+}
+
+/// Says that no tab shows this image any more, so the next session does not grant it again.
+#[tauri::command]
+pub(crate) fn image_closed(state: State<'_, Arc<AppState>>, path: String) {
+    state.forget_image(std::path::Path::new(&path));
+}
+
+/// Makes an empty file in a folder of the workspace. Returns its path.
+#[tauri::command]
+pub(crate) fn create_file(
+    state: State<'_, Arc<AppState>>,
+    parent: String,
+    name: String,
+) -> Result<String, AppError> {
+    ops::create_file(&state, std::path::Path::new(&parent), &name)
+}
+
+/// Makes a folder in a folder of the workspace. Returns its path.
+#[tauri::command]
+pub(crate) fn create_folder(
+    state: State<'_, Arc<AppState>>,
+    parent: String,
+    name: String,
+) -> Result<String, AppError> {
+    ops::create_folder(&state, std::path::Path::new(&parent), &name)
+}
+
+/// Renames a file or folder of the workspace; open documents under it follow.
+#[tauri::command]
+pub(crate) fn rename_entry(
+    state: State<'_, Arc<AppState>>,
+    path: String,
+    new_name: String,
+) -> Result<Moved, AppError> {
+    ops::rename_entry(&state, std::path::Path::new(&path), &new_name)
+}
+
+/// Moves a file or folder of the workspace into another folder of it; open documents follow.
+#[tauri::command]
+pub(crate) fn move_entry(
+    state: State<'_, Arc<AppState>>,
+    path: String,
+    into: String,
+) -> Result<Moved, AppError> {
+    ops::move_entry(
+        &state,
+        std::path::Path::new(&path),
+        std::path::Path::new(&into),
+    )
+}
+
+/// Checks a rename or move and reads the workspace for the links it would change, without
+/// changing anything. `on_progress` hears how many files were read, a few times a second; the
+/// answer says how many links in how many files, and names the plan for [`rewrite_move`].
+/// `buffers` are the open documents with edits not yet saved: their text is read instead of the
+/// file's.
+#[tauri::command]
+pub(crate) async fn rewrite_plan(
+    state: State<'_, Arc<AppState>>,
+    path: String,
+    change: links::flow::Change,
+    buffers: Vec<links::flow::Buffer>,
+    on_progress: Channel<usize>,
+) -> Result<links::flow::Planned, AppError> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut last = std::time::Instant::now();
+        links::flow::plan(
+            &state,
+            std::path::Path::new(&path),
+            &change,
+            &buffers,
+            |read| {
+                if last.elapsed() >= std::time::Duration::from_millis(75) {
+                    last = std::time::Instant::now();
+                    // A page that has gone away has nobody to tell.
+                    let _ = on_progress.send(read);
+                }
+            },
+        )
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Every link in the open folders that leads to `path`, by file and line. `buffers` are the open
+/// documents with edits not yet saved: their text is read instead of the file's.
+#[tauri::command]
+pub(crate) async fn find_references(
+    state: State<'_, Arc<AppState>>,
+    path: String,
+    buffers: Vec<links::flow::Buffer>,
+) -> Result<links::references::Found, AppError> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        links::references::find_for(&state, std::path::Path::new(&path), &buffers)
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// The best `limit` files for what was typed in Ctrl+P. The first call builds the file index.
+#[tauri::command]
+pub(crate) async fn quick_open_query(
+    state: State<'_, Arc<AppState>>,
+    query: String,
+    limit: usize,
+) -> Result<workspace::quick::Answer, AppError> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || state.quick_open().query(&state, &query, limit))
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))
+}
+
+/// Reads the workspace again for Ctrl+P, so a file made a moment ago is found. False when a read is
+/// already going, which will land by itself.
+#[tauri::command]
+pub(crate) async fn quick_open_refresh(state: State<'_, Arc<AppState>>) -> Result<bool, AppError> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || state.quick_open().refresh(&state))
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))
+}
+
+/// Does the rename or move a plan was made for, and rewrites the links it said it would. Open
+/// documents are not written: `buffers` carries the text of every one the page holds edits in.
+#[tauri::command]
+pub(crate) async fn rewrite_move(
+    state: State<'_, Arc<AppState>>,
+    token: u64,
+    buffers: Vec<links::flow::Buffer>,
+) -> Result<links::flow::Done, AppError> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || links::flow::finish(&state, token, &buffers))
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Stops a scan that [`rewrite_plan`] is running. The plan then answers `cancelled`.
+#[tauri::command]
+pub(crate) fn rewrite_cancel(state: State<'_, Arc<AppState>>) {
+    state
+        .rewrite_stop()
+        .store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Forgets a plan the user said no to.
+#[tauri::command]
+pub(crate) fn rewrite_discard(state: State<'_, Arc<AppState>>, token: u64) {
+    links::flow::discard(&state, token);
+}
+
+/// Sends a file or folder of the workspace to the Recycle Bin.
+#[tauri::command]
+pub(crate) async fn delete_entry(
+    state: State<'_, Arc<AppState>>,
+    path: String,
+) -> Result<(), AppError> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        ops::delete_entry(&state, &platform::current(), std::path::Path::new(&path))
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Shows a file or folder in the system's file manager.
+#[tauri::command]
+pub(crate) fn reveal_entry(state: State<'_, Arc<AppState>>, path: String) -> Result<(), AppError> {
+    ops::reveal_entry(&state, &platform::current(), std::path::Path::new(&path))
+}
+
+/// Opens a folder of the workspace itself in the system's file manager.
+#[tauri::command]
+pub(crate) fn show_folder(state: State<'_, Arc<AppState>>, path: String) -> Result<(), AppError> {
+    ops::show_folder(&state, &platform::current(), std::path::Path::new(&path))
+}
+
+/// Says which names of a drop already exist in a folder, so the page can ask what to do about
+/// them. Changes nothing. Every path must be one a native drop delivered.
+#[tauri::command]
+pub(crate) fn copy_clashes(
+    state: State<'_, Arc<AppState>>,
+    into: String,
+    paths: Vec<String>,
+) -> Result<Vec<String>, AppError> {
+    ops::copy_clashes(&state, std::path::Path::new(&into), &paths)
+}
+
+/// Copies the paths of a native drop into a folder of the workspace, with an answer for each name
+/// that is already there.
+#[tauri::command]
+pub(crate) async fn copy_dropped(
+    state: State<'_, Arc<AppState>>,
+    into: String,
+    paths: Vec<String>,
+    answers: Vec<ClashAnswer>,
+) -> Result<CopyReport, AppError> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        ops::copy_into(
+            &state,
+            &platform::current(),
+            std::path::Path::new(&into),
+            &paths,
+            &answers,
+        )
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Makes a dropped folder a workspace root.
+#[tauri::command]
+pub(crate) async fn add_dropped_root(
+    app: tauri::AppHandle,
+    state: State<'_, Arc<AppState>>,
+    store: State<'_, Arc<RootStore>>,
+    path: String,
+) -> Result<String, AppError> {
+    let (state, store) = (state.inner().clone(), store.inner().clone());
+    tauri::async_runtime::spawn_blocking(move || {
+        let shown = workspace::add_dropped_root(&state, &store, &path)?;
+        allow_images_from(&app, std::path::Path::new(&shown));
+        Ok(shown)
     })
     .await
     .map_err(|error| AppError::Task(error.to_string()))?

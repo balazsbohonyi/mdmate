@@ -8,10 +8,29 @@ export type {
   PerfDragDrop,
   PerfHost,
   ReadOnlyReason,
+  RecentLists,
+  SaveAsHint,
+  SavedAs,
   SavedFile,
   WindowControls,
 } from './host'
 export type { FollowedLink, LinkInfo, LinkRefusal } from './links'
+export type { Reference, ReferenceProblem, ReferencesFound } from './references'
+export type {
+  ClashAnswer,
+  ClashChoice,
+  CopyReport,
+  DroppedItem,
+  DropKind,
+  EntryKind,
+  FileDragEvent,
+  FileKind,
+  ImageInfo,
+  Moved,
+  MovedDocument,
+  Point,
+  TreeEntry,
+} from './workspace'
 
 let host: Promise<Host> | undefined
 

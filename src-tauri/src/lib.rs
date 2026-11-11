@@ -1,11 +1,14 @@
 mod access;
 mod commands;
 mod documents;
+mod drops;
 mod error;
 mod fs;
 mod links;
 mod paths;
 mod platform;
+mod recent;
+mod save_as;
 mod search;
 mod session;
 mod settings;
@@ -33,11 +36,24 @@ pub fn run() {
         .setup(|app| {
             use tauri::Manager as _;
             let dir = paths::data_dir_from_env(|| app.path().app_data_dir().ok());
+            app.manage(Arc::new(recent::RecentStore::new(
+                dir.clone(),
+                platform::current().paths_ignore_case(),
+            )));
+            app.manage(Arc::new(workspace::roots::RootStore::new(dir.clone())));
             app.manage(Arc::new(session::SessionStore::new(dir)));
             Ok(())
         })
         .on_window_event(|window, event| {
             use tauri::Manager as _;
+            // The only place a dropped path becomes known to Rust: the OS's own drop event. The
+            // page hears about the drop too, but anything it asks to open or copy is checked
+            // against this record.
+            if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event
+                && let Some(state) = window.app_handle().try_state::<Arc<AppState>>()
+            {
+                state.drops().record(paths);
+            }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event
                 && let Some(hook) = window.app_handle().try_state::<Arc<session::CloseHook>>()
                 && hook.ask()
@@ -59,6 +75,13 @@ pub fn run() {
         commands::pick_files,
         commands::open_file,
         commands::save_file,
+        commands::document_new_untitled,
+        commands::document_save_as,
+        commands::document_exists,
+        commands::recent_list,
+        commands::recent_clear,
+        commands::recent_open_file,
+        commands::recent_open_folder,
         commands::close_document,
         commands::reload_document,
         commands::watch_changes,
@@ -70,10 +93,39 @@ pub fn run() {
         commands::describe_link,
         commands::follow_link,
         commands::check_links,
+        commands::open_folder,
+        commands::workspace_load,
+        commands::remove_root,
+        commands::list_dir,
+        commands::watch_tree,
+        commands::watch_folders,
+        commands::drop_describe,
+        commands::drop_open,
+        commands::file_kind,
+        commands::image_info,
+        commands::image_closed,
+        commands::add_dropped_root,
+        commands::create_file,
+        commands::create_folder,
+        commands::rename_entry,
+        commands::move_entry,
+        commands::rewrite_plan,
+        commands::find_references,
+        commands::rewrite_move,
+        commands::quick_open_query,
+        commands::quick_open_refresh,
+        commands::rewrite_cancel,
+        commands::rewrite_discard,
+        commands::delete_entry,
+        commands::reveal_entry,
+        commands::show_folder,
+        commands::copy_clashes,
+        commands::copy_dropped,
         commands::perf::perf_config,
         commands::perf::perf_report,
         commands::perf::perf_ready,
         commands::perf::perf_grant_file,
+        commands::perf::perf_grant_root,
         commands::perf::perf_allow_directory,
         commands::perf::perf_toggle_maximize,
         commands::perf::perf_start_dragging
@@ -85,6 +137,13 @@ pub fn run() {
         commands::pick_files,
         commands::open_file,
         commands::save_file,
+        commands::document_new_untitled,
+        commands::document_save_as,
+        commands::document_exists,
+        commands::recent_list,
+        commands::recent_clear,
+        commands::recent_open_file,
+        commands::recent_open_folder,
         commands::close_document,
         commands::reload_document,
         commands::watch_changes,
@@ -95,7 +154,35 @@ pub fn run() {
         commands::quit_app,
         commands::describe_link,
         commands::follow_link,
-        commands::check_links
+        commands::check_links,
+        commands::open_folder,
+        commands::workspace_load,
+        commands::remove_root,
+        commands::list_dir,
+        commands::watch_tree,
+        commands::watch_folders,
+        commands::drop_describe,
+        commands::drop_open,
+        commands::file_kind,
+        commands::image_info,
+        commands::image_closed,
+        commands::add_dropped_root,
+        commands::create_file,
+        commands::create_folder,
+        commands::rename_entry,
+        commands::move_entry,
+        commands::rewrite_plan,
+        commands::find_references,
+        commands::rewrite_move,
+        commands::quick_open_query,
+        commands::quick_open_refresh,
+        commands::rewrite_cancel,
+        commands::rewrite_discard,
+        commands::delete_entry,
+        commands::reveal_entry,
+        commands::show_folder,
+        commands::copy_clashes,
+        commands::copy_dropped
     ]);
     builder
         .run(tauri::generate_context!())

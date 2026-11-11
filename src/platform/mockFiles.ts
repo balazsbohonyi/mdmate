@@ -76,10 +76,17 @@ export function pathKey(path: string): string {
 
 export type FileListener = (path: string) => void
 
+/** The parts of a path, with either kind of separator and no empty parts. */
+function segments(path: string): string[] {
+  return path.split(/[\\/]+/).filter((part) => part !== '')
+}
+
 /** Files by path. Change them to see how the app reacts to another program editing a file. */
 export class MockFiles {
   readonly #files = new Map<string, { path: string; raw: string }>()
   readonly #unsupported = new Set<string>()
+  /** Folders made on purpose, so an empty one exists. Others exist because a file is inside. */
+  readonly #folders = new Map<string, string>()
   readonly #listeners = new Set<FileListener>()
 
   constructor(initial: Readonly<Record<string, string>> = {}) {
@@ -132,5 +139,108 @@ export class MockFiles {
 
   paths(): string[] {
     return [...this.#files.values()].map((file) => file.path)
+  }
+
+  /** Makes a folder, as another program would. Tells every listener about its parent. */
+  mkdir(path: string): void {
+    if (this.isFolder(path)) return
+    this.#folders.set(pathKey(path), path)
+    this.#tell(path)
+  }
+
+  /**
+   * Moves a file, or a folder with everything below it, to a new path, as a rename does. Returns
+   * each file's old and new path. Tells every listener about the old and the new places.
+   */
+  move(from: string, to: string): { from: string; to: string }[] {
+    const fromKey = pathKey(from).replace(/\/$/, '')
+    const target = to.replaceAll('\\', '/').replace(/\/$/, '')
+    const swap = (written: string): string =>
+      target + written.replaceAll('\\', '/').slice(fromKey.length)
+    const below = (key: string): boolean => key === fromKey || key.startsWith(`${fromKey}/`)
+    const moved: { from: string; to: string }[] = []
+    for (const [key, file] of [...this.#files]) {
+      if (!below(key)) continue
+      const now = swap(file.path)
+      this.#files.delete(key)
+      this.#files.set(pathKey(now), { path: now, raw: file.raw })
+      if (this.#unsupported.delete(key)) this.#unsupported.add(pathKey(now))
+      moved.push({ from: file.path, to: now })
+    }
+    for (const [key, folder] of [...this.#folders]) {
+      if (!below(key)) continue
+      const now = swap(folder)
+      this.#folders.delete(key)
+      this.#folders.set(pathKey(now), now)
+    }
+    for (const place of [from, to, ...moved.flatMap((pair) => [pair.from, pair.to])])
+      this.#tell(place)
+    return moved
+  }
+
+  /** Removes a file, or a folder with everything below it. Returns the files that went. */
+  remove(path: string): { path: string; raw: string }[] {
+    const key = pathKey(path).replace(/\/$/, '')
+    const below = (candidate: string): boolean =>
+      candidate === key || candidate.startsWith(`${key}/`)
+    const gone: { path: string; raw: string }[] = []
+    for (const [fileKey, file] of [...this.#files]) {
+      if (!below(fileKey)) continue
+      this.#files.delete(fileKey)
+      gone.push({ path: file.path, raw: file.raw })
+    }
+    for (const folderKey of [...this.#folders.keys()])
+      if (below(folderKey)) this.#folders.delete(folderKey)
+    for (const place of [path, ...gone.map((file) => file.path)]) this.#tell(place)
+    return gone
+  }
+
+  /** True when a folder was made at `path` or a file lies below it. */
+  isFolder(path: string): boolean {
+    const key = pathKey(path).replace(/\/$/, '')
+    if (this.#folders.has(key)) return true
+    const prefix = `${key}/`
+    for (const file of this.#files.keys()) if (file.startsWith(prefix)) return true
+    for (const folder of this.#folders.keys()) if (folder.startsWith(prefix)) return true
+    return false
+  }
+
+  /**
+   * What is directly inside a folder, folders first and each group in name order with case
+   * ignored, like Rust's listing. Undefined when there is no such folder.
+   */
+  listDir(path: string): { name: string; kind: 'file' | 'folder' }[] | undefined {
+    if (!this.isFolder(path)) return undefined
+    const depth = segments(path).length
+    const prefix = `${pathKey(path).replace(/\/$/, '')}/`
+    const found = new Map<string, { name: string; kind: 'file' | 'folder' }>()
+    const note = (written: string, kind: 'file' | 'folder'): void => {
+      if (!pathKey(written).startsWith(prefix)) return
+      const parts = segments(written)
+      const name = parts[depth]
+      if (name === undefined) return
+      const entryKind = parts.length > depth + 1 ? 'folder' : kind
+      const key = name.toLowerCase()
+      // A name that is a folder somewhere wins over the same name as a file.
+      if (found.get(key)?.kind !== 'folder') found.set(key, { name, kind: entryKind })
+    }
+    for (const file of this.#files.values()) note(file.path, 'file')
+    for (const folder of this.#folders.values()) note(folder, 'folder')
+    return [...found.values()].sort((a, b) => {
+      const group = (kind: string): number => (kind === 'file' ? 1 : 0)
+      return (
+        group(a.kind) - group(b.kind) ||
+        (a.name.toLowerCase() < b.name.toLowerCase()
+          ? -1
+          : a.name.toLowerCase() > b.name.toLowerCase()
+            ? 1
+            : 0) ||
+        (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)
+      )
+    })
+  }
+
+  #tell(path: string): void {
+    for (const listener of this.#listeners) listener(path)
   }
 }

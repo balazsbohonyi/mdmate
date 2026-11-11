@@ -6,6 +6,8 @@
 
 use super::Platform;
 use std::ffi::c_void;
+use std::os::windows::process::CommandExt as _;
+use std::path::Path;
 use std::ptr::{null, null_mut};
 
 #[derive(Debug)]
@@ -54,6 +56,15 @@ impl Platform for Native {
             || error.kind() == std::io::ErrorKind::PermissionDenied
     }
 
+    fn os_error_words(&self, error: &std::io::Error) -> Option<&'static str> {
+        match error.raw_os_error()? {
+            32 | 33 => Some("another program is using it"),
+            123 | 161 => Some("that name is not valid"),
+            206 => Some("the path is too long"),
+            _ => None,
+        }
+    }
+
     fn open_external(&self, target: &str) -> std::io::Result<()> {
         if target.contains('\0') {
             return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput));
@@ -93,5 +104,37 @@ impl Platform for Native {
         } else {
             Err(std::io::Error::other("the shell refused to open it"))
         }
+    }
+
+    fn move_to_trash(&self, path: &Path) -> std::io::Result<()> {
+        super::trash_item(path)
+    }
+
+    fn reveal(&self, path: &Path) -> std::io::Result<()> {
+        // Explorer reads `/select,"path"` as one raw argument; quoting it the way Rust does for
+        // an argument with spaces ("/select,path" in quotes) makes it open Documents instead.
+        let shown = crate::access::display_path(path);
+        if shown.contains('"') || shown.contains('\0') {
+            return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput));
+        }
+        let mut child = std::process::Command::new("explorer.exe")
+            .raw_arg(format!("/select,\"{shown}\""))
+            .spawn()?;
+        // Explorer exits with 1 even when it worked, so the result is not read.
+        std::thread::spawn(move || child.wait());
+        Ok(())
+    }
+
+    fn show_folder(&self, path: &Path) -> std::io::Result<()> {
+        let shown = crate::access::display_path(path);
+        if shown.contains('"') || shown.contains('\0') {
+            return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput));
+        }
+        let mut child = std::process::Command::new("explorer.exe")
+            .raw_arg(format!("\"{shown}\""))
+            .spawn()?;
+        // Explorer exits with 1 even when it worked, so the result is not read.
+        std::thread::spawn(move || child.wait());
+        Ok(())
     }
 }

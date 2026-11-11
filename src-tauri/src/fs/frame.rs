@@ -44,8 +44,6 @@ pub(crate) fn encode(mut header: Map<String, Value>, endings: &Endings, text: &s
 /// A frame taken apart.
 #[derive(Debug)]
 pub(crate) struct Frame<'a> {
-    // Saves read only the endings and text; the header's own fields are checked by the tests.
-    #[cfg_attr(not(test), allow(dead_code, reason = "only the tests read the header"))]
     pub(crate) header: Map<String, Value>,
     pub(crate) endings: Endings,
     pub(crate) text: &'a str,

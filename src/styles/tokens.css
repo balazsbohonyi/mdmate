@@ -85,6 +85,8 @@
   --color-statusbar-foreground: var(--statusbar-foreground);
   --color-handle: var(--handle);
   --color-handle-active: var(--handle-active);
+  --color-scrollbar-thumb: var(--scrollbar-thumb);
+  --color-scrollbar-thumb-hover: var(--scrollbar-thumb-hover);
   --color-drop-preview: var(--drop-preview);
 
   --color-selection: var(--selection);
@@ -112,4 +114,61 @@
   body {
     @apply bg-background text-chrome text-foreground;
   }
+}
+
+/* A hint drawn inside the editor (ISC-226): the shadcn tooltip's look, from the same tokens. */
+.editor-hint {
+  @apply fixed z-50 w-max max-w-xs rounded-md bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md ring-1 ring-foreground/10;
+  overflow-wrap: break-word;
+  white-space: pre-line;
+  pointer-events: none;
+}
+.editor-hint-arrow {
+  @apply absolute -ml-[5px] size-2.5 rotate-45 rounded-br-xs bg-popover;
+}
+/* Only the two outer edges are outlined, as on the shadcn tooltip's arrow (ISC-225). */
+.editor-hint-arrow[data-side='above'] {
+  @apply border-r border-b border-foreground/10;
+  bottom: -5px;
+}
+.editor-hint-arrow[data-side='below'] {
+  @apply border-t border-l border-foreground/10;
+  top: -5px;
+}
+
+/* The cursor while a tree row is dragged (ISC-240): everything under the pointer shows it. */
+html[data-tree-drag='move'],
+html[data-tree-drag='move'] * {
+  cursor: grabbing !important;
+}
+html[data-tree-drag='blocked'],
+html[data-tree-drag='blocked'] * {
+  cursor: not-allowed !important;
+}
+
+/*
+ * Thin, quiet scrollbars everywhere (ISC-248): a 6px rounded thumb on a clear track, no arrow
+ * buttons, brighter under the pointer. They are WebKit pseudo-elements, which the WebView honours.
+ * Do not add `scrollbar-width` or `scrollbar-color` here: with either set on an element,
+ * Chromium ignores these rules for it. The tab strip hides its bar on its own element.
+ */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+::-webkit-scrollbar-button {
+  display: none;
 }

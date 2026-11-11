@@ -46,6 +46,8 @@
   --statusbar-foreground: oklch(0.72 0.014 262);
   --handle: oklch(0.29 0.013 262);
   --handle-active: var(--primary);
+  --scrollbar-thumb: oklch(0.6 0.014 262 / 38%);
+  --scrollbar-thumb-hover: oklch(0.7 0.014 262 / 62%);
   --drop-preview: oklch(0.78 0.11 182 / 22%);
 
   --selection: oklch(0.4 0.07 230);

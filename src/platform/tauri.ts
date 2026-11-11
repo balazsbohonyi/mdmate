@@ -2,8 +2,22 @@ import { Channel, convertFileSrc, invoke } from '@tauri-apps/api/core'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { decodeFrame, encodeFrame, openedFromFrame } from './frame'
-import type { DiskChange, Host, PerfConfig, PerfHost, SavedFile } from './host'
+import type { DiskChange, Host, PerfConfig, PerfHost, SavedAs, SavedFile } from './host'
 import { parseFollowedLink, parseLinkInfo } from './links'
+import { parseQuickOpenAnswer } from './quickOpen'
+import { parseReferencesFound } from './references'
+import { parseRewriteDone, parseRewritePlanned } from './rewrite'
+import {
+  parseCopyReport,
+  parseDroppedItems,
+  parseFileKind,
+  parseImageInfo,
+  parseMoved,
+  parsePaths,
+  parseTreeEntries,
+  toCssPosition,
+  type FileDragEvent,
+} from './workspace'
 
 /** The Rust commands behind this exist only in `--features perf` builds. */
 const perfBridge: PerfHost = {
@@ -18,6 +32,9 @@ const perfBridge: PerfHost = {
   },
   async grantFile(path) {
     await invoke('perf_grant_file', { path })
+  },
+  async grantRoot(path) {
+    await invoke('perf_grant_root', { path })
   },
   assetUrl(path) {
     return convertFileSrc(path)
@@ -93,14 +110,157 @@ export const tauriHost: Host = {
       throw new Error('bad check_links reply')
     return answer.map((missing) => missing === true)
   },
+  async openFolder() {
+    return invoke<string | null>('open_folder')
+  },
+  async loadWorkspace() {
+    return parsePaths(await invoke<unknown>('workspace_load'))
+  },
+  async removeRoot(path) {
+    await invoke('remove_root', { path })
+  },
+  async listDir(path) {
+    return parseTreeEntries(await invoke<unknown>('list_dir', { path }))
+  },
+  async watchTree(onChange) {
+    const channel = new Channel<string>()
+    channel.onmessage = onChange
+    await invoke('watch_tree', { onEvent: channel })
+    // Rust keeps one channel, and subscribing again replaces it, so stopping only mutes this one.
+    return () => {
+      channel.onmessage = () => undefined
+    }
+  },
+  async watchFolders(paths) {
+    await invoke('watch_folders', { paths })
+  },
+  onFileDrag(handler) {
+    return getCurrentWebview().onDragDropEvent((event) => {
+      const payload = event.payload
+      if (payload.type === 'leave') {
+        handler({ type: 'leave' })
+        return
+      }
+      // Positions arrive in physical pixels; the page works in CSS pixels.
+      const position = toCssPosition(payload.position, window.devicePixelRatio)
+      const drag: FileDragEvent =
+        payload.type === 'drop'
+          ? { type: 'drop', position, paths: payload.paths }
+          : { type: payload.type, position }
+      handler(drag)
+    })
+  },
+  async describeDrop(paths) {
+    return parseDroppedItems(await invoke<unknown>('drop_describe', { paths }))
+  },
+  async openDropped(paths) {
+    return parseDroppedItems(await invoke<unknown>('drop_open', { paths }))
+  },
+  async fileKind(path) {
+    return parseFileKind(await invoke<unknown>('file_kind', { path }))
+  },
+  async imageInfo(path) {
+    return parseImageInfo(await invoke<unknown>('image_info', { path }))
+  },
+  async imageClosed(path) {
+    await invoke('image_closed', { path })
+  },
+  async addDroppedRoot(path) {
+    return invoke<string>('add_dropped_root', { path })
+  },
+  async createFile(parent, name) {
+    return invoke<string>('create_file', { parent, name })
+  },
+  async createFolder(parent, name) {
+    return invoke<string>('create_folder', { parent, name })
+  },
+  async renameEntry(path, newName) {
+    return parseMoved(await invoke<unknown>('rename_entry', { path, newName }))
+  },
+  async moveEntry(path, into) {
+    return parseMoved(await invoke<unknown>('move_entry', { path, into }))
+  },
+  async rewritePlan(path, change, buffers, onProgress) {
+    const channel = new Channel<number>()
+    channel.onmessage = onProgress
+    return parseRewritePlanned(
+      await invoke<unknown>('rewrite_plan', { path, change, buffers, onProgress: channel }),
+    )
+  },
+  async rewriteMove(token, buffers) {
+    return parseRewriteDone(await invoke<unknown>('rewrite_move', { token, buffers }))
+  },
+  async rewriteCancel() {
+    await invoke('rewrite_cancel')
+  },
+  async rewriteDiscard(token) {
+    await invoke('rewrite_discard', { token })
+  },
+  async quickOpenQuery(query, limit) {
+    return parseQuickOpenAnswer(await invoke<unknown>('quick_open_query', { query, limit }))
+  },
+  async quickOpenRefresh() {
+    return (await invoke<boolean>('quick_open_refresh')) === true
+  },
+  async deleteEntry(path) {
+    await invoke('delete_entry', { path })
+  },
+  async revealEntry(path) {
+    await invoke('reveal_entry', { path })
+  },
+  async showFolder(path) {
+    await invoke('show_folder', { path })
+  },
+  async findReferences(path, buffers) {
+    return parseReferencesFound(await invoke<unknown>('find_references', { path, buffers }))
+  },
+  async writeClipboard(text) {
+    await navigator.clipboard.writeText(text)
+  },
+  async copyClashes(into, paths) {
+    return parsePaths(await invoke<unknown>('copy_clashes', { into, paths }))
+  },
+  async copyDropped(into, paths, answers) {
+    return parseCopyReport(await invoke<unknown>('copy_dropped', { into, paths, answers }))
+  },
   async readFile(path) {
     return invoke<ArrayBuffer>('read_file', { path })
   },
   async pickFiles() {
     return invoke<string[]>('pick_files')
   },
-  async openFile(path) {
-    return openedFromFrame(decodeFrame(await invoke<ArrayBuffer>('open_file', { path })))
+  async openFile(path, remember) {
+    return openedFromFrame(
+      decodeFrame(await invoke<ArrayBuffer>('open_file', { path, remember: remember === true })),
+    )
+  },
+  async newUntitled() {
+    return invoke<number>('document_new_untitled')
+  },
+  async saveAs(id, text, endings, hint) {
+    // The name and folder travel in the frame's header, which is UTF-8 JSON, so a name with
+    // accents survives; an HTTP header would not carry it.
+    const header =
+      hint.folder === null ? { name: hint.name } : { name: hint.name, folder: hint.folder }
+    return invoke<SavedAs | null>('document_save_as', encodeFrame(header, endings, text), {
+      headers: { 'x-document-id': String(id) },
+    })
+  },
+  async documentExists(id) {
+    return invoke<boolean>('document_exists', { id })
+  },
+  async recentList() {
+    const lists = await invoke<{ files?: unknown; folders?: unknown }>('recent_list')
+    return { files: parsePaths(lists.files), folders: parsePaths(lists.folders) }
+  },
+  async recentClear() {
+    await invoke('recent_clear')
+  },
+  async recentOpenFile(path) {
+    return invoke<string>('recent_open_file', { path })
+  },
+  async recentOpenFolder(path) {
+    return invoke<string>('recent_open_folder', { path })
   },
   async saveFile(id, text, endings) {
     // The body is the frame; the id is a plain number, so the header stays ASCII.

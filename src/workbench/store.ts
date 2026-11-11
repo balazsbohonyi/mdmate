@@ -1,5 +1,6 @@
 import { computed, shallowReactive, shallowRef } from 'vue'
 import { docMeta } from '@/documents/meta'
+import { baseName } from '@/features/tree/model'
 import {
   activatePane,
   activateTab,
@@ -20,7 +21,7 @@ import {
   type SplitId,
   type TabId,
 } from './splitTree'
-import type { TabInfo, TabRecord } from './tabs'
+import { docIdOf, type ImageTab, type TabInfo, type TabRecord } from './tabs'
 
 /**
  * The live workbench: the current layout and what each tab shows. A module-level store, shared by
@@ -37,26 +38,40 @@ export function tabRecord(id: TabId): TabRecord | undefined {
   return records.get(id)
 }
 
-/** The name on a tab: its document's file name. */
+/** The name on a tab: its file's name. */
 export function tabTitle(id: TabId): string {
   const record = records.get(id)
-  return (record && docMeta(record.docId)?.name) ?? id
+  if (record === undefined) return id
+  if (record.kind === 'image') return baseName(record.path)
+  return docMeta(record.docId)?.name ?? id
 }
 
 export function tabInfo(id: TabId): TabInfo {
   const record = records.get(id)
-  const meta = record && docMeta(record.docId)
+  const docId = docIdOf(record)
+  const meta = docId === undefined ? undefined : docMeta(docId)
   return {
     id,
     kind: record?.kind ?? 'markdown',
-    title: meta?.name ?? id,
+    title: tabTitle(id),
     dirty: meta?.dirty ?? false,
   }
 }
 
 /** Every tab that shows this document. */
 export function tabsOfDocument(docId: number): TabId[] {
-  return [...records].filter(([, record]) => record.docId === docId).map(([id]) => id)
+  return [...records].filter(([, record]) => docIdOf(record) === docId).map(([id]) => id)
+}
+
+/** Every image tab, with its record. */
+export function imageTabs(): [TabId, ImageTab][] {
+  return [...records].filter((entry): entry is [TabId, ImageTab] => entry[1].kind === 'image')
+}
+
+/** Points an image tab at its file's new path after a rename or move in the tree. */
+export function setImagePath(id: TabId, path: string): void {
+  const record = records.get(id)
+  if (record?.kind === 'image') records.set(id, { ...record, path })
 }
 
 type ClosedListener = (tabId: TabId, record: TabRecord) => void

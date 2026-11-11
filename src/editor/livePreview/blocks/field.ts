@@ -53,7 +53,7 @@ export interface BlockInfo {
 function decorationFor(item: BlockItem): ReturnType<Decoration['range']> {
   if (item.kind === 'frontmatter') {
     return Decoration.replace({
-      widget: new FrontmatterWidget(item.keys, item.source),
+      widget: new FrontmatterWidget(item.source),
       block: true,
     }).range(item.from, item.to)
   }

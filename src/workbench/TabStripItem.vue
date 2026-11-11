@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { X } from '@lucide/vue'
+import HoverHint from '@/components/HoverHint.vue'
+import { SLOW_HINT_DELAY } from '@/components/hintDelay'
 import type { TabInfo } from './tabs'
 
 const {
@@ -27,9 +29,8 @@ function onPointerDown(event: PointerEvent): void {
   <div
     role="tab"
     :aria-selected="active"
-    :title="tab.title"
     :data-tab-id="tab.id"
-    class="group flex min-w-24 max-w-56 cursor-default items-center gap-2 border-t-2 pr-1.5 pl-3 text-chrome select-none"
+    class="group flex min-w-24 max-w-56 shrink-0 cursor-default items-center gap-2 border-t-2 pr-1.5 pl-3 text-chrome select-none"
     :class="[
       active
         ? [
@@ -44,30 +45,52 @@ function onPointerDown(event: PointerEvent): void {
     @dragstart.prevent
     @click="emit('select')"
   >
-    <span class="truncate">{{ tab.title }}</span>
-    <span
-      v-if="tab.dirty"
-      data-dirty
-      role="img"
-      aria-label="Unsaved changes"
-      class="ml-auto size-2 shrink-0 rounded-full bg-primary group-hover:hidden"
-    />
-    <button
-      type="button"
-      aria-label="Close tab"
-      tabindex="-1"
-      class="flex size-5 shrink-0 items-center justify-center rounded-sm opacity-0 group-hover:opacity-100 hover:bg-accent"
-      :class="[
-        { 'opacity-100': active && !tab.dirty },
-        tab.dirty ? 'hidden group-hover:flex' : 'ml-auto',
-      ]"
-      @pointerdown.stop
-      @click.stop="emit('close')"
+    <!-- The hint is on the label, not on the tab, so the tab's context menu never meets it (ISC-223). -->
+    <HoverHint
+      :text="tab.title"
+      side="bottom"
+      when-truncated
+      :delay-duration="SLOW_HINT_DELAY"
     >
-      <X
-        class="size-3.5"
-        :stroke-width="1.5"
+      <span
+        data-tab-label
+        class="truncate"
+      >
+        {{ tab.title }}
+      </span>
+    </HoverHint>
+    <!--
+      One 20 px slot holds both the unsaved dot and the close button, so the dot sits exactly where
+      the X appears and the label never changes width when the pointer enters the tab (ISC-250).
+    -->
+    <span
+      data-tab-slot
+      class="ml-auto grid size-5 shrink-0 place-items-center"
+    >
+      <span
+        v-if="tab.dirty"
+        data-dirty
+        role="img"
+        aria-label="Unsaved changes"
+        class="size-2 rounded-full bg-primary group-hover:hidden"
       />
-    </button>
+      <button
+        type="button"
+        aria-label="Close tab"
+        tabindex="-1"
+        class="flex size-5 items-center justify-center rounded-sm opacity-0 group-hover:opacity-100 hover:bg-accent"
+        :class="[
+          { 'opacity-100': active && !tab.dirty },
+          tab.dirty ? 'hidden group-hover:flex' : '',
+        ]"
+        @pointerdown.stop
+        @click.stop="emit('close')"
+      >
+        <X
+          class="size-3.5"
+          :stroke-width="1.5"
+        />
+      </button>
+    </span>
   </div>
 </template>

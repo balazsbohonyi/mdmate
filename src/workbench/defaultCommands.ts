@@ -8,28 +8,50 @@ import {
   STRIKETHROUGH,
   toggleInline,
 } from '@/editor/format'
+import { clearRecent } from '@/documents/recent'
 import {
+  canRevertActive,
   canSaveActive,
+  canSaveActiveAs,
+  closeAllTabs,
   followerOfTab,
+  hasOpenTabs,
   openFromDialog,
   requestCloseTab,
+  requestRevert,
   saveActiveDocument,
+  saveActiveDocumentAs,
 } from '@/documents/store'
+import { newUntitledTab } from '@/documents/untitled'
 import { canGoBack, canGoForward, goBack, goForward } from '@/documents/history'
+import { togglePalette } from '@/features/palette/state'
+import { focusTree, openFolderDialog } from '@/features/tree/store'
 import { getHost } from '@/platform'
 import { registerCommand, removeCommand } from './commands'
 import { findPane } from './splitTree'
 import { splitActivePane, workbenchLayout } from './store'
 import { toggleRaw } from './rawMode'
-import { toggleSidebar } from './sidebar'
+import { showSidebar, toggleSidebar } from './sidebar'
+import { activeTabId, findTabReferences, renameTab, tabMenuState, tabPath } from './tabMenu'
 
 export const COMMAND_IDS = {
+  newFile: 'file.new',
   open: 'file.open',
+  openFolder: 'file.openFolder',
+  quickOpen: 'file.quickOpen',
+  commandPalette: 'view.commandPalette',
   save: 'file.save',
+  saveAs: 'file.saveAs',
+  revert: 'file.revert',
+  rename: 'file.rename',
+  findReferences: 'file.findReferences',
+  clearRecent: 'file.clearRecent',
   splitRight: 'workbench.splitRight',
   splitDown: 'workbench.splitDown',
   closeTab: 'workbench.closeTab',
+  closeAll: 'workbench.closeAll',
   toggleSidebar: 'view.toggleSidebar',
+  focusSidebar: 'view.focusSidebar',
   toggleRawSource: 'view.toggleRawSource',
   back: 'navigate.back',
   forward: 'navigate.forward',
@@ -116,10 +138,38 @@ export function registerDefaultCommands(): () => void {
   for (const id of Object.values(COMMAND_IDS)) removeCommand(id)
   const disposers = [
     registerCommand({
+      id: COMMAND_IDS.newFile,
+      title: 'New File',
+      keybinding: 'Mod+N',
+      run: newUntitledTab,
+    }),
+    registerCommand({
       id: COMMAND_IDS.open,
       title: 'Open...',
       keybinding: 'Mod+O',
       run: openFromDialog,
+    }),
+    registerCommand({
+      id: COMMAND_IDS.openFolder,
+      title: 'Open Folder...',
+      keybinding: 'Mod+Shift+O',
+      run: openFolderDialog,
+    }),
+    registerCommand({
+      id: COMMAND_IDS.quickOpen,
+      title: 'Go to File...',
+      keybinding: 'Mod+P',
+      run: () => {
+        togglePalette('files')
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.commandPalette,
+      title: 'Show Command Palette...',
+      keybinding: 'Mod+Shift+P',
+      run: () => {
+        togglePalette('commands')
+      },
     }),
     registerCommand({
       id: COMMAND_IDS.save,
@@ -128,6 +178,52 @@ export function registerDefaultCommands(): () => void {
       // Disabled when there is nothing to write, but the key is still taken from the page.
       enabled: canSaveActive,
       run: saveActiveDocument,
+    }),
+    registerCommand({
+      id: COMMAND_IDS.saveAs,
+      title: 'Save As...',
+      keybinding: 'Mod+Shift+S',
+      enabled: canSaveActiveAs,
+      run: saveActiveDocumentAs,
+    }),
+    registerCommand({
+      id: COMMAND_IDS.revert,
+      title: 'Revert File',
+      enabled: canRevertActive,
+      run: requestRevert,
+    }),
+    registerCommand({
+      id: COMMAND_IDS.rename,
+      title: 'Rename...',
+      keybinding: 'F2',
+      // A new file has no name to change, so naming it is Save As. A file on disk is renamed in its
+      // tree row, with the links that point at it, so it has to be in an open folder.
+      enabled: () => {
+        const tab = activeTabId()
+        return tab !== null && tabMenuState(tab).canRename
+      },
+      run: () => {
+        const tab = activeTabId()
+        return tab === null ? undefined : renameTab(tab)
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.findReferences,
+      title: 'Find File References',
+      keybinding: 'Shift+F12',
+      enabled: () => {
+        const tab = activeTabId()
+        return tab !== null && tabPath(tab) !== null
+      },
+      run: () => {
+        const tab = activeTabId()
+        return tab === null ? undefined : findTabReferences(tab)
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.clearRecent,
+      title: 'Clear Recent',
+      run: clearRecent,
     }),
     registerCommand({
       id: COMMAND_IDS.splitRight,
@@ -156,10 +252,29 @@ export function registerDefaultCommands(): () => void {
       },
     }),
     registerCommand({
+      id: COMMAND_IDS.closeAll,
+      title: 'Close All',
+      keybinding: 'Mod+Shift+W',
+      enabled: hasOpenTabs,
+      run: async () => {
+        await closeAllTabs()
+      },
+    }),
+    registerCommand({
       id: COMMAND_IDS.toggleSidebar,
       title: 'Toggle Sidebar',
       keybinding: 'Mod+Shift+B',
       run: toggleSidebar,
+    }),
+    registerCommand({
+      id: COMMAND_IDS.focusSidebar,
+      title: 'Focus Sidebar',
+      keybinding: 'Mod+Shift+E',
+      // The tree is in the Folders panel; show that panel, and the sidebar if it was hidden.
+      run: () => {
+        showSidebar('folders')
+        focusTree()
+      },
     }),
     registerCommand({
       id: COMMAND_IDS.toggleRawSource,

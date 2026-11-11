@@ -1,21 +1,37 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { requestCloseTab } from '@/documents/store'
+import { newUntitledTab } from '@/documents/untitled'
 import EditorHost from './EditorHost.vue'
+import { focusActiveEditor } from './focus'
+import ImageView from './ImageView.vue'
 import PaneNotice from './PaneNotice.vue'
 import type { PaneNode } from './splitTree'
 import { isRaw } from './rawMode'
 import { focusPane, selectTab, tabInfo, tabRecord, tabTitle } from './store'
+import { docIdOf } from './tabs'
 import { beginTabDrag, tabDrag } from './tabDrag'
 import TabStrip from './TabStrip.vue'
 
 const { pane, active } = defineProps<{ pane: PaneNode; active: boolean }>()
 
 const tabs = computed(() => pane.tabs.map(tabInfo))
-/** The document the pane's active tab shows, if it has a tab. */
-const activeDocId = computed(() =>
-  pane.activeTab === null ? null : (tabRecord(pane.activeTab)?.docId ?? null),
+const activeRecord = computed(() =>
+  pane.activeTab === null ? undefined : tabRecord(pane.activeTab),
 )
+/** The document the pane's active tab shows, if it shows one. */
+const activeDocId = computed(() => docIdOf(activeRecord.value) ?? null)
+/** The image the pane's active tab shows, if it shows one. */
+const activeImage = computed(() => {
+  const record = activeRecord.value
+  return record?.kind === 'image' ? record : null
+})
+
+/** A click on a tab puts the caret in its editor, also when that tab was already the one shown (ISC-255). */
+function onSelect(id: string): void {
+  selectTab(id)
+  focusActiveEditor()
+}
 
 function startDrag(id: string, event: PointerEvent): void {
   beginTabDrag(event, {
@@ -39,9 +55,10 @@ function startDrag(id: string, event: PointerEvent): void {
       :active-id="pane.activeTab"
       :focused="active"
       :dragging-id="tabDrag?.tabId ?? null"
-      @select="selectTab"
+      @select="onSelect"
       @close="requestCloseTab"
       @press="startDrag"
+      @new="void newUntitledTab(pane.id)"
     />
     <div
       data-pane-body
@@ -60,6 +77,13 @@ function startDrag(id: string, event: PointerEvent): void {
           />
         </div>
       </template>
+      <ImageView
+        v-else-if="activeImage !== null"
+        :key="pane.activeTab ?? ''"
+        :tab-id="pane.activeTab ?? ''"
+        :path="activeImage.path"
+        :size="activeImage.size"
+      />
       <div
         v-else
         class="flex flex-1 items-center justify-center text-muted-foreground"

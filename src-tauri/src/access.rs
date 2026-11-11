@@ -69,14 +69,8 @@ impl Access {
         Ok(resolved)
     }
 
-    /// Lets the page read and save anything inside this folder, however deep.
-    #[cfg_attr(
-        not(feature = "perf"),
-        allow(
-            dead_code,
-            reason = "workspace folders arrive in Phase 6; today only perf builds open one"
-        )
-    )]
+    /// Lets the page read and save anything inside this folder, however deep. Roots keep the
+    /// order they were first granted in, which is the order the tree shows them.
     pub(crate) fn grant_root(&mut self, path: &Path) -> Result<Resolved, AppError> {
         let resolved = self.resolve(path)?;
         if !resolved.path.is_dir() {
@@ -88,13 +82,55 @@ impl Access {
         Ok(resolved)
     }
 
-    /// Stops allowing a folder, for when a workspace closes.
-    // Dead until Phase 6: a workspace can only close once something can open one.
-    #[allow(dead_code, reason = "see the comment above")]
-    pub(crate) fn revoke_root(&mut self, path: &Path) {
-        if let Ok(resolved) = self.resolve(path) {
-            self.roots.retain(|root| root.key != resolved.key);
+    /// Stops allowing a folder, for when the user removes it from the workspace. Files granted
+    /// one by one (the user opened them) stay readable. Returns whether the folder was a root.
+    pub(crate) fn revoke_root(&mut self, path: &Path) -> bool {
+        let before = self.roots.len();
+        match self.resolve(path) {
+            Ok(resolved) => self.roots.retain(|root| root.key != resolved.key),
+            // A folder deleted from disk can no longer be resolved, but it must still be removable
+            // from the workspace: compare the text people read instead.
+            Err(_) => {
+                let ignore_case = self.ignore_case;
+                let fold = |text: String| {
+                    if ignore_case {
+                        text.to_lowercase()
+                    } else {
+                        text
+                    }
+                };
+                let wanted = fold(display_path(path));
+                self.roots
+                    .retain(|root| fold(display_path(&root.path)) != wanted);
+            }
         }
+        self.roots.len() != before
+    }
+
+    /// The workspace roots, in the order they were granted.
+    pub(crate) fn roots(&self) -> &[Resolved] {
+        &self.roots
+    }
+
+    /// Like [`Access::check`], but only for a path inside a workspace root: the file operations of
+    /// the sidebar never reach a file the user opened one by one.
+    pub(crate) fn check_in_root(&self, path: &Path) -> Result<Resolved, AppError> {
+        let resolved = self.resolve(path)?;
+        if self
+            .roots
+            .iter()
+            .any(|root| is_inside(&resolved.key, &root.key))
+        {
+            Ok(resolved)
+        } else {
+            Err(AppError::NotAllowed(display_path(&resolved.path)))
+        }
+    }
+
+    /// True when the path is a workspace root itself, which the sidebar removes rather than
+    /// renames, moves or deletes.
+    pub(crate) fn is_root(&self, resolved: &Resolved) -> bool {
+        self.roots.iter().any(|root| root.key == resolved.key)
     }
 
     /// Resolves a path the page asked for, or refuses it when it was never granted.
@@ -129,7 +165,7 @@ pub(crate) fn asset_folder(document: &Resolved) -> Option<PathBuf> {
 
 /// True when `key` is `root` itself or sits below it. Whole path parts only, so `/a/bc` is not
 /// inside `/a/b`.
-fn is_inside(key: &str, root: &str) -> bool {
+pub(crate) fn is_inside(key: &str, root: &str) -> bool {
     match key.strip_prefix(root) {
         Some("") => true,
         Some(rest) => root.ends_with(MAIN_SEPARATOR) || rest.starts_with(MAIN_SEPARATOR),

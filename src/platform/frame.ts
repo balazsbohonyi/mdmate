@@ -1,5 +1,6 @@
 import { isEndingCode, type EndingCode, type Endings } from '@/lib/endings'
 import type { OpenedFile, ReadOnlyReason } from './host'
+import { parseFileKind } from './workspace'
 
 /**
  * The frame that carries a document between Rust and the page, in both directions, as raw bytes:
@@ -131,6 +132,7 @@ export function openedFromFrame(frame: Frame): OpenedFile {
     readOnly: readOnly as ReadOnlyReason | null, // checked against the two names just above
     size: field<number>(header, 'size', 'number'),
     hash: field<string>(header, 'hash', 'string'),
+    kind: parseFileKind(header.kind),
     text: frame.text,
     endings: frame.endings,
   }

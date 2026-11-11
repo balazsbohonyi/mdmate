@@ -276,7 +276,7 @@ pub(crate) fn classify(href: &str) -> Result<Lexical, Refusal> {
 
 /// The scheme at the start of `text`, if it has one: a letter, then letters, digits, `+`, `-` or
 /// `.`, then a colon.
-fn scheme_of(text: &str) -> Option<&str> {
+pub(crate) fn scheme_of(text: &str) -> Option<&str> {
     let end = text.find(':')?;
     let scheme = &text[..end];
     let mut chars = scheme.chars();
@@ -389,11 +389,16 @@ fn check_name(name: &str) -> Result<(), Refusal> {
     if name.contains(['<', '>', '"', '|', '?', '*']) || name.ends_with(['.', ' ']) {
         return Err(Refusal::BadName);
     }
-    let stem = name.split('.').next().unwrap_or(name).trim_end_matches(' ');
-    if DEVICES.contains(&stem.to_lowercase().as_str()) {
+    if is_device_name(name) {
         return Err(Refusal::BadName);
     }
     Ok(())
+}
+
+/// True for a name Windows reads as a device (`con`, `nul.txt`, `COM1`), whatever its extension.
+pub(crate) fn is_device_name(name: &str) -> bool {
+    let stem = name.split('.').next().unwrap_or(name).trim_end_matches(' ');
+    DEVICES.contains(&stem.to_lowercase().as_str())
 }
 
 fn extension_of(name: &str) -> Option<String> {
@@ -422,7 +427,7 @@ pub(crate) fn kind_of(path: &Path) -> Option<FileKind> {
 
 /// Decodes `%XX` escapes once. A `%` with no two hex digits after it stays as it is; bytes that
 /// are not UTF-8 are refused.
-fn decode(text: &str) -> Result<String, Refusal> {
+pub(crate) fn decode(text: &str) -> Result<String, Refusal> {
     if !text.contains('%') {
         return Ok(text.to_owned());
     }
