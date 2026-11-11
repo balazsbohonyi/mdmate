@@ -59,29 +59,38 @@ function onPointerDown(event: PointerEvent): void {
         {{ tab.title }}
       </span>
     </HoverHint>
+    <!--
+      One 20 px slot holds both the unsaved dot and the close button, so the dot sits exactly where
+      the X appears and the label never changes width when the pointer enters the tab (ISC-250).
+    -->
     <span
-      v-if="tab.dirty"
-      data-dirty
-      role="img"
-      aria-label="Unsaved changes"
-      class="ml-auto size-2 shrink-0 rounded-full bg-primary group-hover:hidden"
-    />
-    <button
-      type="button"
-      aria-label="Close tab"
-      tabindex="-1"
-      class="flex size-5 shrink-0 items-center justify-center rounded-sm opacity-0 group-hover:opacity-100 hover:bg-accent"
-      :class="[
-        { 'opacity-100': active && !tab.dirty },
-        tab.dirty ? 'hidden group-hover:flex' : 'ml-auto',
-      ]"
-      @pointerdown.stop
-      @click.stop="emit('close')"
+      data-tab-slot
+      class="ml-auto grid size-5 shrink-0 place-items-center"
     >
-      <X
-        class="size-3.5"
-        :stroke-width="1.5"
+      <span
+        v-if="tab.dirty"
+        data-dirty
+        role="img"
+        aria-label="Unsaved changes"
+        class="size-2 rounded-full bg-primary group-hover:hidden"
       />
-    </button>
+      <button
+        type="button"
+        aria-label="Close tab"
+        tabindex="-1"
+        class="flex size-5 items-center justify-center rounded-sm opacity-0 group-hover:opacity-100 hover:bg-accent"
+        :class="[
+          { 'opacity-100': active && !tab.dirty },
+          tab.dirty ? 'hidden group-hover:flex' : '',
+        ]"
+        @pointerdown.stop
+        @click.stop="emit('close')"
+      >
+        <X
+          class="size-3.5"
+          :stroke-width="1.5"
+        />
+      </button>
+    </span>
   </div>
 </template>
