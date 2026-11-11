@@ -324,3 +324,104 @@ describe('following links through the store', () => {
     view.destroy()
   })
 })
+
+describe('the pointer cursor over a link while Ctrl is held (ISC-239)', () => {
+  const DOC = 'Plain words and [a link](b.md) here.\n\n[gone](gone.md) is missing.'
+  const LINK_AT = DOC.indexOf('[a link]') + 3
+  const PLAIN_AT = 2
+
+  function mountedView() {
+    const parent = document.createElement('div')
+    document.body.append(parent)
+    const view = new EditorView({ state: createState(DOC, [linkNavigation(() => undefined)]), parent })
+    ensureSyntaxTree(view.state, view.state.doc.length, 5000)
+    return view
+  }
+
+  /** A mouse move over the first line, with the position under the pointer stubbed (no layout in jsdom). */
+  function move(view: EditorView, pos: number, init: MouseEventInit, on?: Element): void {
+    view.posAtCoords = () => pos
+    const line = on ?? view.contentDOM.querySelector('.cm-line')
+    line?.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 30, clientY: 10, ...init }))
+  }
+
+  const pointer = (view: EditorView): boolean => view.dom.classList.contains('cm-follow-link')
+  afterEach(() => {
+    document.body.replaceChildren()
+  })
+
+  it('turns on over a link with Ctrl (or Cmd) held, and never without', () => {
+    const view = mountedView()
+    move(view, LINK_AT, {})
+    expect(pointer(view)).toBe(false)
+    move(view, LINK_AT, { ctrlKey: true })
+    expect(pointer(view)).toBe(true)
+    move(view, LINK_AT, { metaKey: true })
+    expect(pointer(view)).toBe(true)
+    move(view, LINK_AT, { ctrlKey: true, shiftKey: true })
+    expect(pointer(view)).toBe(false)
+    move(view, LINK_AT, { ctrlKey: true, altKey: true })
+    expect(pointer(view)).toBe(false)
+    view.destroy()
+  })
+
+  it('stays off over text that is not a link', () => {
+    const view = mountedView()
+    move(view, PLAIN_AT, { ctrlKey: true })
+    expect(pointer(view)).toBe(false)
+    move(view, LINK_AT, { ctrlKey: true })
+    expect(pointer(view)).toBe(true)
+    move(view, PLAIN_AT, { ctrlKey: true })
+    expect(pointer(view)).toBe(false)
+    view.destroy()
+  })
+
+  it('turns off when Ctrl is let go, when the pointer leaves and when the window loses focus', () => {
+    const view = mountedView()
+    move(view, LINK_AT, { ctrlKey: true })
+    expect(pointer(view)).toBe(true)
+    window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Control', ctrlKey: false }))
+    expect(pointer(view)).toBe(false)
+    move(view, LINK_AT, { ctrlKey: true })
+    view.dom.dispatchEvent(new MouseEvent('mouseleave'))
+    expect(pointer(view)).toBe(false)
+    move(view, LINK_AT, { ctrlKey: true })
+    window.dispatchEvent(new Event('blur'))
+    expect(pointer(view)).toBe(false)
+    view.destroy()
+  })
+
+  it('turns on when Ctrl goes down with the pointer already resting on the link', () => {
+    const view = mountedView()
+    const line = view.contentDOM.querySelector('.cm-line')
+    move(view, LINK_AT, {})
+    const original = document.elementFromPoint
+    document.elementFromPoint = () => line ?? null
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Control', ctrlKey: true }))
+    document.elementFromPoint = original
+    expect(pointer(view)).toBe(true)
+    view.destroy()
+  })
+
+  it('stays off over a link marked missing, and over anything that is not a line of text', () => {
+    const view = mountedView()
+    const missing = document.createElement('span')
+    missing.className = 'cm-md-link-broken'
+    view.contentDOM.querySelector('.cm-line')?.append(missing)
+    move(view, LINK_AT, { ctrlKey: true }, missing)
+    expect(pointer(view)).toBe(false)
+    const widget = document.createElement('div')
+    view.contentDOM.append(widget)
+    move(view, LINK_AT, { ctrlKey: true }, widget)
+    expect(pointer(view)).toBe(false)
+    view.destroy()
+  })
+
+  it('removes the class with the view', () => {
+    const view = mountedView()
+    move(view, LINK_AT, { ctrlKey: true })
+    expect(pointer(view)).toBe(true)
+    view.destroy()
+    expect(pointer(view)).toBe(false)
+  })
+})

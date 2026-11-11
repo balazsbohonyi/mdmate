@@ -284,3 +284,5 @@ The owner saw F2 beside Rename in the tab menu but not in the tree menu, while b
 ## UAT findings, round 2 (ISC-236 onward)
 
 **Frontmatter pill (ISC-238).** The pill shows the word "Frontmatter" and nothing else. The key-listing code was deleted, not hidden: `frontmatterKeys`, the `keys` field on the scan item and the widget, and the style rule. The keys are still one click away, in the YAML the pill gives way to.
+
+**Pointer cursor on Ctrl+hover (ISC-239).** The editor carries a class while Ctrl (Cmd on macOS) is held over a link that Ctrl+click would follow, and a rule in the links extension turns the cursor into a pointer then. It lives in `editor/links.ts` next to the click, so both ask `linkAt`. Excluded on purpose: links the check marked missing and links drawn inside table cells, because Ctrl+click does not follow those. Alt or Shift held cancels it, the same as for the click.

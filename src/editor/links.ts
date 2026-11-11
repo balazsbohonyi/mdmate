@@ -1,6 +1,6 @@
 import { syntaxTree } from '@codemirror/language'
 import type { EditorState, Extension } from '@codemirror/state'
-import { EditorView } from '@codemirror/view'
+import { EditorView, ViewPlugin } from '@codemirror/view'
 
 /** A node of the syntax tree, typed without a direct `@lezer/common` dependency (as in scan.ts). */
 type SyntaxNode = ReturnType<ReturnType<typeof syntaxTree>['resolve']>
@@ -121,22 +121,133 @@ export function isFollowGesture(event: MouseEvent): boolean {
   return event.button === 0 && (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey
 }
 
+/** True while the keys of the follow gesture are held: Ctrl (Cmd on macOS), and not Alt or Shift. */
+export function followKeysHeld(event: {
+  readonly ctrlKey: boolean
+  readonly metaKey: boolean
+  readonly altKey: boolean
+  readonly shiftKey: boolean
+}): boolean {
+  return (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey
+}
+
+/** The class the editor carries while a Ctrl+click would follow the link under the pointer. */
+export const FOLLOW_CLASS = 'cm-follow-link'
+
+/**
+ * Whether the element under the pointer is text a Ctrl+click follows: a character of a line, not a
+ * block widget (a table cell shows links of its own that Ctrl+click does not follow), and not a
+ * link the check found missing (the click then only says so).
+ */
+export function followableElement(target: Element | null): boolean {
+  if (target === null) return false
+  return target.closest('.cm-line') !== null && target.closest('.cm-md-link-broken') === null
+}
+
+/**
+ * Shows the pointer cursor over a link while Ctrl (Cmd) is held, the way the click will behave: the
+ * same `linkAt` that Ctrl+click asks decides. The class is on only while all three are true: the
+ * keys are held, the pointer is over the text, and a link is under it. It also follows the keys
+ * when the pointer stays still, since the keyboard window events do not carry a position.
+ */
+function followCursor(): Extension {
+  return [
+    EditorView.baseTheme({
+      [`&.${FOLLOW_CLASS} .cm-content, &.${FOLLOW_CLASS} .cm-line`]: { cursor: 'pointer' },
+    }),
+    ViewPlugin.fromClass(
+      class {
+        readonly #view: EditorView
+        #held = false
+        #x = -1
+        #y = -1
+        #target: Element | null = null
+        #on = false
+
+        constructor(view: EditorView) {
+          this.#view = view
+          view.dom.addEventListener('mousemove', this.#move)
+          view.dom.addEventListener('mouseleave', this.#leave)
+          window.addEventListener('keydown', this.#keys)
+          window.addEventListener('keyup', this.#keys)
+          window.addEventListener('blur', this.#blur)
+        }
+
+        destroy(): void {
+          this.#view.dom.removeEventListener('mousemove', this.#move)
+          this.#view.dom.removeEventListener('mouseleave', this.#leave)
+          window.removeEventListener('keydown', this.#keys)
+          window.removeEventListener('keyup', this.#keys)
+          window.removeEventListener('blur', this.#blur)
+          this.#set(false)
+        }
+
+        readonly #move = (event: MouseEvent): void => {
+          this.#held = followKeysHeld(event)
+          this.#x = event.clientX
+          this.#y = event.clientY
+          this.#target = event.target instanceof Element ? event.target : null
+          this.#refresh()
+        }
+
+        readonly #leave = (): void => {
+          this.#x = -1
+          this.#target = null
+          this.#refresh()
+        }
+
+        readonly #keys = (event: KeyboardEvent): void => {
+          this.#held = followKeysHeld(event)
+          // No mouse event came with this key, so ask what is under the last known position.
+          if (this.#x >= 0 && typeof document.elementFromPoint === 'function')
+            this.#target = document.elementFromPoint(this.#x, this.#y)
+          this.#refresh()
+        }
+
+        readonly #blur = (): void => {
+          this.#held = false
+          this.#refresh()
+        }
+
+        #refresh(): void {
+          let on = false
+          if (this.#held && this.#x >= 0 && followableElement(this.#target)) {
+            const pos = this.#view.posAtCoords({ x: this.#x, y: this.#y })
+            on = pos !== null && linkAt(this.#view.state, pos) !== null
+          }
+          this.#set(on)
+        }
+
+        #set(on: boolean): void {
+          if (on === this.#on) return
+          this.#on = on
+          this.#view.dom.classList.toggle(FOLLOW_CLASS, on)
+        }
+      },
+    ),
+  ]
+}
+
 /**
  * Follows a link on Ctrl+click: calls `follow` with the target as written and keeps the click
  * from moving the caret. A plain click is left to CodeMirror, which only places the caret. What a
- * target may do is decided by the link guard in Rust, never here.
+ * target may do is decided by the link guard in Rust, never here. While Ctrl is held over a link
+ * the cursor is a pointer, so the click is no surprise.
  */
 export function linkNavigation(follow: (hit: LinkHit) => void): Extension {
-  return EditorView.domEventHandlers({
-    mousedown(event, view) {
-      if (!isFollowGesture(event)) return false
-      const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
-      if (pos === null) return false
-      const hit = linkAt(view.state, pos)
-      if (hit === null) return false
-      event.preventDefault()
-      follow(hit)
-      return true
-    },
-  })
+  return [
+    EditorView.domEventHandlers({
+      mousedown(event, view) {
+        if (!isFollowGesture(event)) return false
+        const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
+        if (pos === null) return false
+        const hit = linkAt(view.state, pos)
+        if (hit === null) return false
+        event.preventDefault()
+        follow(hit)
+        return true
+      },
+    }),
+    followCursor(),
+  ]
 }
