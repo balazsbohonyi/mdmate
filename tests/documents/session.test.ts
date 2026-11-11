@@ -25,6 +25,12 @@ import { CRLF, LF } from '@/lib/endings'
 import { setHost } from '@/platform'
 import { createMockHost, type MockHost } from '@/platform/mock'
 import { joinRaw } from '@/platform/mockFiles'
+import {
+  currentWindowWidth,
+  resetSidebar,
+  setSidebarWidth,
+  sidebarWidth,
+} from '@/workbench/sidebar'
 import { allTabs } from '@/workbench/splitTree'
 import {
   moveTabTo,
@@ -92,10 +98,12 @@ beforeEach(() => {
   resetDocuments()
   resetUntitled()
   resetSession()
+  resetSidebar()
 })
 
 afterEach(() => {
   vi.useRealTimers()
+  resetSidebar()
   resetSession()
   resetWorkbench()
   resetDocuments()
@@ -693,5 +701,59 @@ describe('untitled tabs (P6-T8)', () => {
     await restoreSession()
     const [tab] = allTabs(workbenchLayout.value)
     expect(textOf(tab!)).toBe('typed just now')
+  })
+})
+
+describe('the sidebar width (ISC-231)', () => {
+  it('comes back after a restart', async () => {
+    await openPath(A)
+    setSidebarWidth(333, 1200)
+    await flushSession()
+    expect(JSON.parse(host.session ?? '{}')).toMatchObject({ workspace: { sidebarWidth: 333 } })
+    newRun(host)
+    resetSidebar()
+    await restoreSession()
+    expect(sidebarWidth.value).toBe(333)
+  })
+
+  it('is left out while it is the default, and a session from before has none', async () => {
+    await openPath(A)
+    await flushSession()
+    const written = JSON.parse(host.session ?? '{}') as { workspace: object }
+    expect(written.workspace).not.toHaveProperty('sidebarWidth')
+    newRun(host)
+    resetSidebar()
+    await restoreSession()
+    expect(sidebarWidth.value).toBeNull()
+  })
+
+  it('does not trust a width that is not a number, and holds a huge one to half the window', async () => {
+    await openPath(A)
+    await flushSession()
+    const snapshot = JSON.parse(host.session ?? '{}') as { workspace: Record<string, unknown> }
+    snapshot.workspace.sidebarWidth = 'wide'
+    host.session = JSON.stringify(snapshot)
+    newRun(host)
+    resetSidebar()
+    await restoreSession()
+    expect(sidebarWidth.value).toBeNull()
+
+    snapshot.workspace.sidebarWidth = 900000
+    host.session = JSON.stringify(snapshot)
+    newRun(host)
+    resetSidebar()
+    await restoreSession()
+    expect(sidebarWidth.value).toBe(Math.floor(currentWindowWidth() / 2))
+  })
+
+  it('is written when it changes, with nothing else changing', async () => {
+    vi.useFakeTimers()
+    await startJournal({ intervalMs: 1000 })
+    await vi.advanceTimersByTimeAsync(1100)
+    const before = journalStats.writes
+    setSidebarWidth(280, 1200)
+    await vi.advanceTimersByTimeAsync(1100)
+    expect(journalStats.writes).toBe(before + 1)
+    expect(JSON.parse(host.session ?? '{}')).toMatchObject({ workspace: { sidebarWidth: 280 } })
   })
 })

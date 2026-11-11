@@ -2,6 +2,7 @@ import { watch } from 'vue'
 import type { Text } from '@codemirror/state'
 import { endingsOf } from '@/editor/lineEndings'
 import { expandedFolderPaths, restoreWorkspace } from '@/features/tree/store'
+import { currentWindowWidth, setSidebarWidth, sidebarWidth } from '@/workbench/sidebar'
 import { endingsEqual, joinWithEndings, readEndings, type Endings } from '@/lib/endings'
 import { getHost, type ImageInfo, type OpenedFile } from '@/platform'
 import {
@@ -126,7 +127,10 @@ export function buildSnapshot(): string {
     .map(bufferOf)
   // Which folders are open is the page's to remember. Which folders are roots is not: Rust keeps
   // that list itself, so a snapshot can never add one.
-  const workspace = JSON.stringify({ expanded: expandedFolderPaths.value })
+  const workspace = JSON.stringify({
+    expanded: expandedFolderPaths.value,
+    ...(sidebarWidth.value === null ? {} : { sidebarWidth: sidebarWidth.value }),
+  })
   return `{"version":${String(VERSION)},"layout":${JSON.stringify(serialize(layout))},"tabs":${JSON.stringify(tabs)},"buffers":[${buffers.join(',')}],"workspace":${workspace}}`
 }
 
@@ -151,6 +155,7 @@ let wanted = false
 let lastWritten: string | null = null
 let stopLayoutWatch: (() => void) | undefined
 let stopTreeWatch: (() => void) | undefined
+let stopSidebarWatch: (() => void) | undefined
 
 async function writeOnce(): Promise<void> {
   const began = performance.now()
@@ -231,6 +236,7 @@ export async function startJournal(options: JournalOptions = {}): Promise<void> 
   onDocumentsTouched(touch)
   stopLayoutWatch = watch(workbenchLayout, touch)
   stopTreeWatch = watch(expandedFolderPaths, touch)
+  stopSidebarWatch = watch(sidebarWidth, touch)
   try {
     const host = await getHost()
     await host.watchClose(() => {
@@ -254,6 +260,8 @@ export function stopJournal(): void {
   stopLayoutWatch = undefined
   stopTreeWatch?.()
   stopTreeWatch = undefined
+  stopSidebarWatch?.()
+  stopSidebarWatch = undefined
 }
 
 /** True when the session on disk is the one the workbench would write right now. */
@@ -293,6 +301,8 @@ interface Snapshot {
   readonly buffers: readonly RawBuffer[]
   /** The folders that were open in the sidebar. A snapshot from before Phase 6 has none. */
   readonly expanded: readonly string[]
+  /** How wide the sidebar was dragged, in px, or null for the default. */
+  readonly sidebarWidth: number | null
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -353,7 +363,13 @@ function readSnapshot(text: string): Snapshot | null {
   for (const path of Array.isArray(workspace.expanded) ? (workspace.expanded as unknown[]) : []) {
     if (typeof path === 'string') expanded.push(path)
   }
-  return { layout: value.layout, tabs, buffers, expanded }
+  return {
+    layout: value.layout,
+    tabs,
+    buffers,
+    expanded,
+    sidebarWidth: readNumber(workspace.sidebarWidth),
+  }
 }
 
 function countBreaks(text: string): number {
@@ -390,6 +406,7 @@ export async function restoreSession(): Promise<RestoreReport | null> {
   const snapshot = text === null ? null : readSnapshot(text)
   // The roots come from Rust's own list, so they come back even when the snapshot is damaged or
   // missing. A failure here costs the sidebar, never the tabs.
+  setSidebarWidth(snapshot?.sidebarWidth ?? null, currentWindowWidth())
   await restoreWorkspace(snapshot?.expanded ?? []).catch((error: unknown) => {
     problem.value = `Could not restore the workspace: ${error instanceof Error ? error.message : JSON.stringify(error)}`
   })
