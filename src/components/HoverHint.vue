@@ -53,7 +53,7 @@ function onOpenChange(next: boolean): void {
     <TooltipContent
       data-hover-hint
       :side="side"
-      class="break-all whitespace-pre-line"
+      class="break-words whitespace-pre-line"
     >
       {{ text }}
     </TooltipContent>

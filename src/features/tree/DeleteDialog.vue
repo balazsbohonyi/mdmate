@@ -69,7 +69,7 @@ function onOpenChange(open: boolean): void {
       class="sm:max-w-sm"
     >
       <AlertDialogHeader>
-        <AlertDialogTitle class="break-all">
+        <AlertDialogTitle class="break-words">
           Delete {{ deletePrompt?.folder ? 'the folder ' : '' }}"{{ deletePrompt?.name }}"?
         </AlertDialogTitle>
         <AlertDialogDescription as-child>
