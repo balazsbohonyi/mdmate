@@ -133,3 +133,13 @@
   @apply border-t border-l border-foreground/10;
   top: -5px;
 }
+
+/* The cursor while a tree row is dragged (ISC-240): everything under the pointer shows it. */
+html[data-tree-drag='move'],
+html[data-tree-drag='move'] * {
+  cursor: grabbing !important;
+}
+html[data-tree-drag='blocked'],
+html[data-tree-drag='blocked'] * {
+  cursor: not-allowed !important;
+}

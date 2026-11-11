@@ -21,6 +21,7 @@ import {
   copyPath,
   copyRelativePath,
 } from '@/workbench/tabMenu'
+import { setDragCursor } from './dragCursor'
 import NameInput from './NameInput.vue'
 import { FALLBACK_VIEWPORT_HEIGHT, ROW_HEIGHT, visibleWindow, type TreeRow } from './model'
 import {
@@ -243,6 +244,7 @@ function onPointerMove(event: PointerEvent): void {
   }
   const folder = folderAt(event.clientX, event.clientY)
   dropFolder.value = folder !== null && moveProblem(press.path, folder) === null ? folder : null
+  setDragCursor(dropFolder.value === null ? 'blocked' : 'move')
 }
 
 function onPointerUp(): void {
@@ -268,6 +270,7 @@ function stopDrag(): void {
   press = undefined
   draggedPath.value = null
   dropFolder.value = null
+  setDragCursor(null)
   window.removeEventListener('pointermove', onPointerMove)
   window.removeEventListener('pointerup', onPointerUp)
   window.removeEventListener('keydown', onDragKey, true)
