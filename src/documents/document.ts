@@ -76,6 +76,8 @@ export interface DocumentOptions {
   readonly extensions?: Extension
   /** Turns the path of a file on disk into an address the webview can load, for images. */
   readonly assetUrl?: (path: string) => string
+  /** The workspace folder that holds a file, or null: how far up an image path may climb. */
+  readonly imageBoundary?: (path: string) => string | null
   /** Called whenever something a session snapshot holds may have changed: text, caret, saved state. */
   readonly touched?: () => void
   /** Called on Ctrl+click on a link in a tab of this document, with the target as written. */
@@ -219,6 +221,7 @@ export class Document implements FollowerHost {
         const cut = Math.max(this.path.lastIndexOf('/'), this.path.lastIndexOf('\\'))
         return cut <= 0 ? null : this.path.slice(0, cut)
       },
+      boundary: () => (this.untitled ? null : (this.#options.imageBoundary?.(this.path) ?? null)),
       url,
     })
   }

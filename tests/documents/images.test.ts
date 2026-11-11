@@ -1,11 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import { Document } from '@/documents/document'
+import { documentOfTab, openPath, resetDocuments } from '@/documents/store'
+import { resetTree, restoreWorkspace } from '@/features/tree/store'
+import { setHost } from '@/platform'
+import { resetWorkbench } from '@/workbench/store'
 import { imageContext } from '@/editor/livePreview/blocks'
 import { uniformEndings } from '@/lib/endings'
 import type { OpenedFile } from '@/platform'
 import { createMockHost } from '@/platform/mock'
 
-function open(path: string, assetUrl?: (path: string) => string): Document {
+function open(
+  path: string,
+  assetUrl?: (path: string) => string,
+  imageBoundary?: (path: string) => string | null,
+): Document {
   const text = '![a](img/a.png)\n'
   const opened: OpenedFile = {
     id: 1,
@@ -20,7 +28,10 @@ function open(path: string, assetUrl?: (path: string) => string): Document {
     text,
     endings: uniformEndings(),
   }
-  return new Document(opened, () => undefined, assetUrl === undefined ? {} : { assetUrl })
+  return new Document(opened, () => undefined, {
+    ...(assetUrl === undefined ? {} : { assetUrl }),
+    ...(imageBoundary === undefined ? {} : { imageBoundary }),
+  })
 }
 
 describe('the image context of a document (ISC-66)', () => {
@@ -61,5 +72,44 @@ describe('the mock host`s asset addresses', () => {
   it('gives a missing file, or one that is not an svg, an address that cannot load', () => {
     expect(host.assetUrl('/notes/none.svg').startsWith('mock-asset-missing:')).toBe(true)
     expect(host.assetUrl('/notes/pic.png').startsWith('mock-asset-missing:')).toBe(true)
+  })
+})
+
+describe('how far up an image may climb (ISC-232)', () => {
+  it('is the workspace folder that holds the file, read when the images are scanned', () => {
+    let root: string | null = '/work'
+    const doc = open(
+      '/work/notes/a.md',
+      (path) => path,
+      () => root,
+    )
+    const context = doc.followerFor('t').state.facet(imageContext)
+    expect(context?.boundary()).toBe('/work')
+    root = null
+    expect(context?.boundary()).toBeNull()
+  })
+
+  it('is none when the host gives no way to ask, so a file in no folder cannot climb', () => {
+    const doc = open('/work/notes/a.md', (path) => path)
+    expect(doc.followerFor('t').state.facet(imageContext)?.boundary()).toBeNull()
+  })
+
+  it('comes from the open workspace folders for a real opened document', async () => {
+    resetTree()
+    resetDocuments()
+    resetWorkbench()
+    const host = createMockHost({
+      files: { '/work/notes/b.md': '![pic](../img/p.png)\n', '/elsewhere/c.md': 'x\n' },
+      roots: ['/work'],
+    })
+    setHost(host)
+    await restoreWorkspace([])
+    const inside = documentOfTab(await openPath('/work/notes/b.md'))
+    const outside = documentOfTab(await openPath('/elsewhere/c.md'))
+    expect(inside?.followerFor('t').state.facet(imageContext)?.boundary()).toBe('/work')
+    expect(outside?.followerFor('t').state.facet(imageContext)?.boundary()).toBeNull()
+    setHost(undefined)
+    resetTree()
+    resetDocuments()
   })
 })

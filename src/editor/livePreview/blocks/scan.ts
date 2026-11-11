@@ -260,7 +260,11 @@ function imageItem(state: EditorState, node: SyntaxNode): ImageItem | null {
   // `![alt][ref]` has no address of its own; it stays Markdown.
   if (url === null) return null
   const context = state.facet(imageContext)
-  const image = resolveImageAddress(doc.sliceString(url.from, url.to), context?.folder() ?? null)
+  const image = resolveImageAddress(
+    doc.sliceString(url.from, url.to),
+    context?.folder() ?? null,
+    context?.boundary() ?? null,
+  )
   const src =
     image.kind === 'local'
       ? (context?.url(image.path) ?? null)

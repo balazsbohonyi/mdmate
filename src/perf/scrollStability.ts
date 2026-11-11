@@ -171,6 +171,7 @@ async function measure(
   const run = `${String(Date.now())}${naive ? 'n' : 'r'}`
   const context = imageContext.of({
     folder: () => folder,
+    boundary: () => null,
     url: (path) => `${perf.assetUrl(path)}?run=${run}`,
   })
   let state = createState(text, [context], { parser: true, preview: !naive })

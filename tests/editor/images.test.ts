@@ -30,6 +30,7 @@ afterEach(() => {
 
 const context = imageContext.of({
   folder: () => '/notes/docs',
+  boundary: () => null,
   url: (path: string) => `asset://localhost/${encodeURIComponent(path)}`,
 })
 
@@ -198,6 +199,90 @@ describe('which addresses can load (ISC-180)', () => {
   })
 })
 
+describe('climbing out of the document folder, up to the workspace folder (ISC-232)', () => {
+  const folder = '/work/notes'
+  const boundary = '/work'
+  const local = (address: string, top: string | null = boundary): string | null => {
+    const found = resolveImageAddress(address, folder, top)
+    return found.kind === 'local' ? found.path : null
+  }
+
+  it('lets ../img/p.png load from a document in a workspace folder', () => {
+    expect(local('../img/p.png')).toBe('/work/img/p.png')
+    expect(local('..\\img\\p.png')).toBe('/work/img/p.png')
+    expect(local('%2e%2e/img/p.png')).toBe('/work/img/p.png')
+    expect(local('../p.png')).toBe('/work/p.png')
+    expect(local('sub/../../p.png')).toBe('/work/p.png')
+  })
+
+  it('refuses a path that climbs out of the workspace folder', () => {
+    expect(local('../../p.png')).toBeNull()
+    expect(local('../../../etc/p.png')).toBeNull()
+    expect(local('sub/../../../p.png')).toBeNull()
+    expect(local('..')).toBeNull()
+  })
+
+  it('refuses any climb for a document in no workspace folder, as before', () => {
+    expect(local('../img/p.png', null)).toBeNull()
+    expect(local('a.png', null)).toBe('/work/notes/a.png')
+  })
+
+  it('counts whole folder names, so a folder that only starts like the boundary gives no room', () => {
+    expect(local('../p.png', '/wor')).toBeNull()
+    expect(local('../p.png', '/work/notes/deeper')).toBeNull()
+    expect(local('../p.png', '/work/notes')).toBeNull()
+  })
+
+  it('works for a workspace folder that is a disk root, and with Windows separators', () => {
+    expect(resolveImageAddress('../p.png', 'D:\\notes', 'D:\\')).toEqual({
+      kind: 'local',
+      path: 'D:\\p.png',
+    })
+    expect(resolveImageAddress('../../p.png', 'D:\\notes', 'D:\\').kind).toBe('refused')
+    expect(resolveImageAddress('..\\img\\p.png', 'D:\\work\\notes', 'D:\\work')).toEqual({
+      kind: 'local',
+      path: 'D:\\work\\img\\p.png',
+    })
+  })
+
+  it('never gives a path outside the workspace folder, for any input', () => {
+    const pieces = ['.', '..', '/', '\\', '%2e', '%2f', 'a', 'b', ':', '?', '#', '//', 'nul']
+    let seed = 777
+    const next = (): number => {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0
+      return seed / 2 ** 32
+    }
+    let resolved = 0
+    let climbing = 0
+    for (let i = 0; i < 6000; i++) {
+      let address = ''
+      for (let n = Math.floor(next() * 7); n >= 0; n--) {
+        address += pieces[Math.floor(next() * pieces.length)] ?? ''
+      }
+      const found = resolveImageAddress(address, folder, boundary)
+      if (found.kind !== 'local') continue
+      resolved++
+      if (!found.path.startsWith(`${folder}/`)) climbing++
+      expect(found.path.startsWith(`${boundary}/`), address).toBe(true)
+      expect(found.path.split('/').includes('..'), address).toBe(false)
+    }
+    expect(resolved).toBeGreaterThan(50)
+    // The fuzz has to reach the new case, or it proves nothing about it.
+    expect(climbing).toBeGreaterThan(5)
+  })
+
+  it('draws ../img/p.png from the workspace folder when the context gives one', () => {
+    const inWorkspace = imageContext.of({
+      folder: () => '/work/notes',
+      boundary: () => '/work',
+      url: (path) => `asset://localhost/${encodeURIComponent(path)}`,
+    })
+    const found = images('![pic](../img/p.png)\n\nmore', inWorkspace)
+    expect(found[0]?.src).toBe('asset://localhost/%2Fwork%2Fimg%2Fp.png')
+    expect(images('![pic](../img/p.png)\n\nmore')[0]?.src).toBeNull()
+  })
+})
+
 describe('the image widget (ISC-66, ISC-67)', () => {
   it('draws a relative image from the asset url of its resolved path', () => {
     const view = mount('text\n\n![a cat](img/cat.png)\n\nmore')
@@ -315,7 +400,7 @@ describe('the image widget (ISC-66, ISC-67)', () => {
   it('refuses a relative image when the layer has no folder to resolve it against', () => {
     const [item] = images(
       '![a](a.png)\n\nend',
-      imageContext.of({ folder: () => null, url: String }),
+      imageContext.of({ folder: () => null, boundary: () => null, url: String }),
     )
     expect(item?.image.kind).toBe('refused')
     expect(item?.src).toBeNull()

@@ -1,5 +1,5 @@
 import { computed, shallowReactive, shallowRef, watch } from 'vue'
-import { describe, openPath, problem } from '@/documents/store'
+import { describe, openPath, problem, provideImageBoundary } from '@/documents/store'
 import { getHost } from '@/platform'
 import { flatten, parentPath, pathKeyer, withNewRow, type Listing, type TreeRow } from './model'
 
@@ -117,6 +117,9 @@ export function rootOf(path: string): string | undefined {
   }
   return best
 }
+
+// An image in a document may climb up to the workspace folder the document is in (ISC-232).
+provideImageBoundary((path) => rootOf(path) ?? null)
 
 /** Opens a folder if it is closed, and lists it. Leaves an open folder as it is. */
 export async function openFolderRow(path: string): Promise<void> {

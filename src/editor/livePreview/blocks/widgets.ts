@@ -351,7 +351,9 @@ export class ImageWidget extends BlockWidget {
     }
 
     if (this.src === null) {
-      fail('Not loaded: only a path inside the document folder, or an https address, can load.')
+      fail(
+        'Not loaded: only a path inside the document folder or its workspace folder, or an https address, can load.',
+      )
     } else {
       const src = this.src
       const img = document.createElement('img')

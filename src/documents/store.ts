@@ -155,6 +155,16 @@ export async function openDocument(
   return { doc, opened, isNew: true }
 }
 
+/**
+ * Says which workspace folder holds a file, for the images a document may climb up to. The tree
+ * provides it (it already imports this store, so this store cannot import it). Until then, and
+ * for a file in no workspace folder, an image may not leave the document's own folder.
+ */
+let imageBoundaryOf: (path: string) => string | null = () => null
+export function provideImageBoundary(find: (path: string) => string | null): void {
+  imageBoundaryOf = find
+}
+
 function documentOptions(
   id: number,
   host: Awaited<ReturnType<typeof getHost>>,
@@ -163,6 +173,7 @@ function documentOptions(
   return {
     touched,
     assetUrl: (path) => host.assetUrl(path),
+    imageBoundary: (path) => imageBoundaryOf(path),
     followLink: (tabId, href) => linkFollower?.(tabId, href),
     checkLinks: (hrefs) => host.checkLinks(id, hrefs),
     ...(untitledNumber === undefined ? {} : { untitledNumber }),
