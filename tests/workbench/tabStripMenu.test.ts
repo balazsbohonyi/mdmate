@@ -194,6 +194,18 @@ describe('the shortcuts the menu shows (ISC-221)', () => {
     expect(shown).toContain('Find File References Shift+F12')
   })
 
+  it('also shows Ctrl+W for Close and Ctrl+Shift+W for Close All (ISC-234)', async () => {
+    await start()
+    await openMenuOf('a.md', ['/work/a.md'])
+    const shown = [...document.body.querySelectorAll('[role=menuitem]')].map((item) =>
+      item.textContent.replace(/\s+/g, ' ').trim(),
+    )
+    expect(shown).toContain('Close Ctrl+W')
+    expect(shown).toContain('Close All Ctrl+Shift+W')
+    // Close Others has no key, so it shows none.
+    expect(shown).toContain('Close Others')
+  })
+
   it('names the file-manager item the same on every system (ISC-230)', async () => {
     await start()
     await openMenuOf('a.md', ['/work/a.md'])

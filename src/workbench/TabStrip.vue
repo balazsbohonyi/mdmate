@@ -76,14 +76,20 @@ function run(action: () => Promise<unknown> | void): void {
         data-tab-menu
         @close-auto-focus="keepNameBoxFocus"
       >
-        <ContextMenuItem @select="run(() => closeTab(tab.id))">Close</ContextMenuItem>
+        <ContextMenuItem @select="run(() => closeTab(tab.id))">
+          Close
+          <ContextMenuShortcut>{{ shortcut(COMMAND_IDS.closeTab) }}</ContextMenuShortcut>
+        </ContextMenuItem>
         <ContextMenuItem
           :disabled="!tabMenuState(tab.id).canCloseOthers"
           @select="run(() => closeOtherTabs(tab.id))"
         >
           Close Others
         </ContextMenuItem>
-        <ContextMenuItem @select="run(closeEveryTab)">Close All</ContextMenuItem>
+        <ContextMenuItem @select="run(closeEveryTab)">
+          Close All
+          <ContextMenuShortcut>{{ shortcut(COMMAND_IDS.closeAll) }}</ContextMenuShortcut>
+        </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem
           :disabled="!tabMenuState(tab.id).hasPath"

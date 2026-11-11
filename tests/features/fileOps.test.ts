@@ -552,8 +552,8 @@ describe('the drawn tree', () => {
       new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }),
     )
     await flush()
-    const item = [...document.body.querySelectorAll<HTMLElement>('[role=menuitem]')].find(
-      (el) => el.textContent.trim() === 'Delete',
+    const item = [...document.body.querySelectorAll<HTMLElement>('[role=menuitem]')].find((el) =>
+      el.textContent.trim().startsWith('Delete'),
     )
     expect(item).toBeDefined()
     item?.click()

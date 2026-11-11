@@ -83,8 +83,8 @@ describe('the items of the sidebar menu', () => {
   it('a file gets Copy Path, Copy Relative Path, Open Containing Folder and Find File References', async () => {
     const labels = await menuOf('/work/notes/a.md')
     expect(labels).toEqual([
-      'Rename',
-      'Delete',
+      'Rename... F2',
+      'Delete Delete',
       'Copy Path',
       'Copy Relative Path',
       'Open Containing Folder',
@@ -97,8 +97,8 @@ describe('the items of the sidebar menu', () => {
     expect(labels).toEqual([
       'New File',
       'New Folder',
-      'Rename',
-      'Delete',
+      'Rename... F2',
+      'Delete Delete',
       'Copy Path',
       'Copy Relative Path',
       'Open Folder',
@@ -120,6 +120,30 @@ describe('the items of the sidebar menu', () => {
     await menuOf('/work/notes/a.md')
     const found = items().find((item) => label(item).startsWith('Find File References'))
     expect(found?.querySelector('[data-slot=context-menu-shortcut]')?.textContent).toBe('Shift+F12')
+  })
+})
+
+describe('the keys the items show (ISC-234)', () => {
+  it('Rename shows F2 and Delete shows the Delete key, on a file and on a folder', async () => {
+    for (const path of ['/work/notes/a.md', '/work/notes']) {
+      const labels = await menuOf(path)
+      expect(labels).toContain('Rename... F2')
+      expect(labels).toContain('Delete Delete')
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await flush()
+    }
+  })
+
+  it('a workspace folder shows neither, since it has neither item', async () => {
+    const labels = await menuOf('/work')
+    expect(labels.some((label) => label.startsWith('Rename'))).toBe(false)
+    expect(labels.some((label) => label.startsWith('Delete'))).toBe(false)
+  })
+
+  it('shows the same name and key for Rename and Find File References as the tab menu', async () => {
+    const labels = await menuOf('/work/notes/a.md')
+    expect(labels).toContain('Rename... F2')
+    expect(labels).toContain('Find File References Shift+F12')
   })
 })
 

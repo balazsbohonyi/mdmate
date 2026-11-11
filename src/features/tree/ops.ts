@@ -236,6 +236,9 @@ export async function openFolderInFileManager(path: string): Promise<void> {
   }
 }
 
+/** The key that deletes the selected row. The tree handles it itself, so it is not a command. */
+export const TREE_DELETE_KEY = 'Delete'
+
 /** Asks to delete the selected row, for the Delete key. */
 export function deleteSelected(): Promise<void> {
   const path = selectedPath.value

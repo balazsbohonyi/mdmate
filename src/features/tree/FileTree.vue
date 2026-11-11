@@ -35,6 +35,7 @@ import {
   renameRow,
   renameSelected,
   revealInFileManager,
+  TREE_DELETE_KEY,
 } from './ops'
 import {
   activateRow,
@@ -197,7 +198,7 @@ function onKeydown(event: KeyboardEvent): void {
   if (event.key === 'F2') {
     event.preventDefault()
     void renameSelected()
-  } else if (event.key === 'Delete') {
+  } else if (event.key === TREE_DELETE_KEY) {
     event.preventDefault()
     void deleteSelected()
   }
@@ -445,8 +446,16 @@ function rowHint(row: TreeRow): string | null {
         <ContextMenuSeparator />
       </template>
       <template v-if="menuRow?.kind !== 'root'">
-        <ContextMenuItem @select="menuRename">Rename</ContextMenuItem>
-        <ContextMenuItem @select="menuDelete">Delete</ContextMenuItem>
+        <ContextMenuItem @select="menuRename">
+          Rename...
+          <ContextMenuShortcut>{{
+            shortcutLabel(COMMAND_IDS.rename, platform)
+          }}</ContextMenuShortcut>
+        </ContextMenuItem>
+        <ContextMenuItem @select="menuDelete">
+          Delete
+          <ContextMenuShortcut>{{ TREE_DELETE_KEY }}</ContextMenuShortcut>
+        </ContextMenuItem>
         <ContextMenuSeparator />
       </template>
       <ContextMenuItem @select="menuCopyPath">Copy Path</ContextMenuItem>
