@@ -27,6 +27,9 @@ pub(crate) enum Scope {
     Everything,
     /// Markdown files only (by extension), and not inside `node_modules`. The link scans use this.
     Markdown,
+    /// Every file, but not inside `node_modules`: what a text search reads. Binary files are left
+    /// out by the search itself, after a look at their first bytes.
+    Text,
 }
 
 /// How much of a file is read before it is called binary.
@@ -56,19 +59,36 @@ pub(crate) struct Walked {
 
 /// Calls `visit` for every file of `scope` under `root`, depth first. `visit` returns false to
 /// stop.
-pub(crate) fn walk(root: &Path, scope: Scope, mut visit: impl FnMut(&Path) -> bool) -> Walked {
+pub(crate) fn walk(root: &Path, scope: Scope, visit: impl FnMut(&Path) -> bool) -> Walked {
+    walk_until(root, scope, || false, visit)
+}
+
+/// Like [`walk`], and `stop` is asked before every folder and every entry, so a walk over a huge
+/// tree ends within one entry of being told to, not at the next file it offers.
+pub(crate) fn walk_until(
+    root: &Path,
+    scope: Scope,
+    stop: impl Fn() -> bool,
+    mut visit: impl FnMut(&Path) -> bool,
+) -> Walked {
     let mut walked = Walked::default();
     let mut pending = vec![root.to_path_buf()];
     while let Some(folder) = pending.pop() {
+        if stop() {
+            return walked;
+        }
         let Ok(entries) = std::fs::read_dir(&folder) else {
             walked.unreadable.push(folder);
             continue;
         };
         let mut subfolders = Vec::new();
         for entry in entries.flatten() {
+            if stop() {
+                return walked;
+            }
             let name = entry.file_name();
             if name.eq_ignore_ascii_case(SKIPPED)
-                || (scope == Scope::Markdown && name.eq_ignore_ascii_case(DEPENDENCIES))
+                || (scope != Scope::Everything && name.eq_ignore_ascii_case(DEPENDENCIES))
             {
                 continue;
             }
@@ -427,6 +447,64 @@ mod tests {
         assert!(walked.unreadable.is_empty());
         let missing = walk(&root.join("nope"), Scope::Everything, |_| true);
         assert_eq!(missing.unreadable.len(), 1);
+    }
+
+    #[test]
+    fn a_stop_flag_ends_the_walk_of_one_big_folder_within_an_entry() {
+        let dir = tempfile::tempdir().expect("a temp dir can be made");
+        let root = dir.path();
+        for n in 0..400 {
+            put(root, &format!("f{n}.txt"), b"x");
+        }
+        let asked = std::cell::Cell::new(0_usize);
+        let mut visited = 0;
+        walk_until(
+            root,
+            Scope::Text,
+            || {
+                asked.set(asked.get() + 1);
+                asked.get() > 20
+            },
+            |_| {
+                // `visit` always says go on, so only the flag can end the walk. It is asked once
+                // for the folder and once per entry.
+                visited += 1;
+                true
+            },
+        );
+        assert!(
+            visited <= 20,
+            "{visited} files were offered after the flag went up"
+        );
+    }
+
+    #[test]
+    fn walk_until_offers_text_files_but_never_node_modules_or_git() {
+        let dir = tempfile::tempdir().expect("a temp dir can be made");
+        let root = dir.path();
+        for name in [
+            "a.md",
+            "b.rs",
+            "c/d.json",
+            "node_modules/x/e.js",
+            ".git/f",
+            ".docs/g.md",
+        ] {
+            put(root, name, b"x");
+        }
+        let mut names = Vec::new();
+        walk_until(
+            root,
+            Scope::Text,
+            || false,
+            |path| {
+                names.push(path.file_name().map(|n| n.to_string_lossy().into_owned()));
+                true
+            },
+        );
+        names.sort();
+        let names: Vec<String> = names.into_iter().flatten().collect();
+        assert_eq!(names, vec!["a.md", "b.rs", "d.json", "g.md"]);
     }
 
     #[test]

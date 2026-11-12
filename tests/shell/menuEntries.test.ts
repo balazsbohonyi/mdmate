@@ -138,6 +138,13 @@ describe('the app menu', () => {
         shortcut: 'Shift+F3',
         disabled: true,
       },
+      {
+        kind: 'item',
+        id: COMMAND_IDS.findInFolders,
+        label: 'Search in Folders...',
+        shortcut: 'Ctrl+Shift+F',
+        disabled: false,
+      },
       { kind: 'separator' },
       {
         kind: 'item',
@@ -176,6 +183,7 @@ describe('the app menu', () => {
       '⌘H',
       'F3',
       '⇧F3',
+      '⇧⌘F',
       '⇧⌘B',
       '⌘E',
     ])

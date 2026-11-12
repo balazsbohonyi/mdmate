@@ -7,6 +7,7 @@ import { parseFollowedLink, parseLinkInfo } from './links'
 import { parseQuickOpenAnswer } from './quickOpen'
 import { parseReferencesFound } from './references'
 import { parseRewriteDone, parseRewritePlanned } from './rewrite'
+import { parseSearchBatch, parseSearchSummary } from './search'
 import {
   parseCopyReport,
   parseDroppedItems,
@@ -213,6 +214,18 @@ export const tauriHost: Host = {
   },
   async findReferences(path, buffers) {
     return parseReferencesFound(await invoke<unknown>('find_references', { path, buffers }))
+  },
+  async searchFolders(request, buffers, onBatch) {
+    const channel = new Channel<unknown>()
+    channel.onmessage = (value) => {
+      onBatch(parseSearchBatch(value))
+    }
+    return parseSearchSummary(
+      await invoke<unknown>('search_folders', { request, buffers, onBatch: channel }),
+    )
+  },
+  async searchCancel() {
+    await invoke('search_cancel')
   },
   async writeClipboard(text) {
     await navigator.clipboard.writeText(text)

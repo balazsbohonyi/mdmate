@@ -85,6 +85,22 @@ function typingMetrics({ report }: RunData): Record<string, number> {
   }
 }
 
+/** The typing numbers, then what shows a folder search was running and drawing while the keys landed. */
+function searchMetrics(run: RunData): Record<string, number> {
+  const { report } = run
+  return {
+    ...typingMetrics(run),
+    'search of the workspace, median': median(q(report, 'searchMs')),
+    'searches completed': v(report, 'searchesCompleted'),
+    'typing window with a search running (1 = all)': v(report, 'searchShareOfTypingWindow'),
+    'results per search': v(report, 'resultsFound'),
+    'files read per search': v(report, 'filesScanned'),
+    'files with results per search': v(report, 'filesWithResults'),
+    'longest gap between searches': v(report, 'longestGapBetweenSearchesMs'),
+    'most result rows drawn at once': v(report, 'resultRowsDrawnMax'),
+  }
+}
+
 function openMetrics({ report }: RunData): Record<string, number> {
   const warm = (name: string) => median(q(report, name).slice(1))
   return {
@@ -287,6 +303,21 @@ const SPECS: Record<string, Spec> = {
         'longest gap between scans': v(report, 'longestGapBetweenScansMs'),
       }
     },
+  },
+  'typing-during-search': {
+    claim: 'ISC-138',
+    page: 'typing-during-search',
+    headlineName: 'work per key, p95',
+    targetMs: 16,
+    metrics: searchMetrics,
+  },
+  'typing-during-search-trusted': {
+    claim: 'ISC-138',
+    page: 'typing-during-search-trusted',
+    headlineName: 'work per key, p95',
+    targetMs: 16,
+    trusted: true,
+    metrics: searchMetrics,
   },
   'typing-1mb-trusted': {
     claim: 'ISC-7',
@@ -822,7 +853,12 @@ async function main(): Promise<void> {
     spawnSync(process.execPath, [join(ROOT, 'scripts', 'fixtures.mjs')], { stdio: 'inherit' })
   }
   const workspace = join(ROOT, 'tests', 'fixtures', 'generated', 'workspace-large')
-  if (chosen.includes('typing-during-scan') && !existsSync(join(workspace, 'target.md'))) {
+  if (
+    (chosen.includes('typing-during-scan') ||
+      chosen.includes('typing-during-search') ||
+      chosen.includes('typing-during-search-trusted')) &&
+    !existsSync(join(workspace, 'target.md'))
+  ) {
     console.log('perf: generating the large workspace...')
     writeWorkspace(workspace)
   }

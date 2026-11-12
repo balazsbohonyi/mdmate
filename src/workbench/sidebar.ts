@@ -2,8 +2,8 @@ import { computed, ref } from 'vue'
 
 const visible = ref(true)
 
-/** Which list the sidebar shows: the folders, or the files that link to one file. */
-export type SidebarPanel = 'folders' | 'references'
+/** Which list the sidebar shows: the folders, the search in them, or the files that link to one file. */
+export type SidebarPanel = 'folders' | 'search' | 'references'
 
 const shown = ref<SidebarPanel>('folders')
 

@@ -668,6 +668,30 @@ rule(
   },
 )
 
+// P7-T2: the Search panel loads on first use
+rule(
+  'search-lazy',
+  'the Search panel (SearchPanel.vue) is loaded with import() on first use, never statically',
+  ({ root }) => {
+    const violations = []
+    const lazy = /(?:^|\/)features\/search\/SearchPanel\.vue$/
+    for (const file of walk(root, 'src', SOURCE_EXTS)) {
+      if (file.startsWith('src/features/search/')) continue
+      const text = readText(root, file)
+      for (const { spec, index, kind } of importSpecifiers(text)) {
+        if (kind === 'static' && lazy.test(spec)) {
+          violations.push({
+            file,
+            line: lineAt(text, index),
+            message: `static import of "${spec}"; Search loads with import() the first time it is shown`,
+          })
+        }
+      }
+    }
+    return violations
+  },
+)
+
 // ISC-73
 rule(
   'no-math-mermaid',

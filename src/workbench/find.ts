@@ -58,6 +58,17 @@ export function canFind(): boolean {
   return target() !== null
 }
 
+/**
+ * `query` as folder search should start it: the selected line of the active editor when there is
+ * one (the rule Find uses), else `query` as it was. `regexp` says whether a pattern is typed, so
+ * a selection with symbols in it is escaped to match as written.
+ */
+export function seedQueryFromEditor(query: string, regexp: boolean): string {
+  const t = target()
+  if (t === null) return query
+  return seedFromSelection(t.follower.state, { ...EMPTY_FIND, search: query, regexp }).search
+}
+
 /** Changes part of the query. */
 export function setFind(patch: Partial<FindSpec>): void {
   findSpec.value = { ...findSpec.value, ...patch }

@@ -56,6 +56,7 @@ const MENU_LAYOUT: readonly string[] = [
   COMMAND_IDS.replace,
   COMMAND_IDS.findNext,
   COMMAND_IDS.findPrevious,
+  COMMAND_IDS.findInFolders,
   '-',
   COMMAND_IDS.toggleSidebar,
   COMMAND_IDS.toggleRawSource,

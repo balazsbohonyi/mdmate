@@ -12,6 +12,7 @@ use crate::links;
 use crate::platform::{self, Platform as _};
 use crate::recent::{self, RecentStore};
 use crate::save_as::{self, SaveRequest, SavedAs};
+use crate::search;
 use crate::session::{self, CloseHook, SessionStore};
 use crate::workspace::ops::{self, ClashAnswer, CopyReport, Moved};
 use crate::workspace::roots::{self, RootStore};
@@ -761,6 +762,37 @@ pub(crate) async fn find_references(
     })
     .await
     .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Searches the text of every file in the open folders for `request.query`. Hits stream to
+/// `on_batch` at most every 50 ms; the answer says how the search ended. A search with a higher id
+/// stops this one, and [`search_cancel`] stops it too. `buffers` are the open documents with edits
+/// not yet saved: their text is read instead of the file's.
+#[tauri::command]
+pub(crate) async fn search_folders(
+    state: State<'_, Arc<AppState>>,
+    request: search::Request,
+    buffers: Vec<links::flow::Buffer>,
+    on_batch: Channel<search::Batch>,
+) -> Result<search::Summary, AppError> {
+    let state = state.inner().clone();
+    // The id is made current here, before the blocking work starts, so a search the page began a
+    // moment ago is already stopped when this one is queued behind it.
+    state.set_search_current(request.id);
+    tauri::async_runtime::spawn_blocking(move || {
+        search::search_for(&state, &request, &buffers, &mut |batch| {
+            // A page that has gone away has nobody to tell.
+            let _ = on_batch.send(batch);
+        })
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))
+}
+
+/// Stops the folder search that is running, if any.
+#[tauri::command]
+pub(crate) fn search_cancel(state: State<'_, Arc<AppState>>) {
+    state.set_search_current(0);
 }
 
 /// The best `limit` files for what was typed in Ctrl+P. The first call builds the file index.

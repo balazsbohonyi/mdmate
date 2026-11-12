@@ -25,6 +25,7 @@ import {
 import { newUntitledTab } from '@/documents/untitled'
 import { canGoBack, canGoForward, goBack, goForward } from '@/documents/history'
 import { togglePalette } from '@/features/palette/state'
+import { showSearch } from '@/features/search/store'
 import { focusTree, openFolderDialog } from '@/features/tree/store'
 import { getHost } from '@/platform'
 import { registerCommand, removeCommand } from './commands'
@@ -51,6 +52,7 @@ export const COMMAND_IDS = {
   replace: 'edit.replace',
   findNext: 'edit.findNext',
   findPrevious: 'edit.findPrevious',
+  findInFolders: 'edit.findInFolders',
   splitRight: 'workbench.splitRight',
   splitDown: 'workbench.splitDown',
   closeTab: 'workbench.closeTab',
@@ -301,6 +303,13 @@ export function registerDefaultCommands(): () => void {
       run: async () => {
         await closeAllTabs()
       },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.findInFolders,
+      title: 'Search in Folders...',
+      keybinding: 'Mod+Shift+F',
+      // The query box takes focus; the selected line of the editor, if any, is the query.
+      run: showSearch,
     }),
     registerCommand({
       id: COMMAND_IDS.toggleSidebar,
