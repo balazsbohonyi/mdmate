@@ -31,6 +31,7 @@ import {
   keyAction,
   rowDomId,
   visibleWindow,
+  type Place,
   type TreeRow,
 } from './model'
 import {
@@ -55,7 +56,9 @@ import {
   samePath,
   scrollRequest,
   requestScroll,
+  select,
   selectedPath,
+  selectedRoot,
   takeTreeFocusRequest,
   toggleFolder,
   treeFocusRequest,
@@ -110,10 +113,12 @@ watch(scrollRequest, async (request) => {
   if (request === null) return
   await nextTick()
   const element = scroller.value
-  const index = treeRows.value.findIndex((row) =>
-    request.kind === 'new'
-      ? row.kind === 'new' && samePath(row.path, request.path)
-      : row.kind !== 'note' && row.kind !== 'new' && samePath(row.path, request.path),
+  const index = treeRows.value.findIndex(
+    (row) =>
+      (request.root === undefined || row.root === request.root) &&
+      (request.kind === 'new'
+        ? row.kind === 'new' && samePath(row.path, request.path)
+        : row.kind !== 'note' && row.kind !== 'new' && samePath(row.path, request.path)),
   )
   if (element === null || index === -1) return
   const top = index * ROW_HEIGHT
@@ -132,9 +137,14 @@ const menuRow = ref<TreeRow | null>(null)
 
 function rowAt(target: EventTarget | null): TreeRow | undefined {
   const element = target instanceof Element ? target : null
-  const path = element?.closest<HTMLElement>('[data-row-path]')?.dataset.rowPath
+  const { rowPath: path, rowRoot: root } =
+    element?.closest<HTMLElement>('[data-row-path]')?.dataset ?? {}
   return treeRows.value.find(
-    (candidate) => candidate.kind !== 'note' && candidate.kind !== 'new' && candidate.path === path,
+    (candidate) =>
+      candidate.kind !== 'note' &&
+      candidate.kind !== 'new' &&
+      candidate.path === path &&
+      candidate.root === root,
   )
 }
 
@@ -147,7 +157,7 @@ function onContextMenu(event: MouseEvent): void {
     menuRow.value = null
     return
   }
-  selectedPath.value = row.path
+  select(row.path, row.root)
   menuRow.value = row
 }
 
@@ -162,15 +172,15 @@ function menuPath(): string | null {
 
 function menuNewFile(): void {
   const path = menuPath()
-  if (path !== null) void newFileIn(path)
+  if (path !== null) void newFileIn(path, menuRow.value?.root)
 }
 function menuNewFolder(): void {
   const path = menuPath()
-  if (path !== null) void newFolderIn(path)
+  if (path !== null) void newFolderIn(path, menuRow.value?.root)
 }
 function menuRename(): void {
   const path = menuPath()
-  if (path !== null) void renameRow(path)
+  if (path !== null) void renameRow(path, menuRow.value?.root)
 }
 function menuDelete(): void {
   const path = menuPath()
@@ -226,7 +236,7 @@ function applyFocusRequest(request: TreeFocusRequest | null): void {
     element.focus()
     if (request.force && selectedPath.value === null) {
       const first = treeRows.value.find(isSelectable)
-      if (first !== undefined) selectedPath.value = first.path
+      if (first !== undefined) select(first.path, first.root)
     }
   })
 }
@@ -243,7 +253,7 @@ function onKeydown(event: KeyboardEvent): void {
     // Space and the arrows would scroll the list; the tree moves the selection itself.
     event.preventDefault()
     if (event.repeat && (event.key === 'Enter' || event.key === ' ')) return
-    runKeyAction(keyAction(treeRows.value, selectedPath.value, event.key))
+    runKeyAction(keyAction(treeRows.value, selectedPath.value, event.key, selectedRoot.value))
     return
   }
   if (event.key === 'F2') {
@@ -258,13 +268,14 @@ function onKeydown(event: KeyboardEvent): void {
 function runKeyAction(action: ReturnType<typeof keyAction>): void {
   if (action === null) return
   if (action.kind === 'select') {
-    selectedPath.value = action.path
-    requestScroll(action.path)
+    select(action.path, action.root)
+    requestScroll(action.path, 'row', action.root)
   } else if (action.kind === 'toggle') {
-    void toggleFolder(action.path)
+    void toggleFolder(action.path, action.root)
   } else {
     const row = treeRows.value.find(
-      (candidate) => isSelectable(candidate) && candidate.path === action.path,
+      (candidate) =>
+        isSelectable(candidate) && candidate.path === action.path && candidate.root === action.root,
     )
     if (row !== undefined) void activateRow(row, { focusEditor: action.focusEditor })
   }
@@ -275,27 +286,29 @@ function runKeyAction(action: ReturnType<typeof keyAction>): void {
 /** Pixels the pointer must travel before a press becomes a drag, so a click never moves a file. */
 const DRAG_THRESHOLD = 5
 
-const draggedPath = ref<string | null>(null)
+const dragged = ref<Place | null>(null)
 /** The folder the dragged row would land in, or null when the pointer is somewhere it cannot. */
-const dropFolder = ref<string | null>(null)
-let press: { path: string; x: number; y: number } | undefined
+const dropFolder = ref<Place | null>(null)
+let press: { root: string; path: string; x: number; y: number } | undefined
 let swallowClick = false
 
-function folderAt(x: number, y: number): string | null {
+function folderAt(x: number, y: number): Place | null {
   const element = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-row-path]')
-  const path = element?.dataset.rowPath
-  if (element === null || element === undefined || path === undefined) return null
+  const { rowPath: path, rowRoot: root } = element?.dataset ?? {}
+  if (element === null || element === undefined || path === undefined || root === undefined) {
+    return null
+  }
   if (element.dataset.kind === 'file') {
     const cut = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
-    return cut <= 0 ? null : path.slice(0, cut)
+    return cut <= 0 ? null : { root, path: path.slice(0, cut) }
   }
-  return path
+  return { root, path }
 }
 
 function onPointerDown(event: PointerEvent, row: TreeRow): void {
   if (event.button !== 0 || naming.value !== null) return
   if (row.kind !== 'file' && row.kind !== 'folder') return
-  press = { path: row.path, x: event.clientX, y: event.clientY }
+  press = { root: row.root, path: row.path, x: event.clientX, y: event.clientY }
   window.addEventListener('pointermove', onPointerMove)
   window.addEventListener('pointerup', onPointerUp)
   window.addEventListener('keydown', onDragKey, true)
@@ -303,18 +316,19 @@ function onPointerDown(event: PointerEvent, row: TreeRow): void {
 
 function onPointerMove(event: PointerEvent): void {
   if (press === undefined) return
-  if (draggedPath.value === null) {
+  if (dragged.value === null) {
     if (Math.hypot(event.clientX - press.x, event.clientY - press.y) < DRAG_THRESHOLD) return
-    draggedPath.value = press.path
+    dragged.value = { root: press.root, path: press.path }
   }
   const folder = folderAt(event.clientX, event.clientY)
-  dropFolder.value = folder !== null && moveProblem(press.path, folder) === null ? folder : null
+  dropFolder.value =
+    folder !== null && moveProblem(press.path, folder.path) === null ? folder : null
   setDragCursor(dropFolder.value === null ? 'blocked' : 'move')
 }
 
 function onPointerUp(): void {
   const [path, folder] = [press?.path, dropFolder.value]
-  const wasDragging = draggedPath.value !== null
+  const wasDragging = dragged.value !== null
   stopDrag()
   if (!wasDragging) return
   // The click that ends a drag lands on the row under the pointer and must not open it.
@@ -322,7 +336,7 @@ function onPointerUp(): void {
   setTimeout(() => {
     swallowClick = false
   }, 0)
-  if (path !== undefined && folder !== null) void moveRow(path, folder)
+  if (path !== undefined && folder !== null) void moveRow(path, folder.path)
 }
 
 function onDragKey(event: KeyboardEvent): void {
@@ -333,7 +347,7 @@ function onDragKey(event: KeyboardEvent): void {
 
 function stopDrag(): void {
   press = undefined
-  draggedPath.value = null
+  dragged.value = null
   dropFolder.value = null
   setDragCursor(null)
   window.removeEventListener('pointermove', onPointerMove)
@@ -366,7 +380,8 @@ function isRenaming(row: TreeRow): boolean {
     typing?.kind === 'rename' &&
     row.kind !== 'note' &&
     row.kind !== 'new' &&
-    samePath(typing.path, row.path)
+    samePath(typing.path, row.path) &&
+    (typing.root === undefined || row.root === typing.root)
   )
 }
 
@@ -374,16 +389,36 @@ function isDropTarget(row: TreeRow): boolean {
   return (
     (row.kind === 'root' || row.kind === 'folder') &&
     dropFolder.value !== null &&
-    samePath(row.path, dropFolder.value)
+    row.root === dropFolder.value.root &&
+    samePath(row.path, dropFolder.value.path)
   )
 }
 
 function isDragged(row: TreeRow): boolean {
-  return row.kind !== 'note' && row.kind !== 'new' && row.path === draggedPath.value
+  return (
+    row.kind !== 'note' &&
+    row.kind !== 'new' &&
+    row.path === dragged.value?.path &&
+    row.root === dragged.value.root
+  )
 }
 
+/**
+ * One key per row. A folder can lie under two roots (a root inside another root), and then its
+ * rows appear twice; the root a row sits under keeps their keys apart. Two rows with one key
+ * leave rows behind in the page when the list changes.
+ */
 function rowKey(row: TreeRow): string {
-  return `${row.kind}:${row.path}:${row.name}`
+  return `${row.root}|${row.kind}:${row.path}:${row.name}`
+}
+
+function isSelectedRow(row: TreeRow): boolean {
+  return (
+    row.kind !== 'note' &&
+    row.kind !== 'new' &&
+    row.path === selectedPath.value &&
+    row.root === selectedRoot.value
+  )
 }
 
 /** The tooltip of a row: its path (a note shows its text). Nothing while the row is a name box. */
@@ -402,7 +437,9 @@ function rowHint(row: TreeRow): string | null {
         aria-label="Workspace files"
         data-file-tree
         tabindex="0"
-        :aria-activedescendant="selectedPath === null ? undefined : rowDomId(selectedPath)"
+        :aria-activedescendant="
+          selectedPath === null ? undefined : rowDomId(selectedPath, selectedRoot)
+        "
         class="group/tree min-h-0 flex-1 overflow-x-hidden overflow-y-auto text-chrome outline-none select-none"
         @scroll.passive="onScroll"
         @contextmenu.capture="onContextMenu"
@@ -420,22 +457,23 @@ function rowHint(row: TreeRow): string | null {
             :delay-duration="SLOW_HINT_DELAY"
           >
             <div
-              :id="row.kind === 'note' || row.kind === 'new' ? undefined : rowDomId(row.path)"
+              :id="
+                row.kind === 'note' || row.kind === 'new' ? undefined : rowDomId(row.path, row.root)
+              "
               :role="row.kind === 'note' || row.kind === 'new' ? 'none' : 'treeitem'"
               :aria-level="row.depth + 1"
               :aria-expanded="
                 row.kind === 'root' || row.kind === 'folder' ? row.expanded : undefined
               "
-              :aria-selected="
-                row.kind !== 'note' && row.kind !== 'new' && row.path === selectedPath
-              "
+              :aria-selected="row.kind !== 'note' && row.kind !== 'new' && isSelectedRow(row)"
               :data-row-path="row.kind === 'note' || row.kind === 'new' ? undefined : row.path"
+              :data-row-root="row.kind === 'note' || row.kind === 'new' ? undefined : row.root"
               :data-kind="row.kind"
               :data-drop-target="isDropTarget(row) ? '' : undefined"
               :data-dragging="isDragged(row) ? '' : undefined"
               class="absolute right-0 left-0 flex cursor-default items-center gap-1 pr-2"
               :class="[
-                row.kind !== 'note' && row.kind !== 'new' && row.path === selectedPath
+                isSelectedRow(row)
                   ? 'bg-sidebar-accent/60 text-sidebar-accent-foreground group-focus-within/tree:bg-sidebar-accent'
                   : 'hover:bg-sidebar-accent/50',
                 isDropTarget(row) ? 'bg-sidebar-accent ring-1 ring-ring ring-inset' : '',

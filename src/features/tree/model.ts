@@ -22,9 +22,25 @@ export interface Listing {
   readonly error: string | null
 }
 
+/**
+ * A place in the tree: a path as shown under one root. A folder that is a root and also lies
+ * inside another root is two places, and each keeps its own open state and selection.
+ */
+export interface Place {
+  readonly root: string
+  readonly path: string
+}
+
+/** What a place is called in the open-folder map: the root and the path, case folded as the OS does. */
+export function placeKey(keyOf: (path: string) => string, root: string, path: string): string {
+  return `${keyOf(root)}|${keyOf(path)}`
+}
+
 export type TreeRow =
   | {
       readonly kind: 'root' | 'folder'
+      /** The root this row sits under; a root row names itself. */
+      readonly root: string
       readonly path: string
       readonly name: string
       readonly depth: number
@@ -32,6 +48,7 @@ export type TreeRow =
     }
   | {
       readonly kind: 'file'
+      readonly root: string
       readonly path: string
       readonly name: string
       readonly depth: number
@@ -41,6 +58,7 @@ export type TreeRow =
   | {
       /** The box where a new file or folder is named, first under the folder it is made in. */
       readonly kind: 'new'
+      readonly root: string
       /** The folder the new entry goes in. */
       readonly path: string
       readonly name: string
@@ -50,6 +68,7 @@ export type TreeRow =
   | {
       /** A line of text under a folder: it could not be read, or it is still loading. */
       readonly kind: 'note'
+      readonly root: string
       readonly path: string
       readonly name: string
       readonly depth: number
@@ -86,16 +105,21 @@ export function stemLength(name: string): number {
 
 /**
  * Puts `inserted` into the rows right after the row of `folder`, which is where a new entry's
- * naming box goes. Rows come back unchanged when the folder is not on screen or is closed.
+ * naming box goes. `root` picks the copy when the folder is on screen under two roots. Rows come
+ * back unchanged when the folder is not on screen or is closed.
  */
 export function withNewRow(
   rows: readonly TreeRow[],
   folder: string,
   creates: 'file' | 'folder',
   keyOf: (path: string) => string,
+  root?: string,
 ): TreeRow[] {
   const index = rows.findIndex(
-    (row) => (row.kind === 'root' || row.kind === 'folder') && keyOf(row.path) === keyOf(folder),
+    (row) =>
+      (row.kind === 'root' || row.kind === 'folder') &&
+      keyOf(row.path) === keyOf(folder) &&
+      (root === undefined || keyOf(row.root) === keyOf(root)),
   )
   const parent = rows[index]
   if (parent === undefined || (parent.kind !== 'root' && parent.kind !== 'folder')) {
@@ -104,6 +128,7 @@ export function withNewRow(
   if (!parent.expanded) return [...rows]
   const row: TreeRow = {
     kind: 'new',
+    root: parent.root,
     path: parent.path,
     name: '',
     depth: parent.depth + 1,
@@ -141,9 +166,10 @@ export function pathKeyer(ignoreCase: boolean): (path: string) => string {
 }
 
 /**
- * The rows on screen, top to bottom. A root or folder shows its children when its key is in
- * `expanded`; a folder that is open but not listed yet shows a loading line, and one whose
- * listing failed shows the reason.
+ * The rows on screen, top to bottom. A root or folder shows its children when its place (see
+ * `placeKey`) is in `expanded`; a folder that is open but not listed yet shows a loading line,
+ * and one whose listing failed shows the reason. Listings are by path alone: both copies of a
+ * folder show the same files.
  */
 export function flatten(
   roots: readonly string[],
@@ -152,27 +178,27 @@ export function flatten(
   keyOf: (path: string) => string,
 ): TreeRow[] {
   const rows: TreeRow[] = []
-  const add = (path: string, kind: 'root' | 'folder', depth: number): void => {
-    const key = keyOf(path)
-    const open = expanded.has(key)
-    rows.push({ kind, path, name: baseName(path), depth, expanded: open })
+  const add = (root: string, path: string, kind: 'root' | 'folder', depth: number): void => {
+    const open = expanded.has(placeKey(keyOf, root, path))
+    rows.push({ kind, root, path, name: baseName(path), depth, expanded: open })
     if (!open) return
-    const listing = listings.get(key)
+    const listing = listings.get(keyOf(path))
     if (listing?.error != null) {
-      rows.push({ kind: 'note', path, name: listing.error, depth: depth + 1, tone: 'error' })
+      rows.push({ kind: 'note', root, path, name: listing.error, depth: depth + 1, tone: 'error' })
     }
     if (listing?.entries == null) {
       if (listing === undefined) {
-        rows.push({ kind: 'note', path, name: 'Loading…', depth: depth + 1, tone: 'muted' })
+        rows.push({ kind: 'note', root, path, name: 'Loading…', depth: depth + 1, tone: 'muted' })
       }
       return
     }
     for (const entry of listing.entries) {
       const child = joinPath(path, entry.name)
-      if (entry.kind === 'folder') add(child, 'folder', depth + 1)
+      if (entry.kind === 'folder') add(root, child, 'folder', depth + 1)
       else {
         rows.push({
           kind: 'file',
+          root,
           path: child,
           name: entry.name,
           depth: depth + 1,
@@ -181,7 +207,7 @@ export function flatten(
       }
     }
   }
-  for (const root of roots) add(root, 'root', 0)
+  for (const root of roots) add(root, root, 'root', 0)
   return rows
 }
 
@@ -208,16 +234,26 @@ export function isSelectable(row: TreeRow): row is SelectableRow {
   return row.kind !== 'note' && row.kind !== 'new'
 }
 
-/** The id of a row's element, for `aria-activedescendant`. Percent-escaped, so it never holds a space. */
-export function rowDomId(path: string): string {
-  return `tree-row-${encodeURIComponent(path)}`
+/**
+ * The id of a row's element, for `aria-activedescendant`. Percent-escaped, so it never holds a
+ * space; the root is part of it, so a folder shown under two roots gets two ids.
+ */
+export function rowDomId(path: string, root?: string | null): string {
+  return root == null
+    ? `tree-row-${encodeURIComponent(path)}`
+    : `tree-row-${encodeURIComponent(root)}:${encodeURIComponent(path)}`
 }
 
 /** What a key does to the tree. `open` shows a file; `focusEditor` also puts the caret in it. */
 export type KeyAction =
-  | { readonly kind: 'select'; readonly path: string }
-  | { readonly kind: 'toggle'; readonly path: string }
-  | { readonly kind: 'open'; readonly path: string; readonly focusEditor: boolean }
+  | { readonly kind: 'select'; readonly root: string; readonly path: string }
+  | { readonly kind: 'toggle'; readonly root: string; readonly path: string }
+  | {
+      readonly kind: 'open'
+      readonly root: string
+      readonly path: string
+      readonly focusEditor: boolean
+    }
 
 /** The keys the tree reads, with no modifier held. */
 export const TREE_KEYS: readonly string[] = [
@@ -233,13 +269,20 @@ export const TREE_KEYS: readonly string[] = [
 
 /**
  * Where the selection is among the rows. A selected row that is hidden (inside a folder that was
- * closed since) counts as its nearest ancestor that is on screen; with no selection, or none of its
- * ancestors on screen, there is no current row.
+ * closed since) counts as its nearest ancestor that is on screen, under the same root; with no
+ * selection, or none of its ancestors on screen, there is no current row. With no `root` the
+ * first row that has the path counts.
  */
-function currentIndex(rows: readonly TreeRow[], selected: string | null): number {
+function currentIndex(
+  rows: readonly TreeRow[],
+  selected: string | null,
+  root: string | null,
+): number {
   let path: string | null = selected
   while (path !== null) {
-    const found = rows.findIndex((row) => isSelectable(row) && row.path === path)
+    const found = rows.findIndex(
+      (row) => isSelectable(row) && row.path === path && (root === null || row.root === root),
+    )
     if (found !== -1) return found
     path = parentPath(path)
   }
@@ -247,7 +290,7 @@ function currentIndex(rows: readonly TreeRow[], selected: string | null): number
 }
 
 /**
- * What `key` does to the tree, given the rows on screen and the selected path, or null when it
+ * What `key` does to the tree, given the rows on screen and the selected place, or null when it
  * does nothing. Up and Down only move the selection: opening a file takes Enter, Space or a click.
  * Right opens a folder, then steps into it; Left closes it, then steps out to its parent. Enter and
  * Space open or close a folder; on a file Enter opens it and takes focus, Space opens it and keeps
@@ -257,45 +300,51 @@ export function keyAction(
   rows: readonly TreeRow[],
   selected: string | null,
   key: string,
+  selectedRoot: string | null = null,
 ): KeyAction | null {
   const selectable = rows.filter(isSelectable)
   const first = selectable[0]
   const last = selectable.at(-1)
   if (first === undefined || last === undefined) return null
-  const index = currentIndex(rows, selected)
+  const index = currentIndex(rows, selected, selectedRoot)
   const current = index === -1 ? undefined : rows[index]
-  if (key === 'Home') return { kind: 'select', path: first.path }
-  if (key === 'End') return { kind: 'select', path: last.path }
+  const select = (row: SelectableRow): KeyAction => ({
+    kind: 'select',
+    root: row.root,
+    path: row.path,
+  })
+  if (key === 'Home') return select(first)
+  if (key === 'End') return select(last)
   if (key === 'ArrowDown' || key === 'ArrowUp') {
-    if (current === undefined || !isSelectable(current)) return { kind: 'select', path: first.path }
+    if (current === undefined || !isSelectable(current)) return select(first)
     const among = selectable.indexOf(current)
     const next = selectable[key === 'ArrowDown' ? among + 1 : among - 1]
-    return next === undefined ? null : { kind: 'select', path: next.path }
+    return next === undefined ? null : select(next)
   }
   if (current === undefined || !isSelectable(current)) return null
   const folder = current.kind === 'root' || current.kind === 'folder'
   if (key === 'ArrowRight') {
     if (!folder) return null
-    if (!current.expanded) return { kind: 'toggle', path: current.path }
+    if (!current.expanded) return { kind: 'toggle', root: current.root, path: current.path }
     const child = rows[index + 1]
     return child !== undefined && isSelectable(child) && child.depth > current.depth
-      ? { kind: 'select', path: child.path }
+      ? select(child)
       : null
   }
   if (key === 'ArrowLeft') {
-    if (folder && current.expanded) return { kind: 'toggle', path: current.path }
+    if (folder && current.expanded) {
+      return { kind: 'toggle', root: current.root, path: current.path }
+    }
     for (let at = index - 1; at >= 0; at--) {
       const row = rows[at]
-      if (row !== undefined && isSelectable(row) && row.depth < current.depth) {
-        return { kind: 'select', path: row.path }
-      }
+      if (row !== undefined && isSelectable(row) && row.depth < current.depth) return select(row)
     }
     return null
   }
   if (key === 'Enter' || key === ' ') {
     return folder
-      ? { kind: 'toggle', path: current.path }
-      : { kind: 'open', path: current.path, focusEditor: key === 'Enter' }
+      ? { kind: 'toggle', root: current.root, path: current.path }
+      : { kind: 'open', root: current.root, path: current.path, focusEditor: key === 'Enter' }
   }
   return null
 }

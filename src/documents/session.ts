@@ -1,7 +1,7 @@
 import { watch } from 'vue'
 import type { Text } from '@codemirror/state'
 import { endingsOf } from '@/editor/lineEndings'
-import { expandedFolderPaths, restoreWorkspace } from '@/features/tree/store'
+import { expandedFolderPaths, expandedPlaces, restoreWorkspace } from '@/features/tree/store'
 import { currentWindowWidth, setSidebarWidth, sidebarWidth } from '@/workbench/sidebar'
 import { endingsEqual, joinWithEndings, readEndings, type Endings } from '@/lib/endings'
 import { getHost, type ImageInfo, type OpenedFile } from '@/platform'
@@ -141,6 +141,7 @@ export function buildSnapshot(): string {
   // that list itself, so a snapshot can never add one.
   const workspace = JSON.stringify({
     expanded: expandedFolderPaths.value,
+    expandedPlaces: expandedPlaces.value,
     ...(sidebarWidth.value === null ? {} : { sidebarWidth: sidebarWidth.value }),
   })
   return `{"version":${String(VERSION)},"layout":${JSON.stringify(serialize(layout))},"tabs":${JSON.stringify(tabs)},"buffers":[${buffers.join(',')}],"workspace":${workspace}}`
@@ -263,7 +264,7 @@ export async function startJournal(options: JournalOptions = {}): Promise<void> 
   firstChangeAt = undefined
   onDocumentsTouched(touch)
   stopLayoutWatch = watch(workbenchLayout, touch)
-  stopTreeWatch = watch(expandedFolderPaths, touch)
+  stopTreeWatch = watch(expandedPlaces, touch)
   stopSidebarWatch = watch(sidebarWidth, touch)
   try {
     const host = await getHost()
@@ -330,6 +331,11 @@ interface Snapshot {
   readonly buffers: readonly RawBuffer[]
   /** The folders that were open in the sidebar. A snapshot from before Phase 6 has none. */
   readonly expanded: readonly string[]
+  /**
+   * The same folders by place: which root each was open under. A snapshot from before nested
+   * roots was told apart has none, and then `expanded` opens a path under every root holding it.
+   */
+  readonly places: readonly { readonly root: string; readonly path: string }[] | null
   /** How wide the sidebar was dragged, in px, or null for the default. */
   readonly sidebarWidth: number | null
 }
@@ -392,11 +398,21 @@ function readSnapshot(text: string): Snapshot | null {
   for (const path of Array.isArray(workspace.expanded) ? (workspace.expanded as unknown[]) : []) {
     if (typeof path === 'string') expanded.push(path)
   }
+  let places: { root: string; path: string }[] | null = null
+  if (Array.isArray(workspace.expandedPlaces)) {
+    places = []
+    for (const place of workspace.expandedPlaces as unknown[]) {
+      if (isRecord(place) && typeof place.root === 'string' && typeof place.path === 'string') {
+        places.push({ root: place.root, path: place.path })
+      }
+    }
+  }
   return {
     layout: value.layout,
     tabs,
     buffers,
     expanded,
+    places,
     sidebarWidth: readNumber(workspace.sidebarWidth),
   }
 }
@@ -436,9 +452,11 @@ export async function restoreSession(): Promise<RestoreReport | null> {
   // The roots come from Rust's own list, so they come back even when the snapshot is damaged or
   // missing. A failure here costs the sidebar, never the tabs.
   setSidebarWidth(snapshot?.sidebarWidth ?? null, currentWindowWidth())
-  await restoreWorkspace(snapshot?.expanded ?? []).catch((error: unknown) => {
-    problem.value = `Could not restore the workspace: ${error instanceof Error ? error.message : JSON.stringify(error)}`
-  })
+  await restoreWorkspace(snapshot?.expanded ?? [], snapshot?.places ?? undefined).catch(
+    (error: unknown) => {
+      problem.value = `Could not restore the workspace: ${error instanceof Error ? error.message : JSON.stringify(error)}`
+    },
+  )
   if (text === null) return null
   const notices: string[] = []
 

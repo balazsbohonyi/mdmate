@@ -184,3 +184,12 @@ The UAT run searched `D:\develop\projects` (79,456 files, 38.8 GB; 43,501 of the
 - **The walk skips files whose extension says they hold no text** (`.o`, `.obj`, `.rlib`, `.rmeta`, `.exe`, `.dll`, images other than SVG, archives, media, fonts; list in `src-tauri/src/fs/kind.rs`) without opening them. The search of the same root dropped from about 65 s to about 41 s in the debug build. Other binary files are still found by the 8 KB look at the start.
 
 Not done, on purpose: honouring `.gitignore`. It would skip `target`, `dist` and `.next` and cut the rest of the time, but it would also hide folders you keep out of version control and still want searched (a documentation folder of Markdown notes, for example). You decided against honouring `.gitignore` from the workspace roots for now. It stays a possibility only, recorded as a `fog:` line in `## Not yet specified` of `ISA.md`; if it comes back it is opt-in or limited to known build-output folders.
+
+## A folder that is a root and also inside another root (2026-11-12)
+
+Adding `D:\develop\projects` while `D:\develop\projects\KnowledgeBase` was already a root drew ghost rows in the sidebar: both copies of KnowledgeBase's children had the same row key, and Vue left rows behind when the list changed. Fixed in two steps:
+
+- **Row keys include the root** the row sits under, so the two copies never share a key.
+- **Open state, selection, rename, the new-name box, keyboard moves, drag highlights and DOM ids are per place** (a root plus a path). Opening `analysis` under `projects\KnowledgeBase` leaves the `KnowledgeBase` root's `analysis` closed, and only the clicked row is highlighted. Listings and file watching stay by path, since both copies show the same folder on disk.
+
+Defaults chosen: a call that knows only a path (Reveal in a tab menu, a new file made elsewhere, a move) acts on the copy under the innermost root that holds the path. The session now saves open folders as places (`workspace.expandedPlaces`) and still writes the old `expanded` path list; a session from before this change restores each bare path under every root that holds it, which is what was on screen then.
