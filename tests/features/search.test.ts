@@ -9,7 +9,16 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp, h, nextTick, type App } from 'vue'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { followerOfTab, openPath, problem, resetDocuments } from '@/documents/store'
-import { resetSearch, searchOptions, searchState, setSearchOptions } from '@/features/search/store'
+import {
+  filtersOpen,
+  findInFolder,
+  resetSearch,
+  searchOptions,
+  searchState,
+  setSearchOptions,
+} from '@/features/search/store'
+import { searchHitsOf } from '@/editor/matchTicks'
+import { revealedRange } from '@/editor/revealMark'
 import { resetTree, restoreWorkspace } from '@/features/tree/store'
 import {
   setHost,
@@ -370,6 +379,63 @@ describe('opening a result (Q2, Q4)', () => {
     expect(state?.selection.main.head).toBe((state?.doc.line(3).from ?? 0) + 6)
   })
 
+  it('the hits in the shown file are ticks along its scrollbar, and a new or cleared search takes them away (ISC-309)', async () => {
+    await start()
+    await search('needle')
+    hits()[0]?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }))
+    await flush()
+    const tab = findPane(workbenchLayout.value, workbenchLayout.value.activePane)?.activeTab
+    const state = (): NonNullable<ReturnType<typeof followerOfTab>>['state'] =>
+      followerOfTab(tab ?? '')!.state
+    // a.md: "one needle" (column 4) on line 1 and "three Needle here" (column 6) on line 3.
+    expect(searchHitsOf(state())).toEqual([
+      { from: 4, to: 10 },
+      { from: state().doc.line(3).from + 6, to: state().doc.line(3).from + 12 },
+    ])
+    // every hit is marked in the text, not only the one that was opened
+    expect([...document.querySelectorAll('.cm-md-hit')].map((e) => e.textContent)).toEqual([
+      'needle',
+      'Needle',
+    ])
+    // The ticks follow the text when it is edited.
+    followerOfTab(tab ?? '')?.dispatch({ changes: { from: 0, insert: 'XX' } })
+    expect(searchHitsOf(state())[0]?.from).toBe(6)
+    resetSearch()
+    await flush()
+    expect(searchHitsOf(state())).toEqual([])
+    expect(document.querySelector('.cm-md-hit')).toBeNull()
+  })
+
+  it('the match itself is marked, with focus in the list or in the file, until the caret moves (ISC-306)', async () => {
+    await start()
+    await search('needle')
+    results().focus()
+    hits()[1]?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }))
+    await flush()
+    const tab = findPane(workbenchLayout.value, workbenchLayout.value.activePane)?.activeTab
+    const follower = followerOfTab(tab ?? '')
+    const line = follower?.state.doc.line(3)
+    // "three Needle here": the mark covers the six letters of "Needle", not the caret alone.
+    expect(revealedRange(follower!.state)).toEqual({
+      from: (line?.from ?? 0) + 6,
+      to: (line?.from ?? 0) + 12,
+    })
+    expect(document.querySelector('.cm-md-reveal')?.textContent).toBe('Needle')
+    expect(editorHasFocus()).toBe(false)
+    // The caret moving ends it, and so does an edit.
+    follower?.dispatch({ selection: { anchor: 0 } })
+    await flush()
+    expect(revealedRange(follower!.state)).toBeNull()
+    expect(document.querySelector('.cm-md-reveal')).toBeNull()
+    results().focus()
+    hits()[0]?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }))
+    await flush()
+    expect(revealedRange(follower!.state)).not.toBeNull()
+    follower?.dispatch({ changes: { from: 0, insert: 'x' } })
+    await flush()
+    expect(revealedRange(follower!.state)).toBeNull()
+  })
+
   it('Enter and a double click put the caret in the file', async () => {
     await start()
     await search('needle')
@@ -629,6 +695,242 @@ describe('a search that is replaced or stopped', () => {
   })
 })
 
+describe('the toggles inside the box (ISC-295)', () => {
+  it('sit in the box wrapper at its right, in the order case, word, pattern, and fill when on', async () => {
+    await start()
+    await openSearch()
+    const wrapper = box().parentElement
+    const toggles = ['case', 'word', 'regexp'].map((name) =>
+      document.querySelector<HTMLElement>(`[data-search-${name}]`),
+    )
+    for (const toggle of toggles) expect(wrapper?.contains(toggle ?? null)).toBe(true)
+    expect(toggles.map((t) => t?.getAttribute('aria-label'))).toEqual([
+      'Match case',
+      'Whole word',
+      'Regular expression',
+    ])
+    expect(toggles[0]?.className).not.toMatch(/\bbg-primary\b/)
+    toggles[0]?.click()
+    await flush()
+    expect(toggles[0]?.getAttribute('aria-pressed')).toBe('true')
+    expect(toggles[0]?.className).toMatch(/\bbg-primary\b/)
+    toggles[0]?.click()
+    await flush()
+    expect(toggles[0]?.className).not.toMatch(/\bbg-primary\b/)
+  })
+})
+
+describe('files to include and files to exclude (ISC-296 to ISC-303)', () => {
+  const FOLDERS: Record<string, string> = {
+    '/work/a.md': 'needle in a\n',
+    '/work/notes/b.md': 'needle in b\n',
+    '/work/notes/c.txt': 'needle in c\n',
+    '/work/docs/d.md': 'needle in d\n',
+  }
+  const toggle = (): HTMLButtonElement | null =>
+    document.querySelector<HTMLButtonElement>('[data-search-filters-toggle]')
+  const includeBox = (): HTMLInputElement => {
+    const element = document.querySelector<HTMLInputElement>('[data-search-include]')
+    if (element === null) throw new Error('no include box')
+    return element
+  }
+  const excludeBox = (): HTMLInputElement => {
+    const element = document.querySelector<HTMLInputElement>('[data-search-exclude]')
+    if (element === null) throw new Error('no exclude box')
+    return element
+  }
+  async function typeIn(input: HTMLInputElement, text: string): Promise<void> {
+    input.value = text
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    await flush()
+  }
+  async function enterIn(input: HTMLInputElement): Promise<void> {
+    input.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+    )
+    await until(() => searchState.value.phase !== 'searching')
+  }
+
+  it('sit behind a ... toggle that is closed at first', async () => {
+    await start(FOLDERS)
+    await openSearch()
+    expect(document.querySelector('[data-search-include]')).toBeNull()
+    expect(toggle()?.getAttribute('aria-expanded')).toBe('false')
+    toggle()?.click()
+    await flush()
+    expect(toggle()?.getAttribute('aria-expanded')).toBe('true')
+    expect(includeBox().getAttribute('aria-label')).toBe('Files to include')
+    expect(excludeBox().getAttribute('aria-label')).toBe('Files to exclude')
+    toggle()?.click()
+    await flush()
+    expect(document.querySelector('[data-search-include]')).toBeNull()
+  })
+
+  it('Enter in either box runs the search, and typing in them never does', async () => {
+    await start(FOLDERS)
+    await openSearch()
+    await type('needle')
+    toggle()?.click()
+    await flush()
+    await typeIn(includeBox(), '*.md')
+    await typeIn(excludeBox(), 'docs')
+    expect(searchState.value.phase).toBe('idle')
+    expect(hits()).toHaveLength(0)
+    await enterIn(includeBox())
+    expect(searchState.value.phase).toBe('done')
+    expect(hits()).toHaveLength(2)
+    expect(fileNames().sort()).toEqual(['a.md', 'b.md'])
+    // Changing a box does not search again by itself.
+    await typeIn(includeBox(), '*.txt')
+    expect(fileNames().sort()).toEqual(['a.md', 'b.md'])
+    await enterIn(excludeBox())
+    expect(fileNames()).toEqual(['c.txt'])
+  })
+
+  it('the request carries both fields, and a toggle runs the search again with them', async () => {
+    await start(FOLDERS)
+    const asked: SearchRequest[] = []
+    const real = host.searchFolders.bind(host)
+    host.searchFolders = (request, buffers, onBatch) => {
+      asked.push(request)
+      return real(request, buffers, onBatch)
+    }
+    await openSearch()
+    await type('needle')
+    toggle()?.click()
+    await flush()
+    await typeIn(includeBox(), './notes')
+    await typeIn(excludeBox(), '*.txt')
+    await enter()
+    await until(() => searchState.value.phase === 'done')
+    expect(asked.at(-1)).toMatchObject({ include: './notes', exclude: '*.txt' })
+    expect(fileNames()).toEqual(['b.md'])
+    document.querySelector<HTMLElement>('[data-search-case]')?.click()
+    await until(() => asked.length === 2 && searchState.value.phase === 'done')
+    expect(asked.at(-1)).toMatchObject({
+      include: './notes',
+      exclude: '*.txt',
+      caseSensitive: true,
+    })
+  })
+
+  it('marks the box whose pattern is bad, names it, and lists nothing', async () => {
+    await start(FOLDERS)
+    await openSearch()
+    await type('needle')
+    toggle()?.click()
+    await flush()
+    await typeIn(includeBox(), 'notes/[abc')
+    await enterIn(includeBox())
+    expect(searchState.value.phase).toBe('failed')
+    expect(summary()).toContain('files to include')
+    expect(includeBox().getAttribute('aria-invalid')).toBe('true')
+    expect(excludeBox().getAttribute('aria-invalid')).toBe('false')
+    expect(hits()).toHaveLength(0)
+    await typeIn(includeBox(), '')
+    await typeIn(excludeBox(), '{a,b')
+    await enterIn(excludeBox())
+    expect(excludeBox().getAttribute('aria-invalid')).toBe('true')
+    expect(includeBox().getAttribute('aria-invalid')).toBe('false')
+    await typeIn(excludeBox(), '')
+    await enterIn(excludeBox())
+    expect(searchState.value.phase).toBe('done')
+    expect(excludeBox().getAttribute('aria-invalid')).toBe('false')
+  })
+
+  it('Find in Folder fills include, opens the boxes, keeps the query and exclude, and does not search', async () => {
+    await start(FOLDERS)
+    await openSearch()
+    await type('needle')
+    setSearchOptions({ exclude: '*.txt' })
+    findInFolder('/work/notes', '/work')
+    await flush()
+    expect(searchOptions.value.include).toBe('./notes')
+    expect(searchOptions.value.exclude).toBe('*.txt')
+    expect(searchOptions.value.query).toBe('needle')
+    expect(filtersOpen.value).toBe(true)
+    expect(includeBox().value).toBe('./notes')
+    expect(searchState.value.phase).toBe('idle')
+    expect(document.activeElement).toBe(box())
+    await enter()
+    await until(() => searchState.value.phase === 'done')
+    expect(fileNames()).toEqual(['b.md'])
+  })
+
+  it('Find in Folder on a root with one root fills nothing, and Ctrl+Shift+F never changes include', async () => {
+    await start(FOLDERS)
+    findInFolder('/work', '/work')
+    await until(() => document.querySelector('[data-search-input]') !== null)
+    expect(searchOptions.value.include).toBe('')
+    setSearchOptions({ include: './docs' })
+    await runCommand(COMMAND_IDS.findInFolders)
+    await flush()
+    expect(searchOptions.value.include).toBe('./docs')
+  })
+
+  it('a pattern in a folded box shows as a dot on the ... button, and the dot goes when the boxes open or the text is cleared (ISC-304)', async () => {
+    await start(FOLDERS)
+    await openSearch()
+    expect(document.querySelector('[data-search-filters-dot]')).toBeNull()
+    setSearchOptions({ include: './notes' })
+    filtersOpen.value = false
+    await flush()
+    expect(document.querySelector('[data-search-filters-dot]')).not.toBeNull()
+    expect(toggle()?.getAttribute('aria-label')).toContain('a pattern is set')
+    toggle()?.click()
+    await flush()
+    expect(document.querySelector('[data-search-filters-dot]')).toBeNull()
+    toggle()?.click()
+    setSearchOptions({ include: '', exclude: '  ' })
+    await flush()
+    expect(document.querySelector('[data-search-filters-dot]')).toBeNull()
+    setSearchOptions({ exclude: '*.txt' })
+    await flush()
+    expect(document.querySelector('[data-search-filters-dot]')).not.toBeNull()
+  })
+
+  it('the result line says where the search looked, and the line before a search says where the next one would (ISC-305)', async () => {
+    await start(FOLDERS)
+    await openSearch()
+    expect(summary()).toBe('Press Enter to search')
+    await type('needle')
+    await enter()
+    await until(() => searchState.value.phase === 'done')
+    expect(summary()).toBe('4 results in 4 files')
+    toggle()?.click()
+    await flush()
+    await typeIn(includeBox(), './notes')
+    await typeIn(excludeBox(), '*.txt')
+    // Changing a box changes nothing about the last answer, which still names what it ran with.
+    expect(summary()).toBe('4 results in 4 files')
+    await enterIn(includeBox())
+    expect(summary()).toBe('1 result in 1 file · in ./notes, excluding *.txt')
+    await typeIn(includeBox(), './nowhere')
+    await enterIn(includeBox())
+    expect(summary()).toBe('No results in 0 files · in ./nowhere, excluding *.txt')
+    resetSearch()
+    setSearchOptions({ include: './docs' })
+    await flush()
+    expect(summary()).toBe('Press Enter to search · in ./docs')
+  })
+
+  it('the Stop button is outlined and a bar shows while searching, and both go away after', async () => {
+    await start()
+    await openSearch()
+    expect(document.querySelector('[data-search-progress]')).toBeNull()
+    await type('needle')
+    box().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    await settle()
+    expect(searchState.value.phase).toBe('searching')
+    const stop = document.querySelector<HTMLElement>('[data-search-stop]')
+    expect(stop?.className).toMatch(/\bborder-border\b/)
+    expect(document.querySelector('[data-search-progress]')).not.toBeNull()
+    await until(() => searchState.value.phase !== 'searching')
+    expect(document.querySelector('[data-search-stop]')).toBeNull()
+    expect(document.querySelector('[data-search-progress]')).toBeNull()
+  })
+})
+
 describe('what the host sends back', () => {
   const summaryOf = (over: Partial<SearchSummary>): SearchSummary => ({
     id: 0,
@@ -639,6 +941,7 @@ describe('what the host sends back', () => {
     truncated: false,
     stopped: false,
     error: null,
+    errorField: null,
     ...over,
   })
   const hit = (path: string, line: number): SearchHit => ({

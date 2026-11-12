@@ -1,7 +1,8 @@
 import { shallowRef } from 'vue'
 import { describe, followerOfTab, openInActivePane, problem } from '@/documents/store'
 import { dirtyBuffers } from '@/features/links/rewrite'
-import { workspaceRoots } from '@/features/tree/store'
+import { includeForFolder, scopeText } from './folderFilter'
+import { pathKey, samePath, workspaceRoots } from '@/features/tree/store'
 import {
   getHost,
   type SearchBatch,
@@ -25,14 +26,25 @@ export interface SearchOptions {
   readonly caseSensitive: boolean
   readonly wholeWord: boolean
   readonly regexp: boolean
+  /** "files to include": comma-separated globs as VS Code reads them; empty means every file. */
+  readonly include: string
+  /** "files to exclude": comma-separated globs; empty removes nothing. */
+  readonly exclude: string
 }
 
-export const searchOptions = shallowRef<SearchOptions>({
+const NO_OPTIONS: SearchOptions = {
   query: '',
   caseSensitive: false,
   wholeWord: false,
   regexp: false,
-})
+  include: '',
+  exclude: '',
+}
+
+export const searchOptions = shallowRef<SearchOptions>(NO_OPTIONS)
+
+/** The two pattern boxes are shown (behind the `...` button). Opens by itself when one has text. */
+export const filtersOpen = shallowRef(false)
 
 /** A row of the list: a file's name, or one match in it. */
 export type SearchRow =
@@ -50,9 +62,20 @@ export interface SearchState {
   readonly summary: SearchSummary | null
   /** The words for why a search could not run. */
   readonly message: string | null
+  /** Which pattern box the message is about, or null for the search text and for no message. */
+  readonly errorField: 'include' | 'exclude' | null
+  /** The include and exclude text this search ran with, in words (`in ./docs`); empty for none. */
+  readonly scope: string
 }
 
-const IDLE: SearchState = { phase: 'idle', scanned: 0, summary: null, message: null }
+const IDLE: SearchState = {
+  phase: 'idle',
+  scanned: 0,
+  summary: null,
+  message: null,
+  errorField: null,
+  scope: '',
+}
 
 export const searchState = shallowRef<SearchState>(IDLE)
 
@@ -84,6 +107,8 @@ export function rowOfHit(index: number): number {
 
 /** The hits alone, in list order, for the arrow keys. */
 const hitList: SearchHit[] = []
+/** The same hits by file, for the ticks along the scrollbar of the file being shown. */
+const hitsByFile = new Map<string, SearchHit[]>()
 let currentFile: (SearchRow & { kind: 'file' }) | null = null
 
 /** The number of the selected hit, from 0, or -1. */
@@ -95,6 +120,7 @@ let latest = 0
 function clearRows(): void {
   rowList.length = 0
   hitList.length = 0
+  hitsByFile.clear()
   hitRows.length = 0
   currentFile = null
   selectedHit.value = -1
@@ -111,6 +137,10 @@ function addHits(batch: SearchBatch): void {
     hitRows.push(rowList.length)
     rowList.push({ kind: 'hit', hit, index: hitList.length })
     hitList.push(hit)
+    const key = pathKey(hit.path)
+    const ofFile = hitsByFile.get(key)
+    if (ofFile === undefined) hitsByFile.set(key, [hit])
+    else ofFile.push(hit)
   }
   if (batch.hits.length > 0) rowsVersion.value += 1
 }
@@ -142,10 +172,13 @@ export async function runSearch(): Promise<void> {
       scanned: 0,
       summary: null,
       message: 'Open a folder to search its files.',
+      errorField: null,
+      scope: '',
     }
     return
   }
-  searchState.value = { phase: 'searching', scanned: 0, summary: null, message: null }
+  const scope = scopeText(options.include, options.exclude)
+  searchState.value = { ...IDLE, phase: 'searching', scope }
   const request: SearchRequest = { id: mine, ...options }
   try {
     const host = await getHost()
@@ -160,10 +193,12 @@ export async function runSearch(): Promise<void> {
       scanned: summary.scanned,
       summary,
       message: summary.error,
+      errorField: summary.error === null ? null : summary.errorField,
+      scope,
     }
   } catch (error) {
     if (mine === latest) {
-      searchState.value = { phase: 'failed', scanned: 0, summary: null, message: describe(error) }
+      searchState.value = { ...IDLE, phase: 'failed', message: describe(error) }
     }
   }
 }
@@ -205,6 +240,19 @@ export function takeSearchFocusRequest(): boolean {
 }
 
 /**
+ * Find in Folder: shows the Search panel with "files to include" holding the folder, as VS Code
+ * writes it (see `folderFilter.ts`). The query and "files to exclude" stay as they are, and no
+ * search runs until Enter.
+ */
+export function findInFolder(path: string, root: string): void {
+  const include = includeForFolder(path, root, workspaceRoots.value, samePath)
+  searchOptions.value = { ...searchOptions.value, include }
+  if (include !== '') filtersOpen.value = true
+  showSidebar('search')
+  searchFocusRequest.value += 1
+}
+
+/**
  * Shows the Search panel with the caret in the query box. The selected line of the active editor
  * becomes the query, as Find does; the search runs when Enter is pressed.
  */
@@ -225,7 +273,7 @@ async function reveal(hit: SearchHit): Promise<void> {
   if (follower === undefined) return
   const doc = follower.state.doc
   const line = doc.line(Math.min(Math.max(hit.line, 1), doc.lines))
-  follower.reveal(line.from + Math.min(hit.column, line.length))
+  follower.reveal(line.from + Math.min(hit.column, line.length), hit.length)
 }
 
 /** One open at a time, so two quick clicks show their files in order. */
@@ -252,6 +300,11 @@ export function openHit(hit: SearchHit, how: { focusEditor?: boolean } = {}): Pr
   return opening
 }
 
+/** The hits of one file, in list order; empty when the search found none there. */
+export function hitsOfFile(path: string): readonly SearchHit[] {
+  return hitsByFile.get(pathKey(path)) ?? []
+}
+
 /** The hit a row stands for, or undefined for a file row. */
 export function hitAt(index: number): SearchHit | undefined {
   return hitList[index]
@@ -267,7 +320,8 @@ export function resetSearch(): void {
   latest += 1
   clearRows()
   searchState.value = IDLE
-  searchOptions.value = { query: '', caseSensitive: false, wholeWord: false, regexp: false }
+  searchOptions.value = NO_OPTIONS
+  filtersOpen.value = false
   searchFocusRequest.value = 0
   focusTaken = 0
   opening = Promise.resolve()

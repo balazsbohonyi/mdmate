@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CaseSensitive, Regex, Square, WholeWord } from '@lucide/vue'
+import { CaseSensitive, Ellipsis, Regex, Square, WholeWord } from '@lucide/vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import HoverHint from '@/components/HoverHint.vue'
 import { Button } from '@/components/ui/button'
@@ -9,11 +9,13 @@ import {
   ROW_HEIGHT,
   visibleWindow,
 } from '@/features/tree/model'
+import { toggleVariant } from '@/lib/toggle'
 import { MAX_SEARCH_HITS } from '@/platform'
 import { focusActiveEditor } from '@/workbench/focus'
 import { relativePathOf } from '@/workbench/tabMenu'
 import {
   cancelSearch,
+  filtersOpen,
   hitAt,
   hitTotal,
   openHit,
@@ -29,6 +31,7 @@ import {
   setSearchOptions,
   takeSearchFocusRequest,
 } from './store'
+import { scopeText } from './folderFilter'
 
 const options = computed(() => searchOptions.value)
 const state = computed(() => searchState.value)
@@ -76,7 +79,25 @@ function onStop(): void {
   focusBox()
 }
 
-const toggleClass = (on: boolean): string => (on ? 'bg-accent text-accent-foreground' : '')
+/** Enter and Escape in "files to include" and "files to exclude", as in the query box. */
+function onFieldKeydown(event: KeyboardEvent): void {
+  if (event.ctrlKey || event.altKey || event.metaKey) return
+  if (event.key === 'Enter') {
+    event.preventDefault()
+    void runSearch()
+  } else if (event.key === 'Escape') {
+    event.preventDefault()
+    if (state.value.phase === 'searching') void cancelSearch()
+    else focusActiveEditor()
+  }
+}
+
+/** A pattern box is marked when the last answer says its pattern is the problem. */
+const badField = (field: 'include' | 'exclude'): boolean =>
+  state.value.phase === 'failed' && state.value.errorField === field
+
+const field =
+  'h-7 w-full min-w-0 rounded-sm border border-input bg-background px-2 text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring aria-invalid:border-destructive'
 
 // ---- the summary line ----
 
@@ -95,12 +116,27 @@ const summary = computed(() => {
   }
   const done = current.summary
   const files = done?.files ?? 0
+  // Where it looked is part of the answer: a pattern left in a box limits every search.
+  const where = current.scope === '' ? '' : ` · ${current.scope}`
   if (done?.stopped === true) {
-    return `Search stopped. ${plural(found, 'result', 'results')} so far`
+    return `Search stopped. ${plural(found, 'result', 'results')} so far${where}`
   }
-  if (found === 0) return `No results in ${plural(current.scanned, 'file', 'files')}`
-  return `${plural(found, 'result', 'results')} in ${plural(files, 'file', 'files')}`
+  if (found === 0) return `No results in ${plural(current.scanned, 'file', 'files')}${where}`
+  return `${plural(found, 'result', 'results')} in ${plural(files, 'file', 'files')}${where}`
 })
+
+/** Before a search, the line shows where the next one would look. */
+const idleLine = computed(() => {
+  const scope = scopeText(options.value.include, options.value.exclude)
+  return scope === '' ? 'Press Enter to search' : `Press Enter to search · ${scope}`
+})
+
+/** A pattern is in a box that is folded away, so it limits searches without showing. */
+const hiddenFilter = computed(
+  () =>
+    !filtersOpen.value &&
+    (options.value.include.trim() !== '' || options.value.exclude.trim() !== ''),
+)
 
 const notes = computed(() => {
   const done = state.value.summary
@@ -256,9 +292,9 @@ const activeId = computed(() =>
   >
     <div
       role="search"
-      class="flex shrink-0 flex-col gap-1 border-b border-sidebar-border px-2 py-2"
+      class="relative flex shrink-0 flex-col gap-1 border-b border-sidebar-border px-2 py-2"
     >
-      <div class="flex items-center gap-1">
+      <div class="relative">
         <input
           ref="box"
           type="text"
@@ -269,53 +305,112 @@ const activeId = computed(() =>
           autocorrect="off"
           spellcheck="false"
           :value="options.query"
-          class="h-7 min-w-0 flex-1 rounded-sm border border-input bg-background px-2 text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring"
+          class="h-8 w-full min-w-0 rounded-sm border border-input bg-background pr-[84px] pl-2 text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring"
           @input="setSearchOptions({ query: ($event.target as HTMLInputElement).value })"
           @keydown="onBoxKeydown"
         />
-        <HoverHint text="Match case">
+        <div class="absolute inset-y-0 right-1 flex items-center gap-0.5">
+          <HoverHint text="Match case">
+            <Button
+              type="button"
+              :variant="toggleVariant(options.caseSensitive)"
+              size="icon-xs"
+              aria-label="Match case"
+              data-search-case
+              :aria-pressed="options.caseSensitive"
+              @click="setSearchOptions({ caseSensitive: !options.caseSensitive })"
+            >
+              <CaseSensitive class="size-[18px]" />
+            </Button>
+          </HoverHint>
+          <HoverHint text="Whole word">
+            <Button
+              type="button"
+              :variant="toggleVariant(options.wholeWord)"
+              size="icon-xs"
+              aria-label="Whole word"
+              data-search-word
+              :aria-pressed="options.wholeWord"
+              @click="setSearchOptions({ wholeWord: !options.wholeWord })"
+            >
+              <WholeWord class="size-[18px]" />
+            </Button>
+          </HoverHint>
+          <HoverHint text="Regular expression">
+            <Button
+              type="button"
+              :variant="toggleVariant(options.regexp)"
+              size="icon-xs"
+              aria-label="Regular expression"
+              data-search-regexp
+              :aria-pressed="options.regexp"
+              @click="setSearchOptions({ regexp: !options.regexp })"
+            >
+              <Regex class="size-[18px]" />
+            </Button>
+          </HoverHint>
+        </div>
+      </div>
+      <div class="flex justify-end">
+        <HoverHint text="Toggle search details">
           <Button
             type="button"
             variant="ghost"
             size="icon-xs"
-            aria-label="Match case"
-            data-search-case
-            :aria-pressed="options.caseSensitive"
-            :class="toggleClass(options.caseSensitive)"
-            @click="setSearchOptions({ caseSensitive: !options.caseSensitive })"
+            :aria-label="
+              hiddenFilter ? 'Toggle search details (a pattern is set)' : 'Toggle search details'
+            "
+            data-search-filters-toggle
+            :aria-expanded="filtersOpen"
+            class="relative"
+            :class="filtersOpen ? 'bg-accent text-accent-foreground' : ''"
+            @click="filtersOpen = !filtersOpen"
           >
-            <CaseSensitive />
-          </Button>
-        </HoverHint>
-        <HoverHint text="Whole word">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            aria-label="Whole word"
-            data-search-word
-            :aria-pressed="options.wholeWord"
-            :class="toggleClass(options.wholeWord)"
-            @click="setSearchOptions({ wholeWord: !options.wholeWord })"
-          >
-            <WholeWord />
-          </Button>
-        </HoverHint>
-        <HoverHint text="Regular expression">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            aria-label="Regular expression"
-            data-search-regexp
-            :aria-pressed="options.regexp"
-            :class="toggleClass(options.regexp)"
-            @click="setSearchOptions({ regexp: !options.regexp })"
-          >
-            <Regex />
+            <Ellipsis />
+            <span
+              v-if="hiddenFilter"
+              data-search-filters-dot
+              class="absolute top-0.5 right-0.5 size-1.5 rounded-full bg-primary"
+            />
           </Button>
         </HoverHint>
       </div>
+      <template v-if="filtersOpen">
+        <label class="flex flex-col gap-1 text-xs text-muted-foreground">
+          files to include
+          <input
+            type="text"
+            data-search-include
+            aria-label="Files to include"
+            placeholder="e.g. *.md, ./docs"
+            autocomplete="off"
+            autocorrect="off"
+            spellcheck="false"
+            :value="options.include"
+            :aria-invalid="badField('include')"
+            :class="field"
+            @input="setSearchOptions({ include: ($event.target as HTMLInputElement).value })"
+            @keydown="onFieldKeydown"
+          />
+        </label>
+        <label class="flex flex-col gap-1 text-xs text-muted-foreground">
+          files to exclude
+          <input
+            type="text"
+            data-search-exclude
+            aria-label="Files to exclude"
+            placeholder="e.g. **/build, *.txt"
+            autocomplete="off"
+            autocorrect="off"
+            spellcheck="false"
+            :value="options.exclude"
+            :aria-invalid="badField('exclude')"
+            :class="field"
+            @input="setSearchOptions({ exclude: ($event.target as HTMLInputElement).value })"
+            @keydown="onFieldKeydown"
+          />
+        </label>
+      </template>
       <div class="flex min-h-6 items-center justify-between gap-2">
         <div
           data-search-summary
@@ -323,7 +418,7 @@ const activeId = computed(() =>
           class="min-w-0 text-xs"
           :class="state.phase === 'failed' ? 'text-destructive' : 'text-muted-foreground'"
         >
-          {{ summary || 'Press Enter to search' }}
+          {{ summary || idleLine }}
         </div>
         <HoverHint
           v-if="state.phase === 'searching'"
@@ -331,7 +426,7 @@ const activeId = computed(() =>
         >
           <Button
             type="button"
-            variant="ghost"
+            variant="outline"
             size="xs"
             aria-label="Stop search"
             data-search-stop
@@ -342,6 +437,15 @@ const activeId = computed(() =>
             Stop
           </Button>
         </HoverHint>
+      </div>
+      <div
+        v-if="state.phase === 'searching'"
+        data-search-progress
+        role="progressbar"
+        aria-label="Searching"
+        class="search-progress absolute inset-x-0 bottom-0 h-0.5 overflow-hidden"
+      >
+        <div class="search-progress-bar h-full w-1/3 bg-primary" />
       </div>
     </div>
     <div
@@ -434,3 +538,25 @@ const activeId = computed(() =>
     </div>
   </section>
 </template>
+
+<style scoped>
+.search-progress-bar {
+  animation: search-progress 1.1s ease-in-out infinite;
+}
+@keyframes search-progress {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+/* No motion asked for: a still bar says the same thing. */
+@media (prefers-reduced-motion: reduce) {
+  .search-progress-bar {
+    animation: none;
+    width: 100%;
+    opacity: 0.5;
+  }
+}
+</style>

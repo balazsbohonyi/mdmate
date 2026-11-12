@@ -193,3 +193,29 @@ Adding `D:\develop\projects` while `D:\develop\projects\KnowledgeBase` was alrea
 - **Open state, selection, rename, the new-name box, keyboard moves, drag highlights and DOM ids are per place** (a root plus a path). Opening `analysis` under `projects\KnowledgeBase` leaves the `KnowledgeBase` root's `analysis` closed, and only the clicked row is highlighted. Listings and file watching stay by path, since both copies show the same folder on disk.
 
 Defaults chosen: a call that knows only a path (Reveal in a tab menu, a new file made elsewhere, a move) acts on the copy under the innermost root that holds the path. The session now saves open folders as places (`workspace.expandedPlaces`) and still writes the old `expanded` path list; a session from before this change restores each bare path under every root that holds it, which is what was on screen then.
+
+## P7-T4: Folder search filters (2026-11-12)
+
+Settled with the owner, with VS Code's behavior checked in its docs and source (`searchActionsFind.ts`, `queryBuilder.ts`).
+
+- **Patterns are VS Code's.** Globs, not regular expressions. Comma-separated, and commas inside `{}` do not split; `*` `?` `**` `{a,b}` `[abc]` `[!abc]`; a backslash is read as `/`; case-insensitive on Windows. No `!` (VS Code does not allow it in these boxes). A bare pattern matches at any depth and covers what is inside a folder it names; `./p` anchors to the top of a root.
+- **The fields sit behind a `...` toggle**, closed by default and open when either has text or Find in Folder fills one.
+- **Find in Folder** has VS Code's two entry points: a context-menu item on folder and root rows, and Alt+Shift+F with the tree focused on one. Ctrl+Shift+F does not read the tree selection, as in VS Code. It fills "files to include" and nothing else, and does not run the search. One root: `./analysis/reports`, and a root row fills nothing; several roots: `./KnowledgeBase/analysis/reports` and `./KnowledgeBase`; two roots with one name: the full path. `* ? [ ] { }` in a folder name are escaped; a comma cannot be.
+- **A malformed pattern** marks its field, names it in the summary and runs no search.
+- **Enter in any of the three boxes runs a search; typing alone never does.** The toggles still re-run a search that was made.
+- **`.git` and `node_modules` stay skipped** even if a pattern names them. The editable list is Phase 7.1 / 8, and the index there must apply these filters when it takes over the file list.
+- **The Stop button was never seen** because it exists only while a search runs and was a flat ghost button. It becomes an outlined button with a thin moving bar under the header. The first step of the work is to reproduce this in the real window on `D:\develop\projects`.
+- **New dependency:** `globset` (Rust), for the pattern matching.
+
+## P7-T5: Close All and Close to the Right (2026-11-13)
+
+- **Close All closes one pane.** From a tab menu it is the pane that tab is in; the Close All command (Ctrl+Shift+W, File menu) takes the focused pane. It never closes tabs in other panes, and the pane goes away with its last tab (the last pane stays, empty). A split puts a copy of the active tab in the new pane, so a document usually stays open after its pane is closed, and it is asked about only when the last tab that shows it closes.
+- **Close to the Right is a tab-menu item only.** It has no command and no key; it is off on the last tab of a pane. It goes through `closeTabs` like Close Others, so dirty tabs ask once each and Cancel stops the rest.
+
+## P7-T6: Match ticks along the scrollbar (2026-11-13)
+
+- **One extension, two sources.** `src/editor/matchTicks.ts` draws a strip of 3 px ticks behind the scroller, for the Find bar's query (scanned on its own, 10,000 matches or 30 ms at most) and for the folder search hits in the shown file (set from `src/features/search/ticks.ts` when a tab is shown or the result list changes, and moved with the text by edits). Ticks use `--find-match-active`.
+- **The thumb was already translucent** (32% and 38% alpha in the themes), and the strip sits under the scroller, so the thumb passes over the ticks and no color change was needed.
+- **Ticks are rows, not matches.** Matches that fall in the same 3 px row share a tick, so ten thousand matches draw at most a few hundred small boxes.
+- **Every hit is marked in the text too**, in the muted Find color, with the clicked hit drawn over it in the current-match color. The hit list carries each hit's length, so a mark covers the match, and the marks move with edits like the ticks. A mark is only drawn for the folder search; the Find bar keeps its own marks.
+- **Not done:** Find File References does not mark its target in the opened file.

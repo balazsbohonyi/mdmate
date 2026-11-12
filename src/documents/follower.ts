@@ -8,6 +8,7 @@ import {
   type TransactionSpec,
 } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
+import { revealMarkEffect } from '@/editor/revealMark'
 import { syncAnnotation, type FollowerLink } from '@/editor/sync'
 import type { Endings } from '@/lib/endings'
 
@@ -96,15 +97,23 @@ export class Follower implements FollowerLink {
   /**
    * Puts the caret at `pos` and scrolls it to the top of the view. A follower no view shows keeps
    * the scroll for when it is shown, so a jump into a tab that is about to open still lands.
+   * `length` characters from `pos` are marked as the match the jump is about, until the caret moves.
    */
-  reveal(pos: number): void {
-    const at = Math.max(0, Math.min(pos, this.state.doc.length))
+  reveal(pos: number, length = 0): void {
+    const doc = this.state.doc
+    const at = Math.max(0, Math.min(pos, doc.length))
     const selection = EditorSelection.cursor(at)
+    const mark = revealMarkEffect.of(
+      length > 0 ? { from: at, to: Math.min(at + length, doc.length) } : null,
+    )
     if (this.#view !== null) {
-      this.#view.dispatch({ selection, effects: EditorView.scrollIntoView(at, { y: 'start' }) })
+      this.#view.dispatch({
+        selection,
+        effects: [EditorView.scrollIntoView(at, { y: 'start' }), mark],
+      })
       return
     }
-    this.dispatch({ selection })
+    this.dispatch({ selection, effects: mark })
     this.#revealOnShow = at
   }
 

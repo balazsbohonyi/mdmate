@@ -25,7 +25,7 @@ import { mockQuickOpen } from './mockQuickOpen'
 import { applyEdits, isScannable, mockEdits, mockReferences, movedPath } from './mockRewrite'
 import type { Reference } from './references'
 import type { RewriteChange, RewriteDone, RewritePlanned, TextChange } from './rewrite'
-import { mockMatcher, mockSearchText } from './mockSearch'
+import { mockFilters, mockMatcher, mockSearchText } from './mockSearch'
 import { mockOutline } from './mockOutline'
 import { MAX_SEARCH_HITS, type SearchSummary } from './search'
 
@@ -829,9 +829,14 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
         truncated: false,
         stopped: false,
         error: null,
+        errorField: null,
       }
       const matcher = mockMatcher(request)
       if ('error' in matcher) return { ...empty, error: matcher.error }
+      const filters = mockFilters(request, roots)
+      if ('error' in filters) {
+        return { ...empty, error: filters.error, errorField: filters.errorField }
+      }
       const held = new Map<string, string>()
       for (const buffer of buffers) {
         const doc = open.get(buffer.id)
@@ -844,6 +849,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
       for (const file of [...files.paths()].sort()) {
         const key = pathKey(file)
         if (!insideRoot(file) || /(^|\/)(node_modules|\.git)(\/|$)/i.test(key)) continue
+        if (!filters.keeps(file)) continue
         // A turn of the event loop per file, as a search that takes time would give: this is
         // what lets a newer search or a cancel land while this one runs.
         await new Promise<void>((resolve) => setTimeout(resolve, 0))

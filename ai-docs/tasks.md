@@ -80,6 +80,9 @@ Mark `[x]` only when the task's "Done when" in its phase plan holds. Each task l
 - [x] P7-T1: Find and replace — closes ISC-133, ISC-134, ISC-135, ISC-136 (and ISC-258 to ISC-265)
 - [x] P7-T2: Folder search — closes ISC-137, ISC-138, ISC-139, ISC-140
 - [x] P7-T3: Outline panel — closes ISC-141, ISC-142, ISC-143, ISC-144
+- [x] P7-T4: Folder search filters, toggles in the box, a visible Stop — closes ISC-295 to ISC-303 (Find in Folder, the pattern grammar, bad patterns, the Stop button)
+- [x] P7-T5: Close All closes only its own pane, and Close to the Right — closes ISC-307, ISC-308
+- [x] P7-T6: Search and Find matches as ticks along the editor scrollbar — closes ISC-309, ISC-310
 
 ## Phase 7.1: Workspace index ([plan](phases/phase-07.1/plan.md))
 

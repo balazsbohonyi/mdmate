@@ -16,12 +16,15 @@
 //! starting another one (the page names each search with an increasing id) or by asking; it is
 //! checked between folder entries, every [`STOP_EVERY_LINES`] lines of a file and between files.
 
+pub(crate) mod filters;
+
 use crate::access::display_path;
 use crate::documents::AppState;
 use crate::fs::encoding::{self, Decoded, Encoding};
 use crate::links::flow::Buffer;
 use crate::links::rewrite::place_key;
-use crate::links::walk::{Scope, read_unless_binary, walk_until};
+use crate::links::walk::{Scope, read_unless_binary, walk_until_pruned};
+use filters::Filters;
 use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -59,6 +62,12 @@ pub(crate) struct Request {
     pub(crate) case_sensitive: bool,
     pub(crate) whole_word: bool,
     pub(crate) regexp: bool,
+    /// "files to include": comma-separated globs; empty means every file. See [`filters`].
+    #[serde(default)]
+    pub(crate) include: String,
+    /// "files to exclude": comma-separated globs; empty removes nothing.
+    #[serde(default)]
+    pub(crate) exclude: String,
 }
 
 /// One match.
@@ -108,6 +117,8 @@ pub(crate) struct Summary {
     pub(crate) stopped: bool,
     /// Why nothing was searched: a pattern the engine cannot run.
     pub(crate) error: Option<String>,
+    /// Which box the error is about: `"include"` or `"exclude"`; none for the search text.
+    pub(crate) error_field: Option<String>,
 }
 
 /// A word character for "whole word": a letter, a digit or an underscore, in any script.
@@ -340,6 +351,22 @@ pub(crate) fn run(
             };
         }
     };
+    let filters = match Filters::parse(
+        &request.include,
+        &request.exclude,
+        inputs.roots,
+        inputs.ignore_case,
+    ) {
+        Ok(filters) => filters,
+        Err(error) => {
+            return Summary {
+                id: request.id,
+                error: Some(error.message),
+                error_field: Some(error.field.key().to_owned()),
+                ..Summary::default()
+            };
+        }
+    };
     let mut run = Run {
         id: request.id,
         matcher: &matcher,
@@ -360,47 +387,57 @@ pub(crate) fn run(
         if !run.go_on() {
             break;
         }
-        let walked = walk_until(root, Scope::Text, stop, |path| {
-            let Some(key) = place_key(path, inputs.ignore_case) else {
-                return true;
-            };
-            if !seen.insert(key.clone()) {
-                return true;
-            }
-            if let Some(text) = inputs.held.get(&key) {
-                run.search(path, text);
-                return run.go_on();
-            }
-            match std::fs::metadata(path) {
-                Ok(meta) if meta.len() <= MAX_FILE_BYTES => {}
-                _ => {
-                    run.skipped += 1;
+        // A folder the filters rule out is never listed, and a file they drop is never opened.
+        let walked = walk_until_pruned(
+            root,
+            Scope::Text,
+            stop,
+            |folder| filters.skips_folder(folder),
+            |path| {
+                if !filters.keeps_file(path) {
                     return true;
                 }
-            }
-            let bytes = match read_unless_binary(path) {
-                Ok(Some(bytes)) => bytes,
-                Ok(None) => return true,
-                Err(_) => {
-                    run.skipped += 1;
+                let Some(key) = place_key(path, inputs.ignore_case) else {
+                    return true;
+                };
+                if !seen.insert(key.clone()) {
                     return true;
                 }
-            };
-            match encoding::decode(&bytes) {
-                // A NUL in text that is not UTF-16 is a binary file that happens to be valid UTF-8.
-                Decoded::Text { format, text } => {
-                    if format.encoding != Encoding::Utf8 || !bytes.contains(&0) {
-                        run.search(path, &text);
-                    }
+                if let Some(text) = inputs.held.get(&key) {
+                    run.search(path, text);
+                    return run.go_on();
                 }
-                Decoded::Unsupported { .. } => {
-                    if has_utf16_mark(&bytes) || !bytes.contains(&0) {
+                match std::fs::metadata(path) {
+                    Ok(meta) if meta.len() <= MAX_FILE_BYTES => {}
+                    _ => {
                         run.skipped += 1;
+                        return true;
                     }
                 }
-            }
-            run.go_on()
-        });
+                let bytes = match read_unless_binary(path) {
+                    Ok(Some(bytes)) => bytes,
+                    Ok(None) => return true,
+                    Err(_) => {
+                        run.skipped += 1;
+                        return true;
+                    }
+                };
+                match encoding::decode(&bytes) {
+                    // A NUL in text that is not UTF-16 is a binary file that happens to be valid UTF-8.
+                    Decoded::Text { format, text } => {
+                        if format.encoding != Encoding::Utf8 || !bytes.contains(&0) {
+                            run.search(path, &text);
+                        }
+                    }
+                    Decoded::Unsupported { .. } => {
+                        if has_utf16_mark(&bytes) || !bytes.contains(&0) {
+                            run.skipped += 1;
+                        }
+                    }
+                }
+                run.go_on()
+            },
+        );
         run.skipped += walked.unreadable.len();
     }
     run.flush(true);
@@ -413,6 +450,7 @@ pub(crate) fn run(
         truncated: run.truncated,
         stopped: stop(),
         error: None,
+        error_field: None,
     }
 }
 
@@ -467,6 +505,16 @@ mod tests {
             case_sensitive: false,
             whole_word: false,
             regexp: false,
+            include: String::new(),
+            exclude: String::new(),
+        }
+    }
+
+    fn filtered(query: &str, include: &str, exclude: &str) -> Request {
+        Request {
+            include: include.into(),
+            exclude: exclude.into(),
+            ..request(query)
         }
     }
 
@@ -935,5 +983,194 @@ mod tests {
             let expected = case.rust.as_ref().unwrap_or(&case.matches);
             assert_eq!(&found, expected, "{}", case.name);
         }
+    }
+
+    // ---- files to include and files to exclude ---------------------------------------------
+
+    fn tree(dir: &Path) {
+        write(dir, "a.md", b"needle");
+        write(dir, "b.txt", b"needle");
+        write(dir, "docs/guide/c.md", b"needle");
+        write(dir, "docs/other/d.md", b"needle");
+        write(dir, "src/e.ts", b"needle");
+        write(dir, "build/f.md", b"needle");
+        write(dir, "node_modules/g.md", b"needle");
+        write(dir, ".git/h.md", b"needle");
+    }
+
+    fn names(outcome: &Outcome) -> Vec<String> {
+        places(outcome)
+            .into_iter()
+            .map(|(name, _, _)| name)
+            .collect()
+    }
+
+    #[test]
+    fn include_narrows_and_a_dropped_file_is_never_opened_or_counted() {
+        let dir = tempfile::tempdir().expect("dir");
+        tree(dir.path());
+        let all = search(dir.path(), &request("needle"));
+        assert_eq!(all.summary.scanned, 6, "a, b, c, d, e, f");
+        let md = search(dir.path(), &filtered("needle", "*.md", ""));
+        assert_eq!(names(&md), ["a.md", "c.md", "d.md", "f.md"]);
+        assert_eq!(md.summary.scanned, 4, "b.txt and e.ts were not read");
+        let two = search(dir.path(), &filtered("needle", "*.txt, src", ""));
+        assert_eq!(names(&two), ["b.txt", "e.ts"]);
+    }
+
+    #[test]
+    fn exclude_removes_files_and_folders() {
+        let dir = tempfile::tempdir().expect("dir");
+        tree(dir.path());
+        let outcome = search(dir.path(), &filtered("needle", "", "build, *.txt"));
+        assert_eq!(names(&outcome), ["a.md", "c.md", "d.md", "e.ts"]);
+        assert_eq!(outcome.summary.scanned, 4);
+        let both = search(dir.path(), &filtered("needle", "*.md", "other"));
+        assert_eq!(names(&both), ["a.md", "c.md", "f.md"]);
+    }
+
+    #[test]
+    fn dot_slash_anchors_and_an_anchored_include_gives_what_a_full_walk_gives() {
+        let dir = tempfile::tempdir().expect("dir");
+        tree(dir.path());
+        write(dir.path(), "src/docs/inner.md", b"needle");
+        let anchored = search(dir.path(), &filtered("needle", "./docs", ""));
+        assert_eq!(names(&anchored), ["c.md", "d.md"], "not src/docs");
+        let nested = search(dir.path(), &filtered("needle", "./docs/guide", ""));
+        assert_eq!(names(&nested), ["c.md"]);
+        // The same files as a bare pattern that names a folder with no twin elsewhere.
+        let bare = search(dir.path(), &filtered("needle", "guide", ""));
+        assert_eq!(names(&bare), names(&nested));
+        assert_eq!(bare.summary.scanned, nested.summary.scanned);
+    }
+
+    #[test]
+    fn git_and_node_modules_stay_skipped_whatever_the_patterns_say() {
+        let dir = tempfile::tempdir().expect("dir");
+        tree(dir.path());
+        for include in [
+            "node_modules",
+            ".git",
+            "**/node_modules/**",
+            "./node_modules",
+        ] {
+            let outcome = search(dir.path(), &filtered("needle", include, ""));
+            assert!(outcome.hits.is_empty(), "{include}: {:?}", names(&outcome));
+        }
+    }
+
+    #[test]
+    fn unsaved_text_is_filtered_like_files() {
+        let dir = tempfile::tempdir().expect("dir");
+        write(dir.path(), "a.md", b"old\n");
+        write(dir.path(), "b.txt", b"old\n");
+        let a = dir.path().join("a.md");
+        let b = dir.path().join("b.txt");
+        let held = [
+            (a.as_path(), "needle typed\n"),
+            (b.as_path(), "needle typed\n"),
+        ];
+        let outcome = search_with(
+            &[dir.path()],
+            &held,
+            &filtered("needle", "*.md", ""),
+            &|| false,
+        );
+        assert_eq!(names(&outcome), ["a.md"]);
+        let outcome = search_with(
+            &[dir.path()],
+            &held,
+            &filtered("needle", "", "*.md"),
+            &|| false,
+        );
+        assert_eq!(names(&outcome), ["b.txt"]);
+    }
+
+    #[test]
+    fn a_bad_pattern_names_its_field_and_searches_nothing() {
+        let dir = tempfile::tempdir().expect("dir");
+        tree(dir.path());
+        let broken = search(dir.path(), &filtered("needle", "src/[abc", ""));
+        assert_eq!(broken.summary.error_field.as_deref(), Some("include"));
+        assert!(
+            broken
+                .summary
+                .error
+                .as_deref()
+                .unwrap_or_default()
+                .contains("files to include")
+        );
+        assert!(broken.hits.is_empty());
+        assert_eq!(broken.summary.scanned, 0);
+        let open = search(dir.path(), &filtered("needle", "", "{a,b"));
+        assert_eq!(open.summary.error_field.as_deref(), Some("exclude"));
+        // A bad query is still the query's, with no field.
+        let mut query = filtered("(", "", "");
+        query.regexp = true;
+        let bad = search(dir.path(), &query);
+        assert!(bad.summary.error.is_some());
+        assert_eq!(bad.summary.error_field, None);
+    }
+
+    #[test]
+    fn several_roots_are_named_by_their_folder() {
+        let dir = tempfile::tempdir().expect("dir");
+        write(dir.path(), "KnowledgeBase/notes/a.md", b"needle");
+        write(dir.path(), "KnowledgeBase/other/b.md", b"needle");
+        write(dir.path(), "projects/notes/c.md", b"needle");
+        let kb = dir.path().join("KnowledgeBase");
+        let projects = dir.path().join("projects");
+        let run_with = |include: &str| {
+            search_with(
+                &[&kb, &projects],
+                &[],
+                &filtered("needle", include, ""),
+                &|| false,
+            )
+        };
+        assert_eq!(names(&run_with("./KnowledgeBase/notes")), ["a.md"]);
+        assert_eq!(names(&run_with("./projects")), ["c.md"]);
+        assert_eq!(
+            names(&run_with("notes")),
+            ["a.md", "c.md"],
+            "a bare name is in every root"
+        );
+        let unknown = run_with("./Nope/x");
+        assert_eq!(unknown.summary.error_field.as_deref(), Some("include"));
+        assert!(
+            unknown
+                .summary
+                .error
+                .unwrap_or_default()
+                .contains("Workspace folder does not exist: Nope")
+        );
+    }
+
+    #[test]
+    fn a_file_under_two_nested_roots_matches_under_either_and_is_read_once() {
+        let dir = tempfile::tempdir().expect("dir");
+        write(dir.path(), "notes/a.md", b"needle");
+        write(dir.path(), "other/b.md", b"needle");
+        let outer = dir.path();
+        let inner = dir.path().join("notes");
+        let by_inner = search_with(
+            &[outer, &inner],
+            &[],
+            &filtered("needle", "./notes/a.md", ""),
+            &|| false,
+        );
+        assert_eq!(names(&by_inner), ["a.md"]);
+        let outer_name = outer
+            .file_name()
+            .expect("name")
+            .to_string_lossy()
+            .into_owned();
+        let by_outer = search_with(
+            &[outer, &inner],
+            &[],
+            &filtered("needle", &format!("./{outer_name}/other"), ""),
+            &|| false,
+        );
+        assert_eq!(names(&by_outer), ["b.md"]);
     }
 }

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
 import { followerOfTab } from '@/documents/store'
+import { rowsVersion } from '@/features/search/store'
+import { syncSearchTicks } from '@/features/search/ticks'
 import { editorFocusRequest, isEditorFocusHeld } from './focus'
 import { PaneEditor } from './paneEditor'
 
@@ -20,6 +22,7 @@ function show(id: string): void {
   }
   // A tree click shows a file without taking focus away from the tree (ISC-255).
   editor.show(follower, active && !isEditorFocusHeld())
+  syncSearchTicks(id)
 }
 
 onMounted(() => {
@@ -31,6 +34,10 @@ watch(
     show(id)
   },
 )
+// The folder search's hits in the shown file are ticks along its scrollbar; they follow the list.
+watch(rowsVersion, () => {
+  syncSearchTicks(tabId)
+})
 watch(
   () => active,
   (isActive) => {

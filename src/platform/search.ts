@@ -13,6 +13,10 @@ export interface SearchRequest {
   readonly caseSensitive: boolean
   readonly wholeWord: boolean
   readonly regexp: boolean
+  /** "files to include": comma-separated globs, as VS Code reads them; empty means every file. */
+  readonly include: string
+  /** "files to exclude": comma-separated globs; empty removes nothing. */
+  readonly exclude: string
 }
 
 /** One match. */
@@ -54,6 +58,8 @@ export interface SearchSummary {
   readonly stopped: boolean
   /** Why nothing was searched: a pattern the engine cannot run. */
   readonly error: string | null
+  /** Which box the error is about, `include` or `exclude`; null for the search text. */
+  readonly errorField: 'include' | 'exclude' | null
 }
 
 /** The most hits one search lists. Rust's `MAX_HITS`. */
@@ -85,6 +91,7 @@ export function parseSearchBatch(value: unknown): SearchBatch {
 export function parseSearchSummary(value: unknown): SearchSummary {
   const summary = record(value)
   const error = summary.error
+  const field = summary.errorField
   if (error !== null && typeof error !== 'string') throw new Error('error is not text')
   return {
     id: count(summary, 'id', 0),
@@ -95,5 +102,6 @@ export function parseSearchSummary(value: unknown): SearchSummary {
     truncated: flag(summary, 'truncated'),
     stopped: flag(summary, 'stopped'),
     error: error ?? null,
+    errorField: field === 'include' || field === 'exclude' ? field : null,
   }
 }

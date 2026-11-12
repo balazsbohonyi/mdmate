@@ -10,6 +10,7 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
 import { findFileReferences } from '@/features/references/store'
+import { findInFolder } from '@/features/search/store'
 import HoverHint from '@/components/HoverHint.vue'
 import { SLOW_HINT_DELAY } from '@/components/hintDelay'
 import { shortcutLabel } from '@/workbench/commands'
@@ -200,6 +201,14 @@ function menuCopyRelativePath(): void {
   const path = menuPath()
   if (path !== null) void copyRelativePath(path)
 }
+/** The keys that start Find in Folder from the tree, as in VS Code. */
+const FIND_IN_FOLDER_KEYS = 'Alt+Shift+F'
+
+function menuFindInFolder(): void {
+  const row = menuRow.value
+  if (row !== null && (row.kind === 'root' || row.kind === 'folder'))
+    findInFolder(row.path, row.root)
+}
 function menuFindReferences(): void {
   const path = menuPath()
   if (path !== null) void findFileReferences(path)
@@ -247,7 +256,21 @@ watch(treeFocusRequest, () => {
 function onKeydown(event: KeyboardEvent): void {
   // The box a name is typed in handles its own keys.
   if (naming.value !== null || event.target !== scroller.value) return
-  // A key with Ctrl, Alt or Meta is a shortcut of the app (history, headings, save...) and passes.
+  // Alt+Shift+F searches the selected folder. Other keys with Alt, Ctrl or Meta are shortcuts of
+  // the app (history, headings, save...) and pass.
+  if (event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey && event.code === 'KeyF') {
+    const row = treeRows.value.find(
+      (candidate) =>
+        (candidate.kind === 'root' || candidate.kind === 'folder') &&
+        candidate.path === selectedPath.value &&
+        candidate.root === selectedRoot.value,
+    )
+    if (row !== undefined) {
+      event.preventDefault()
+      findInFolder(row.path, row.root)
+    }
+    return
+  }
   if (event.ctrlKey || event.altKey || event.metaKey) return
   if (!event.shiftKey && TREE_KEYS.includes(event.key)) {
     // Space and the arrows would scroll the list; the tree moves the selection itself.
@@ -580,6 +603,13 @@ function rowHint(row: TreeRow): string | null {
         <ContextMenuItem @select="menuCopyRelativePath">Copy Relative Path</ContextMenuItem>
       </template>
       <ContextMenuSeparator />
+      <ContextMenuItem
+        v-if="isFolderRow"
+        @select="menuFindInFolder"
+      >
+        Find in Folder...
+        <ContextMenuShortcut>{{ FIND_IN_FOLDER_KEYS }}</ContextMenuShortcut>
+      </ContextMenuItem>
       <ContextMenuItem @select="menuReveal">{{
         isFolderRow ? OPEN_FOLDER : OPEN_CONTAINING_FOLDER
       }}</ContextMenuItem>

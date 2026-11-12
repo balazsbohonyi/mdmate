@@ -181,6 +181,11 @@ export async function loadFolder(path: string): Promise<void> {
   }
 }
 
+/** A path as the tree tells places apart: slashes alike, and case ignored where the system ignores it. */
+export function pathKey(path: string): string {
+  return keyOf(path)
+}
+
 /** True when two paths are the same place, whatever their spelling. */
 export function samePath(a: string, b: string): boolean {
   return keyOf(a) === keyOf(b)

@@ -70,6 +70,19 @@ pub(crate) fn walk_until(
     root: &Path,
     scope: Scope,
     stop: impl Fn() -> bool,
+    visit: impl FnMut(&Path) -> bool,
+) -> Walked {
+    walk_until_pruned(root, scope, stop, |_| false, visit)
+}
+
+/// Like [`walk_until`], and `skip_dir` is asked about each subfolder before it is listed: true
+/// leaves the folder and everything in it unread. Folder search uses it for "files to exclude" and
+/// for an include that names one folder.
+pub(crate) fn walk_until_pruned(
+    root: &Path,
+    scope: Scope,
+    stop: impl Fn() -> bool,
+    skip_dir: impl Fn(&Path) -> bool,
     mut visit: impl FnMut(&Path) -> bool,
 ) -> Walked {
     let mut walked = Walked::default();
@@ -99,7 +112,10 @@ pub(crate) fn walk_until(
             if kind.is_symlink() {
                 walked.links_left += 1;
             } else if kind.is_dir() {
-                subfolders.push(entry.path());
+                let folder = entry.path();
+                if !skip_dir(&folder) {
+                    subfolders.push(folder);
+                }
             } else if kind.is_file() {
                 // The extension is read from the name alone, so a file that is not offered is
                 // never opened.

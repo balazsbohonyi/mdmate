@@ -100,7 +100,7 @@ sequenceDiagram
 - An untitled document is an id in Rust (`Documents.untitled`) with no path and no table entry; the page's `Document` has an empty path and an untitled number. A save of it, and every Save As, goes through `save_as::save_as`, which takes the dialog as a parameter, refuses a file open in another tab, and on success gives the id its file (`promote`) and the page moves the same `Document` to it (`relocate`), keeping undo history.
 - Hot exit stores an untitled tab as a tab with no path plus its buffer, both carrying its number; a restart gives it a new id and counts it as edited.
 - Open Recent is `recent.json` in the data folder, owned by Rust: newest first, 10 files and 5 folders, atomic write, pruned of missing paths when read. Only Rust adds to it, and a recent entry is granted access again only if it is on the list.
-- Close All, Close Others and similar commands go through one queue (`closeTabs`) that asks per dirty document in the pane banner, and Revert asks the same way.
+- Close All (of one pane), Close Others, Close to the Right and similar commands go through one queue (`closeTabs`) that asks per dirty document in the pane banner, and Revert asks the same way.
 
 ## Live preview
 

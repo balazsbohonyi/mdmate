@@ -16,6 +16,7 @@ crate-type = ["rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+globset = "0.4"
 notify = "8"
 regex = "1"
 rfd = { version = "0.17", default-features = false, features = ["common-controls-v6", "gtk3"] }
