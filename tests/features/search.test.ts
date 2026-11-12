@@ -608,6 +608,25 @@ describe('a search that is replaced or stopped', () => {
     expect(searchState.value.summary?.stopped).toBe(true)
     expect(summary()).toMatch(/^Search stopped\. \d+ results? so far$/)
   })
+
+  it('the Stop button shows while searching, stops it, and puts the caret back in the box', async () => {
+    await start()
+    await openSearch()
+    expect(document.querySelector('[data-search-stop]')).toBeNull()
+    await type('needle')
+    box().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    await settle()
+    expect(searchState.value.phase).toBe('searching')
+    const stop = document.querySelector<HTMLButtonElement>('[data-search-stop]')
+    expect(stop?.getAttribute('aria-label')).toBe('Stop search')
+    stop?.click()
+    await flush()
+    expect(searchState.value.phase).toBe('done')
+    expect(searchState.value.summary?.stopped).toBe(true)
+    expect(summary()).toMatch(/^Search stopped\. \d+ results? so far$/)
+    expect(document.querySelector('[data-search-stop]')).toBeNull()
+    expect(document.activeElement).toBe(box())
+  })
 })
 
 describe('what the host sends back', () => {

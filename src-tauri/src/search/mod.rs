@@ -733,6 +733,8 @@ mod tests {
         write(dir.path(), ".git/config", b"needle");
         write(dir.path(), "node_modules/pkg/index.js", b"needle");
         write(dir.path(), "image.bin", b"needle\0needle");
+        // Known by its extension, so never opened: the search cannot find this one.
+        write(dir.path(), "build/lib.o", b"needle");
         write(dir.path(), "binary-utf8.dat", b"needle\0");
         // A NUL after the first 8 KB is past the look at the start; the decoded text catches it.
         let mut late = "needle ".repeat(2000).into_bytes();

@@ -175,3 +175,12 @@ Release build with the perf driver, built fresh by the run, after P7-T3 (`813246
 - **typing-find-open is new, so these are its first runs**, and it was defined before it ran (above). It drew at most 545 match marks at once on the 1 MB file, not the 1,500 cap I wrote in its definition; the one-letter query fills the viewport with fewer marks than the cap. The measurement is unchanged; the sentence in the definition was wrong about the cap and is corrected here, not edited.
 - **Not measured:** typing with a query active in the 10 MB file (ISC-260 names a 10 MB plain-source file; the scenario types in the 1 MB file, as the other typing scenarios do). `untested.md` row 2 says so.
 - **The perf files** are in `perf-results/`, which git ignores; they are not in a commit.
+
+## Folder search on a very large root (2026-11-12)
+
+The UAT run searched `D:\develop\projects` (79,456 files, 38.8 GB; 43,501 of them text, 405 MB) for a word that is nowhere. In a debug build the walk alone took 97 s and the search 65 s. Opening 19,946 `.o` files only to find them binary cost 39 s of the walk. Two changes:
+
+- **A Stop button** beside the summary while a search runs ("Stop the search (Esc)"). Escape already stopped it; nothing on screen said so. The button stops the same way and puts the caret back in the box.
+- **The walk skips files whose extension says they hold no text** (`.o`, `.obj`, `.rlib`, `.rmeta`, `.exe`, `.dll`, images other than SVG, archives, media, fonts; list in `src-tauri/src/fs/kind.rs`) without opening them. The search of the same root dropped from about 65 s to about 41 s in the debug build. Other binary files are still found by the 8 KB look at the start.
+
+Not done, on purpose: honouring `.gitignore`. It would skip `target`, `dist` and `.next` and cut the rest of the time, but it would also hide folders you keep out of version control and still want searched (a documentation folder of Markdown notes, for example). You decided against honouring `.gitignore` from the workspace roots for now. It stays a possibility only, recorded as a `fog:` line in `## Not yet specified` of `ISA.md`; if it comes back it is opt-in or limited to known build-output folders.

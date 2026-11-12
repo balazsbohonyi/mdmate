@@ -9,7 +9,7 @@
 
 use super::scan::{Link, scan};
 use crate::fs::encoding::{self, Decoded, Encoding, Format};
-use crate::fs::kind::{FileKind, kind_of};
+use crate::fs::kind::{FileKind, is_known_binary, kind_of};
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -27,8 +27,9 @@ pub(crate) enum Scope {
     Everything,
     /// Markdown files only (by extension), and not inside `node_modules`. The link scans use this.
     Markdown,
-    /// Every file, but not inside `node_modules`: what a text search reads. Binary files are left
-    /// out by the search itself, after a look at their first bytes.
+    /// Every file, but not inside `node_modules` and not one whose extension says it holds no
+    /// text (`.o`, `.png`): what a text search reads. Other binary files are left out by the
+    /// search itself, after a look at their first bytes.
     Text,
 }
 
@@ -103,6 +104,9 @@ pub(crate) fn walk_until(
                 // The extension is read from the name alone, so a file that is not offered is
                 // never opened.
                 if scope == Scope::Markdown && kind_of(&entry.path()) != FileKind::Markdown {
+                    continue;
+                }
+                if scope == Scope::Text && is_known_binary(&entry.path()) {
                     continue;
                 }
                 walked.files += 1;

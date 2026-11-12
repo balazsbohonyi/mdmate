@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CaseSensitive, Regex, WholeWord } from '@lucide/vue'
+import { CaseSensitive, Regex, Square, WholeWord } from '@lucide/vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import HoverHint from '@/components/HoverHint.vue'
 import { Button } from '@/components/ui/button'
@@ -68,6 +68,12 @@ function onBoxKeydown(event: KeyboardEvent): void {
     scroller.value?.focus()
     scrollToSelected()
   }
+}
+
+/** The Stop button ends the search; the list keeps what was found, and the caret goes back to the box. */
+function onStop(): void {
+  void cancelSearch()
+  focusBox()
 }
 
 const toggleClass = (on: boolean): string => (on ? 'bg-accent text-accent-foreground' : '')
@@ -310,13 +316,32 @@ const activeId = computed(() =>
           </Button>
         </HoverHint>
       </div>
-      <div
-        data-search-summary
-        aria-live="polite"
-        class="min-h-4 text-xs"
-        :class="state.phase === 'failed' ? 'text-destructive' : 'text-muted-foreground'"
-      >
-        {{ summary || 'Press Enter to search' }}
+      <div class="flex min-h-6 items-center justify-between gap-2">
+        <div
+          data-search-summary
+          aria-live="polite"
+          class="min-w-0 text-xs"
+          :class="state.phase === 'failed' ? 'text-destructive' : 'text-muted-foreground'"
+        >
+          {{ summary || 'Press Enter to search' }}
+        </div>
+        <HoverHint
+          v-if="state.phase === 'searching'"
+          text="Stop the search (Esc)"
+        >
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            aria-label="Stop search"
+            data-search-stop
+            class="shrink-0"
+            @click="onStop"
+          >
+            <Square />
+            Stop
+          </Button>
+        </HoverHint>
       </div>
     </div>
     <div

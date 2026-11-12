@@ -62,6 +62,8 @@ You double-click a README and it is on screen before you have finished looking a
 
 ## Not yet specified
 
+- fog: Whether folder search should skip files a `.gitignore` names, to make a search of a very large root (build folders such as `target`, `dist`, `.next`) faster. Not wanted from the workspace roots: a root often holds a documentation folder of Markdown files kept out of version control that must stay searchable, and a root-level `.gitignore` would hide it. If it ever comes, it would be an opt-in setting or limited to known build-output folders, not on by default. Noted in P7 decisions (2026-11-12); nothing is built.
+
 
 ## Test Strategy
 
