@@ -37,6 +37,13 @@ export const findSpec = ref<FindSpec>({ ...EMPTY_FIND })
 /** The panes that have a bar open, by pane id. */
 export const findBars = reactive(new Map<string, FindBarState>())
 
+/**
+ * What each pane's bar says about its matches ("3 of 12", "No results"), by pane id. The bar writes
+ * it as the editor reports a count and removes it when it closes; the status bar shows the active
+ * pane's.
+ */
+export const findCounts = reactive(new Map<string, string>())
+
 interface Target {
   readonly paneId: string
   readonly tabId: string
@@ -148,4 +155,5 @@ export function stepFind(direction: 'next' | 'previous'): void {
 export function resetFind(): void {
   findSpec.value = { ...EMPTY_FIND }
   findBars.clear()
+  findCounts.clear()
 }

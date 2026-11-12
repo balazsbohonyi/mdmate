@@ -1,30 +1,23 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { docMeta } from '@/documents/meta'
-import { activeDocument, problem } from '@/documents/store'
-import { findPane } from '@/workbench/splitTree'
-import { tabRecord, workbenchLayout } from '@/workbench/store'
+import { problem } from '@/documents/store'
+import { findCounts } from '@/workbench/find'
+import { workbenchLayout } from '@/workbench/store'
 
-// Depends on the layout so the label follows the focused tab; the document itself is not reactive.
-const label = computed(() => {
-  const layout = workbenchLayout.value
-  const doc = activeDocument()
-  if (doc !== undefined) {
-    const meta = docMeta(doc.id)
-    // A new file has no path yet, so its name stands in.
-    const path = meta?.path ?? doc.path
-    return path === '' ? (meta?.name ?? doc.name) : path
-  }
-  const tab = findPane(layout, layout.activePane)?.activeTab
-  const record = tab === null || tab === undefined ? undefined : tabRecord(tab)
-  return record?.kind === 'image' ? record.path : 'No file open'
-})
+// A message wins; else the match count of the find bar in the focused pane, when one is open.
+const text = computed(() => problem.value ?? findCounts.get(workbenchLayout.value.activePane) ?? '')
 </script>
 
 <template>
   <footer
     class="flex h-statusbar shrink-0 items-center gap-4 bg-statusbar px-3 text-xs text-statusbar-foreground select-none"
   >
-    <span class="min-w-0 truncate">{{ problem ?? label }}</span>
+    <span
+      class="min-w-0 truncate"
+      aria-live="polite"
+      data-status-text
+    >
+      {{ text }}
+    </span>
   </footer>
 </template>

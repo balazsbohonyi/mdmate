@@ -1,14 +1,15 @@
 <script setup lang="ts">
+import { CaseSensitive, ChevronDown, ChevronRight, Regex, WholeWord, X } from '@lucide/vue'
 import {
-  CaseSensitive,
-  ChevronDown,
-  ChevronRight,
-  ChevronUp,
-  Regex,
-  WholeWord,
-  X,
-} from '@lucide/vue'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  useTemplateRef,
+  watch,
+  watchEffect,
+} from 'vue'
 import HoverHint from '@/components/HoverHint.vue'
 import { Button } from '@/components/ui/button'
 import { docMeta } from '@/documents/meta'
@@ -23,6 +24,7 @@ import {
   applyFind,
   closeFind,
   findBars,
+  findCounts,
   findSpec,
   runFind,
   setFind,
@@ -32,6 +34,7 @@ import {
 import { shortcutLabel } from './commands'
 import { COMMAND_IDS } from './defaultCommands'
 import { detectPlatform } from './keybinding'
+import { toggleVariant } from '@/lib/toggle'
 
 const { paneId, tabId, docId } = defineProps<{ paneId: string; tabId: string; docId: number }>()
 
@@ -58,6 +61,11 @@ const countLabel = computed(() => {
     : `${String(total)}${floor} results`
 })
 
+// The status bar shows the count, so it goes where the bar for this pane can be found.
+watchEffect(() => {
+  findCounts.set(paneId, countLabel.value)
+})
+
 function onCount(event: Event): void {
   count.value = (event as CustomEvent<FindCount>).detail
 }
@@ -81,6 +89,7 @@ watch(
 onBeforeUnmount(() => {
   section?.removeEventListener(FIND_COUNT_EVENT, onCount)
   applyFind(tabId, EMPTY_FIND)
+  findCounts.delete(paneId)
 })
 
 // A request to focus the box: Ctrl+F or Ctrl+H again selects what is in it.
@@ -114,133 +123,123 @@ const hint = (id: string, text: string): string => {
 }
 
 const input =
-  'h-7 min-w-0 flex-1 rounded-sm border border-input bg-background px-2 text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring aria-invalid:border-destructive'
-const toggleClass = (on: boolean): string => (on ? 'bg-accent text-accent-foreground' : '')
+  'h-7 min-w-0 w-full rounded-sm border border-input bg-background px-2 text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring aria-invalid:border-destructive'
 </script>
 
 <template>
+  <!--
+    One grid, so both boxes sit in the same column and have the same length: the switches before the
+    boxes, the Find and Replace buttons after them.
+  -->
   <div
     ref="root"
     role="search"
     aria-label="Find and replace"
     data-find-bar
-    class="flex shrink-0 flex-col gap-1 border-t border-border bg-muted px-2 py-1.5 text-chrome"
+    class="grid shrink-0 grid-cols-[auto_auto_minmax(0,1fr)_auto_auto_auto] items-center gap-x-1 gap-y-1 border-t border-border bg-muted px-2 py-1.5 text-chrome"
     @keydown.esc.prevent.stop="close"
   >
-    <div class="flex items-center gap-1">
-      <HoverHint :text="bar?.replace === true ? 'Hide replace' : 'Show replace'">
+    <HoverHint :text="bar?.replace === true ? 'Hide replace' : 'Show replace'">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-xs"
+        aria-label="Toggle replace"
+        :aria-expanded="bar?.replace === true"
+        @click="toggleReplaceRow(paneId)"
+      >
+        <ChevronDown v-if="bar?.replace === true" />
+        <ChevronRight v-else />
+      </Button>
+    </HoverHint>
+    <div class="flex items-center gap-0.5">
+      <HoverHint text="Regular expression">
         <Button
           type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label="Toggle replace"
-          :aria-expanded="bar?.replace === true"
-          @click="toggleReplaceRow(paneId)"
+          :variant="toggleVariant(spec.regexp)"
+          size="icon-sm"
+          aria-label="Regular expression"
+          :aria-pressed="spec.regexp"
+          @click="setFind({ regexp: !spec.regexp })"
         >
-          <ChevronDown v-if="bar?.replace === true" />
-          <ChevronRight v-else />
+          <Regex class="size-5" />
         </Button>
       </HoverHint>
-      <input
-        ref="findInput"
-        type="text"
-        data-find-input
-        aria-label="Find"
-        placeholder="Find"
-        spellcheck="false"
-        autocomplete="off"
-        :class="input"
-        :value="spec.search"
-        :aria-invalid="problem !== null"
-        @input="setFind({ search: ($event.target as HTMLInputElement).value })"
-        @keydown.enter.prevent="onFindEnter"
-      />
-      <span
-        class="w-24 shrink-0 text-right text-muted-foreground tabular-nums"
-        aria-live="polite"
-        data-find-count
-      >
-        {{ countLabel }}
-      </span>
       <HoverHint text="Match case">
         <Button
           type="button"
-          variant="ghost"
-          size="icon-xs"
+          :variant="toggleVariant(spec.caseSensitive)"
+          size="icon-sm"
           aria-label="Match case"
           :aria-pressed="spec.caseSensitive"
-          :class="toggleClass(spec.caseSensitive)"
           @click="setFind({ caseSensitive: !spec.caseSensitive })"
         >
-          <CaseSensitive />
+          <CaseSensitive class="size-5" />
         </Button>
       </HoverHint>
       <HoverHint text="Whole word">
         <Button
           type="button"
-          variant="ghost"
-          size="icon-xs"
+          :variant="toggleVariant(spec.wholeWord)"
+          size="icon-sm"
           aria-label="Whole word"
           :aria-pressed="spec.wholeWord"
-          :class="toggleClass(spec.wholeWord)"
           @click="setFind({ wholeWord: !spec.wholeWord })"
         >
-          <WholeWord />
-        </Button>
-      </HoverHint>
-      <HoverHint text="Regular expression">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label="Regular expression"
-          :aria-pressed="spec.regexp"
-          :class="toggleClass(spec.regexp)"
-          @click="setFind({ regexp: !spec.regexp })"
-        >
-          <Regex />
-        </Button>
-      </HoverHint>
-      <HoverHint :text="hint(COMMAND_IDS.findPrevious, 'Previous match')">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label="Previous match"
-          :disabled="!valid"
-          @click="act('previous')"
-        >
-          <ChevronUp />
-        </Button>
-      </HoverHint>
-      <HoverHint :text="hint(COMMAND_IDS.findNext, 'Next match')">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label="Next match"
-          :disabled="!valid"
-          @click="act('next')"
-        >
-          <ChevronDown />
-        </Button>
-      </HoverHint>
-      <HoverHint text="Close (Escape)">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label="Close find"
-          @click="close"
-        >
-          <X />
+          <WholeWord class="size-5" />
         </Button>
       </HoverHint>
     </div>
-    <div
-      v-if="bar?.replace === true"
-      class="flex items-center gap-1 pl-7"
-    >
+    <input
+      ref="findInput"
+      type="text"
+      data-find-input
+      aria-label="Find"
+      placeholder="Find"
+      spellcheck="false"
+      autocomplete="off"
+      :class="input"
+      :value="spec.search"
+      :aria-invalid="problem !== null"
+      @input="setFind({ search: ($event.target as HTMLInputElement).value })"
+      @keydown.enter.prevent="onFindEnter"
+    />
+    <HoverHint :text="hint(COMMAND_IDS.findNext, 'Next match')">
+      <Button
+        type="button"
+        variant="outline"
+        size="xs"
+        class="h-7 w-full"
+        :disabled="!valid"
+        @click="act('next')"
+      >
+        Find
+      </Button>
+    </HoverHint>
+    <HoverHint :text="hint(COMMAND_IDS.findPrevious, 'Previous match')">
+      <Button
+        type="button"
+        variant="outline"
+        size="xs"
+        class="h-7 w-full"
+        :disabled="!valid"
+        @click="act('previous')"
+      >
+        Find Prev
+      </Button>
+    </HoverHint>
+    <HoverHint text="Close (Escape)">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-xs"
+        aria-label="Close find"
+        @click="close"
+      >
+        <X />
+      </Button>
+    </HoverHint>
+    <template v-if="bar?.replace === true">
       <input
         type="text"
         data-replace-input
@@ -248,6 +247,7 @@ const toggleClass = (on: boolean): string => (on ? 'bg-accent text-accent-foregr
         placeholder="Replace"
         spellcheck="false"
         autocomplete="off"
+        class="col-start-3"
         :class="input"
         :value="spec.replace"
         @input="setFind({ replace: ($event.target as HTMLInputElement).value })"
@@ -255,8 +255,9 @@ const toggleClass = (on: boolean): string => (on ? 'bg-accent text-accent-foregr
       />
       <Button
         type="button"
-        variant="ghost"
+        variant="outline"
         size="xs"
+        class="h-7 w-full"
         :disabled="readOnly || !valid"
         @click="act('replace')"
       >
@@ -264,24 +265,25 @@ const toggleClass = (on: boolean): string => (on ? 'bg-accent text-accent-foregr
       </Button>
       <Button
         type="button"
-        variant="ghost"
+        variant="outline"
         size="xs"
+        class="h-7 w-full"
         :disabled="readOnly || !valid"
         @click="act('replaceAll')"
       >
         Replace all
       </Button>
-    </div>
+    </template>
     <p
       v-if="problem !== null"
       role="alert"
-      class="pl-7 text-destructive"
+      class="col-span-4 col-start-3 text-destructive"
     >
       {{ problem }}
     </p>
     <p
       v-if="readOnly && bar?.replace === true"
-      class="pl-7 text-muted-foreground"
+      class="col-span-4 col-start-3 text-muted-foreground"
     >
       This file is read-only, so it cannot be changed here.
     </p>

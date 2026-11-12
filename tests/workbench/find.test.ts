@@ -14,7 +14,7 @@ import { clearCommands, commandForEvent, getCommand, runCommand } from '@/workbe
 import { COMMAND_IDS, registerDefaultCommands } from '@/workbench/defaultCommands'
 import { FIND_COUNT_EVENT, type FindCount } from '@/editor/find'
 import { focusActiveEditor } from '@/workbench/focus'
-import { findBars, findSpec, resetFind, setFind } from '@/workbench/find'
+import { findBars, findCounts, findSpec, resetFind, setFind } from '@/workbench/find'
 import { installKeybindings } from '@/workbench/keyboard'
 import { blockNativeMenu } from '@/lib/nativeMenu'
 import { findPane } from '@/workbench/splitTree'
@@ -108,6 +108,8 @@ const replaceBox = (): HTMLInputElement => {
   if (input === null) throw new Error('no replace box')
   return input
 }
+/** What the status bar shows for the active pane's bar; the bar publishes it there. */
+const countText = (): string => findCounts.get(workbenchLayout.value.activePane) ?? ''
 const marks = (): number => document.querySelectorAll('.cm-md-find').length
 const editorText = (): string => followerOfTab(activeTab() ?? '')?.state.doc.toString() ?? ''
 const selection = (): string => {
@@ -170,6 +172,104 @@ describe('the commands and their keys', () => {
   })
 })
 
+describe('the bar layout', () => {
+  const names = (): string[] =>
+    [...bar().querySelectorAll('button, input')].map(
+      (e) => e.getAttribute('aria-label') ?? e.textContent.trim(),
+    )
+
+  it('puts the switches (regular expression first) before the box, then Find and Find Prev', async () => {
+    await openA()
+    await runCommand(COMMAND_IDS.find)
+    await flush()
+    expect(names()).toEqual([
+      'Toggle replace',
+      'Regular expression',
+      'Match case',
+      'Whole word',
+      'Find',
+      'Find',
+      'Find Prev',
+      'Close find',
+    ])
+    expect(bar().querySelector('[data-find-count]')).toBeNull()
+  })
+
+  it('gives the find and replace boxes the same column, so they are the same length', async () => {
+    await openA()
+    await runCommand(COMMAND_IDS.replace)
+    await flush()
+    expect(findBox().className).toContain('w-full')
+    expect(replaceBox().className).toContain('w-full')
+    expect(findBox().parentElement).toBe(replaceBox().parentElement)
+    expect(findBox().className).not.toContain('flex-1')
+    expect(replaceBox().className).toContain('col-start-3')
+  })
+
+  it('makes the four buttons fill their grid columns at the height of the boxes', async () => {
+    await openA()
+    await runCommand(COMMAND_IDS.replace)
+    await flush()
+    const grid = bar()
+    const label = (t: string): HTMLButtonElement | undefined =>
+      [...grid.querySelectorAll('button')].find((b) => b.textContent.trim() === t)
+    // The pairs in one column are siblings in one grid, so a column is as wide as its wider button.
+    for (const t of ['Find', 'Find Prev', 'Replace', 'Replace all']) {
+      expect(label(t)?.parentElement).toBe(grid)
+      expect(label(t)?.className).toMatch(/\bw-full\b/)
+      expect(label(t)?.className).toMatch(/\bh-7\b/)
+    }
+    expect(findBox().className).toMatch(/\bh-7\b/)
+  })
+
+  it('Find selects the next match and Find Prev the previous one', async () => {
+    await openA()
+    await runCommand(COMMAND_IDS.find)
+    await flush()
+    await type(findBox(), 'alpha')
+    const button = (label: string): HTMLButtonElement | undefined =>
+      [...bar().querySelectorAll('button')].find((b) => b.textContent.trim() === label)
+    button('Find')?.click()
+    await flush()
+    expect(followerOfTab(activeTab() ?? '')?.state.selection.main.from).toBe(0)
+    button('Find')?.click()
+    await flush()
+    expect(followerOfTab(activeTab() ?? '')?.state.selection.main.from).toBe(11)
+    button('Find Prev')?.click()
+    await flush()
+    expect(followerOfTab(activeTab() ?? '')?.state.selection.main.from).toBe(0)
+  })
+
+  it('a switch that is on takes the primary color, and is flat again when off', async () => {
+    await openA()
+    await runCommand(COMMAND_IDS.find)
+    await flush()
+    const regex = (): HTMLElement | null =>
+      bar().querySelector<HTMLElement>('[aria-label="Regular expression"]')
+    expect(regex()?.className).not.toMatch(/\bbg-primary\b/)
+    regex()?.click()
+    await flush()
+    expect(regex()?.getAttribute('aria-pressed')).toBe('true')
+    expect(regex()?.className).toMatch(/\bbg-primary\b/)
+    regex()?.click()
+    await flush()
+    expect(regex()?.className).not.toMatch(/\bbg-primary\b/)
+  })
+
+  it('takes the count off the status bar when the bar closes', async () => {
+    await openA()
+    await runCommand(COMMAND_IDS.find)
+    await flush()
+    await type(findBox(), 'alpha')
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    await flush()
+    expect(countText()).toBe('3 results')
+    bar().querySelector<HTMLElement>('[aria-label="Close find"]')?.click()
+    await flush()
+    expect(countText()).toBe('')
+  })
+})
+
 describe('Ctrl+F finds text in the file (ISC-133)', () => {
   it('opens the bar in the active pane with focus in its box', async () => {
     await openA()
@@ -187,7 +287,7 @@ describe('Ctrl+F finds text in the file (ISC-133)', () => {
     expect(marks()).toBe(3)
     await new Promise((resolve) => setTimeout(resolve, 30))
     await flush()
-    expect(bar().querySelector('[data-find-count]')?.textContent.trim()).toBe('3 results')
+    expect(countText()).toBe('3 results')
   })
 
   it('says the count stopped, not that nothing was found, when it ran out of time', async () => {
@@ -199,7 +299,7 @@ describe('Ctrl+F finds text in the file (ISC-133)', () => {
     const report = async (detail: FindCount): Promise<string> => {
       pane?.dispatchEvent(new CustomEvent(FIND_COUNT_EVENT, { detail }))
       await flush()
-      return bar().querySelector('[data-find-count]')?.textContent.trim() ?? ''
+      return countText()
     }
     expect(await report({ total: 0, current: 0, capped: false })).toBe('No results')
     expect(await report({ total: 0, current: 0, capped: true })).toBe('Count stopped')
@@ -400,7 +500,7 @@ describe('no browser menu on the bar (ISC-251)', () => {
         findBox(),
         replaceBox(),
         bar().querySelector<HTMLElement>('[aria-label="Match case"]'),
-        bar().querySelector<HTMLElement>('[data-find-count]'),
+        [...bar().querySelectorAll('button')].find((b) => b.textContent.trim() === 'Find'),
       ]
       for (const target of targets) {
         const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
