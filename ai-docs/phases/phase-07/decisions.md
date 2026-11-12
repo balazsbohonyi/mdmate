@@ -147,3 +147,31 @@ Typing with a find query active adds one cost per key: the match marks of the vi
 - **What it leaves out, on purpose:** the bar itself (a Vue component in the pane) is not mounted; it holds the query and shows the count, neither of which runs at a key. The count runs 250 ms after the last edit, so not between keys typed 50 ms apart, and is bounded to 20 ms; it was timed in the real window in P7-T1.
 - **Evidence printed with the headline:** the most match marks in the DOM at once. The scenario fails if the editor never drew one.
 - **Both modes:** `typing-find-open` (dispatch) and `typing-find-open-trusted` (real key events through the DevTools port).
+
+## Speed set at the end of Phase 7
+
+Release build with the perf driver, built fresh by the run, after P7-T3 (`8132464`). Windows 11 Pro 10.0.26200, same machine as the Phase 6 sets. You had closed VS Code, rust-analyzer and Chrome; CPU was 91 to 96% idle before every launch. 5 runs each after two warm-up launches. One command, one go: `pnpm perf startup open-1mb tab-switch typing-1mb typing-1mb-trusted typing-during-scan typing-during-search typing-during-search-trusted typing-find-open typing-find-open-trusted typing-outline-open typing-outline-open-trusted crash-restore --runs 5`. No gate was changed, no scenario was measured a second time, and no run was dropped.
+
+| Claim | Scenario | Result (median) | Runs | Target | Repeatable |
+|---|---|---|---|---|---|
+| ISC-4 | startup, launch to editable | 496.5 ms | 497.6, 496.5, 490.8, 496.1, 509.6 | 1500 ms | yes |
+| ISC-5 | open-1mb, warm open | 21.8 ms | 21.5, 22.2, 21.8, 22.2, 21.3 | 100 ms | yes |
+| ISC-6 | tab-switch, p95 | 23.9 ms | 18.9, 24.6, 24.5, 23.9, 23.2 | 50 ms | **no** |
+| ISC-7 | typing-1mb, work per key p95 | 8.1 ms | 8.1, 8.0, 8.1, 8.1, 8.3 | 16 ms | yes |
+| ISC-7 | typing-1mb-trusted | 7.9 ms | 7.8, 8.0, 7.9, 7.7, 8.2 | 16 ms | yes |
+| ISC-129 | typing-during-scan | 8.1 ms | 9.1, 8.1, 8.7, 8.1, 7.2 | 16 ms | yes |
+| ISC-138 | typing-during-search | 9.0 ms | 9.3, 9.5, 9.0, 8.7, 8.9 | 16 ms | yes |
+| ISC-138 | typing-during-search-trusted | 11.8 ms | 11.4, 11.6, 11.8, 12.2, 12.5 | 16 ms | yes |
+| ISC-260 | typing-find-open (first run) | 9.7 ms | 9.7, 9.8, 9.7, 9.6, 9.7 | 16 ms | yes |
+| ISC-260 | typing-find-open-trusted (first run) | 10.3 ms | 9.8, 10.8, 10.3, 10.3, 10.2 | 16 ms | yes |
+| ISC-144 | typing-outline-open | 8.1 ms | 8.0, 8.1, 8.3, 8.2, 8.1 | 16 ms | yes |
+| ISC-144 | typing-outline-open-trusted | 8.6 ms | 8.0, 10.5, 8.5, 8.6, 8.8 | 16 ms | **no** |
+| ISC-47, 48 | crash-restore | everything came back exactly as it was | journal wrote 1334.7 ms after the last edit; snapshot 1,122,294 bytes, built in 5.0 ms, written in 25.3 ms; 5 tabs and 3 unsaved buffers restored in 152.6 ms | | |
+
+**Every gate is met.** Outliers, as they are:
+
+- **tab-switch is flagged not repeatable.** One run is 18.9 ms against a median of 23.9; the other four are 23.2 to 24.6 (the Phase 6 sets had the same flag, 19.2 to 24.9). The low run is the outlier, so the gate result is not in doubt. I did nothing about it.
+- **typing-outline-open-trusted is flagged not repeatable.** One run is 10.5 ms against a median of 8.6; the other four are 8.0 to 8.8. Its p99 spread is 10.3 to 15.3 ms and one run's worst key was 31.4 ms, so a single slow key in a run shows up in the max and not in the p95. Under the gate either way. The five runs before the final set (after the journal change) were 7.9 to 8.7.
+- **typing-find-open is new, so these are its first runs**, and it was defined before it ran (above). It drew at most 545 match marks at once on the 1 MB file, not the 1,500 cap I wrote in its definition; the one-letter query fills the viewport with fewer marks than the cap. The measurement is unchanged; the sentence in the definition was wrong about the cap and is corrected here, not edited.
+- **Not measured:** typing with a query active in the 10 MB file (ISC-260 names a 10 MB plain-source file; the scenario types in the 1 MB file, as the other typing scenarios do). `untested.md` row 2 says so.
+- **The perf files** are in `perf-results/`, which git ignores; they are not in a commit.
