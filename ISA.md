@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 252/282
+progress: 252/296
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-12T10:30:00Z
+updated: 2026-11-12T22:00:00Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -61,8 +61,6 @@ You double-click a README and it is on screen before you have finished looking a
 "Create a markdown editor that follows the inline editing philosophy from Obsidian and the simplicity of SublimeText". mdmate is a desktop app where Markdown renders inline and reveals its syntax at the caret, with tabs, a sidebar and free splits in the SublimeText style. It meets its measured speed targets, keeps files byte-exact, and is built so macOS and Linux need only new platform implementations.
 
 ## Not yet specified
-
-- fog: Whether folder search should skip files a `.gitignore` names, to make a search of a very large root (build folders such as `target`, `dist`, `.next`) faster. Not wanted from the workspace roots: a root often holds a documentation folder of Markdown files kept out of version control that must stay searchable, and a root-level `.gitignore` would hide it. If it ever comes, it would be an opt-in setting or limited to known build-output folders, not on by default. Noted in P7 decisions (2026-11-12); nothing is built.
 
 
 ## Test Strategy
@@ -353,6 +351,20 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-278 | bash | open the header, press Ctrl+Shift+L, open a text file, nothing, a file with no headings, make the host fail, open a heading with markup and an empty one | the header has Outline; the panel loads on first use; focus is in the list; each case says what is wrong in plain words; rows read as drawn | pnpm test:web tests/features/outline.test.ts tests/editor/outlineParity.test.ts; Real app run | derived: P7-T3 | |  |
 | ISC-279 | bash | edit a document with the panel open, move the caret, save, switch tabs, close the panel in the middle of a scan, replace a scan with a newer one, and open a file with no edits | a scan only while the panel is shown; at once for a switch; after typing pauses for a change; none for a caret move or a save; unsaved text sent for a document with edits and a path for one without; late answers dropped | pnpm test:web tests/features/outline.test.ts tests/editor/outlineParity.test.ts; Real app run | derived: P7-T3 | |  |
 | ISC-280 | bash | type 300 keys in a 1 MB file with the Outline panel open and the document being edited every 700 ms, in dispatch mode and with real key events | p95 work per key under 16 ms and repeatable | pnpm perf typing-outline-open typing-outline-open-trusted | derived: P7-T3 | | deep |
+| ISC-281 | bash | build the index of a fixture tree, then of an empty and an unreadable folder | every file listed once with path, name, kind, size and modified time; no contents | pnpm test:rust index::builds | derived: P7.1 plan | | |
+| ISC-282 | bash | index a tree holding every excluded name at several depths, a `.gitignore`, and a docs folder it names | no file under an excluded name; the docs folder indexed; the tree lists the excluded folders | pnpm test:rust index::excludes | derived: P7.1 plan | | |
+| ISC-283 | bash | write, read back, bump the version, change the exclusion list, corrupt the file, remove the root | read back equal; rebuilt on each change and on a bad file; file gone after removal; no contents in it | pnpm test:rust index::cache | derived: P7.1 plan | | |
+| ISC-284 | bash | start with a cache, query before the reconcile ends, change the disk first | answers from the cache at once; results updated after the reconcile | pnpm test:rust index::reconcile | derived: P7.1 plan | | |
+| ISC-285 | bash | new file and folder, rename, move, delete and copy on drop through the app | the index and the cache hold the new state at once, with no walk | pnpm test:rust index::own_ops | derived: P7.1 plan | | |
+| ISC-286 | bash | create, rename and delete files from outside, in and out of excluded folders, and simulate an overflow | outside changes reach the index; excluded ones do not; an overflow reconciles the root | pnpm test:rust index::watcher | derived: P7.1 plan | | |
+| ISC-287 | bash | index roots `/w` and `/w/notes` | each file of `/w/notes` once, relative to `/w/notes` | pnpm test:rust index::nested | derived: P7.1 plan | | |
+| ISC-288 | bash | index past a lowered cap | stops at the cap, names the cut root; search and link scans walk it | pnpm test:rust index::cap | derived: P7.1 plan | | |
+| ISC-289 | bash | index with and without a cache and watch the status bar | Indexing and a percent shown only while indexing; the percent follows the rule for each case | pnpm test:web tests/shell/indexStatus.test.ts | derived: P7.1 plan | | |
+| ISC-290 | bash | open the picker many times on an indexed workspace | no walk and no rebuild on open | pnpm test:rust quick:: and pnpm test:web tests/features/palette.test.ts | derived: P7.1 plan | | |
+| ISC-291 | bash | type queries in Ctrl+P on the generated 100,000-file workspace | p95 under 50 ms and repeatable | pnpm perf quick-open-query | derived: P7.1 plan | | |
+| ISC-292 | bash | type 300 keys in a 1 MB file while the generated 100,000-file workspace is indexed | p95 work per key under 16 ms and repeatable | pnpm perf typing-during-indexing | derived: P7.1 plan | | |
+| ISC-293 | bash | rename, Find File References and a folder search on an indexed root and on one not indexed yet | no walk on the indexed root; a walk on the other; results equal to a walk | pnpm test:rust index::users | derived: P7.1 plan | | |
+| ISC-294 | bash | Ctrl+P, a rename and a folder search on a tree with files under excluded folders | none of them offers or reads those files | pnpm test:rust index::users_exclude | derived: P7.1 plan | | |
 
 ## Features
 
@@ -691,6 +703,24 @@ Why: an everyday editor starts, keeps and manages files without sending you to E
 - [x] ISC-279: The outline scans only while its panel is on screen: at once when the tab or document changes, 400 ms after typing pauses for a change of text (other notifications after an edit do not push the wait back), and never for a caret move or a save that leaves the text as it was; a document with no unsaved edits is read from its file by path and one with unsaved edits or no file from its text; an answer that is late, replaced by a newer scan or arrives after the panel went is not shown.
 - [x] ISC-280: Anti: the Outline panel never pushes typing past 16 ms: p95 work per key in a 1 MB file with the panel open and the document edited every 700 ms stays under 16 ms, in dispatch and trusted mode, and repeats.
 
+### F13 · Workspace index
+Why: a large workspace stays quick to search only when mdmate keeps a list of its files instead of walking the disk for every request.
+
+- [ ] ISC-281: The workspace index lists every file under the roots with its path, name, kind, size and modified time, and builds in the background when a root opens; file contents are not indexed.
+- [ ] ISC-282: The index skips a built-in list of folder names wherever they appear (`.git`, `node_modules`, `target`, `dist`, `build`, `out`, `coverage`, `.next`, `.nuxt`, `.svelte-kit`, `.turbo`, `.cache`, `.parcel-cache`, `.venv`, `venv`, `__pycache__`, `.gradle`, `bin`, `obj`, `.vs`, `.idea`) and never reads `.gitignore`; the tree still shows those folders and their files open from there.
+- [ ] ISC-283: The index is cached on disk, one versioned file per root in the app data folder, holding paths and metadata only; it is rebuilt when its version, the exclusion list or the root changes or when it cannot be read, and deleted when the root is removed.
+- [ ] ISC-284: At start, Ctrl+P answers from the cached index at once while a reconcile against the disk runs in the background, and its results update when the reconcile ends.
+- [ ] ISC-285: mdmate's own new file or folder, rename, move, delete and copy on drop update the index and its cache at once.
+- [ ] ISC-286: Changes made by other programs reach the index through a recursive watcher per root that ignores excluded folders; when events are dropped, that root is reconciled again.
+- [ ] ISC-287: A file under two nested roots appears once in the index, relative to the innermost root that holds it.
+- [ ] ISC-288: The index holds at most 1,000,000 files across all roots; past that the status bar names the root that was cut, and search and link scans walk that root.
+- [ ] ISC-289: While a root is indexed or reconciled, the status bar shows an Indexing label and a thin percent bar: folders checked out of the cached folders when there is a cache, and top-level entries done on a first index.
+- [ ] ISC-290: Quick Open answers from the index and never walks the disk when the picker opens.
+- [ ] ISC-291: Ctrl+P answers in under 50 ms p95 on a 100,000-file workspace.
+- [ ] ISC-292: Anti: indexing a root never pushes typing past 16 ms p95 work per key.
+- [ ] ISC-293: The rename and move rewrite, Find File References and folder search take their file list from the index, and walk only a root that is not indexed yet or was cut by the cap.
+- [ ] ISC-294: Quick Open, link scans and folder search offer no file under an excluded folder.
+
 ## Decisions
 
 - 2026-11-07: Chose CodeMirror 6 over ProseMirror-family editors, Lexical and Monaco. Text stays the document, which gives byte-exact saves by construction, and Obsidian's editor runs on it. No head-to-head benchmark exists, so P0 measures it.
@@ -795,6 +825,8 @@ Why: an everyday editor starts, keeps and manages files without sending you to E
 - 2026-11-12: refined: added ISC-266 to ISC-273 for P7-T2 (what folder search reads, lines and columns, the same query meaning as Find, unsaved text, the virtual list and its cap, the keys and focus of the results, the Search tab and its command, stopping and failing). Folder search matches by line in Rust's `regex` with the app's own file walker instead of the `ignore` and `grep-searcher` crates the plan named; see `ai-docs/phases/phase-07/decisions.md`.
 - 2026-11-12: refined: added ISC-274 and changed the journal (made before P7-T3 because it showed up in its speed gate). It now writes one interval (1000 ms) after the last change, and at the latest 5 s (`JOURNAL_MAX_WAIT_MS`) after the first change when changes keep coming; before, it wrote one interval after the first change, so typing in a dirty 1 MB file wrote a 1 MB snapshot about once a second. Why: the 2026-11-07 decision above worked out "1 late frame in 60" and said it was not measured with the journal live. P7 measured it: in a 1 MB file the p95 work per key was 14.9 to 16.1 ms with the journal on and 7.2 to 7.5 ms with it off (`typing-outline-open-trusted`, 5 runs each), so the journal put a normal key at the edge of the 16 ms gate. With the new rule the same scenario reads 8.5 ms (7.9 to 8.7), repeatable. Cost: a force-kill during typing that never pauses for a second loses up to 5 s of it (it was 1 s); after any pause of a second nothing is lost beyond the last second, as before. Supersedes "at most a second of typing lost" in the 2026-11-07 line. Easy to change: `JOURNAL_MAX_WAIT_MS` (and `JOURNAL_INTERVAL_MS`) in `src/documents/session.ts`.
 - 2026-11-12: refined: added ISC-275 to ISC-280 for P7-T3 (the scan rules, three scans that agree, the list and its keys, the tab and its messages, when it scans, and the typing anti-claim) and closed ISC-141 to ISC-144. Decisions: the Rust scan is a plain line scan whose result the page turns into display text only for the rows on screen; a heading list is capped at 50,000; the wait after typing is 400 ms and only a change of text restarts it. The typing gate was missed once and led to the journal change (ISC-274), see the decision line above and ISC-280.
+- 2026-11-12: Chose a workspace index (Phase 7.1) over honouring `.gitignore` to make large roots fast. Quick Open walked every root each time the picker opened, and link scans and folder search walked on every request. A root-level `.gitignore` would also hide unversioned documentation folders the owner wants searchable, so the index skips a built-in list of build and dependency folder names instead, editable in Phase 8. Settled with the owner: paths and metadata only, a versioned disk cache per root with a background reconcile, updates from mdmate's own operations and a recursive watcher, one entry per file under nested roots (innermost root), a 1,000,000-file cap, and an Indexing label with a percent bar in the status bar. Replaces the `.gitignore` fog line.
+- 2026-11-12: refined: added ISC-281 to ISC-294 for Phase 7.1 (the index and its exclusions, the cache and the start-up reconcile, updates from mdmate and from the watcher, nested roots, the cap, the status bar, Quick Open and its speed gate, the typing anti-claim, and the link scans and folder search on the index).
 
 ## Verification
 
