@@ -37,12 +37,13 @@ import {
 import { clearCommands, isCommandEnabled, runCommand } from '@/workbench/commands'
 import { COMMAND_IDS, registerDefaultCommands } from '@/workbench/defaultCommands'
 import { installKeybindings } from '@/workbench/keyboard'
-import { allTabs, paneOfTab } from '@/workbench/splitTree'
+import { allTabs, paneOfTab, panesOf } from '@/workbench/splitTree'
 import {
   activeTabId,
   closeEveryTab,
   closeOtherTabs,
   closeTab,
+  closeTabsToTheRight,
   copyTabPath,
   copyTabRelativePath,
   findTabReferences,
@@ -212,14 +213,101 @@ describe('Close and Close All from the menu', () => {
     expect(allTabs(workbenchLayout.value)).toEqual([b])
   })
 
-  it('Close All closes the tabs of every pane', async () => {
+  it('Close All closes the tabs of its own pane only, and the pane goes away (ISC-307)', async () => {
     await start()
-    await openPath('/work/a.md')
-    splitActivePane('row')
+    const a = await openPath('/work/a.md')
+    const c = await openPath('/work/c.md')
+    splitActivePane('row') // the new pane starts with a second view of c
+    const b = await openPath('/work/b.md')
+    const right = paneTabs(b)
+    expect(right).toHaveLength(2)
+    expect(panesOf(workbenchLayout.value)).toHaveLength(2)
+    // From the first pane, with its tab in the background.
+    expect(await closeEveryTab(a)).toBe(true)
+    expect(allTabs(workbenchLayout.value)).toEqual(right)
+    expect(documentOfTab(a)).toBeUndefined()
+    expect(documentOfTab(c)).toBeUndefined() // that tab is gone; the right pane's view of c stays
+    expect(documentOfTab(right[0] ?? '')).toBeDefined()
+    expect(panesOf(workbenchLayout.value)).toHaveLength(1)
+    expect(activeTabId()).toBe(b)
+  })
+
+  it('Close All in the only pane closes everything, as before', async () => {
+    await start()
+    const a = await openPath('/work/a.md')
     await openPath('/work/b.md')
-    expect(await closeEveryTab()).toBe(true)
+    expect(await closeEveryTab(a)).toBe(true)
     expect(allTabs(workbenchLayout.value)).toEqual([])
     expect(await closeAllTabs()).toBe(true)
+  })
+
+  it('Close All asks about a tab with unsaved edits and keeps the pane on Cancel', async () => {
+    await start()
+    const a = await openPath('/work/a.md')
+    const b = await openPath('/work/b.md')
+    splitActivePane('row')
+    const other = await openPath('/work/c.md')
+    type(a, 'A!')
+    const done = closeEveryTab(b)
+    await flush()
+    expect(pendingClose.value?.tabId).toBe(a)
+    await resolvePendingClose('cancel')
+    expect(await done).toBe(false)
+    expect(paneTabs(a)).toEqual([a, b])
+    expect(allTabs(workbenchLayout.value)).toContain(other)
+  })
+})
+describe('Close to the Right (ISC-308)', () => {
+  it('closes the tabs after this one in its pane, from a tab in the background', async () => {
+    await start()
+    const a = await openPath('/work/a.md')
+    const b = await openPath('/work/b.md')
+    const c = await openPath('/work/c.md')
+    const d = await openPath('/work/deep/er/d.md')
+    expect(activeTabId()).toBe(d)
+    expect(await closeTabsToTheRight(b)).toBe(true)
+    expect(paneTabs(a)).toEqual([a, b])
+    expect(documentOfTab(c)).toBeUndefined()
+    expect(documentOfTab(d)).toBeUndefined()
+    expect(activeTabId()).toBe(b)
+  })
+
+  it('leaves the tabs of the other panes alone', async () => {
+    await start()
+    const a = await openPath('/work/a.md')
+    await openPath('/work/b.md')
+    splitActivePane('row')
+    const x = await openPath('/work/c.md')
+    const right = paneTabs(x)
+    expect(right).toHaveLength(2)
+    expect(await closeTabsToTheRight(a)).toBe(true)
+    expect(paneTabs(a)).toEqual([a])
+    expect(paneTabs(x)).toEqual(right)
+  })
+
+  it('asks about a tab with unsaved edits; Cancel keeps it and the tabs after it', async () => {
+    await start()
+    const a = await openPath('/work/a.md')
+    const b = await openPath('/work/b.md')
+    const c = await openPath('/work/c.md')
+    type(b, 'B!')
+    const done = closeTabsToTheRight(a)
+    await flush()
+    expect(pendingClose.value?.tabId).toBe(b)
+    await resolvePendingClose('cancel')
+    expect(await done).toBe(false)
+    expect(paneTabs(a)).toEqual([a, b, c])
+  })
+
+  it('is offered only when a tab lies to the right of this one', async () => {
+    await start()
+    const a = await openPath('/work/a.md')
+    expect(tabMenuState(a).canCloseToTheRight).toBe(false)
+    const b = await openPath('/work/b.md')
+    expect(tabMenuState(a).canCloseToTheRight).toBe(true)
+    expect(tabMenuState(b).canCloseToTheRight).toBe(false)
+    expect(await closeTabsToTheRight(b)).toBe(true)
+    expect(paneTabs(a)).toEqual([a, b])
   })
 })
 
@@ -455,6 +543,27 @@ describe('the commands that share the menu', () => {
   afterEach(() => {
     removeCommands?.()
     clearCommands()
+  })
+
+  it('the Close All command closes the active pane only, and is off when that pane has no tab (ISC-307)', async () => {
+    await start()
+    expect(isCommandEnabled(COMMAND_IDS.closeAll)).toBe(false)
+    await openPath('/work/a.md')
+    splitActivePane('row')
+    const b = await openPath('/work/b.md')
+    const c = await openPath('/work/c.md')
+    expect(isCommandEnabled(COMMAND_IDS.closeAll)).toBe(true)
+    await runCommand(COMMAND_IDS.closeAll)
+    const left = allTabs(workbenchLayout.value)
+    expect(left).toHaveLength(1)
+    expect(left).not.toContain(b)
+    expect(left).not.toContain(c)
+    expect(panesOf(workbenchLayout.value)).toHaveLength(1)
+    // What is left is the first pane's tab; Close All again closes it too.
+    expect(isCommandEnabled(COMMAND_IDS.closeAll)).toBe(true)
+    await runCommand(COMMAND_IDS.closeAll)
+    expect(allTabs(workbenchLayout.value)).toEqual([])
+    expect(isCommandEnabled(COMMAND_IDS.closeAll)).toBe(false)
   })
 
   it('Find File References is off with no tab and for an untitled tab, on for a file', async () => {

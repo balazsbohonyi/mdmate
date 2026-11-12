@@ -1,0 +1,188 @@
+[
+  {
+    "name": "a plain query finds its text",
+    "text": "a needle b",
+    "query": "needle",
+    "matches": [[1, 2, 8]]
+  },
+  {
+    "name": "case is ignored by default",
+    "text": "Needle NEEDLE needle",
+    "query": "needle",
+    "matches": [[1, 0, 6], [1, 7, 13], [1, 14, 20]]
+  },
+  {
+    "name": "match case keeps only the exact spelling",
+    "text": "Needle NEEDLE needle",
+    "query": "needle",
+    "caseSensitive": true,
+    "matches": [[1, 14, 20]]
+  },
+  {
+    "name": "case folding reaches letters outside ASCII",
+    "text": "ÄÖ äö",
+    "query": "äö",
+    "matches": [[1, 0, 2], [1, 3, 5]]
+  },
+  {
+    "name": "a dot in a plain query is a dot",
+    "text": "a.b axb",
+    "query": "a.b",
+    "matches": [[1, 0, 3]]
+  },
+  {
+    "name": "symbols in a plain query are literal",
+    "text": "a+b* aab",
+    "query": "a+b*",
+    "matches": [[1, 0, 4]]
+  },
+  {
+    "name": "two spaces in a plain query are two spaces",
+    "text": "a  b a b",
+    "query": "a  b",
+    "matches": [[1, 0, 4]]
+  },
+  {
+    "name": "a dot in a pattern is any character",
+    "text": "a.b axb",
+    "query": "a.b",
+    "regexp": true,
+    "matches": [[1, 0, 3], [1, 4, 7]]
+  },
+  {
+    "name": "a pattern can escape a symbol",
+    "text": "a+b aab",
+    "query": "a\\+b",
+    "regexp": true,
+    "matches": [[1, 0, 3]]
+  },
+  {
+    "name": "digits",
+    "text": "x 12 y 345",
+    "query": "\\d+",
+    "regexp": true,
+    "matches": [[1, 2, 4], [1, 7, 10]]
+  },
+  {
+    "name": "alternation",
+    "text": "cat dog bird",
+    "query": "cat|bird",
+    "regexp": true,
+    "matches": [[1, 0, 3], [1, 8, 12]]
+  },
+  {
+    "name": "a character class",
+    "text": "abc xyz cab",
+    "query": "[a-c]+",
+    "regexp": true,
+    "matches": [[1, 0, 3], [1, 8, 11]]
+  },
+  {
+    "name": "lazy and greedy repeats",
+    "text": "aXbXb",
+    "query": "a.*?b",
+    "regexp": true,
+    "matches": [[1, 0, 3]]
+  },
+  {
+    "name": "greedy repeat",
+    "text": "aXbXb",
+    "query": "a.*b",
+    "regexp": true,
+    "matches": [[1, 0, 5]]
+  },
+  {
+    "name": "word boundary in a pattern",
+    "text": "word swordfish word",
+    "query": "\\bword\\b",
+    "regexp": true,
+    "matches": [[1, 0, 4], [1, 15, 19]]
+  },
+  {
+    "name": "a pattern ignores case by default",
+    "text": "AB abbb",
+    "query": "ab+",
+    "regexp": true,
+    "matches": [[1, 0, 2], [1, 3, 7]]
+  },
+  {
+    "name": "a pattern that matches nothing but the empty string matches nothing",
+    "text": "aaa",
+    "query": "x*",
+    "regexp": true,
+    "matches": []
+  },
+  {
+    "name": "^ and $ stand for a line start and a line end",
+    "text": "ab\nab",
+    "query": "^ab$",
+    "regexp": true,
+    "matches": [[1, 0, 2], [2, 0, 2]]
+  },
+  {
+    "name": "matches on several lines",
+    "text": "x\nneedle\nneedle x",
+    "query": "needle",
+    "matches": [[2, 0, 6], [3, 0, 6]]
+  },
+  {
+    "name": "a character outside the first plane counts as two units",
+    "text": "😀 needle",
+    "query": "needle",
+    "matches": [[1, 3, 9]]
+  },
+  {
+    "name": "whole word skips a match inside a longer word and one before an underscore",
+    "text": "cat concat category cat_ (cat)",
+    "query": "cat",
+    "wholeWord": true,
+    "matches": [[1, 0, 3], [1, 26, 29]]
+  },
+  {
+    "name": "whole word counts letters of any script as word characters",
+    "text": "über über_ x-über übers",
+    "query": "über",
+    "wholeWord": true,
+    "matches": [[1, 0, 4], [1, 13, 17]]
+  },
+  {
+    "name": "whole word lets a match that starts or ends with a symbol touch a letter",
+    "text": "a(b) (b)x",
+    "query": "(b)",
+    "wholeWord": true,
+    "matches": [[1, 1, 4], [1, 5, 8]]
+  },
+  {
+    "name": "whole word with a pattern",
+    "text": "cat caaat concat",
+    "query": "ca+t",
+    "regexp": true,
+    "wholeWord": true,
+    "matches": [[1, 0, 3], [1, 4, 9]]
+  },
+  {
+    "name": "whole word, match case and a pattern together",
+    "text": "Cat cat CAT cats",
+    "query": "c.t",
+    "regexp": true,
+    "wholeWord": true,
+    "caseSensitive": true,
+    "matches": [[1, 4, 7]]
+  },
+  {
+    "name": "known difference: \\w reads Unicode in Rust and only ASCII in JavaScript",
+    "text": "über x",
+    "query": "\\w+",
+    "regexp": true,
+    "matches": [[1, 1, 4], [1, 5, 6]],
+    "rust": [[1, 0, 4], [1, 5, 6]]
+  },
+  {
+    "name": "known difference: \\d reads every script's digits in Rust and only 0-9 in JavaScript",
+    "text": "٣٤ 12",
+    "query": "\\d+",
+    "regexp": true,
+    "matches": [[1, 3, 5]],
+    "rust": [[1, 0, 2], [1, 3, 5]]
+  }
+]

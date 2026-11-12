@@ -47,6 +47,8 @@ export interface TabMenuState {
   readonly hasPath: boolean
   /** The pane holds other tabs to close. */
   readonly canCloseOthers: boolean
+  /** The pane holds tabs to the right of this one. */
+  readonly canCloseToTheRight: boolean
   /** The file lies in an open folder, so the tree has a row for it. */
   readonly canRevealInSidebar: boolean
   readonly canRename: boolean
@@ -64,6 +66,7 @@ export function tabMenuState(tabId: TabId): TabMenuState {
     untitled,
     hasPath: path !== null,
     canCloseOthers: pane?.tabs.some((other) => other !== tabId) === true,
+    canCloseToTheRight: (pane?.tabs.indexOf(tabId) ?? -1) < (pane?.tabs.length ?? 0) - 1,
     canRevealInSidebar: inRoot,
     // A new file is named by Save As; a file on disk is renamed in its tree row.
     canRename: untitled || inRoot,
@@ -87,9 +90,19 @@ export async function closeOtherTabs(tabId: TabId): Promise<boolean> {
   return closeTabs(pane.tabs.filter((other) => other !== tabId))
 }
 
-/** Closes every tab of every pane. */
-export function closeEveryTab(): Promise<boolean> {
-  return closeAllTabs()
+/**
+ * Closes the tabs to the right of this one in its pane, left to right, asking about each document
+ * with unsaved edits. The other panes are never touched. False when the user cancelled a question.
+ */
+export async function closeTabsToTheRight(tabId: TabId): Promise<boolean> {
+  const pane = paneOfTab(workbenchLayout.value, tabId)
+  if (pane === undefined) return true
+  return closeTabs(pane.tabs.slice(pane.tabs.indexOf(tabId) + 1))
+}
+
+/** Closes every tab of the pane this tab is in, and no tab of another pane. */
+export function closeEveryTab(tabId: TabId): Promise<boolean> {
+  return closeAllTabs(paneOfTab(workbenchLayout.value, tabId)?.id)
 }
 
 /**

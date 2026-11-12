@@ -280,6 +280,44 @@ const cases: RuleCase[] = [
     },
   },
   {
+    rule: 'search-lazy',
+    clean: {
+      'src/shell/SidebarFrame.vue':
+        '<script setup lang="ts">\nconst Search = () => import(\'@/features/search/SearchPanel.vue\')\n</script>\n',
+      'src/features/search/SearchPanel.vue':
+        '<script setup lang="ts">\nimport { runSearch } from \'./store\'\nvoid runSearch\n</script>\n',
+      'src/features/search/store.ts': 'export const runSearch = 1\n',
+    },
+    planted: {
+      'a static import of the panel': {
+        'src/shell/SidebarFrame.vue':
+          '<script setup lang="ts">\nimport SearchPanel from \'@/features/search/SearchPanel.vue\'\nvoid SearchPanel\n</script>\n',
+      },
+      'a relative static import of the panel': {
+        'src/shell/b.ts': "import P from '../features/search/SearchPanel.vue'\nvoid P\n",
+      },
+    },
+  },
+  {
+    rule: 'outline-lazy',
+    clean: {
+      'src/shell/SidebarFrame.vue':
+        '<script setup lang="ts">\nconst Outline = () => import(\'@/features/outline/OutlinePanel.vue\')\n</script>\n',
+      'src/features/outline/OutlinePanel.vue':
+        '<script setup lang="ts">\nimport { startOutline } from \'./store\'\nvoid startOutline\n</script>\n',
+      'src/features/outline/store.ts': 'export const startOutline = 1\n',
+    },
+    planted: {
+      'a static import of the panel': {
+        'src/shell/SidebarFrame.vue':
+          '<script setup lang="ts">\nimport OutlinePanel from \'@/features/outline/OutlinePanel.vue\'\nvoid OutlinePanel\n</script>\n',
+      },
+      'a relative static import of the panel': {
+        'src/shell/b.ts': "import P from '../features/outline/OutlinePanel.vue'\nvoid P\n",
+      },
+    },
+  },
+  {
     rule: 'no-plugin-fs',
     clean: {
       'src-tauri/Cargo.toml': '[dependencies]\ntauri = "2"\n# tauri-plugin-fs stays out\n',

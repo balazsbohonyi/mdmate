@@ -13,14 +13,20 @@ import {
   flatten,
   isMarkdownName,
   joinPath,
+  keyAction,
   pathKeyer,
+  placeKey,
   ROW_HEIGHT,
   visibleWindow,
   type Listing,
+  type TreeRow,
 } from '@/features/tree/model'
+import { newFileIn, renameRow } from '@/features/tree/ops'
 import FileTree from '@/features/tree/FileTree.vue'
 import {
+  cancelNaming,
   expandedFolderPaths,
+  expandedPlaces,
   loadFolder,
   openFolderDialog,
   removeRootFolder,
@@ -110,8 +116,8 @@ describe('the rows of the tree', () => {
 
   it('lists a root, then what is inside each open folder, with depth', () => {
     const open = new Map([
-      [keyOf('/w'), '/w'],
-      [keyOf('/w/sub'), '/w/sub'],
+      [placeKey(keyOf, '/w', '/w'), '/w'],
+      [placeKey(keyOf, '/w', '/w/sub'), '/w/sub'],
     ])
     const listings = new Map<string, Listing>([
       [keyOf('/w'), entries(['sub', 'folder'], ['a.md', 'file'])],
@@ -134,7 +140,7 @@ describe('the rows of the tree', () => {
   })
 
   it('says loading while an open folder has no listing, and why when it failed', () => {
-    const open = new Map([[keyOf('/w'), '/w']])
+    const open = new Map([[placeKey(keyOf, '/w', '/w'), '/w']])
     const loading = flatten(['/w'], open, new Map(), keyOf)
     expect(loading[1]).toMatchObject({ kind: 'note', name: 'Loading…', tone: 'muted' })
     const failed = flatten(
@@ -147,7 +153,7 @@ describe('the rows of the tree', () => {
   })
 
   it('keeps the entries a folder had when a later listing fails', () => {
-    const open = new Map([[keyOf('/w'), '/w']])
+    const open = new Map([[placeKey(keyOf, '/w', '/w'), '/w']])
     const kept = flatten(
       ['/w'],
       open,
@@ -192,6 +198,172 @@ describe('roots (ISC-97, ISC-192, ISC-193)', () => {
     await flush()
     expect(workspaceRoots.value).toEqual(['/work', '/other'])
     expect(names()).toEqual(['work', '  notes', '  readme.md', '  Zeta.txt', 'other', '  x.md'])
+  })
+
+  it('draws a folder that is a root and also inside another root once per place, and leaves no row behind when they close', async () => {
+    start({ roots: ['/work', '/work/notes'] })
+    await restoreWorkspace([])
+    await flush()
+    const root = mountTree()
+    await flush()
+    const drawn = (): string[] =>
+      [...root.querySelectorAll<HTMLElement>('[role="treeitem"], [data-kind="note"]')].map(
+        (row) => `${row.dataset.kind ?? ''}:${row.dataset.rowPath ?? row.textContent ?? ''}`,
+      )
+    const warnings: string[] = []
+    const warn = console.warn
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args.map(String).join(' '))
+    }
+    try {
+      // /work/notes shows under /work and as a root of its own; both list a.md, b.md and deep.
+      expect(drawn()).toHaveLength(treeRows.value.length)
+      await toggleFolder('/work/notes/deep')
+      await flush()
+      expect(drawn()).toHaveLength(treeRows.value.length)
+      // Close the first root, then the second: every row must go with them.
+      root.querySelector<HTMLElement>('[data-kind="root"][data-row-path="/work"]')?.click()
+      await flush()
+      expect(drawn()).toHaveLength(treeRows.value.length)
+      root.querySelector<HTMLElement>('[data-kind="root"][data-row-path="/work/notes"]')?.click()
+      await flush()
+      expect(treeRows.value.map((row) => row.name)).toEqual(['work', 'notes'])
+      expect(drawn()).toEqual(['root:/work', 'root:/work/notes'])
+    } finally {
+      console.warn = warn
+    }
+    expect(warnings.filter((text) => text.includes('Duplicate keys'))).toEqual([])
+  })
+
+  describe('a folder that is a root and also inside another root keeps a state per place', () => {
+    const OUTER = '/work'
+    const INNER = '/work/notes'
+    const place = (root: string, path: string, kind?: string): string =>
+      `[data-row-root="${root}"][data-row-path="${path}"]${kind === undefined ? '' : `[data-kind="${kind}"]`}`
+    const rowsAt = (root: string, path: string): TreeRow[] =>
+      treeRows.value.filter((row) => row.root === root && row.path === path)
+
+    async function mounted2(): Promise<HTMLElement> {
+      start({ roots: [OUTER, INNER] })
+      await restoreWorkspace([])
+      await flush()
+      const tree = mountTree()
+      await flush()
+      return tree
+    }
+
+    it('opens a folder under one root and leaves the other copy closed', async () => {
+      const tree = await mounted2()
+      // Under /work the folder is closed; as a root of its own it is open and lists its files.
+      expect(rowsAt(OUTER, INNER)[0]).toMatchObject({ kind: 'folder', expanded: false })
+      expect(rowsAt(INNER, INNER)[0]).toMatchObject({ kind: 'root', expanded: true })
+      tree.querySelector<HTMLElement>(place(OUTER, INNER, 'folder'))?.click()
+      await flush()
+      expect(rowsAt(OUTER, `${INNER}/a.md`)).toHaveLength(1)
+      // Opening `deep` as a child of the root copy does not open it under /work.
+      tree.querySelector<HTMLElement>(place(INNER, `${INNER}/deep`))?.click()
+      await flush()
+      expect(rowsAt(INNER, `${INNER}/deep/c.md`)).toHaveLength(1)
+      expect(rowsAt(OUTER, `${INNER}/deep/c.md`)).toHaveLength(0)
+      // Closing it again, and closing the root copy, leaves the /work copy as it was.
+      tree.querySelector<HTMLElement>(place(INNER, INNER, 'root'))?.click()
+      await flush()
+      expect(rowsAt(INNER, `${INNER}/a.md`)).toHaveLength(0)
+      expect(rowsAt(OUTER, `${INNER}/a.md`)).toHaveLength(1)
+    })
+
+    it('selects one copy only, and no id appears twice', async () => {
+      const tree = await mounted2()
+      tree.querySelector<HTMLElement>(place(OUTER, INNER, 'folder'))?.click()
+      await flush()
+      tree.querySelector<HTMLElement>(place(INNER, `${INNER}/a.md`))?.click()
+      await flush()
+      const selected = [...tree.querySelectorAll<HTMLElement>('[aria-selected="true"]')]
+      expect(selected).toHaveLength(1)
+      expect(selected[0]?.dataset.rowRoot).toBe(INNER)
+      const ids = [...tree.querySelectorAll<HTMLElement>('[role="treeitem"]')].map((row) => row.id)
+      expect(new Set(ids).size).toBe(ids.length)
+      expect(tree.querySelector('[role="tree"]')?.getAttribute('aria-activedescendant')).toBe(
+        selected[0]?.id,
+      )
+    })
+
+    it('moves from the second copy to the row after it, not after the first copy', async () => {
+      await mounted2()
+      await toggleFolder(INNER, OUTER)
+      await flush()
+      const rows = treeRows.value
+      const at = rows.findIndex((row) => row.root === INNER && row.path === `${INNER}/a.md`)
+      expect(keyAction(rows, `${INNER}/a.md`, 'ArrowDown', INNER)).toMatchObject({
+        kind: 'select',
+        path: rows[at + 1]?.path,
+        root: INNER,
+      })
+      expect(keyAction(rows, `${INNER}/a.md`, 'ArrowUp', INNER)).toMatchObject({
+        kind: 'select',
+        path: rows[at - 1]?.path,
+        root: INNER,
+      })
+    })
+
+    it('turns only the row that was chosen into a name box on rename', async () => {
+      const tree = await mounted2()
+      await toggleFolder(INNER, OUTER)
+      await flush()
+      await renameRow(`${INNER}/a.md`, INNER)
+      await flush()
+      expect(tree.querySelectorAll('[data-name-input]')).toHaveLength(1)
+      expect(
+        tree.querySelector(place(INNER, `${INNER}/a.md`))?.querySelector('[data-name-input]'),
+      ).not.toBeNull()
+    })
+
+    it('puts the box for a new file under the copy it was asked for', async () => {
+      await mounted2()
+      await newFileIn(OUTER)
+      await flush()
+      const boxes = treeRows.value.filter((row) => row.kind === 'new')
+      expect(boxes).toHaveLength(1)
+      expect(boxes[0]).toMatchObject({ root: OUTER })
+      cancelNaming()
+      await newFileIn(INNER, INNER)
+      await flush()
+      const second = treeRows.value.filter((row) => row.kind === 'new')
+      expect(second).toHaveLength(1)
+      expect(second[0]).toMatchObject({ root: INNER })
+    })
+
+    it('remembers which copies are open', async () => {
+      await mounted2()
+      await toggleFolder(INNER, OUTER)
+      await flush()
+      expect(expandedPlaces.value).toEqual(
+        expect.arrayContaining([
+          { root: OUTER, path: OUTER },
+          { root: INNER, path: INNER },
+          { root: OUTER, path: INNER },
+        ]),
+      )
+      // A session from before places existed lists bare paths; each opens under every root holding it.
+      resetTree()
+      start({ roots: [OUTER, INNER] })
+      await restoreWorkspace([`${INNER}/deep`])
+      await flush()
+      expect(rowsAt(OUTER, `${INNER}/deep`)).toHaveLength(0)
+      expect(expandedPlaces.value).toEqual(
+        expect.arrayContaining([
+          { root: OUTER, path: `${INNER}/deep` },
+          { root: INNER, path: `${INNER}/deep` },
+        ]),
+      )
+      // A session that lists places opens exactly those.
+      resetTree()
+      start({ roots: [OUTER, INNER] })
+      await restoreWorkspace([], [{ root: INNER, path: `${INNER}/deep` }])
+      await flush()
+      expect(expandedPlaces.value).toContainEqual({ root: INNER, path: `${INNER}/deep` })
+      expect(expandedPlaces.value).not.toContainEqual({ root: OUTER, path: `${INNER}/deep` })
+    })
   })
 
   it('adds the folder the dialog returns, open, and does not add it twice', async () => {

@@ -77,9 +77,18 @@ Mark `[x]` only when the task's "Done when" in its phase plan holds. Each task l
 
 ## Phase 7: Search and outline ([plan](phases/phase-07/plan.md))
 
-- [ ] P7-T1: Find and replace — closes ISC-133, ISC-134, ISC-135, ISC-136
-- [ ] P7-T2: Folder search — closes ISC-137, ISC-138, ISC-139, ISC-140
-- [ ] P7-T3: Outline panel — closes ISC-141, ISC-142, ISC-143, ISC-144
+- [x] P7-T1: Find and replace — closes ISC-133, ISC-134, ISC-135, ISC-136 (and ISC-258 to ISC-265)
+- [x] P7-T2: Folder search — closes ISC-137, ISC-138, ISC-139, ISC-140
+- [x] P7-T3: Outline panel — closes ISC-141, ISC-142, ISC-143, ISC-144
+- [x] P7-T4: Folder search filters, toggles in the box, a visible Stop — closes ISC-295 to ISC-303 (Find in Folder, the pattern grammar, bad patterns, the Stop button)
+- [x] P7-T5: Close All closes only its own pane, and Close to the Right — closes ISC-307, ISC-308
+- [x] P7-T6: Search and Find matches as ticks along the editor scrollbar — closes ISC-309, ISC-310
+
+## Phase 7.1: Workspace index ([plan](phases/phase-07.1/plan.md))
+
+- [ ] P7.1-T1: The index (build, exclusion list, disk cache, reconcile, watcher, own-op updates, status bar) — closes ISC-281, ISC-282, ISC-283, ISC-284, ISC-285, ISC-286, ISC-287, ISC-288, ISC-289, ISC-292
+- [ ] P7.1-T2: Quick Open from the index — closes ISC-290, ISC-291
+- [ ] P7.1-T3: Link scans and folder search from the index — closes ISC-293, ISC-294
 
 ## Phase 8: Configuration ([plan](phases/phase-08/plan.md))
 

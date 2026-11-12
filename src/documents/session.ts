@@ -1,7 +1,7 @@
 import { watch } from 'vue'
 import type { Text } from '@codemirror/state'
 import { endingsOf } from '@/editor/lineEndings'
-import { expandedFolderPaths, restoreWorkspace } from '@/features/tree/store'
+import { expandedFolderPaths, expandedPlaces, restoreWorkspace } from '@/features/tree/store'
 import { currentWindowWidth, setSidebarWidth, sidebarWidth } from '@/workbench/sidebar'
 import { endingsEqual, joinWithEndings, readEndings, type Endings } from '@/lib/endings'
 import { getHost, type ImageInfo, type OpenedFile } from '@/platform'
@@ -42,8 +42,20 @@ import { noteUntitledNumber } from './untitled'
  * run. Rust writes the file atomically; this module decides what goes in it and when.
  */
 
-/** How long after a change the session is written. Measured in P2-T6; see the Phase 2 decisions. */
+/**
+ * How long the session waits after the last change before it is written. A change that nothing
+ * follows is on disk this long after it. Measured in P2-T6; see the Phase 2 decisions.
+ */
 export const JOURNAL_INTERVAL_MS = 1000
+
+/**
+ * The most the session waits when changes keep coming (typing without a pause of a full interval).
+ * A write of a 1 MB buffer holds the page for several milliseconds; one a second during typing
+ * moved the p95 work per key in a 1 MB file from 7 to 15 ms (measured in P7 with
+ * `typing-outline-open-trusted`, journal on and off). It is also the most a force-kill can lose
+ * while someone types without a pause.
+ */
+export const JOURNAL_MAX_WAIT_MS = 5000
 
 const VERSION = 1
 
@@ -129,6 +141,7 @@ export function buildSnapshot(): string {
   // that list itself, so a snapshot can never add one.
   const workspace = JSON.stringify({
     expanded: expandedFolderPaths.value,
+    expandedPlaces: expandedPlaces.value,
     ...(sidebarWidth.value === null ? {} : { sidebarWidth: sidebarWidth.value }),
   })
   return `{"version":${String(VERSION)},"layout":${JSON.stringify(serialize(layout))},"tabs":${JSON.stringify(tabs)},"buffers":[${buffers.join(',')}],"workspace":${workspace}}`
@@ -149,6 +162,9 @@ export const journalStats = {
 
 let started = false
 let intervalMs = JOURNAL_INTERVAL_MS
+let maxWaitMs = JOURNAL_MAX_WAIT_MS
+/** When the first change since the last write was noted; the wait is counted from it. */
+let firstChangeAt: number | undefined
 let timer: ReturnType<typeof setTimeout> | undefined
 let inFlight: Promise<void> | null = null
 let wanted = false
@@ -193,6 +209,7 @@ export function flushSession(): Promise<void> {
     clearTimeout(timer)
     timer = undefined
   }
+  firstChangeAt = undefined
   wanted = true
   inFlight ??= (async () => {
     try {
@@ -207,13 +224,21 @@ export function flushSession(): Promise<void> {
   return inFlight
 }
 
-/** Notes that the session changed, and schedules a write unless one is already scheduled. */
+/**
+ * Notes that the session changed. The write is one interval after the last change, so typing is
+ * written when it pauses, and never later than the longest wait after the first change, so typing
+ * that does not pause still is.
+ */
 function touch(): void {
-  if (!started || timer !== undefined) return
+  if (!started) return
+  const now = Date.now()
+  firstChangeAt ??= now
+  if (timer !== undefined) clearTimeout(timer)
+  const wait = Math.min(intervalMs, Math.max(0, firstChangeAt + maxWaitMs - now))
   timer = setTimeout(() => {
     timer = undefined
     void flushSession()
-  }, intervalMs)
+  }, wait)
 }
 
 /** The window was asked to close: write the newest state, then end the app. No prompt. */
@@ -226,6 +251,8 @@ async function closeRequested(): Promise<void> {
 export interface JournalOptions {
   /** Overrides the write interval, for the perf harness. */
   readonly intervalMs?: number
+  /** Overrides the longest wait, for the tests. Never shorter than the interval. */
+  readonly maxWaitMs?: number
 }
 
 /** Starts writing the session as the workbench changes, and flushes when the window closes. */
@@ -233,9 +260,11 @@ export async function startJournal(options: JournalOptions = {}): Promise<void> 
   stopJournal()
   started = true
   intervalMs = options.intervalMs ?? JOURNAL_INTERVAL_MS
+  maxWaitMs = Math.max(options.maxWaitMs ?? JOURNAL_MAX_WAIT_MS, intervalMs)
+  firstChangeAt = undefined
   onDocumentsTouched(touch)
   stopLayoutWatch = watch(workbenchLayout, touch)
-  stopTreeWatch = watch(expandedFolderPaths, touch)
+  stopTreeWatch = watch(expandedPlaces, touch)
   stopSidebarWatch = watch(sidebarWidth, touch)
   try {
     const host = await getHost()
@@ -255,6 +284,7 @@ export function stopJournal(): void {
   started = false
   if (timer !== undefined) clearTimeout(timer)
   timer = undefined
+  firstChangeAt = undefined
   onDocumentsTouched(undefined)
   stopLayoutWatch?.()
   stopLayoutWatch = undefined
@@ -301,6 +331,11 @@ interface Snapshot {
   readonly buffers: readonly RawBuffer[]
   /** The folders that were open in the sidebar. A snapshot from before Phase 6 has none. */
   readonly expanded: readonly string[]
+  /**
+   * The same folders by place: which root each was open under. A snapshot from before nested
+   * roots was told apart has none, and then `expanded` opens a path under every root holding it.
+   */
+  readonly places: readonly { readonly root: string; readonly path: string }[] | null
   /** How wide the sidebar was dragged, in px, or null for the default. */
   readonly sidebarWidth: number | null
 }
@@ -363,11 +398,21 @@ function readSnapshot(text: string): Snapshot | null {
   for (const path of Array.isArray(workspace.expanded) ? (workspace.expanded as unknown[]) : []) {
     if (typeof path === 'string') expanded.push(path)
   }
+  let places: { root: string; path: string }[] | null = null
+  if (Array.isArray(workspace.expandedPlaces)) {
+    places = []
+    for (const place of workspace.expandedPlaces as unknown[]) {
+      if (isRecord(place) && typeof place.root === 'string' && typeof place.path === 'string') {
+        places.push({ root: place.root, path: place.path })
+      }
+    }
+  }
   return {
     layout: value.layout,
     tabs,
     buffers,
     expanded,
+    places,
     sidebarWidth: readNumber(workspace.sidebarWidth),
   }
 }
@@ -407,9 +452,11 @@ export async function restoreSession(): Promise<RestoreReport | null> {
   // The roots come from Rust's own list, so they come back even when the snapshot is damaged or
   // missing. A failure here costs the sidebar, never the tabs.
   setSidebarWidth(snapshot?.sidebarWidth ?? null, currentWindowWidth())
-  await restoreWorkspace(snapshot?.expanded ?? []).catch((error: unknown) => {
-    problem.value = `Could not restore the workspace: ${error instanceof Error ? error.message : JSON.stringify(error)}`
-  })
+  await restoreWorkspace(snapshot?.expanded ?? [], snapshot?.places ?? undefined).catch(
+    (error: unknown) => {
+      problem.value = `Could not restore the workspace: ${error instanceof Error ? error.message : JSON.stringify(error)}`
+    },
+  )
   if (text === null) return null
   const notices: string[] = []
 

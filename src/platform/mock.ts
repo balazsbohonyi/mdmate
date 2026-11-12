@@ -25,6 +25,9 @@ import { mockQuickOpen } from './mockQuickOpen'
 import { applyEdits, isScannable, mockEdits, mockReferences, movedPath } from './mockRewrite'
 import type { Reference } from './references'
 import type { RewriteChange, RewriteDone, RewritePlanned, TextChange } from './rewrite'
+import { mockFilters, mockMatcher, mockSearchText } from './mockSearch'
+import { mockOutline } from './mockOutline'
+import { MAX_SEARCH_HITS, type SearchSummary } from './search'
 
 /**
  * Window controls for the browser. Maximize flips a flag so the title bar's icon can be seen
@@ -401,6 +404,8 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
   }
   let pending: Planned | null = null
   let cancelled = false
+  /** The id of the folder search that may run; zero when none. */
+  let searchCurrent = 0
   let lastToken = 0
 
   function targetOf(path: string, change: RewriteChange): string | null {
@@ -811,6 +816,71 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
           a.column - b.column,
       )
       return { references, files: withLinks.size, scanned, skipped: [], truncated: false }
+    },
+    async searchFolders(request, buffers, onBatch) {
+      searchCurrent = request.id
+      const stopped = (): boolean => searchCurrent !== request.id
+      const empty: SearchSummary = {
+        id: request.id,
+        scanned: 0,
+        files: 0,
+        hits: 0,
+        skipped: 0,
+        truncated: false,
+        stopped: false,
+        error: null,
+        errorField: null,
+      }
+      const matcher = mockMatcher(request)
+      if ('error' in matcher) return { ...empty, error: matcher.error }
+      const filters = mockFilters(request, roots)
+      if ('error' in filters) {
+        return { ...empty, error: filters.error, errorField: filters.errorField }
+      }
+      const held = new Map<string, string>()
+      for (const buffer of buffers) {
+        const doc = open.get(buffer.id)
+        if (doc !== undefined) held.set(pathKey(doc.path), buffer.text)
+      }
+      let scanned = 0
+      let withHits = 0
+      let total = 0
+      let truncated = false
+      for (const file of [...files.paths()].sort()) {
+        const key = pathKey(file)
+        if (!insideRoot(file) || /(^|\/)(node_modules|\.git)(\/|$)/i.test(key)) continue
+        if (!filters.keeps(file)) continue
+        // A turn of the event loop per file, as a search that takes time would give: this is
+        // what lets a newer search or a cancel land while this one runs.
+        await new Promise<void>((resolve) => setTimeout(resolve, 0))
+        if (stopped()) break
+        scanned += 1
+        const text = held.get(key) ?? files.read(file) ?? ''
+        const found = mockSearchText(text, matcher.regex, request.wholeWord)
+        if (found.length > 0) {
+          const room = MAX_SEARCH_HITS - total
+          if (found.length > room) truncated = true
+          const kept = found.slice(0, Math.max(room, 0))
+          total += kept.length
+          withHits += 1
+          onBatch({ id: request.id, scanned, hits: kept.map((hit) => ({ path: file, ...hit })) })
+        }
+        if (truncated) break
+      }
+      onBatch({ id: request.id, scanned, hits: [] })
+      return { ...empty, scanned, files: withHits, hits: total, truncated, stopped: stopped() }
+    },
+    searchCancel() {
+      searchCurrent = 0
+      return Promise.resolve()
+    },
+    outlineScan(request) {
+      // The text the page sent, or the file as the mock holds it. A file that is not there is not
+      // allowed, as in the app.
+      if (request.text !== undefined) return Promise.resolve(mockOutline(request.id, request.text))
+      const file = request.path === undefined ? undefined : files.read(request.path)
+      if (file === undefined) return Promise.reject(new Error('That file is not open.'))
+      return Promise.resolve(mockOutline(request.id, file))
     },
     writeClipboard(text) {
       clipboard.push(text)

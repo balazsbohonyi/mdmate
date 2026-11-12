@@ -3,6 +3,8 @@ import { computed } from 'vue'
 import { requestCloseTab } from '@/documents/store'
 import { newUntitledTab } from '@/documents/untitled'
 import EditorHost from './EditorHost.vue'
+import FindBar from './FindBar.vue'
+import { findBars } from './find'
 import { focusActiveEditor } from './focus'
 import ImageView from './ImageView.vue'
 import PaneNotice from './PaneNotice.vue'
@@ -76,6 +78,12 @@ function startDrag(id: string, event: PointerEvent): void {
             :raw="isRaw(pane.id)"
           />
         </div>
+        <FindBar
+          v-if="findBars.has(pane.id)"
+          :pane-id="pane.id"
+          :tab-id="pane.activeTab"
+          :doc-id="activeDocId"
+        />
       </template>
       <ImageView
         v-else-if="activeImage !== null"

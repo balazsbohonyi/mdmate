@@ -8,11 +8,13 @@ import { nextTick, type App } from 'vue'
 import { tooltipApp } from '../helpers/tooltips'
 import { problem, resetDocuments } from '@/documents/store'
 import { referencesState, resetReferences } from '@/features/references/store'
+import { resetSearch, searchOptions, filtersOpen } from '@/features/search/store'
 import FileTree from '@/features/tree/FileTree.vue'
-import { resetTree, restoreWorkspace } from '@/features/tree/store'
+import { resetTree, restoreWorkspace, select } from '@/features/tree/store'
 import { setHost } from '@/platform'
 import { createMockHost, type MockHost } from '@/platform/mock'
 import { registerDefaultCommands } from '@/workbench/defaultCommands'
+import { resetSidebar, sidebarPanel } from '@/workbench/sidebar'
 import { resetWorkbench } from '@/workbench/store'
 
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
@@ -32,6 +34,8 @@ beforeEach(async () => {
   resetDocuments()
   resetWorkbench()
   resetReferences()
+  resetSearch()
+  resetSidebar()
   problem.value = null
   removeCommands = registerDefaultCommands()
   host = createMockHost({
@@ -79,6 +83,11 @@ function choose(name: string): void {
   item.click()
 }
 
+import { setSearchOptions } from '@/features/search/store'
+const setSearchQuery = (query: string): void => {
+  setSearchOptions({ query })
+}
+
 describe('the items of the sidebar menu', () => {
   it('a file gets Copy Path, Copy Relative Path, Open Containing Folder and Find File References', async () => {
     const labels = await menuOf('/work/notes/a.md')
@@ -101,6 +110,7 @@ describe('the items of the sidebar menu', () => {
       'Delete Delete',
       'Copy Path',
       'Copy Relative Path',
+      expect.stringMatching(/^Find in Folder\.\.\./),
       'Open Folder',
     ])
   })
@@ -111,6 +121,7 @@ describe('the items of the sidebar menu', () => {
       'New File',
       'New Folder',
       'Copy Path',
+      expect.stringMatching(/^Find in Folder\.\.\./),
       'Open Folder',
       'Remove Folder from Workspace',
     ])
@@ -120,6 +131,68 @@ describe('the items of the sidebar menu', () => {
     await menuOf('/work/notes/a.md')
     const found = items().find((item) => label(item).startsWith('Find File References'))
     expect(found?.querySelector('[data-slot=context-menu-shortcut]')?.textContent).toBe('Shift+F12')
+  })
+})
+
+describe('Find in Folder (ISC-300)', () => {
+  it('shows Alt+Shift+F beside the item on a folder and a root, and not on a file', async () => {
+    for (const path of ['/work/notes', '/work']) {
+      await menuOf(path)
+      const found = items().find((item) => label(item).startsWith('Find in Folder...'))
+      expect(found?.querySelector('[data-slot=context-menu-shortcut]')?.textContent).toBe(
+        'Alt+Shift+F',
+      )
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await flush()
+    }
+    const labels = await menuOf('/work/notes/a.md')
+    expect(labels.some((item) => item.startsWith('Find in Folder'))).toBe(false)
+  })
+
+  it('the item shows the Search panel with the folder in "files to include" and nothing else changed', async () => {
+    setSearchQuery('needle')
+    await menuOf('/work/notes')
+    choose('Find in Folder...')
+    await flush()
+    expect(sidebarPanel.value).toBe('search')
+    expect(searchOptions.value.include).toBe('./notes')
+    expect(searchOptions.value.query).toBe('needle')
+    expect(searchOptions.value.exclude).toBe('')
+    expect(filtersOpen.value).toBe(true)
+  })
+
+  it('on the one root it fills nothing, since the root is already the whole search', async () => {
+    await menuOf('/work')
+    choose('Find in Folder...')
+    await flush()
+    expect(sidebarPanel.value).toBe('search')
+    expect(searchOptions.value.include).toBe('')
+  })
+
+  it('Alt+Shift+F with the tree focused does the same for the selected folder, and nothing for a file', async () => {
+    const tree = document.body.querySelector<HTMLElement>('[role=tree]') ?? document.body
+    const press = async (): Promise<KeyboardEvent> => {
+      const event = new KeyboardEvent('keydown', {
+        key: 'F',
+        code: 'KeyF',
+        altKey: true,
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+      })
+      tree.dispatchEvent(event)
+      await flush()
+      return event
+    }
+    select('/work/notes/a.md', '/work')
+    await flush()
+    expect((await press()).defaultPrevented).toBe(false)
+    expect(searchOptions.value.include).toBe('')
+    select('/work/notes', '/work')
+    await flush()
+    expect((await press()).defaultPrevented).toBe(true)
+    expect(sidebarPanel.value).toBe('search')
+    expect(searchOptions.value.include).toBe('./notes')
   })
 })
 

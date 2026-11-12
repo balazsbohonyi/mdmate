@@ -24,6 +24,9 @@ import { reveal } from './reveal'
 import { scrollStability } from './scrollStability'
 import { typing } from './typing'
 import { typingDuringScan } from './typingDuringScan'
+import { typingDuringSearch } from './typingDuringSearch'
+import { typingFindOpen } from './typingFindOpen'
+import { typingOutlineOpen } from './typingOutlineOpen'
 
 /** The size-cutoff scenarios: open and type in a generated document of each size, in MB. */
 function sizedScenarios(): Record<string, (ctx: ScenarioContext) => Promise<ScenarioOutput>> {
@@ -43,6 +46,12 @@ const scenarios: Record<string, (ctx: ScenarioContext) => Promise<ScenarioOutput
   'typing-1mb': (ctx) => typing(ctx, 'dispatch'),
   'typing-1mb-trusted': (ctx) => typing(ctx, 'trusted'),
   'typing-during-scan': typingDuringScan,
+  'typing-during-search': (ctx) => typingDuringSearch(ctx, 'dispatch'),
+  'typing-during-search-trusted': (ctx) => typingDuringSearch(ctx, 'trusted'),
+  'typing-find-open': (ctx) => typingFindOpen(ctx, 'dispatch'),
+  'typing-find-open-trusted': (ctx) => typingFindOpen(ctx, 'trusted'),
+  'typing-outline-open': (ctx) => typingOutlineOpen(ctx, 'dispatch'),
+  'typing-outline-open-trusted': (ctx) => typingOutlineOpen(ctx, 'trusted'),
   ...sizedScenarios(),
   'crash-restore': crashRestore,
   'journal-cost': journalCost,

@@ -202,8 +202,9 @@ describe('the shortcuts the menu shows (ISC-221)', () => {
     )
     expect(shown).toContain('Close Ctrl+W')
     expect(shown).toContain('Close All Ctrl+Shift+W')
-    // Close Others has no key, so it shows none.
+    // Close Others and Close to the Right have no key, so they show none.
     expect(shown).toContain('Close Others')
+    expect(shown).toContain('Close to the Right')
   })
 
   it('names the file-manager item the same on every system (ISC-230)', async () => {

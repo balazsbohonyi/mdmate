@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { activeFileLabel } from './activeFile'
 import type { MenuEntry } from './menuEntries'
 import TitleBarControls from './TitleBarControls.vue'
 import TitleBarMenu from './TitleBarMenu.vue'
@@ -19,9 +20,14 @@ const emit = defineEmits<{ menuSelect: [id: string]; menuOpen: [] }>()
     <!-- Only an element that carries the attribute starts a window drag, so the label ignores the pointer. -->
     <div
       data-tauri-drag-region
-      class="flex min-w-0 flex-1 items-center justify-center"
+      class="flex min-w-0 flex-1 items-center justify-start px-3"
     >
-      <span class="pointer-events-none truncate text-xs">mdmate</span>
+      <span
+        class="pointer-events-none truncate text-xs"
+        data-title-file
+      >
+        {{ activeFileLabel }}
+      </span>
     </div>
     <TitleBarControls />
   </header>

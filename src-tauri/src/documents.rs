@@ -181,6 +181,9 @@ pub(crate) struct AppState {
     rewrite_tokens: std::sync::atomic::AtomicU64,
     /// The file index behind Ctrl+P; built when the page first asks.
     quick_open: crate::workspace::quick::QuickOpen,
+    /// The id of the folder search that is allowed to run; any other running search stops. Zero
+    /// means none.
+    search_current: std::sync::atomic::AtomicU64,
 }
 
 impl AppState {
@@ -197,7 +200,21 @@ impl AppState {
             rewrite_stop: std::sync::atomic::AtomicBool::new(false),
             rewrite_tokens: std::sync::atomic::AtomicU64::new(0),
             quick_open: crate::workspace::quick::QuickOpen::default(),
+            search_current: std::sync::atomic::AtomicU64::new(0),
         }
+    }
+
+    /// The id of the one folder search that may run, or zero. Starting a search sets it, so the one
+    /// before sees another id and ends; cancelling sets it to zero.
+    pub(crate) fn search_current(&self) -> u64 {
+        self.search_current
+            .load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// Makes `id` the search that may run.
+    pub(crate) fn set_search_current(&self, id: u64) {
+        self.search_current
+            .store(id, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// Whether this file system treats names that differ in case as one.

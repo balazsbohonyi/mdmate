@@ -19,6 +19,7 @@ import {
   revealPath,
   samePath,
   selectedPath,
+  selectedRoot,
   startNaming,
   treeRows,
   workspaceRoots,
@@ -32,20 +33,23 @@ import {
 
 // ---- naming ----
 
-/** Starts typing the name of a new file in a folder of the workspace. */
-export function newFileIn(parent: string): Promise<void> {
-  return startNaming({ kind: 'new-file', parent, error: null })
+/**
+ * Starts typing the name of a new file in a folder of the workspace. `root` names the copy of the
+ * folder that gets the box when it is shown under two roots.
+ */
+export function newFileIn(parent: string, root?: string | null): Promise<void> {
+  return startNaming({ kind: 'new-file', parent, root: root ?? undefined, error: null })
 }
 
 /** Starts typing the name of a new folder in a folder of the workspace. */
-export function newFolderIn(parent: string): Promise<void> {
-  return startNaming({ kind: 'new-folder', parent, error: null })
+export function newFolderIn(parent: string, root?: string | null): Promise<void> {
+  return startNaming({ kind: 'new-folder', parent, root: root ?? undefined, error: null })
 }
 
 /** Starts renaming a file or folder in place. A workspace root is not renamed here. */
-export function renameRow(path: string): Promise<void> {
-  if (workspaceRoots.value.some((root) => samePath(root, path))) return Promise.resolve()
-  return startNaming({ kind: 'rename', path, error: null })
+export function renameRow(path: string, root?: string | null): Promise<void> {
+  if (workspaceRoots.value.some((candidate) => samePath(candidate, path))) return Promise.resolve()
+  return startNaming({ kind: 'rename', path, root: root ?? undefined, error: null })
 }
 
 /** Keeps the box open and says why the name was refused. */
@@ -257,7 +261,7 @@ export function deleteSelected(): Promise<void> {
 /** Renames the selected row, for F2. */
 export function renameSelected(): Promise<void> {
   const path = selectedPath.value
-  return path === null ? Promise.resolve() : renameRow(path)
+  return path === null ? Promise.resolve() : renameRow(path, selectedRoot.value)
 }
 
 // ---- copy on drop ----

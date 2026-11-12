@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { X } from '@lucide/vue'
-import { ref } from 'vue'
+import { defineAsyncComponent, ref } from 'vue'
 import RewriteBanner from '@/features/links/RewriteBanner.vue'
 import ReferencesPanel from '@/features/references/ReferencesPanel.vue'
 import { closeReferences, referencesState } from '@/features/references/store'
@@ -16,6 +16,12 @@ import {
   sidebarPanel,
   sidebarWidth,
 } from '@/workbench/sidebar'
+
+// Search loads the first time it is shown (check-arch: search-lazy), so a window that never searches
+// never pays for it.
+const SearchPanel = defineAsyncComponent(() => import('@/features/search/SearchPanel.vue'))
+// The outline loads the first time it is shown too (check-arch: outline-lazy).
+const OutlinePanel = defineAsyncComponent(() => import('@/features/outline/OutlinePanel.vue'))
 
 const frame = ref<HTMLElement | null>(null)
 const windowWidth = window.innerWidth
@@ -67,17 +73,37 @@ function onKeydown(event: KeyboardEvent): void {
     <div
       class="flex h-tabstrip shrink-0 items-center gap-3 border-b border-sidebar-border px-3 text-xs font-medium tracking-wide text-muted-foreground uppercase select-none"
     >
+      <button
+        type="button"
+        data-sidebar-tab="folders"
+        :aria-pressed="sidebarPanel === 'folders'"
+        class="cursor-default uppercase hover:text-foreground"
+        :class="sidebarPanel === 'folders' ? 'text-foreground' : ''"
+        @click="showSidebar('folders')"
+      >
+        Folders
+      </button>
+      <button
+        type="button"
+        data-sidebar-tab="search"
+        :aria-pressed="sidebarPanel === 'search'"
+        class="cursor-default uppercase hover:text-foreground"
+        :class="sidebarPanel === 'search' ? 'text-foreground' : ''"
+        @click="showSidebar('search')"
+      >
+        Search
+      </button>
+      <button
+        type="button"
+        data-sidebar-tab="outline"
+        :aria-pressed="sidebarPanel === 'outline'"
+        class="cursor-default uppercase hover:text-foreground"
+        :class="sidebarPanel === 'outline' ? 'text-foreground' : ''"
+        @click="showSidebar('outline')"
+      >
+        Outline
+      </button>
       <template v-if="referencesState !== null">
-        <button
-          type="button"
-          data-sidebar-tab="folders"
-          :aria-pressed="sidebarPanel === 'folders'"
-          class="cursor-default uppercase hover:text-foreground"
-          :class="sidebarPanel === 'folders' ? 'text-foreground' : ''"
-          @click="showSidebar('folders')"
-        >
-          Folders
-        </button>
         <button
           type="button"
           data-sidebar-tab="references"
@@ -100,11 +126,12 @@ function onKeydown(event: KeyboardEvent): void {
           />
         </button>
       </template>
-      <template v-else>Folders</template>
     </div>
     <CopyBanner />
     <RewriteBanner />
-    <ReferencesPanel v-if="sidebarPanel === 'references' && referencesState !== null" />
+    <SearchPanel v-if="sidebarPanel === 'search'" />
+    <OutlinePanel v-else-if="sidebarPanel === 'outline'" />
+    <ReferencesPanel v-else-if="sidebarPanel === 'references' && referencesState !== null" />
     <FileTree v-else-if="workspaceRoots.length > 0" />
     <div
       v-else

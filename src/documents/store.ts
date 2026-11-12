@@ -3,7 +3,7 @@ import { uniformEndings, type Endings } from '@/lib/endings'
 import { getHost, type OpenedFile, type SaveAsHint } from '@/platform'
 import { isMarkdownName } from '@/features/tree/model'
 import { focusActiveEditor } from '@/workbench/focus'
-import { allTabs, findPane } from '@/workbench/splitTree'
+import { findPane } from '@/workbench/splitTree'
 import {
   closeTabById,
   imageTabs,
@@ -74,8 +74,22 @@ export function onDocumentsTouched(listener: (() => void) | undefined): void {
   touchListener = listener
 }
 
+const watchers = new Set<() => void>()
+
+/**
+ * Calls `listener` at the same moments as `onDocumentsTouched`, for any number of listeners.
+ * Returns the function that stops it. A listener should be cheap: it runs on every key.
+ */
+export function watchDocuments(listener: () => void): () => void {
+  watchers.add(listener)
+  return () => {
+    watchers.delete(listener)
+  }
+}
+
 function touched(): void {
   touchListener?.()
+  for (const watcher of watchers) watcher()
 }
 
 /** The follower a tab shows, made on first use. */
@@ -637,14 +651,20 @@ export async function closeTabs(tabs: readonly TabId[]): Promise<boolean> {
   return true
 }
 
-/** Closes every tab, asking about each document with unsaved edits. False when the user cancelled. */
-export function closeAllTabs(): Promise<boolean> {
-  return closeTabs(allTabs(workbenchLayout.value))
+/**
+ * Closes every tab of one pane (the active pane when none is named), asking about each document
+ * with unsaved edits. Never the tabs of another pane: a pane whose last tab closes goes away on its
+ * own. False when the user cancelled.
+ */
+export function closeAllTabs(paneId?: PaneId): Promise<boolean> {
+  const layout = workbenchLayout.value
+  return closeTabs(findPane(layout, paneId ?? layout.activePane)?.tabs ?? [])
 }
 
-/** True when at least one tab is open. */
-export function hasOpenTabs(): boolean {
-  return allTabs(workbenchLayout.value).length > 0
+/** True when the active pane holds at least one tab, which is what Close All would close. */
+export function activePaneHasTabs(): boolean {
+  const layout = workbenchLayout.value
+  return (findPane(layout, layout.activePane)?.tabs.length ?? 0) > 0
 }
 
 /** Settles a pending close: save and close, close and discard, or keep the tab open. */
@@ -756,6 +776,7 @@ export const hasPendingClose = computed(() => pendingClose.value !== null)
 export function resetDocuments(): void {
   stopWatching?.()
   stopWatching = undefined
+  watchers.clear()
   stopMissingCheck?.()
   stopMissingCheck = undefined
   documents.clear()

@@ -15,7 +15,7 @@ import {
   canSaveActiveAs,
   closeAllTabs,
   followerOfTab,
-  hasOpenTabs,
+  activePaneHasTabs,
   openFromDialog,
   requestCloseTab,
   requestRevert,
@@ -25,9 +25,12 @@ import {
 import { newUntitledTab } from '@/documents/untitled'
 import { canGoBack, canGoForward, goBack, goForward } from '@/documents/history'
 import { togglePalette } from '@/features/palette/state'
+import { showOutline } from '@/features/outline/store'
+import { showSearch } from '@/features/search/store'
 import { focusTree, openFolderDialog } from '@/features/tree/store'
 import { getHost } from '@/platform'
 import { registerCommand, removeCommand } from './commands'
+import { canFind, openFind, stepFind } from './find'
 import { findPane } from './splitTree'
 import { splitActivePane, workbenchLayout } from './store'
 import { toggleRaw } from './rawMode'
@@ -46,6 +49,12 @@ export const COMMAND_IDS = {
   rename: 'file.rename',
   findReferences: 'file.findReferences',
   clearRecent: 'file.clearRecent',
+  find: 'edit.find',
+  replace: 'edit.replace',
+  findNext: 'edit.findNext',
+  findPrevious: 'edit.findPrevious',
+  findInFolders: 'edit.findInFolders',
+  showOutline: 'view.showOutline',
   splitRight: 'workbench.splitRight',
   splitDown: 'workbench.splitDown',
   closeTab: 'workbench.closeTab',
@@ -221,6 +230,43 @@ export function registerDefaultCommands(): () => void {
       },
     }),
     registerCommand({
+      id: COMMAND_IDS.find,
+      title: 'Find...',
+      keybinding: 'Mod+F',
+      // The key is taken from the page even with nothing to search, so the browser's own find never opens.
+      enabled: canFind,
+      run: () => {
+        openFind(false)
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.replace,
+      title: 'Replace...',
+      keybinding: 'Mod+H',
+      enabled: canFind,
+      run: () => {
+        openFind(true)
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.findNext,
+      title: 'Find Next',
+      keybinding: 'F3',
+      enabled: canFind,
+      run: () => {
+        stepFind('next')
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.findPrevious,
+      title: 'Find Previous',
+      keybinding: 'Shift+F3',
+      enabled: canFind,
+      run: () => {
+        stepFind('previous')
+      },
+    }),
+    registerCommand({
       id: COMMAND_IDS.clearRecent,
       title: 'Clear Recent',
       run: clearRecent,
@@ -255,10 +301,24 @@ export function registerDefaultCommands(): () => void {
       id: COMMAND_IDS.closeAll,
       title: 'Close All',
       keybinding: 'Mod+Shift+W',
-      enabled: hasOpenTabs,
+      enabled: activePaneHasTabs,
       run: async () => {
         await closeAllTabs()
       },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.findInFolders,
+      title: 'Search in Folders...',
+      keybinding: 'Mod+Shift+F',
+      // The query box takes focus; the selected line of the editor, if any, is the query.
+      run: showSearch,
+    }),
+    registerCommand({
+      id: COMMAND_IDS.showOutline,
+      title: 'Show Outline',
+      keybinding: 'Mod+Shift+L',
+      // The list takes focus, so the arrow keys move through the headings at once.
+      run: showOutline,
     }),
     registerCommand({
       id: COMMAND_IDS.toggleSidebar,

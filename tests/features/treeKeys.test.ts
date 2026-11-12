@@ -8,6 +8,7 @@ import { isSelectable, keyAction, rowDomId, type TreeRow } from '@/features/tree
 
 const folder = (path: string, depth: number, expanded: boolean): TreeRow => ({
   kind: depth === 0 ? 'root' : 'folder',
+  root: '/w',
   path,
   name: path.split('/').at(-1) ?? path,
   depth,
@@ -15,6 +16,7 @@ const folder = (path: string, depth: number, expanded: boolean): TreeRow => ({
 })
 const file = (path: string, depth: number): TreeRow => ({
   kind: 'file',
+  root: '/w',
   path,
   name: path.split('/').at(-1) ?? path,
   depth,
@@ -22,6 +24,7 @@ const file = (path: string, depth: number): TreeRow => ({
 })
 const note = (path: string, depth: number): TreeRow => ({
   kind: 'note',
+  root: '/w',
   path,
   name: 'Empty',
   depth,
@@ -45,10 +48,12 @@ describe('Up and Down move the selection and never open anything (ISC-254)', () 
   it('Down goes to the next row, Up to the one before, and both stop at the ends', () => {
     expect(keyAction(ROWS, '/w/notes', 'ArrowDown')).toEqual({
       kind: 'select',
+      root: '/w',
       path: '/w/notes/a.md',
     })
     expect(keyAction(ROWS, '/w/notes/a.md', 'ArrowUp')).toEqual({
       kind: 'select',
+      root: '/w',
       path: '/w/notes',
     })
     expect(keyAction(ROWS, '/w/z.md', 'ArrowDown')).toBeNull()
@@ -56,8 +61,8 @@ describe('Up and Down move the selection and never open anything (ISC-254)', () 
   })
 
   it('with nothing selected, either arrow starts at the first row', () => {
-    expect(keyAction(ROWS, null, 'ArrowDown')).toEqual({ kind: 'select', path: '/w' })
-    expect(keyAction(ROWS, null, 'ArrowUp')).toEqual({ kind: 'select', path: '/w' })
+    expect(keyAction(ROWS, null, 'ArrowDown')).toEqual({ kind: 'select', root: '/w', path: '/w' })
+    expect(keyAction(ROWS, null, 'ArrowUp')).toEqual({ kind: 'select', root: '/w', path: '/w' })
   })
 
   it('skips the notes and the new-name box, which cannot be selected', () => {
@@ -67,14 +72,30 @@ describe('Up and Down move the selection and never open anything (ISC-254)', () 
       note('/w/empty', 2),
       file('/w/z.md', 1),
     ]
-    expect(keyAction(rows, '/w/empty', 'ArrowDown')).toEqual({ kind: 'select', path: '/w/z.md' })
-    expect(keyAction(rows, '/w/z.md', 'ArrowUp')).toEqual({ kind: 'select', path: '/w/empty' })
+    expect(keyAction(rows, '/w/empty', 'ArrowDown')).toEqual({
+      kind: 'select',
+      root: '/w',
+      path: '/w/z.md',
+    })
+    expect(keyAction(rows, '/w/z.md', 'ArrowUp')).toEqual({
+      kind: 'select',
+      root: '/w',
+      path: '/w/empty',
+    })
     expect(rows.filter(isSelectable)).toHaveLength(3)
   })
 
   it('Home and End go to the first and last row', () => {
-    expect(keyAction(ROWS, '/w/notes/a.md', 'Home')).toEqual({ kind: 'select', path: '/w' })
-    expect(keyAction(ROWS, '/w/notes/a.md', 'End')).toEqual({ kind: 'select', path: '/w/z.md' })
+    expect(keyAction(ROWS, '/w/notes/a.md', 'Home')).toEqual({
+      kind: 'select',
+      root: '/w',
+      path: '/w',
+    })
+    expect(keyAction(ROWS, '/w/notes/a.md', 'End')).toEqual({
+      kind: 'select',
+      root: '/w',
+      path: '/w/z.md',
+    })
   })
 
   it('a selected row hidden in a closed folder counts as its nearest folder on screen', () => {
@@ -85,10 +106,12 @@ describe('Up and Down move the selection and never open anything (ISC-254)', () 
     ]
     expect(keyAction(closed, '/w/notes/a.md', 'ArrowDown')).toEqual({
       kind: 'select',
+      root: '/w',
       path: '/w/z.md',
     })
     expect(keyAction(closed, '/w/notes/deep/x.md', 'ArrowUp')).toEqual({
       kind: 'select',
+      root: '/w',
       path: '/w',
     })
   })
@@ -103,10 +126,12 @@ describe('Right and Left open, close and walk a folder (ISC-254)', () => {
   it('Right opens a closed folder, then steps into its first row', () => {
     expect(keyAction(ROWS, '/w/notes/deep', 'ArrowRight')).toEqual({
       kind: 'toggle',
+      root: '/w',
       path: '/w/notes/deep',
     })
     expect(keyAction(ROWS, '/w/notes', 'ArrowRight')).toEqual({
       kind: 'select',
+      root: '/w',
       path: '/w/notes/a.md',
     })
   })
@@ -123,35 +148,55 @@ describe('Right and Left open, close and walk a folder (ISC-254)', () => {
   })
 
   it('Left closes an open folder, then steps out to the folder that holds it', () => {
-    expect(keyAction(ROWS, '/w/notes', 'ArrowLeft')).toEqual({ kind: 'toggle', path: '/w/notes' })
+    expect(keyAction(ROWS, '/w/notes', 'ArrowLeft')).toEqual({
+      kind: 'toggle',
+      root: '/w',
+      path: '/w/notes',
+    })
     expect(keyAction(ROWS, '/w/notes/a.md', 'ArrowLeft')).toEqual({
       kind: 'select',
+      root: '/w',
       path: '/w/notes',
     })
     expect(keyAction(ROWS, '/w/notes/deep', 'ArrowLeft')).toEqual({
       kind: 'select',
+      root: '/w',
       path: '/w/notes',
     })
-    expect(keyAction(ROWS, '/w/z.md', 'ArrowLeft')).toEqual({ kind: 'select', path: '/w' })
+    expect(keyAction(ROWS, '/w/z.md', 'ArrowLeft')).toEqual({
+      kind: 'select',
+      root: '/w',
+      path: '/w',
+    })
   })
 
   it('Left on a root that is closed or open has nowhere to step out to', () => {
-    expect(keyAction(ROWS, '/w', 'ArrowLeft')).toEqual({ kind: 'toggle', path: '/w' })
+    expect(keyAction(ROWS, '/w', 'ArrowLeft')).toEqual({ kind: 'toggle', root: '/w', path: '/w' })
     expect(keyAction([folder('/w', 0, false)], '/w', 'ArrowLeft')).toBeNull()
   })
 })
 
 describe('Enter and Space (ISC-254)', () => {
   it('toggle a folder, and open a file: Enter takes focus into it, Space keeps focus in the tree', () => {
-    expect(keyAction(ROWS, '/w/notes', 'Enter')).toEqual({ kind: 'toggle', path: '/w/notes' })
-    expect(keyAction(ROWS, '/w/notes', ' ')).toEqual({ kind: 'toggle', path: '/w/notes' })
+    expect(keyAction(ROWS, '/w/notes', 'Enter')).toEqual({
+      kind: 'toggle',
+      root: '/w',
+      path: '/w/notes',
+    })
+    expect(keyAction(ROWS, '/w/notes', ' ')).toEqual({
+      kind: 'toggle',
+      root: '/w',
+      path: '/w/notes',
+    })
     expect(keyAction(ROWS, '/w/z.md', 'Enter')).toEqual({
       kind: 'open',
+      root: '/w',
       path: '/w/z.md',
       focusEditor: true,
     })
     expect(keyAction(ROWS, '/w/z.md', ' ')).toEqual({
       kind: 'open',
+      root: '/w',
       path: '/w/z.md',
       focusEditor: false,
     })

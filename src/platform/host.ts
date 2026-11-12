@@ -3,6 +3,8 @@ import type { FollowedLink, LinkInfo } from './links'
 import type { QuickOpenAnswer } from './quickOpen'
 import type { ReferencesFound } from './references'
 import type { RewriteBuffer, RewriteChange, RewriteDone, RewritePlanned } from './rewrite'
+import type { OutlineAnswer, OutlineRequest } from './outline'
+import type { SearchBatch, SearchRequest, SearchSummary } from './search'
 import type {
   ClashAnswer,
   CopyReport,
@@ -326,6 +328,25 @@ export interface Host {
    * the file's.
    */
   findReferences(path: string, buffers: readonly RewriteBuffer[]): Promise<ReferencesFound>
+  /**
+   * Searches the text of every file in the open folders. Hits arrive through `onBatch`, at most
+   * every 50 ms, and the answer says how the search ended. A search with a higher id stops the one
+   * running; so does `searchCancel`. `buffers` are the open documents with unsaved edits: their
+   * text is read instead of the file's.
+   */
+  searchFolders(
+    request: SearchRequest,
+    buffers: readonly RewriteBuffer[],
+    onBatch: (batch: SearchBatch) => void,
+  ): Promise<SearchSummary>
+  /** Stops the folder search that is running, if any; it still answers, with `stopped`. */
+  searchCancel(): Promise<void>
+  /**
+   * The headings of one document for the outline panel: of `request.text` when the document has
+   * edits not yet saved, otherwise of the file at `request.path`. Rejects for a path the user did
+   * not open.
+   */
+  outlineScan(request: OutlineRequest): Promise<OutlineAnswer>
   /** Puts text on the system clipboard. */
   writeClipboard(text: string): Promise<void>
   /**

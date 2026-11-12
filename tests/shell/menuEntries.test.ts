@@ -115,11 +115,49 @@ describe('the app menu', () => {
         disabled: false,
       },
       { kind: 'separator' },
+      // Nothing is open, so there is nothing to search.
+      { kind: 'item', id: COMMAND_IDS.find, label: 'Find...', shortcut: 'Ctrl+F', disabled: true },
+      {
+        kind: 'item',
+        id: COMMAND_IDS.replace,
+        label: 'Replace...',
+        shortcut: 'Ctrl+H',
+        disabled: true,
+      },
+      {
+        kind: 'item',
+        id: COMMAND_IDS.findNext,
+        label: 'Find Next',
+        shortcut: 'F3',
+        disabled: true,
+      },
+      {
+        kind: 'item',
+        id: COMMAND_IDS.findPrevious,
+        label: 'Find Previous',
+        shortcut: 'Shift+F3',
+        disabled: true,
+      },
+      {
+        kind: 'item',
+        id: COMMAND_IDS.findInFolders,
+        label: 'Search in Folders...',
+        shortcut: 'Ctrl+Shift+F',
+        disabled: false,
+      },
+      { kind: 'separator' },
       {
         kind: 'item',
         id: COMMAND_IDS.toggleSidebar,
         label: 'Toggle Sidebar',
         shortcut: 'Ctrl+Shift+B',
+        disabled: false,
+      },
+      {
+        kind: 'item',
+        id: COMMAND_IDS.showOutline,
+        label: 'Show Outline',
+        shortcut: 'Ctrl+Shift+L',
         disabled: false,
       },
       {
@@ -148,7 +186,13 @@ describe('the app menu', () => {
       '⌥⇧8',
       '⌘W',
       '⇧⌘W',
+      '⌘F',
+      '⌘H',
+      'F3',
+      '⇧F3',
+      '⇧⌘F',
       '⇧⌘B',
+      '⇧⌘L',
       '⌘E',
     ])
   })
@@ -164,11 +208,23 @@ describe('the app menu', () => {
       COMMAND_IDS.revert,
       COMMAND_IDS.closeTab,
       COMMAND_IDS.closeAll,
+      COMMAND_IDS.find,
+      COMMAND_IDS.replace,
+      COMMAND_IDS.findNext,
+      COMMAND_IDS.findPrevious,
       COMMAND_IDS.toggleRawSource,
     ])
     openNewTab('a.md')
     // The test tab has no document, so the commands that need one stay off.
-    expect(disabled()).toEqual([COMMAND_IDS.save, COMMAND_IDS.saveAs, COMMAND_IDS.revert])
+    expect(disabled()).toEqual([
+      COMMAND_IDS.save,
+      COMMAND_IDS.saveAs,
+      COMMAND_IDS.revert,
+      COMMAND_IDS.find,
+      COMMAND_IDS.replace,
+      COMMAND_IDS.findNext,
+      COMMAND_IDS.findPrevious,
+    ])
   })
 
   it('leaves out a command that is not registered', () => {

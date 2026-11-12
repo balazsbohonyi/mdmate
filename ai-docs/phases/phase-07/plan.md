@@ -4,9 +4,9 @@
 
 ## P7-T1: Find and replace
 
-Build Ctrl+F and Ctrl+H on `@codemirror/search`, with a shadcn-styled panel and regex and case options.
+Build Ctrl+F and Ctrl+H on `@codemirror/search`, with a shadcn-styled bar in each pane (not CodeMirror's own panel) and regex, case and whole-word options. The app owns the keys (Ctrl+F, Ctrl+H, F3, Shift+F3) through the command registry; closing the bar returns the caret to the editor.
 
-**Done when:** search tests pass.
+**Done when:** search tests pass and the bar works in the real window with real key events.
 
 ## P7-T2: Folder search
 

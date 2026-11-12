@@ -2,7 +2,16 @@ import { computed, shallowReactive, shallowRef, watch } from 'vue'
 import { describe, openInActivePane, problem, provideImageBoundary } from '@/documents/store'
 import { getHost } from '@/platform'
 import { focusActiveEditor, holdingEditorFocus } from '@/workbench/focus'
-import { flatten, parentPath, pathKeyer, withNewRow, type Listing, type TreeRow } from './model'
+import {
+  flatten,
+  parentPath,
+  pathKeyer,
+  placeKey,
+  withNewRow,
+  type Listing,
+  type Place,
+  type TreeRow,
+} from './model'
 
 /**
  * The sidebar's state: the workspace roots, which folders are open and what each holds. Rust is the
@@ -12,8 +21,11 @@ import { flatten, parentPath, pathKeyer, withNewRow, type Listing, type TreeRow 
 
 let keyOf = pathKeyer(true)
 const roots = shallowRef<readonly string[]>([])
-/** The open folders: key to the path as first written, which is what the session keeps. */
-const expanded = shallowRef<ReadonlyMap<string, string>>(new Map())
+/**
+ * The open folders, by place: a folder shown under two roots is open under each on its own. The
+ * value is the place as first written, which is what the session keeps.
+ */
+const expanded = shallowRef<ReadonlyMap<string, Place>>(new Map())
 const listings = shallowReactive(new Map<string, Listing>())
 /** Per folder, which listing request is the newest, so a slow answer never overwrites a fresh one. */
 const newest = new Map<string, number>()
@@ -24,6 +36,26 @@ export const workspaceRoots = computed(() => roots.value)
 
 /** The row the user last clicked. Not necessarily open anywhere. */
 export const selectedPath = shallowRef<string | null>(null)
+const selectedUnder = shallowRef<string | null>(null)
+
+/**
+ * The root the selected row sits under. A folder shown under two roots is two rows, and only the
+ * one clicked is selected. A path set without a root (a test, an old caller) counts under the
+ * innermost root that holds it.
+ */
+export const selectedRoot = computed<string | null>(() => {
+  const path = selectedPath.value
+  if (path === null) return null
+  const under = selectedUnder.value
+  if (under !== null && isInside(path, under)) return under
+  return rootOf(path) ?? null
+})
+
+/** Selects a row: its path, and the root it sits under when it is known. */
+export function select(path: string | null, root: string | null = null): void {
+  selectedPath.value = path
+  selectedUnder.value = path === null ? null : root
+}
 
 /**
  * The name being typed in the tree, or null. A new entry gets a box under its folder; a rename
@@ -33,15 +65,24 @@ export type Naming =
   | {
       readonly kind: 'new-file' | 'new-folder'
       readonly parent: string
+      /** The root of the copy of the folder that shows the box; the innermost one by default. */
+      readonly root?: string | undefined
       readonly error: string | null
     }
-  | { readonly kind: 'rename'; readonly path: string; readonly error: string | null }
+  | {
+      readonly kind: 'rename'
+      readonly path: string
+      readonly root?: string | undefined
+      readonly error: string | null
+    }
 
 export const naming = shallowRef<Naming | null>(null)
 
 /** A row the tree should bring into view; `n` makes two requests for one row distinct. */
 export interface ScrollRequest {
   readonly path: string
+  /** The root of the copy to scroll to; the first copy when absent. */
+  readonly root?: string | undefined
   readonly kind: 'row' | 'new'
   readonly n: number
 }
@@ -49,8 +90,12 @@ export interface ScrollRequest {
 export const scrollRequest = shallowRef<ScrollRequest | null>(null)
 let scrollCount = 0
 
-export function requestScroll(path: string, kind: 'row' | 'new' = 'row'): void {
-  scrollRequest.value = { path, kind, n: ++scrollCount }
+export function requestScroll(
+  path: string,
+  kind: 'row' | 'new' = 'row',
+  root?: string | null,
+): void {
+  scrollRequest.value = { path, root: root ?? undefined, kind, n: ++scrollCount }
 }
 
 /** The rows on screen, top to bottom. */
@@ -58,28 +103,64 @@ export const treeRows = computed<TreeRow[]>(() => {
   const rows = flatten(roots.value, expanded.value, listings, keyOf)
   const typing = naming.value
   if (typing === null || typing.kind === 'rename') return rows
-  return withNewRow(rows, typing.parent, typing.kind === 'new-file' ? 'file' : 'folder', keyOf)
+  return withNewRow(
+    rows,
+    typing.parent,
+    typing.kind === 'new-file' ? 'file' : 'folder',
+    keyOf,
+    typing.root,
+  )
 })
 
-/** The open folders, as the session remembers them. */
-export const expandedFolderPaths = computed(() => [...expanded.value.values()].sort())
+/** The open places, as the session remembers them. */
+export const expandedPlaces = computed<Place[]>(() =>
+  [...expanded.value.values()].sort(
+    (a, b) => a.root.localeCompare(b.root) || a.path.localeCompare(b.path),
+  ),
+)
+
+/** The open folders, each path once however many roots show it. */
+export const expandedFolderPaths = computed(() =>
+  [...new Set([...expanded.value.values()].map((place) => place.path))].sort(),
+)
+
+/** Whether a folder is open under any root. */
+function isOpenAnywhere(path: string): boolean {
+  const key = keyOf(path)
+  for (const place of expanded.value.values()) if (keyOf(place.path) === key) return true
+  return false
+}
 
 /** Roots and the open folders below them, the ones Rust should watch for changes. */
-const watchedFolders = computed(() =>
-  treeRows.value
-    .filter((row) => (row.kind === 'root' || row.kind === 'folder') && row.expanded)
-    .map((row) => row.path),
-)
+const watchedFolders = computed(() => {
+  const found = new Map<string, string>()
+  for (const row of treeRows.value) {
+    if ((row.kind === 'root' || row.kind === 'folder') && row.expanded) {
+      found.set(keyOf(row.path), row.path)
+    }
+  }
+  return [...found.values()]
+})
 
 function isInside(path: string, root: string): boolean {
   const [key, rootKey] = [keyOf(path), keyOf(root)]
   return key === rootKey || key.startsWith(`${rootKey}/`)
 }
 
-function setExpanded(path: string, open: boolean): void {
+/** The root a folder is opened under when the caller does not say: the innermost one that holds it. */
+function underRoot(path: string, root?: string | null): string {
+  return root ?? rootOf(path) ?? path
+}
+
+function isOpen(root: string, path: string): boolean {
+  return expanded.value.has(placeKey(keyOf, root, path))
+}
+
+function setExpanded(root: string, path: string, open: boolean): void {
   const next = new Map(expanded.value)
-  if (open) next.set(keyOf(path), path)
-  else next.delete(keyOf(path))
+  const key = placeKey(keyOf, root, path)
+  if (open) next.set(key, { root, path })
+  else next.delete(key)
   expanded.value = next
 }
 
@@ -98,6 +179,11 @@ export async function loadFolder(path: string): Promise<void> {
     // A folder that could not be read keeps what it showed, with the reason under it.
     listings.set(key, { entries: listings.get(key)?.entries ?? null, error: describe(error) })
   }
+}
+
+/** A path as the tree tells places apart: slashes alike, and case ignored where the system ignores it. */
+export function pathKey(path: string): string {
+  return keyOf(path)
 }
 
 /** True when two paths are the same place, whatever their spelling. */
@@ -122,10 +208,14 @@ export function rootOf(path: string): string | undefined {
 // An image in a document may climb up to the workspace folder the document is in (ISC-232).
 provideImageBoundary((path) => rootOf(path) ?? null)
 
-/** Opens a folder if it is closed, and lists it. Leaves an open folder as it is. */
-export async function openFolderRow(path: string): Promise<void> {
-  if (expanded.value.has(keyOf(path))) return
-  setExpanded(path, true)
+/**
+ * Opens a folder if it is closed, and lists it. Leaves an open folder as it is. `root` names the
+ * copy when the folder is shown under two roots; it is the innermost root otherwise.
+ */
+export async function openFolderRow(path: string, root?: string | null): Promise<void> {
+  const under = underRoot(path, root)
+  if (isOpen(under, path)) return
+  setExpanded(under, path, true)
   await loadFolder(path)
 }
 
@@ -146,10 +236,10 @@ export async function revealPath(path: string): Promise<void> {
     trail.unshift(folder)
     if (!isInside(folder, root)) return
   }
-  await openFolderRow(root)
-  for (const folder of trail) await openFolderRow(folder)
-  selectedPath.value = path
-  requestScroll(path)
+  await openFolderRow(root, root)
+  for (const folder of trail) await openFolderRow(folder, root)
+  select(path, root)
+  requestScroll(path, 'row', root)
 }
 
 /**
@@ -158,15 +248,15 @@ export async function revealPath(path: string): Promise<void> {
  * and went to are listed again by the caller.
  */
 export function remapPaths(from: string, to: string): void {
-  const kept = new Map<string, string>()
+  const kept = new Map<string, Place>()
   const reopened: string[] = []
-  for (const [key, written] of expanded.value) {
-    if (!isInside(written, from)) {
-      kept.set(key, written)
+  for (const [key, place] of expanded.value) {
+    if (!isInside(place.path, from)) {
+      kept.set(key, place)
       continue
     }
-    const now = to + written.slice(from.length)
-    kept.set(keyOf(now), now)
+    const now = to + place.path.slice(from.length)
+    kept.set(placeKey(keyOf, place.root, now), { root: place.root, path: now })
     reopened.push(now)
   }
   expanded.value = kept
@@ -177,15 +267,18 @@ export function remapPaths(from: string, to: string): void {
     }
   }
   const selected = selectedPath.value
-  if (selected !== null && isInside(selected, from))
-    selectedPath.value = to + selected.slice(from.length)
+  if (selected !== null && isInside(selected, from)) {
+    select(to + selected.slice(from.length), selectedUnder.value)
+  }
   for (const folder of reopened) void loadFolder(folder)
 }
 
 /** Forgets a file or folder that is gone: its listings, its open state and its selection. */
 export function forgetPath(path: string): void {
-  const kept = new Map<string, string>()
-  for (const [key, written] of expanded.value) if (!isInside(written, path)) kept.set(key, written)
+  const kept = new Map<string, Place>()
+  for (const [key, place] of expanded.value) {
+    if (!isInside(place.path, path)) kept.set(key, place)
+  }
   expanded.value = kept
   for (const key of [...listings.keys()]) {
     if (isInside(key, path)) {
@@ -193,15 +286,34 @@ export function forgetPath(path: string): void {
       newest.delete(key)
     }
   }
-  if (selectedPath.value !== null && isInside(selectedPath.value, path)) selectedPath.value = null
+  if (selectedPath.value !== null && isInside(selectedPath.value, path)) select(null)
+}
+
+/**
+ * Forgets a root that left the workspace: what is open and selected under it. A root that lies
+ * inside it keeps its own state, and so do the listings of everything another root still shows.
+ */
+function forgetRoot(root: string): void {
+  const kept = new Map<string, Place>()
+  for (const [key, place] of expanded.value) {
+    if (keyOf(place.root) !== keyOf(root)) kept.set(key, place)
+  }
+  expanded.value = kept
+  for (const key of [...listings.keys()]) {
+    if (!roots.value.some((remaining) => isInside(key, remaining))) {
+      listings.delete(key)
+      newest.delete(key)
+    }
+  }
 }
 
 /** Starts typing a name in the tree. A new entry's folder is opened first so its box shows. */
 export async function startNaming(next: Naming): Promise<void> {
-  if (next.kind !== 'rename') await openFolderRow(next.parent)
-  naming.value = next
-  if (next.kind === 'rename') requestScroll(next.path)
-  else requestScroll(next.parent, 'new')
+  const root = next.root ?? rootOf(next.kind === 'rename' ? next.path : next.parent)
+  if (next.kind !== 'rename') await openFolderRow(next.parent, root)
+  naming.value = { ...next, root }
+  if (next.kind === 'rename') requestScroll(next.path, 'row', root)
+  else requestScroll(next.parent, 'new', root)
 }
 
 /** Stops typing a name without doing anything. */
@@ -210,13 +322,17 @@ export function cancelNaming(): void {
   restoreTreeFocus()
 }
 
-/** Opens a folder, or closes it when it is open. */
-export async function toggleFolder(path: string): Promise<void> {
-  if (expanded.value.has(keyOf(path))) {
-    setExpanded(path, false)
+/**
+ * Opens a folder, or closes it when it is open. `root` names the copy when the folder is shown
+ * under two roots; it is the innermost root otherwise.
+ */
+export async function toggleFolder(path: string, root?: string | null): Promise<void> {
+  const under = underRoot(path, root)
+  if (isOpen(under, path)) {
+    setExpanded(under, path, false)
     return
   }
-  setExpanded(path, true)
+  setExpanded(under, path, true)
   // Listed again on every open, so what the tree shows is what the disk holds right now.
   await loadFolder(path)
 }
@@ -225,7 +341,7 @@ function addRoot(path: string): void {
   if (!roots.value.some((root) => keyOf(root) === keyOf(path))) {
     roots.value = [...roots.value, path]
   }
-  setExpanded(path, true)
+  setExpanded(path, path, true)
   void loadFolder(path)
 }
 
@@ -266,8 +382,10 @@ export async function removeRootFolder(path: string): Promise<void> {
     problem.value = `Could not remove the folder: ${describe(error)}`
     return
   }
+  const wasSelectedHere = selectedRoot.value !== null && samePath(selectedRoot.value, path)
   roots.value = roots.value.filter((root) => keyOf(root) !== keyOf(path))
-  forgetPath(path)
+  forgetRoot(path)
+  if (wasSelectedHere) select(null)
 }
 
 /** The newest file the tree asked to open, so a double click waits for the click before it. */
@@ -282,8 +400,8 @@ let opening: Promise<void> = Promise.resolve()
  */
 export function activateRow(row: TreeRow, how: { focusEditor?: boolean } = {}): Promise<void> {
   if (row.kind === 'note' || row.kind === 'new') return Promise.resolve()
-  selectedPath.value = row.path
-  if (row.kind !== 'file') return toggleFolder(row.path)
+  select(row.path, row.root)
+  if (row.kind !== 'file') return toggleFolder(row.path, row.root)
   const { path } = row
   const focusEditor = how.focusEditor === true
   opening = opening.then(async () => {
@@ -341,7 +459,7 @@ async function subscribe(): Promise<void> {
   const host = await getHost()
   stopTreeEvents?.()
   stopTreeEvents = await host.watchTree((folder) => {
-    if (expanded.value.has(keyOf(folder))) void loadFolder(folder)
+    if (isOpenAnywhere(folder)) void loadFolder(folder)
   })
   subscribed = true
   await host.watchFolders(watchedFolders.value)
@@ -365,18 +483,33 @@ watch(
  * itself and granted them again); the session only says which folders were open, and a folder
  * outside every root is ignored. Listings run in the background so the window does not wait.
  */
-export async function restoreWorkspace(open: readonly string[]): Promise<void> {
+export async function restoreWorkspace(
+  open: readonly string[],
+  places?: readonly Place[],
+): Promise<void> {
   const host = await getHost()
   keyOf = pathKeyer((await host.platformName()) !== 'linux')
   const found = await host.loadWorkspace()
   roots.value = found
-  const next = new Map<string, string>()
-  for (const root of found) next.set(keyOf(root), root)
-  for (const path of open) {
-    if (found.some((root) => isInside(path, root))) next.set(keyOf(path), path)
+  const next = new Map<string, Place>()
+  const add = (root: string, path: string): void => {
+    next.set(placeKey(keyOf, root, path), { root, path })
+  }
+  for (const root of found) add(root, root)
+  if (places !== undefined) {
+    for (const place of places) {
+      const root = found.find((candidate) => keyOf(candidate) === keyOf(place.root))
+      if (root !== undefined && isInside(place.path, root)) add(root, place.path)
+    }
+  } else {
+    // A session from before places: a bare path opens under every root that holds it, which is
+    // what was on screen then.
+    for (const path of open) {
+      for (const root of found) if (isInside(path, root)) add(root, path)
+    }
   }
   expanded.value = next
-  for (const path of next.values()) void loadFolder(path)
+  for (const path of new Set([...next.values()].map((place) => place.path))) void loadFolder(path)
   await subscribe().catch((error: unknown) => {
     problem.value = `Could not watch the folders for changes: ${describe(error)}`
   })
@@ -392,7 +525,7 @@ export function resetTree(): void {
   expanded.value = new Map()
   listings.clear()
   newest.clear()
-  selectedPath.value = null
+  select(null)
   naming.value = null
   scrollRequest.value = null
   focusRequest.value = null

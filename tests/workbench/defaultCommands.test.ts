@@ -95,7 +95,13 @@ describe('the default commands', () => {
       [COMMAND_IDS.splitDown]: 'Alt+Shift+8',
       [COMMAND_IDS.closeTab]: 'Ctrl+W',
       [COMMAND_IDS.closeAll]: 'Ctrl+Shift+W',
+      [COMMAND_IDS.find]: 'Ctrl+F',
+      [COMMAND_IDS.replace]: 'Ctrl+H',
+      [COMMAND_IDS.findNext]: 'F3',
+      [COMMAND_IDS.findPrevious]: 'Shift+F3',
+      [COMMAND_IDS.findInFolders]: 'Ctrl+Shift+F',
       [COMMAND_IDS.toggleSidebar]: 'Ctrl+Shift+B',
+      [COMMAND_IDS.showOutline]: 'Ctrl+Shift+L',
       [COMMAND_IDS.focusSidebar]: 'Ctrl+Shift+E',
       [COMMAND_IDS.toggleRawSource]: 'Ctrl+E',
       [COMMAND_IDS.back]: 'Alt+ArrowLeft',
@@ -114,10 +120,10 @@ describe('the default commands', () => {
   it('can be registered a second time before the first is removed, as hot reload does', () => {
     const removeOld = removeCommands
     removeCommands = registerDefaultCommands()
-    expect(listCommands()).toHaveLength(28)
+    expect(listCommands()).toHaveLength(34)
     // The old shell unmounts after the new one has mounted, and removes what it registered.
     removeOld()
-    expect(listCommands()).toHaveLength(28)
+    expect(listCommands()).toHaveLength(34)
     expect(shortcutLabel(COMMAND_IDS.toggleSidebar, 'other')).toBe('Ctrl+Shift+B')
   })
 
@@ -125,7 +131,7 @@ describe('the default commands', () => {
     removeCommands()
     expect(listCommands()).toEqual([])
     removeCommands = registerDefaultCommands()
-    expect(listCommands()).toHaveLength(28)
+    expect(listCommands()).toHaveLength(34)
   })
 })
 

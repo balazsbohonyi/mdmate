@@ -37,6 +37,21 @@ const IMAGES: &[&str] = &[
     "png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico", "avif",
 ];
 
+/// Extensions of files that hold no text: compiled objects, archives, media, fonts. A text search
+/// leaves them out without opening them, which is most of the files in a build folder and the
+/// slowest thing to look at on a disk with a virus scanner. SVG is not here: it is text.
+const BINARY: &[&str] = &[
+    "o", "obj", "a", "lib", "rlib", "rmeta", "exe", "dll", "so", "dylib", "pdb", "ilk", "class",
+    "jar", "pyc", "wasm", "zip", "gz", "tgz", "bz2", "xz", "7z", "rar", "png", "jpg", "jpeg",
+    "gif", "webp", "bmp", "ico", "avif", "pdf", "mp3", "mp4", "mov", "avi", "mkv", "wav", "flac",
+    "woff", "woff2", "ttf", "otf", "eot",
+];
+
+/// Whether the extension alone says the file is not text.
+pub(crate) fn is_known_binary(path: &Path) -> bool {
+    is_one_of(path, BINARY)
+}
+
 fn is_one_of(path: &Path, list: &[&str]) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
@@ -79,6 +94,18 @@ mod tests {
             "e.exe",
         ] {
             assert_eq!(kind_of(Path::new(name)), FileKind::Text, "{name}");
+        }
+    }
+
+    #[test]
+    fn extensions_that_hold_no_text_are_known_whatever_the_case() {
+        for name in ["a.o", "A.EXE", "b.rlib", "c.PNG", "d.woff2", "e.tar.gz"] {
+            assert!(is_known_binary(Path::new(name)), "{name}");
+        }
+        for name in [
+            "a.svg", "b.rs", "c.md", "d.json", "noext", ".o", "e.dat", "f.bin",
+        ] {
+            assert!(!is_known_binary(Path::new(name)), "{name}");
         }
     }
 

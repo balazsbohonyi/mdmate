@@ -48,6 +48,8 @@
   --drop-preview: oklch(0.48 0.08 188 / 18%);
 
   --selection: oklch(0.88 0.06 230);
+  --find-match: oklch(0.86 0.16 90 / 85%);
+  --find-match-active: oklch(0.74 0.15 65 / 95%);
   --caret: oklch(0.46 0.08 188);
   --syntax-heading: oklch(0.48 0.11 60);
   --syntax-link: oklch(0.48 0.105 240);
