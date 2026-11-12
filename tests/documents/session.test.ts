@@ -391,24 +391,61 @@ describe('a session that cannot be read', () => {
 })
 
 describe('the journal', () => {
-  it('writes a changed session once per interval, however much happens in it', async () => {
+  it('writes a change one interval after it, however many changes there were in that moment', async () => {
     vi.useFakeTimers()
     await startJournal({ intervalMs: 1000 })
     const a = await openPath(A)
+    for (let i = 0; i < 20; i++) typeInto(a, 0, 'k')
     await vi.advanceTimersByTimeAsync(999)
     expect(journalStats.writes).toBe(0)
-
-    for (let i = 0; i < 20; i++) typeInto(a, 0, 'k')
     await vi.advanceTimersByTimeAsync(2)
     expect(journalStats.writes).toBe(1)
     expect(JSON.parse(host.session ?? '{}')).toMatchObject({ buffers: [{ path: A }] })
+  })
 
-    // Typing that goes on keeps getting written, once per interval and not once per key.
-    for (let second = 0; second < 3; second++) {
-      for (let i = 0; i < 20; i++) typeInto(a, 0, 'k')
-      await vi.advanceTimersByTimeAsync(1000)
+  it('waits for typing to pause, and then writes everything typed', async () => {
+    vi.useFakeTimers()
+    await startJournal()
+    const a = await openPath(A)
+    // A key every 400 ms for 4 s: no pause of a full interval, and under the longest wait.
+    for (let i = 0; i < 10; i++) {
+      typeInto(a, 0, 'k')
+      await vi.advanceTimersByTimeAsync(400)
     }
-    expect(journalStats.writes).toBe(4)
+    expect(journalStats.writes).toBe(0)
+    await vi.advanceTimersByTimeAsync(700)
+    expect(journalStats.writes).toBe(1)
+    const buffer = (JSON.parse(host.session ?? '{}') as { buffers: { text: string }[] }).buffers[0]
+    expect(buffer?.text.startsWith('kkkkkkkkkk')).toBe(true)
+  })
+
+  it('writes typing that never pauses once per longest wait, not once per interval', async () => {
+    vi.useFakeTimers()
+    await startJournal()
+    const a = await openPath(A)
+    // A key every 400 ms for 12 s: a change always arrives inside the interval.
+    for (let i = 0; i < 30; i++) {
+      typeInto(a, 0, 'k')
+      await vi.advanceTimersByTimeAsync(400)
+    }
+    // Written at 5.0 s and at about 10.2 s (the second wait counts from the first change after
+    // the first write); the old rule wrote every second.
+    expect(journalStats.writes).toBe(2)
+    const buffer = (JSON.parse(host.session ?? '{}') as { buffers: { text: string }[] }).buffers[0]
+    // What is on disk is no more than the longest wait behind what was typed.
+    expect(buffer?.text.indexOf('A')).toBeGreaterThan(24)
+    expect(buffer?.text.indexOf('A')).toBeLessThan(30)
+  })
+
+  it('never waits less than the interval, whatever longest wait it is given', async () => {
+    vi.useFakeTimers()
+    await startJournal({ intervalMs: 1000, maxWaitMs: 100 })
+    const a = await openPath(A)
+    typeInto(a, 0, 'k')
+    await vi.advanceTimersByTimeAsync(900)
+    expect(journalStats.writes).toBe(0)
+    await vi.advanceTimersByTimeAsync(200)
+    expect(journalStats.writes).toBe(1)
   })
 
   it('writes nothing while nothing changes', async () => {
