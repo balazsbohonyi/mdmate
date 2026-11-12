@@ -101,15 +101,20 @@ describe('Close All', () => {
     expect(documentOfTab(b)?.master.doc.toString()).toBe('B!b\n')
   })
 
-  it('asks once for a document shown in two tabs', async () => {
+  it('asks only for the last tab of a document shown in two panes, and closes one pane at a time', async () => {
     const a = await openPath(A)
     splitActivePane('row')
-    await openPath(A) // a second tab of the same document, in the new pane
+    await openPath(A) // the new pane already shows it
     expect(tabs()).toHaveLength(2)
     type(a, 'A!')
+    // The active pane is the new one: its tab closes freely, the other pane still shows the edits.
+    expect(await closeAllTabs()).toBe(true)
+    expect(pendingClose.value).toBeNull()
+    expect(tabs()).toEqual([a])
+    // Now the last view of the document: one question.
     const done = closeAllTabs()
     await settle()
-    expect(pendingClose.value).not.toBeNull()
+    expect(pendingClose.value?.tabId).toBe(a)
     await resolvePendingClose('discard')
     expect(await done).toBe(true)
     expect(tabs()).toEqual([])

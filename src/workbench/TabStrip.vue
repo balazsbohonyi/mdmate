@@ -23,6 +23,7 @@ import { detectPlatform } from './keybinding'
 import TabStripItem from './TabStripItem.vue'
 import {
   closeEveryTab,
+  closeTabsToTheRight,
   closeOtherTabs,
   closeTab,
   copyTabPath,
@@ -153,7 +154,13 @@ function run(action: () => Promise<unknown> | void): void {
           >
             Close Others
           </ContextMenuItem>
-          <ContextMenuItem @select="run(closeEveryTab)">
+          <ContextMenuItem
+            :disabled="!tabMenuState(tab.id).canCloseToTheRight"
+            @select="run(() => closeTabsToTheRight(tab.id))"
+          >
+            Close to the Right
+          </ContextMenuItem>
+          <ContextMenuItem @select="run(() => closeEveryTab(tab.id))">
             Close All
             <ContextMenuShortcut>{{ shortcut(COMMAND_IDS.closeAll) }}</ContextMenuShortcut>
           </ContextMenuItem>

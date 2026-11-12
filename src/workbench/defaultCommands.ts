@@ -15,7 +15,7 @@ import {
   canSaveActiveAs,
   closeAllTabs,
   followerOfTab,
-  hasOpenTabs,
+  activePaneHasTabs,
   openFromDialog,
   requestCloseTab,
   requestRevert,
@@ -301,7 +301,7 @@ export function registerDefaultCommands(): () => void {
       id: COMMAND_IDS.closeAll,
       title: 'Close All',
       keybinding: 'Mod+Shift+W',
-      enabled: hasOpenTabs,
+      enabled: activePaneHasTabs,
       run: async () => {
         await closeAllTabs()
       },
