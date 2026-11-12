@@ -187,7 +187,7 @@ describe('the Search tab', () => {
     const tabs = [...document.querySelectorAll('[data-sidebar-tab]')].map(
       (tab) => (tab as HTMLElement).dataset.sidebarTab,
     )
-    expect(tabs).toEqual(['folders', 'search'])
+    expect(tabs).toEqual(['folders', 'search', 'outline'])
     expect(document.querySelector('[data-search]')).toBeNull()
     document.querySelector<HTMLElement>('[data-sidebar-tab="search"]')?.click()
     await until(() => document.querySelector('[data-search]') !== null)

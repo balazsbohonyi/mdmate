@@ -20,6 +20,8 @@ import {
 // Search loads the first time it is shown (check-arch: search-lazy), so a window that never searches
 // never pays for it.
 const SearchPanel = defineAsyncComponent(() => import('@/features/search/SearchPanel.vue'))
+// The outline loads the first time it is shown too (check-arch: outline-lazy).
+const OutlinePanel = defineAsyncComponent(() => import('@/features/outline/OutlinePanel.vue'))
 
 const frame = ref<HTMLElement | null>(null)
 const windowWidth = window.innerWidth
@@ -91,6 +93,16 @@ function onKeydown(event: KeyboardEvent): void {
       >
         Search
       </button>
+      <button
+        type="button"
+        data-sidebar-tab="outline"
+        :aria-pressed="sidebarPanel === 'outline'"
+        class="cursor-default uppercase hover:text-foreground"
+        :class="sidebarPanel === 'outline' ? 'text-foreground' : ''"
+        @click="showSidebar('outline')"
+      >
+        Outline
+      </button>
       <template v-if="referencesState !== null">
         <button
           type="button"
@@ -118,6 +130,7 @@ function onKeydown(event: KeyboardEvent): void {
     <CopyBanner />
     <RewriteBanner />
     <SearchPanel v-if="sidebarPanel === 'search'" />
+    <OutlinePanel v-else-if="sidebarPanel === 'outline'" />
     <ReferencesPanel v-else-if="sidebarPanel === 'references' && referencesState !== null" />
     <FileTree v-else-if="workspaceRoots.length > 0" />
     <div

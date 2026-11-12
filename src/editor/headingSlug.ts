@@ -67,24 +67,33 @@ const ATX = /^ {0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/
 const FENCE = /^ {0,3}(`{3,}|~{3,})/
 const SETEXT = /^ {0,3}(=+|-+)[ \t]*$/
 
+/** A heading as the text has it: the level, where it starts and what it says, markers and all. */
+export interface RawHeading {
+  /** 1 to 6. */
+  readonly level: number
+  /** The line the heading starts on, from 1. */
+  readonly line: number
+  /** Start of that line. */
+  readonly from: number
+  /** The text of the heading as written, without the `#` signs. */
+  readonly text: string
+}
+
 /**
- * Every top-level heading with its GitHub anchor, in order, duplicates numbered `-1`, `-2` as
- * GitHub does. Read from the text, not the tree, because the parser may not have reached the end
- * of a long file. Headings inside fenced code and frontmatter are skipped; headings inside lists
- * and quotes are not found (see Phase 5 decisions).
+ * Every top-level heading, in order. Read from the text, not the tree, because the parser may not
+ * have reached the end of a long file. Headings inside fenced code and frontmatter are skipped;
+ * headings inside lists and quotes are not found (see Phase 5 decisions). The outline panel reads
+ * the same headings in Rust (`src-tauri/src/outline`), and `tests/fixtures/outline-parity.json` is
+ * run by both.
  */
-export function headingAnchors(doc: Text): HeadingAnchor[] {
-  const anchors: HeadingAnchor[] = []
-  const seen = new Map<string, number>()
-  const add = (text: string, from: number): void => {
-    const base = githubSlug(headingText(text))
-    const count = seen.get(base) ?? 0
-    seen.set(base, count + 1)
-    anchors.push({ slug: count === 0 ? base : `${base}-${String(count)}`, from })
+export function scanHeadings(doc: Text): RawHeading[] {
+  const found: RawHeading[] = []
+  const add = (level: number, text: string, from: number, line: number): void => {
+    found.push({ level, line, from, text })
   }
   const frontEnd = frontmatterEnd(doc)
   let fence: string | null = null
-  let previous: { text: string; from: number } | null = null
+  let previous: { text: string; from: number; line: number } | null = null
   for (let n = 1; n <= doc.lines; n++) {
     const line = doc.line(n)
     if (frontEnd !== null && line.from < frontEnd) continue
@@ -106,12 +115,13 @@ export function headingAnchors(doc: Text): HeadingAnchor[] {
     }
     const atx = ATX.exec(text)
     if (atx !== null) {
-      add(atx[2] ?? '', line.from)
+      add((atx[1] ?? '#').length, atx[2] ?? '', line.from, n)
       previous = null
       continue
     }
-    if (previous !== null && SETEXT.test(text)) {
-      add(previous.text, previous.from)
+    const bar = previous === null ? null : SETEXT.exec(text)
+    if (previous !== null && bar !== null) {
+      add(bar[1]?.startsWith('=') === true ? 1 : 2, previous.text, previous.from, previous.line)
       previous = null
       continue
     }
@@ -119,9 +129,23 @@ export function headingAnchors(doc: Text): HeadingAnchor[] {
     previous =
       text.trim() === '' || /^( {4}|\t| {0,3}[>*+-]| {0,3}\d+[.)])/.test(text)
         ? null
-        : { text, from: line.from }
+        : { text, from: line.from, line: n }
   }
-  return anchors
+  return found
+}
+
+/**
+ * Every top-level heading with its GitHub anchor, in order, duplicates numbered `-1`, `-2` as
+ * GitHub does. See `scanHeadings` for what counts as a heading.
+ */
+export function headingAnchors(doc: Text): HeadingAnchor[] {
+  const seen = new Map<string, number>()
+  return scanHeadings(doc).map((heading) => {
+    const base = githubSlug(headingText(heading.text))
+    const count = seen.get(base) ?? 0
+    seen.set(base, count + 1)
+    return { slug: count === 0 ? base : `${base}-${String(count)}`, from: heading.from }
+  })
 }
 
 /**

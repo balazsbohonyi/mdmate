@@ -692,6 +692,30 @@ rule(
   },
 )
 
+// P7-T3: the Outline panel loads on first use
+rule(
+  'outline-lazy',
+  'the Outline panel (OutlinePanel.vue) is loaded with import() on first use, never statically',
+  ({ root }) => {
+    const violations = []
+    const lazy = /(?:^|\/)features\/outline\/OutlinePanel\.vue$/
+    for (const file of walk(root, 'src', SOURCE_EXTS)) {
+      if (file.startsWith('src/features/outline/')) continue
+      const text = readText(root, file)
+      for (const { spec, index, kind } of importSpecifiers(text)) {
+        if (kind === 'static' && lazy.test(spec)) {
+          violations.push({
+            file,
+            line: lineAt(text, index),
+            message: `static import of "${spec}"; Outline loads with import() the first time it is shown`,
+          })
+        }
+      }
+    }
+    return violations
+  },
+)
+
 // ISC-73
 rule(
   'no-math-mermaid',

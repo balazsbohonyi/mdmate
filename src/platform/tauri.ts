@@ -7,6 +7,7 @@ import { parseFollowedLink, parseLinkInfo } from './links'
 import { parseQuickOpenAnswer } from './quickOpen'
 import { parseReferencesFound } from './references'
 import { parseRewriteDone, parseRewritePlanned } from './rewrite'
+import { parseOutlineAnswer } from './outline'
 import { parseSearchBatch, parseSearchSummary } from './search'
 import {
   parseCopyReport,
@@ -226,6 +227,9 @@ export const tauriHost: Host = {
   },
   async searchCancel() {
     await invoke('search_cancel')
+  },
+  async outlineScan(request) {
+    return parseOutlineAnswer(await invoke<unknown>('outline_scan', { request }))
   },
   async writeClipboard(text) {
     await navigator.clipboard.writeText(text)

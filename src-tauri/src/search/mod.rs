@@ -176,7 +176,7 @@ impl Matcher {
 }
 
 /// The lines of a text: `\r\n`, `\n` and a lone `\r` end one, as in the editor.
-fn lines(text: &str) -> impl Iterator<Item = &str> {
+pub(crate) fn lines(text: &str) -> impl Iterator<Item = &str> {
     let mut rest = Some(text);
     std::iter::from_fn(move || {
         let current = rest?;

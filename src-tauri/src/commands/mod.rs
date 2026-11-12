@@ -9,6 +9,7 @@ use crate::access::{self, display_path};
 use crate::documents::{self, AppState};
 use crate::error::AppError;
 use crate::links;
+use crate::outline;
 use crate::platform::{self, Platform as _};
 use crate::recent::{self, RecentStore};
 use crate::save_as::{self, SaveRequest, SavedAs};
@@ -793,6 +794,19 @@ pub(crate) async fn search_folders(
 #[tauri::command]
 pub(crate) fn search_cancel(state: State<'_, Arc<AppState>>) {
     state.set_search_current(0);
+}
+
+/// The headings of one document, for the outline panel: of the text the page sends when the
+/// document has edits not yet saved, otherwise of the file. The scan runs off the page's thread.
+#[tauri::command]
+pub(crate) async fn outline_scan(
+    state: State<'_, Arc<AppState>>,
+    request: outline::Request,
+) -> Result<outline::Answer, AppError> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || outline::answer(&state, &request))
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))?
 }
 
 /// The best `limit` files for what was typed in Ctrl+P. The first call builds the file index.

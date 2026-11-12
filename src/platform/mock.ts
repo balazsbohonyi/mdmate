@@ -26,6 +26,7 @@ import { applyEdits, isScannable, mockEdits, mockReferences, movedPath } from '.
 import type { Reference } from './references'
 import type { RewriteChange, RewriteDone, RewritePlanned, TextChange } from './rewrite'
 import { mockMatcher, mockSearchText } from './mockSearch'
+import { mockOutline } from './mockOutline'
 import { MAX_SEARCH_HITS, type SearchSummary } from './search'
 
 /**
@@ -866,6 +867,14 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     searchCancel() {
       searchCurrent = 0
       return Promise.resolve()
+    },
+    outlineScan(request) {
+      // The text the page sent, or the file as the mock holds it. A file that is not there is not
+      // allowed, as in the app.
+      if (request.text !== undefined) return Promise.resolve(mockOutline(request.id, request.text))
+      const file = request.path === undefined ? undefined : files.read(request.path)
+      if (file === undefined) return Promise.reject(new Error('That file is not open.'))
+      return Promise.resolve(mockOutline(request.id, file))
     },
     writeClipboard(text) {
       clipboard.push(text)

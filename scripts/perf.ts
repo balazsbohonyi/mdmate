@@ -101,6 +101,24 @@ function searchMetrics(run: RunData): Record<string, number> {
   }
 }
 
+/** The typing numbers, then what shows match marks were drawn while the keys landed. */
+function findMetrics(run: RunData): Record<string, number> {
+  return { ...typingMetrics(run), 'most match marks drawn at once': v(run.report, 'marksDrawnMax') }
+}
+
+/** The typing numbers, then what shows the outline was scanning and drawing while the keys landed. */
+function outlineMetrics(run: RunData): Record<string, number> {
+  const { report } = run
+  return {
+    ...typingMetrics(run),
+    'headings listed': v(report, 'headingsListed'),
+    'edits made to the document during the keys': v(report, 'editsDuringKeys'),
+    'session journal writes during the keys': v(report, 'journalWritesDuringKeys'),
+    'outline scans finished during the keys': v(report, 'outlineScansDuringKeys'),
+    'most heading rows drawn at once': v(report, 'headingRowsDrawnMax'),
+  }
+}
+
 function openMetrics({ report }: RunData): Record<string, number> {
   const warm = (name: string) => median(q(report, name).slice(1))
   return {
@@ -318,6 +336,36 @@ const SPECS: Record<string, Spec> = {
     targetMs: 16,
     trusted: true,
     metrics: searchMetrics,
+  },
+  'typing-find-open': {
+    claim: 'ISC-260',
+    page: 'typing-find-open',
+    headlineName: 'work per key, p95',
+    targetMs: 16,
+    metrics: findMetrics,
+  },
+  'typing-find-open-trusted': {
+    claim: 'ISC-260',
+    page: 'typing-find-open-trusted',
+    headlineName: 'work per key, p95',
+    targetMs: 16,
+    trusted: true,
+    metrics: findMetrics,
+  },
+  'typing-outline-open': {
+    claim: 'ISC-144',
+    page: 'typing-outline-open',
+    headlineName: 'work per key, p95',
+    targetMs: 16,
+    metrics: outlineMetrics,
+  },
+  'typing-outline-open-trusted': {
+    claim: 'ISC-144',
+    page: 'typing-outline-open-trusted',
+    headlineName: 'work per key, p95',
+    targetMs: 16,
+    trusted: true,
+    metrics: outlineMetrics,
   },
   'typing-1mb-trusted': {
     claim: 'ISC-7',

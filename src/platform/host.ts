@@ -3,6 +3,7 @@ import type { FollowedLink, LinkInfo } from './links'
 import type { QuickOpenAnswer } from './quickOpen'
 import type { ReferencesFound } from './references'
 import type { RewriteBuffer, RewriteChange, RewriteDone, RewritePlanned } from './rewrite'
+import type { OutlineAnswer, OutlineRequest } from './outline'
 import type { SearchBatch, SearchRequest, SearchSummary } from './search'
 import type {
   ClashAnswer,
@@ -340,6 +341,12 @@ export interface Host {
   ): Promise<SearchSummary>
   /** Stops the folder search that is running, if any; it still answers, with `stopped`. */
   searchCancel(): Promise<void>
+  /**
+   * The headings of one document for the outline panel: of `request.text` when the document has
+   * edits not yet saved, otherwise of the file at `request.path`. Rejects for a path the user did
+   * not open.
+   */
+  outlineScan(request: OutlineRequest): Promise<OutlineAnswer>
   /** Puts text on the system clipboard. */
   writeClipboard(text: string): Promise<void>
   /**

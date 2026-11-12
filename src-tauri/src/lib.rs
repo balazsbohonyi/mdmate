@@ -5,6 +5,7 @@ mod drops;
 mod error;
 mod fs;
 mod links;
+mod outline;
 mod paths;
 mod platform;
 mod recent;
@@ -113,6 +114,7 @@ pub fn run() {
         commands::find_references,
         commands::search_folders,
         commands::search_cancel,
+        commands::outline_scan,
         commands::rewrite_move,
         commands::quick_open_query,
         commands::quick_open_refresh,
@@ -177,6 +179,7 @@ pub fn run() {
         commands::find_references,
         commands::search_folders,
         commands::search_cancel,
+        commands::outline_scan,
         commands::rewrite_move,
         commands::quick_open_query,
         commands::quick_open_refresh,

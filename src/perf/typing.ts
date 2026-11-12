@@ -55,6 +55,8 @@ export async function typing(
   ctx: ScenarioContext,
   mode: TypingMode,
   fixture = 'realistic-1mb.md',
+  /** Runs once the editor has its document and caret, before the keys: a scenario's own load. */
+  setup?: (view: EditorView) => void,
 ): Promise<ScenarioOutput> {
   const { warmupKeys, keys, keyIntervalMs } = ctx.params
   const total = warmupKeys + keys
@@ -93,6 +95,7 @@ export async function typing(
     effects: EditorView.scrollIntoView(caret, { y: 'center' }),
   })
   view.focus()
+  setup?.(view)
   await framePresented()
   await sleep(300)
 

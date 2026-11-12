@@ -15,6 +15,10 @@ export interface PerfParams {
   preview: number
   /** 0 opens documents as plain source, with no Markdown parser (P0-T9 size cutoff). */
   parser: number
+  /** typing-outline-open: 1 mounts the Outline panel, 0 makes the same edits with no panel (the control that shows what the panel itself costs). */
+  outline: number
+  /** typing-outline-open: 0 stops the session journal before the keys, to show what it costs a key (default 1, the app's own behaviour). */
+  journal: number
   /** crash-restore: 1 builds the session and reports it (the harness then kills the app), 2 restores it and reports what came back. */
   phase: number
 }
@@ -30,6 +34,8 @@ export const DEFAULT_PARAMS: PerfParams = {
   keyIntervalMs: 50,
   preview: 1,
   parser: 1,
+  outline: 1,
+  journal: 1,
   phase: 0,
 }
 

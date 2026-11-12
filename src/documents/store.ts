@@ -74,8 +74,22 @@ export function onDocumentsTouched(listener: (() => void) | undefined): void {
   touchListener = listener
 }
 
+const watchers = new Set<() => void>()
+
+/**
+ * Calls `listener` at the same moments as `onDocumentsTouched`, for any number of listeners.
+ * Returns the function that stops it. A listener should be cheap: it runs on every key.
+ */
+export function watchDocuments(listener: () => void): () => void {
+  watchers.add(listener)
+  return () => {
+    watchers.delete(listener)
+  }
+}
+
 function touched(): void {
   touchListener?.()
+  for (const watcher of watchers) watcher()
 }
 
 /** The follower a tab shows, made on first use. */
@@ -756,6 +770,7 @@ export const hasPendingClose = computed(() => pendingClose.value !== null)
 export function resetDocuments(): void {
   stopWatching?.()
   stopWatching = undefined
+  watchers.clear()
   stopMissingCheck?.()
   stopMissingCheck = undefined
   documents.clear()

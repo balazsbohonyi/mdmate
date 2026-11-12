@@ -16,6 +16,8 @@ export type {
 } from './host'
 export type { FollowedLink, LinkInfo, LinkRefusal } from './links'
 export type { Reference, ReferenceProblem, ReferencesFound } from './references'
+export type { OutlineAnswer, OutlineHeading, OutlineRequest } from './outline'
+export { MAX_OUTLINE_HEADINGS } from './outline'
 export type { SearchBatch, SearchHit, SearchRequest, SearchSummary } from './search'
 export { MAX_SEARCH_HITS } from './search'
 export type {

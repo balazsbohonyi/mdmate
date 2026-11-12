@@ -25,6 +25,7 @@ import {
 import { newUntitledTab } from '@/documents/untitled'
 import { canGoBack, canGoForward, goBack, goForward } from '@/documents/history'
 import { togglePalette } from '@/features/palette/state'
+import { showOutline } from '@/features/outline/store'
 import { showSearch } from '@/features/search/store'
 import { focusTree, openFolderDialog } from '@/features/tree/store'
 import { getHost } from '@/platform'
@@ -53,6 +54,7 @@ export const COMMAND_IDS = {
   findNext: 'edit.findNext',
   findPrevious: 'edit.findPrevious',
   findInFolders: 'edit.findInFolders',
+  showOutline: 'view.showOutline',
   splitRight: 'workbench.splitRight',
   splitDown: 'workbench.splitDown',
   closeTab: 'workbench.closeTab',
@@ -310,6 +312,13 @@ export function registerDefaultCommands(): () => void {
       keybinding: 'Mod+Shift+F',
       // The query box takes focus; the selected line of the editor, if any, is the query.
       run: showSearch,
+    }),
+    registerCommand({
+      id: COMMAND_IDS.showOutline,
+      title: 'Show Outline',
+      keybinding: 'Mod+Shift+L',
+      // The list takes focus, so the arrow keys move through the headings at once.
+      run: showOutline,
     }),
     registerCommand({
       id: COMMAND_IDS.toggleSidebar,

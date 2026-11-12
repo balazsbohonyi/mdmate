@@ -155,6 +155,13 @@ describe('the app menu', () => {
       },
       {
         kind: 'item',
+        id: COMMAND_IDS.showOutline,
+        label: 'Show Outline',
+        shortcut: 'Ctrl+Shift+L',
+        disabled: false,
+      },
+      {
+        kind: 'item',
         id: COMMAND_IDS.toggleRawSource,
         label: 'Toggle Raw Source',
         shortcut: 'Ctrl+E',
@@ -185,6 +192,7 @@ describe('the app menu', () => {
       '⇧F3',
       '⇧⌘F',
       '⇧⌘B',
+      '⇧⌘L',
       '⌘E',
     ])
   })
