@@ -179,8 +179,8 @@ pub(crate) struct AppState {
     /// Set by the page to stop a scan that is running.
     rewrite_stop: std::sync::atomic::AtomicBool,
     rewrite_tokens: std::sync::atomic::AtomicU64,
-    /// The file index behind Ctrl+P; built when the page first asks.
-    quick_open: crate::workspace::quick::QuickOpen,
+    /// Every file under the workspace roots; see [`crate::workspace::index`].
+    index: crate::workspace::index::WorkspaceIndex,
     /// The id of the folder search that is allowed to run; any other running search stops. Zero
     /// means none.
     search_current: std::sync::atomic::AtomicU64,
@@ -199,7 +199,11 @@ impl AppState {
             rewrite: Mutex::new(None),
             rewrite_stop: std::sync::atomic::AtomicBool::new(false),
             rewrite_tokens: std::sync::atomic::AtomicU64::new(0),
-            quick_open: crate::workspace::quick::QuickOpen::default(),
+            // A test controls every change itself, so no real watcher runs in one.
+            #[cfg(not(test))]
+            index: crate::workspace::index::WorkspaceIndex::new(ignore_case),
+            #[cfg(test)]
+            index: crate::workspace::index::WorkspaceIndex::new(ignore_case).without_watcher(),
             search_current: std::sync::atomic::AtomicU64::new(0),
         }
     }
@@ -222,9 +226,9 @@ impl AppState {
         self.ignore_case
     }
 
-    /// The file index behind Ctrl+P.
-    pub(crate) fn quick_open(&self) -> &crate::workspace::quick::QuickOpen {
-        &self.quick_open
+    /// The workspace index: the files under every root.
+    pub(crate) fn index(&self) -> &crate::workspace::index::WorkspaceIndex {
+        &self.index
     }
 
     /// The rewrite plan the page has not answered yet.

@@ -7,7 +7,7 @@
 import { Transaction } from '@codemirror/state'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { documentOfTab, followerOfTab, openPath, problem, resetDocuments } from '@/documents/store'
-import { answerRewrite, moveWithLinks, rewriteState } from '@/features/links/rewrite'
+import { moveWithLinks, rewriteState } from '@/features/links/rewrite'
 import { commitNaming, renameRow } from '@/features/tree/ops'
 import { resetTree, restoreWorkspace } from '@/features/tree/store'
 import { resetSettings, settings } from '@/lib/settings'
@@ -68,7 +68,7 @@ const textOf = (tab: string): string => followerOfTab(tab)?.state.doc.toString()
 describe('a document with unsaved edits (ISC-123)', () => {
   it('gets edits it can undo, stays unsaved, and its file is not touched', async () => {
     await start()
-    settings.links.confirmRewrite = false
+    settings.links.onRename = 'update'
     const tab = await openPath('/work/page.md')
     const doc = documentOfTab(tab)
     if (doc === undefined) throw new Error('not open')
@@ -95,7 +95,7 @@ describe('a document with unsaved edits (ISC-123)', () => {
 
   it('is edited from its own text, even where it differs from the disk by more than the link', async () => {
     await start()
-    settings.links.confirmRewrite = false
+    settings.links.onRename = 'update'
     const tab = await openPath('/work/page.md')
     type(tab, 0, 'é😀 ')
     await moveWithLinks('/work/old.md', { kind: 'rename', name: 'new.md' })
@@ -105,7 +105,7 @@ describe('a document with unsaved edits (ISC-123)', () => {
 
   it('is left alone, and listed, when it is edited after the page sent its text', async () => {
     await start()
-    settings.links.confirmRewrite = false
+    settings.links.onRename = 'update'
     const tab = await openPath('/work/page.md')
     const doc = documentOfTab(tab)
     if (doc === undefined) throw new Error('not open')
@@ -126,37 +126,41 @@ describe('a document with unsaved edits (ISC-123)', () => {
     ])
   })
 
-  it('still gets its edits when it stops being edited while the question is open', async () => {
+  it('still gets its edits when it stops being edited while the links are being looked for', async () => {
     await start()
+    settings.links.onRename = 'update'
     const tab = await openPath('/work/page.md')
     const doc = documentOfTab(tab)
     if (doc === undefined) throw new Error('not open')
     type(tab, 0, 'typed ')
-    // Edited when asked, so the plan counted its link from the text and left its file out.
-    const running = moveWithLinks('/work/old.md', { kind: 'rename', name: 'new.md' })
-    await flush()
-    expect(rewriteState.value).toMatchObject({ phase: 'asking' })
-    // Undone before the answer: the document is clean again, but its file was never planned.
-    expect(doc.undo(followerOfTab(tab)!)).toBe(true)
-    expect(doc.dirty).toBe(false)
-    answerRewrite('update')
-    await running
+    // Edited when the scan started, so the plan counted its link from the text and left its file out.
+    const original = host.rewritePlan.bind(host)
+    host.rewritePlan = async (...args) => {
+      const planned = await original(...args)
+      // Undone before the move: the document is clean again, but its file was never planned.
+      expect(doc.undo(followerOfTab(tab)!)).toBe(true)
+      expect(doc.dirty).toBe(false)
+      return planned
+    }
+    await moveWithLinks('/work/old.md', { kind: 'rename', name: 'new.md' })
     await flush()
     expect(textOf(tab)).toBe('see [the old one](new.md) and [other](other.md)\n')
   })
 
-  it('is not overwritten when it is edited while the question is open', async () => {
+  it('is not overwritten when it is edited between the scan and the move', async () => {
     await start()
+    settings.links.onRename = 'update'
     const tab = await openPath('/work/page.md')
     const doc = documentOfTab(tab)
     if (doc === undefined) throw new Error('not open')
-    // Clean when asked: the plan counts its link from the file.
-    const running = moveWithLinks('/work/old.md', { kind: 'rename', name: 'new.md' })
-    await flush()
-    expect(rewriteState.value).toMatchObject({ phase: 'asking' })
-    type(tab, 0, 'typed meanwhile ')
-    answerRewrite('update')
-    await running
+    // Clean when the scan ran: the plan counts its link from the file.
+    const original = host.rewritePlan.bind(host)
+    host.rewritePlan = async (...args) => {
+      const planned = await original(...args)
+      type(tab, 0, 'typed meanwhile ')
+      return planned
+    }
+    await moveWithLinks('/work/old.md', { kind: 'rename', name: 'new.md' })
     await flush()
     expect(textOf(tab)).toBe('typed meanwhile see [the old one](new.md) and [other](other.md)\n')
     expect(doc.dirty).toBe(true)
@@ -167,7 +171,7 @@ describe('a document with unsaved edits (ISC-123)', () => {
 describe('a clean open document (ISC-175)', () => {
   it('shows the new link in its tab, with nothing left unsaved', async () => {
     await start()
-    settings.links.confirmRewrite = false
+    settings.links.onRename = 'update'
     const tab = await openPath('/work/page.md')
     const doc = documentOfTab(tab)
     if (doc === undefined) throw new Error('not open')
@@ -185,7 +189,7 @@ describe('a clean open document (ISC-175)', () => {
 
   it('reloads even when the watcher reports nothing', async () => {
     await start()
-    settings.links.confirmRewrite = false
+    settings.links.onRename = 'update'
     const tab = await openPath('/work/page.md')
     const original = host.rewriteMove.bind(host)
     host.rewriteMove = (token, buffers) => {
@@ -203,7 +207,7 @@ describe('a clean open document (ISC-175)', () => {
 
   it('also follows a document that moves with its folder', async () => {
     await start()
-    settings.links.confirmRewrite = false
+    settings.links.onRename = 'update'
     host.files.write('/work/sub/inner.md', 'up: [p](../page.md)\n')
     const tab = await openPath('/work/sub/inner.md')
     await renameRow('/work/sub')

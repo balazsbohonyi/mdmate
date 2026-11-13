@@ -26,6 +26,8 @@ export async function typingDuringScan(ctx: ScenarioContext): Promise<ScenarioOu
   const spans: [number, number][] = []
   let longestGapMs = 0
   let found = { links: 0, files: 0, scanned: 0 }
+  let cancelledScans = 0
+  let lastPlanned: unknown = null
   let running = true
   let lastEnd = performance.now()
 
@@ -41,7 +43,11 @@ export async function typingDuringScan(ctx: ScenarioContext): Promise<ScenarioOu
       )
       lastEnd = performance.now()
       spans.push([started, lastEnd])
-      if (planned.cancelled) continue
+      lastPlanned = planned
+      if (planned.cancelled) {
+        cancelledScans++
+        continue
+      }
       scanMs.push(lastEnd - started)
       found = { links: planned.links, files: planned.files, scanned: planned.scanned }
       if (planned.token !== 0) await ctx.host.rewriteDiscard(planned.token)
@@ -58,6 +64,12 @@ export async function typingDuringScan(ctx: ScenarioContext): Promise<ScenarioOu
     running = false
     await ctx.host.rewriteCancel()
     await scans
+  }
+  // A run in which no scan finished measured nothing: say what the scans came back as.
+  if (scanMs.length === 0) {
+    throw new Error(
+      `no scan finished while typing (${String(cancelledScans)} cancelled, ${String(spans.length)} started); the last answer was ${JSON.stringify(lastPlanned)}`,
+    )
   }
   const window = Math.max(typingEnd - typingStart, 1)
   const covered = spans.reduce(

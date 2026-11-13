@@ -599,6 +599,20 @@ pub(crate) fn watch_tree(
     }))
 }
 
+/// Starts telling the page how the workspace index is doing: whether it is reading a folder, how
+/// far along, and which folders hit the file limit. Once at startup; calling it again replaces
+/// the channel. The page hears the current state straight away.
+#[tauri::command]
+pub(crate) fn watch_index(
+    state: State<'_, Arc<AppState>>,
+    on_status: Channel<crate::workspace::index::Status>,
+) {
+    state.index().set_status_sink(Box::new(move |status| {
+        // A page that has gone away has nobody to tell; the next subscription replaces this one.
+        let _ = on_status.send(status);
+    }));
+}
+
 /// Says which folders the sidebar has open, so Rust watches exactly those. A folder outside the
 /// workspace is skipped.
 #[tauri::command]
@@ -715,6 +729,25 @@ pub(crate) fn move_entry(
     )
 }
 
+/// Checks a rename or move the way the move itself will, without reading the workspace: true when
+/// something would move, false for the same name or folder. Refuses for the reasons
+/// [`rename_entry`] and [`move_entry`] do.
+#[tauri::command]
+pub(crate) fn rewrite_check(
+    state: State<'_, Arc<AppState>>,
+    path: String,
+    change: links::flow::Change,
+) -> Result<bool, AppError> {
+    links::flow::check(&state, std::path::Path::new(&path), &change)
+}
+
+/// What the environment says a rename or move does about links (`ask`, `update` or `never`), or
+/// None when it says nothing the page can use. Temporary, until `settings.json` (P8-T1).
+#[tauri::command]
+pub(crate) fn links_on_rename_override() -> Option<&'static str> {
+    crate::settings::links_on_rename_from_env()
+}
+
 /// Checks a rename or move and reads the workspace for the links it would change, without
 /// changing anything. `on_progress` hears how many files were read, a few times a second; the
 /// answer says how many links in how many files, and names the plan for [`rewrite_move`].
@@ -809,7 +842,8 @@ pub(crate) async fn outline_scan(
         .map_err(|error| AppError::Task(error.to_string()))?
 }
 
-/// The best `limit` files for what was typed in Ctrl+P. The first call builds the file index.
+/// The best `limit` files for what was typed in Ctrl+P, from the workspace index. Reads what the
+/// index holds; walks nothing.
 #[tauri::command]
 pub(crate) async fn quick_open_query(
     state: State<'_, Arc<AppState>>,
@@ -817,17 +851,7 @@ pub(crate) async fn quick_open_query(
     limit: usize,
 ) -> Result<workspace::quick::Answer, AppError> {
     let state = state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || state.quick_open().query(&state, &query, limit))
-        .await
-        .map_err(|error| AppError::Task(error.to_string()))
-}
-
-/// Reads the workspace again for Ctrl+P, so a file made a moment ago is found. False when a read is
-/// already going, which will land by itself.
-#[tauri::command]
-pub(crate) async fn quick_open_refresh(state: State<'_, Arc<AppState>>) -> Result<bool, AppError> {
-    let state = state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || state.quick_open().refresh(&state))
+    tauri::async_runtime::spawn_blocking(move || workspace::quick::query(&state, &query, limit))
         .await
         .map_err(|error| AppError::Task(error.to_string()))
 }

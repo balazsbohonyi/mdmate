@@ -10,7 +10,7 @@
 
 ## P10-T2: Security review
 
-Run `hostile.md` in the real app with Process Monitor and a packet capture. Review capabilities, CSP and every document-derived path.
+Run `hostile.md` in the real app with Process Monitor and a packet capture. Review capabilities, CSP and every document-derived path, including the `<img>` tags Phase 9 draws (allowed attributes, address allowlist, no script or style from a document) and the paste and drop copy path (a folder inside the document's folder only).
 
 **Done when:** no process starts, no SMB traffic appears, and the only network traffic is document images.
 

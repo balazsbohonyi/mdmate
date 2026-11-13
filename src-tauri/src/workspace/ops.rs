@@ -159,7 +159,10 @@ pub(crate) fn create_file(state: &AppState, parent: &Path, name: &str) -> Result
         .create_new(true)
         .open(&target)
     {
-        Ok(_) => Ok(display_path(&target)),
+        Ok(_) => {
+            state.index().changed(&target);
+            Ok(display_path(&target))
+        }
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
             Err(AppError::Exists(name.to_owned()))
         }
@@ -177,7 +180,10 @@ pub(crate) fn create_folder(
     let folder = folder_in_root(state, parent)?;
     let target = folder.path.join(name);
     match fs::create_dir(&target) {
-        Ok(()) => Ok(display_path(&target)),
+        Ok(()) => {
+            state.index().changed(&target);
+            Ok(display_path(&target))
+        }
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
             Err(AppError::Exists(name.to_owned()))
         }
@@ -265,6 +271,8 @@ pub(crate) fn carry_out(
         }
         Err(error) => return Err(error.into()),
     }
+    // Rename, move, and the rewrite flow all end here, so the index follows each of them.
+    state.index().moved(&source.path, target);
     finish_move(state, source, target)
 }
 
@@ -305,6 +313,7 @@ pub(crate) fn delete_entry(
 ) -> Result<(), AppError> {
     let source = entry_in_root(state, path)?;
     platform.move_to_trash(&source.path)?;
+    state.index().removed(&source.path);
     Ok(())
 }
 
@@ -374,7 +383,12 @@ pub(crate) fn copy_into(
     let sources = dropped_sources(state, paths)?;
     let mut report = CopyReport::default();
     for source in sources {
+        let before = report.copied.len();
         copy_one(platform, &folder, &source, answers, &mut report);
+        // What was made is in the index at once; a copy that stopped partway is left to the watcher.
+        for copied in &report.copied[before..] {
+            state.index().changed(Path::new(copied));
+        }
     }
     Ok(report)
 }

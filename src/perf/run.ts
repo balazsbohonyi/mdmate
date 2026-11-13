@@ -4,7 +4,9 @@ import { assetScope } from './assetScope'
 import { dragAuto, dragByHand } from './dragLab'
 import { crashRestore } from './crashRestore'
 import { decorationScale } from './decorationScale'
+import { indexTimes } from './indexTimes'
 import { journalCost } from './journalCost'
+import { quickOpenQuery } from './quickOpenQuery'
 import { SIZES_MB } from './params'
 import { labByHand } from './lab'
 import { open } from './open'
@@ -23,6 +25,7 @@ import { probePreview } from './previewProbe'
 import { reveal } from './reveal'
 import { scrollStability } from './scrollStability'
 import { typing } from './typing'
+import { typingDuringIndexing } from './typingDuringIndexing'
 import { typingDuringScan } from './typingDuringScan'
 import { typingDuringSearch } from './typingDuringSearch'
 import { typingFindOpen } from './typingFindOpen'
@@ -46,6 +49,8 @@ const scenarios: Record<string, (ctx: ScenarioContext) => Promise<ScenarioOutput
   'typing-1mb': (ctx) => typing(ctx, 'dispatch'),
   'typing-1mb-trusted': (ctx) => typing(ctx, 'trusted'),
   'typing-during-scan': typingDuringScan,
+  'typing-during-indexing': (ctx) => typingDuringIndexing(ctx, 'dispatch'),
+  'typing-during-indexing-trusted': (ctx) => typingDuringIndexing(ctx, 'trusted'),
   'typing-during-search': (ctx) => typingDuringSearch(ctx, 'dispatch'),
   'typing-during-search-trusted': (ctx) => typingDuringSearch(ctx, 'trusted'),
   'typing-find-open': (ctx) => typingFindOpen(ctx, 'dispatch'),
@@ -54,6 +59,8 @@ const scenarios: Record<string, (ctx: ScenarioContext) => Promise<ScenarioOutput
   'typing-outline-open-trusted': (ctx) => typingOutlineOpen(ctx, 'trusted'),
   ...sizedScenarios(),
   'crash-restore': crashRestore,
+  'index-times': indexTimes,
+  'quick-open-query': quickOpenQuery,
   'journal-cost': journalCost,
   'decorations-scale': decorationScale,
   reveal,
@@ -98,7 +105,14 @@ export async function runPerf(): Promise<void> {
       host,
       config,
       params: { ...DEFAULT_PARAMS, ...overrides },
-      fixture: (name) => `${config.fixturesDir}/generated/${name}`,
+      // The 100,000-file workspace lives in the system temp folder, away from tests/fixtures (which
+      // the harness opens as a root) and from the owner's projects: see `scripts/perf.ts`.
+      fixture: (name) => {
+        if (name !== 'workspace-100k') return `${config.fixturesDir}/generated/${name}`
+        if (overrides.bigWorkspace === undefined || overrides.bigWorkspace === '')
+          throw new Error('the harness did not say where the 100,000-file workspace is')
+        return overrides.bigWorkspace
+      },
     }
     // Startup times the wait for the window itself, so it is measured before any check.
     const env = config.scenario === 'startup' ? undefined : await checkWindow()

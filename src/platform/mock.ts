@@ -1,5 +1,6 @@
 import type { Endings } from '@/lib/endings'
 import { freeName, nameProblem } from '@/lib/fileNames'
+import type { LinksOnRename } from '@/lib/settings'
 import type {
   DiskChange,
   Host,
@@ -8,6 +9,7 @@ import type {
   SaveAsHint,
   WindowControls,
 } from './host'
+import { IDLE_INDEX, type IndexStatus } from './indexStatus'
 import type { LinkInfo } from './links'
 import type {
   ClashAnswer,
@@ -109,6 +111,8 @@ export interface MockHost extends Host {
   readonly roots: readonly string[]
   /** The folders the page last asked to have watched. */
   watchedFolders(): readonly string[]
+  /** Acts as Rust reporting how the workspace index is doing; the page hears it. */
+  setIndexStatus(status: IndexStatus): void
   /**
    * Acts as the OS delivering a drop of these paths: Rust's record learns them, and the page
    * hears a drag-drop event at `position` (page pixels).
@@ -168,6 +172,8 @@ function safeDecode(text: string): string {
 }
 
 export interface MockHostOptions {
+  /** What the environment says a rename does about links (the `MDMATE_LINKS_ON_RENAME` variable). Default: nothing. */
+  readonly linksOnRename?: LinksOnRename
   /** Files that exist from the start, by path. */
   readonly files?: Readonly<Record<string, string>>
   /** What the open dialog returns each time it is shown. Default: no files, as if cancelled. */
@@ -269,6 +275,8 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
   const roots: string[] = [...(options.roots ?? [])]
   let watched: string[] = []
   let treeListener: ((folder: string) => void) | undefined
+  let indexListener: ((status: IndexStatus) => void) | undefined
+  let indexStatus: IndexStatus = IDLE_INDEX
   let dragListener: ((event: FileDragEvent) => void) | undefined
   /** The paths of the last few native drops, newest last. */
   const drops: string[][] = []
@@ -614,6 +622,10 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     get roots() {
       return roots
     },
+    setIndexStatus(status) {
+      indexStatus = status
+      indexListener?.(status)
+    },
     watchedFolders() {
       return watched
     },
@@ -657,6 +669,13 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
       treeListener = onChange
       return Promise.resolve(() => {
         if (treeListener === onChange) treeListener = undefined
+      })
+    },
+    watchIndex(onStatus) {
+      indexListener = onStatus
+      onStatus(indexStatus)
+      return Promise.resolve(() => {
+        if (indexListener === onStatus) indexListener = undefined
       })
     },
     watchFolders(paths) {
@@ -745,6 +764,12 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     moveEntry(path, into) {
       return attempt(() => moveInto(path, into))
     },
+    rewriteCheck(path, change) {
+      return attempt(() => targetOf(path, change) !== null)
+    },
+    linksOnRenameOverride() {
+      return Promise.resolve(options.linksOnRename ?? null)
+    },
     rewritePlan(path, change, buffers, onProgress) {
       return planRewrite(path, change, buffers, onProgress)
     },
@@ -761,9 +786,6 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     },
     quickOpenQuery(query, limit) {
       return Promise.resolve(mockQuickOpen(files.paths(), roots, query, limit))
-    },
-    quickOpenRefresh() {
-      return Promise.resolve(true)
     },
     deleteEntry(path) {
       return attempt(() => {

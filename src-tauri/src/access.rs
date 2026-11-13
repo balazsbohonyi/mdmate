@@ -112,6 +112,16 @@ impl Access {
         &self.roots
     }
 
+    /// The workspace roots a file lies in, as paths for the file system: more than one when roots
+    /// lie inside one another, none for a file no root holds. Link scans look only in these.
+    pub(crate) fn roots_containing(&self, file: &Resolved) -> Vec<PathBuf> {
+        self.roots
+            .iter()
+            .filter(|root| is_inside(&file.key, &root.key))
+            .map(|root| root.path.clone())
+            .collect()
+    }
+
     /// Like [`Access::check`], but only for a path inside a workspace root: the file operations of
     /// the sidebar never reach a file the user opened one by one.
     pub(crate) fn check_in_root(&self, path: &Path) -> Result<Resolved, AppError> {
@@ -374,6 +384,29 @@ mod tests {
                 .check(Path::new(r"\\?\UNC\server\share\a.md"))
                 .is_err()
         );
+    }
+
+    #[test]
+    fn roots_containing_names_every_root_that_holds_the_file_and_no_other() {
+        let dir = temp();
+        let nested = file(dir.path(), "a/inner/x.md");
+        let sibling = file(dir.path(), "b/y.md");
+        let outside = file(dir.path(), "c/z.md");
+        let mut access = Access::new(false);
+        let outer = access.grant_root(&dir.path().join("a")).expect("granted");
+        let inner = access
+            .grant_root(&dir.path().join("a/inner"))
+            .expect("granted");
+        let other = access.grant_root(&dir.path().join("b")).expect("granted");
+        let of = |path: &Path| access.roots_containing(&access.resolve(path).expect("resolved"));
+        // A file in a nested root is held by both; the order is the order the roots were granted.
+        assert_eq!(of(&nested), [outer.path.clone(), inner.path]);
+        assert_eq!(of(&sibling), [other.path]);
+        assert!(of(&outside).is_empty());
+        // A root holds itself, and a sibling folder with the same text prefix is not inside it.
+        assert_eq!(of(&dir.path().join("a")), [outer.path]);
+        let near = file(dir.path(), "a-notes/n.md");
+        assert!(of(&near).is_empty());
     }
 
     #[test]

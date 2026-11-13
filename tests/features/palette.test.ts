@@ -5,9 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp, defineComponent, h, nextTick, type App } from 'vue'
 import { activeDocument, resetDocuments } from '@/documents/store'
 import PaletteHost from '@/features/palette/PaletteHost.vue'
+import { indexStatus } from '@/features/index/status'
 import { commandRows, fileRow, segments } from '@/features/palette/rows'
 import { closePalette, paletteMode } from '@/features/palette/state'
 import { setHost } from '@/platform'
+import { IDLE_INDEX } from '@/platform/indexStatus'
 import { createMockHost, type MockHost } from '@/platform/mock'
 import { clearCommands, registerCommand } from '@/workbench/commands'
 import { COMMAND_IDS, registerDefaultCommands } from '@/workbench/defaultCommands'
@@ -248,58 +250,56 @@ describe('Ctrl+P finds a file by a partial name (ISC-130)', () => {
     expect(rowsText()).toEqual(['idea.md notes'])
   })
 
-  /** A host whose file index only learns of new files when the page asks it to read again. */
-  function slowIndex(): { host: MockHost; land: () => void } {
-    const answerOf = (names: string[]) => ({
-      items: names.map((name) => ({
-        path: `/work/${name}`,
-        rel: name,
-        nameStart: 0,
-        matches: [],
-      })),
-      total: names.length,
-      indexed: names.length,
-      truncated: false,
-    })
-    let current = ['a.md', 'b.md']
-    let release: () => void = () => undefined
-    const refreshed = new Promise<void>((resolve) => {
-      release = resolve
-    })
+  it('opens with the index answer and never asks the host to read the folders again', async () => {
+    const asked: string[] = []
     const patched: MockHost = Object.assign(createMockHost({ files: FILES, roots: ['/work'] }), {
-      quickOpenQuery: () => Promise.resolve(answerOf(current)),
-      async quickOpenRefresh() {
-        await refreshed
-        current = ['a.md', 'b.md', 'c.md']
-        return true
+      quickOpenQuery: (query: string) => {
+        asked.push(query)
+        return Promise.resolve({
+          items: [{ path: '/work/a.md', rel: 'a.md', nameStart: 0, matches: [] }],
+          total: 1,
+          indexed: 1,
+          truncated: false,
+        })
       },
     })
-    return { host: patched, land: release }
-  }
-
-  it('shows a file made after the index was built once the picker has read the folders again', async () => {
-    const { host: patched, land } = slowIndex()
     await start(FILES, patched)
     press(ctrlP, document.body)
     await flush()
-    expect(rowsText()).toEqual(['a.md', 'b.md'])
-    land()
-    await flush()
-    expect(rowsText()).toEqual(['a.md', 'b.md', 'c.md'])
+    expect(rowsText()).toEqual(['a.md'])
+    // One question on open, and the host has nothing to rebuild with.
+    expect(asked).toEqual([''])
+    expect('quickOpenRefresh' in patched).toBe(false)
   })
 
-  it('keeps the row the user is on when the folders are read again underneath them', async () => {
-    const { host: patched, land } = slowIndex()
+  it('asks again while a folder is read for the first time, and keeps the row the user is on', async () => {
+    let names = ['a.md', 'b.md']
+    const patched: MockHost = Object.assign(createMockHost({ files: FILES, roots: ['/work'] }), {
+      quickOpenQuery: () =>
+        Promise.resolve({
+          items: names.map((name) => ({
+            path: '/work/' + name,
+            rel: name,
+            nameStart: 0,
+            matches: [],
+          })),
+          total: names.length,
+          indexed: names.length,
+          truncated: false,
+        }),
+    })
     await start(FILES, patched)
     press(ctrlP, document.body)
     await flush()
     press({ key: 'ArrowDown' })
     await flush()
     expect(selectedText()).toBe('b.md')
-    land()
+    names = ['a.md', 'b.md', 'c.md']
+    indexStatus.value = { indexing: true, percent: 40, cut: [] }
     await flush()
-    expect(rowsText()).toHaveLength(3)
+    expect(rowsText()).toEqual(['a.md', 'b.md', 'c.md'])
     expect(selectedText()).toBe('b.md')
+    indexStatus.value = IDLE_INDEX
   })
 
   it('shows a failed search instead of an empty list', async () => {

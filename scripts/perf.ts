@@ -16,6 +16,7 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   rmSync,
   statSync,
@@ -26,11 +27,18 @@ import os from 'node:os'
 import { join, resolve } from 'node:path'
 import { DEFAULT_PARAMS, SIZES_MB, type PerfParams, type PerfReport } from '../src/perf/params.ts'
 import { driveDrag, driveTyping, sleep } from './lib/cdp.ts'
+import { isWritten, writeIndexWorkspace } from './lib/indexWorkspace.ts'
 import { writeWorkspace } from './lib/workspaceFixture.ts'
 import { writeScrollLab } from './lib/scrollLab.ts'
 import { REPEATABILITY_RULE, median, repeatability, summarize } from './lib/perfStats.ts'
 
 const ROOT = resolve(import.meta.dirname, '..')
+/**
+ * The generated 100,000-file workspace. Not under tests/fixtures (the harness opens that folder as
+ * a root, so every scan and search of workspace-large would walk it too) and not under the repo (a
+ * session that opens the owner's projects folder would index it): the system temp folder.
+ */
+const BIG_WORKSPACE = join(os.tmpdir(), 'mdmate-perf', 'workspace-100k')
 const EXE = join(ROOT, 'src-tauri', 'target', 'release', 'mdmate.exe')
 const RESULTS = join(ROOT, 'perf-results')
 const PROFILE = join(RESULTS, 'webview2-profile')
@@ -55,7 +63,7 @@ interface Spec {
   /** Real key events from the DevTools port instead of in-page dispatch. */
   trusted?: boolean
   /** Which harness driver plays input into the page. Typing is the default. */
-  driver?: 'drag' | 'crash'
+  driver?: 'drag' | 'crash' | 'index'
   /** A pass/fail check run once, not a timing: the page's values and notes are printed as they are. */
   check?: boolean
   /** How long a launch may take. Checks that need a person get longer. */
@@ -82,6 +90,19 @@ function typingMetrics({ report }: RunData): Record<string, number> {
     'of which update, p95': summarize(q(report, 'updateMs')).p95,
     'of which frame render, p95': summarize(q(report, 'renderMs')).p95,
     'key to frame, p95 (with frame wait)': summarize(q(report, 'latencyMs')).p95,
+  }
+}
+
+/** The typing numbers, then what shows the index was reading and the bar was drawing while the keys landed. */
+function indexingMetrics(run: RunData): Record<string, number> {
+  const { report } = run
+  return {
+    ...typingMetrics(run),
+    'first index of the workspace': v(report, 'firstIndexMs'),
+    'walks completed while typing': v(report, 'indexesCompleted'),
+    'typing window with the index reading (1 = all)': v(report, 'indexShareOfTypingWindow'),
+    'files indexed': v(report, 'filesIndexed'),
+    'highest percent the bar showed': v(report, 'statusPercentSeenMax'),
   }
 }
 
@@ -322,6 +343,52 @@ const SPECS: Record<string, Spec> = {
       }
     },
   },
+  'typing-during-indexing': {
+    claim: 'ISC-292',
+    page: 'typing-during-indexing',
+    headlineName: 'work per key, p95',
+    targetMs: 16,
+    // A first index of 100,000 files plus the reconciles after it: the run waits for the last one.
+    timeoutMs: 240_000,
+    metrics: indexingMetrics,
+  },
+  'typing-during-indexing-trusted': {
+    claim: 'ISC-292',
+    page: 'typing-during-indexing-trusted',
+    headlineName: 'work per key, p95',
+    targetMs: 16,
+    trusted: true,
+    timeoutMs: 240_000,
+    metrics: indexingMetrics,
+  },
+  'quick-open-query': {
+    claim: 'ISC-291',
+    page: 'quick-open-query',
+    headlineName: 'ask, p95',
+    targetMs: 50,
+    timeoutMs: 240_000,
+    metrics({ report }) {
+      const ask = summarize(q(report, 'askMs'))
+      return {
+        'ask, p95': ask.p95,
+        'ask, median': ask.p50,
+        'ask, p99': ask.p99,
+        'ask, max': ask.max,
+        'files indexed': v(report, 'filesIndexed'),
+        'queries timed': v(report, 'queriesTimed'),
+      }
+    },
+  },
+  'index-times': {
+    claim: 'ISC-284',
+    page: 'index-times',
+    headlineName: 'first index',
+    targetMs: 0,
+    check: true,
+    driver: 'index',
+    timeoutMs: 240_000,
+    metrics: () => ({}),
+  },
   'typing-during-search': {
     claim: 'ISC-138',
     page: 'typing-during-search',
@@ -384,7 +451,8 @@ function fail(message: string): never {
 
 function parseArgs(argv: string[]) {
   const names: string[] = []
-  const set: Partial<Record<keyof PerfParams, number>> = {}
+  // `bigWorkspace` is a path the harness fills in itself; every other knob is a number.
+  const set: Partial<Record<Exclude<keyof PerfParams, 'bigWorkspace'>, number>> = {}
   let runs = 5
   // Launches that are measured but not counted. The first attempt used one, and the first
   // counted run of tab-switch and startup still came out slower than the rest, so it is two.
@@ -405,7 +473,7 @@ function parseArgs(argv: string[]) {
       const [key, value] = (argv[++i] ?? '').split('=')
       if (!key || !(key in DEFAULT_PARAMS) || Number.isNaN(Number(value)))
         fail(`bad --set ${key ?? ''}`)
-      set[key as keyof PerfParams] = Number(value)
+      set[key as Exclude<keyof PerfParams, 'bigWorkspace'>] = Number(value)
     } else if (arg.startsWith('--')) fail(`unknown option ${arg}`)
     else names.push(arg)
   }
@@ -589,7 +657,7 @@ async function launch(
       MDMATE_PERF_SCENARIO: spec.page,
       MDMATE_PERF_OUT: outFile,
       MDMATE_PERF_FIXTURES: join(ROOT, 'tests', 'fixtures'),
-      MDMATE_PERF_PARAMS: JSON.stringify(params),
+      MDMATE_PERF_PARAMS: JSON.stringify({ ...params, bigWorkspace: BIG_WORKSPACE }),
       MDMATE_DATA_DIR: dataDir,
       WEBVIEW2_USER_DATA_FOLDER: PROFILE,
       WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: browserArgs.join(' '),
@@ -682,6 +750,45 @@ async function runCheck(name: string, params: PerfParams, info: ReturnType<typeo
     file,
     JSON.stringify(
       { label: 'Windows', scenario: name, claim: spec.claim, system: info, run },
+      null,
+      2,
+    ),
+  )
+  console.log(`wrote ${file}`)
+}
+
+/**
+ * Times the index on the 100,000-file workspace: once with no cache (a first index) and once with
+ * the cache the first run wrote (the start-up reconcile). Printed and saved, never gated.
+ */
+async function runIndexTimes(params: PerfParams, info: ReturnType<typeof system>): Promise<void> {
+  const spec = SPECS['index-times']
+  if (!spec) fail('index-times is missing from the specs')
+  console.log(`
+== index-times (${spec.claim}) ==`)
+  const dataDir = join(RESULTS, 'tmp', 'data-index-times')
+  rmSync(dataDir, { recursive: true, force: true })
+
+  console.log('phase 1: index the workspace with no cache...')
+  const first = await launch(spec, { ...params, phase: 1 }, 'phase-1', { dataDir })
+  console.log(
+    `  first index: ${fmt(v(first.report, 'firstIndexMs'))} ms for ${String(v(first.report, 'filesIndexed'))} files`,
+  )
+  if (!existsSync(dataDir) || readdirSync(join(dataDir, 'index')).length === 0) {
+    fail('the first run left no cache file in the data folder')
+  }
+
+  console.log('phase 2: start again with the cache...')
+  const second = await launch(spec, { ...params, phase: 2 }, 'phase-2', { dataDir })
+  console.log(
+    `  the cache answered after ${fmt(v(second.report, 'cacheAnswerMs'))} ms; the reconcile against the disk ended after ${fmt(v(second.report, 'reconcileMs'))} ms`,
+  )
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..*/, '').replace('T', '-')
+  const file = join(RESULTS, `index-times-${stamp}.json`)
+  writeFileSync(
+    file,
+    JSON.stringify(
+      { label: 'Windows', scenario: 'index-times', system: info, first, second },
       null,
       2,
     ),
@@ -910,6 +1017,17 @@ async function main(): Promise<void> {
     console.log('perf: generating the large workspace...')
     writeWorkspace(workspace)
   }
+  const indexRuns = [
+    'typing-during-indexing',
+    'typing-during-indexing-trusted',
+    'index-times',
+    'quick-open-query',
+  ]
+  const bigWorkspace = BIG_WORKSPACE
+  if (chosen.some((name) => indexRuns.includes(name)) && !isWritten(bigWorkspace)) {
+    console.log('perf: generating the 100,000-file workspace (a few minutes the first time)...')
+    writeIndexWorkspace(bigWorkspace)
+  }
   if (!skipBuild) build()
   if (!existsSync(EXE)) fail(`${EXE} is missing; run without --skip-build`)
 
@@ -930,6 +1048,7 @@ async function main(): Promise<void> {
 
   for (const name of chosen) {
     if (SPECS[name]?.driver === 'crash') await runCrashRestore(params, info, corrupt)
+    else if (SPECS[name]?.driver === 'index') await runIndexTimes(params, info)
     else if (SPECS[name]?.check) await runCheck(name, params, info)
     else await measure(name, runs, warmups, params, info, withSession)
   }

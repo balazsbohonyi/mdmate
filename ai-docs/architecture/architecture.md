@@ -173,21 +173,23 @@ CM6 parsing is budgeted and can stop on huge files, so whole-document features, 
 
 ```mermaid
 flowchart LR
-  R[Rename or move] --> S[Scan every text file in the workspace]
+  R[Rename or move] --> M{links.onRename}
+  M -->|never| N[Plain rename or move, no scan]
+  M -->|ask| C[Question: update links to the file?]
+  M -->|update| S
+  C -->|No| N
+  C -->|Yes| S[Scan every Markdown file in the workspace]
   S --> P[Plan target-only edits]
-  P --> Q{links.confirmRewrite}
-  Q -->|true| C[Prompt: N links in M files]
-  Q -->|false| A
-  C --> A[Apply]
+  P --> A[Apply]
   A --> D[Dirty tabs: undoable edits]
   A --> F[Closed files: atomic write]
   A --> O[Clean open tabs: reload]
   A --> X[List failures]
 ```
 
-The scan covers all workspace roots at any depth, plus open tabs outside the roots. Only `.git` and binary files are skipped.
+The scan covers the workspace roots that hold the file at any depth (all of them when roots lie inside one another; another workspace is not read), plus the open documents with unsaved edits. Only Markdown files are read, none under the built-in excluded folders of the workspace index (`node_modules`, `.git`, `target`, `dist`, `build`, `.idea` and the rest), and binary files are skipped. Find File References looks in the same roots.
 
-The page runs it in two calls (`src/features/links/rewrite.ts`). `rewrite_plan` scans in the background with progress and returns the counts under a token; the banner in the sidebar asks, unless `settings.links.confirmRewrite` is false; `rewrite_move` then moves and applies. Rust (`links/flow.rs`) never writes a file that is open: it names the clean ones for the page to reload and returns text edits for the dirty ones, which the page applies to the editor as one undoable step.
+The page decides first (`src/features/links/rewrite.ts`): `settings.links.onRename` is `never` (the default), `ask` or `update`, and until `settings.json` exists the `MDMATE_LINKS_ON_RENAME` variable, read by Rust, wins over it. `never` calls the plain rename or move and nothing else. Otherwise `rewrite_check` runs the move's own checks without reading any file, so a bad name is refused where it was typed; `ask` then shows the question in the sidebar banner with Yes first and focused, then No and Cancel. Only Yes (or `update`) runs the two calls: `rewrite_plan` scans in the background with progress and returns the counts under a token, and `rewrite_move` moves and applies at once, with no second question. The banner then says how many links were updated in how many files. Rust (`links/flow.rs`) never writes a file that is open: it names the clean ones for the page to reload and returns text edits for the dirty ones, which the page applies to the editor as one undoable step.
 
 ## Quick open and command palette
 

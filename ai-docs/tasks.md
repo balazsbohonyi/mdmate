@@ -86,22 +86,28 @@ Mark `[x]` only when the task's "Done when" in its phase plan holds. Each task l
 
 ## Phase 7.1: Workspace index ([plan](phases/phase-07.1/plan.md))
 
-- [ ] P7.1-T1: The index (build, exclusion list, disk cache, reconcile, watcher, own-op updates, status bar) — closes ISC-281, ISC-282, ISC-283, ISC-284, ISC-285, ISC-286, ISC-287, ISC-288, ISC-289, ISC-292
-- [ ] P7.1-T2: Quick Open from the index — closes ISC-290, ISC-291
-- [ ] P7.1-T3: Link scans and folder search from the index — closes ISC-293, ISC-294
+- [x] P7.1-T1: The index (build, exclusion list, disk cache, reconcile, watcher, own-op updates, status bar) — closes ISC-281, ISC-282, ISC-283, ISC-284, ISC-285, ISC-286, ISC-287, ISC-288, ISC-289, ISC-292
+- [x] P7.1-T2: Quick Open from the index — closes ISC-290, ISC-291
+- [x] P7.1-T3: Link scans and folder search from the index — closes ISC-293, ISC-294
+- [x] P7.1-T4: Ctrl+P matches names as typed, and only the name unless the query has a slash — closes ISC-313, ISC-314
+- [x] P7.1-T5: Rename and move ask before they read, or do not look for links at all (`links.onRename`: ask, update, never) — closes ISC-315 to ISC-319 and ISC-321; ISC-320 is P8-T1
 
 ## Phase 8: Configuration ([plan](phases/phase-08/plan.md))
 
-- [ ] P8-T1: Settings and palette toggles — closes ISC-147, ISC-148, ISC-153, ISC-249
+Phase 9 runs before this phase (owner's decision, 2026-11-13): image paste ships with a built-in `assets` folder and P8-T1 makes it a setting.
+
+- [ ] P8-T1: Settings and palette toggles — closes ISC-147, ISC-148, ISC-153, ISC-249, ISC-320, ISC-330
 - [ ] P8-T2: Keybindings — closes ISC-149
 - [ ] P8-T3: Theme switching and user themes — closes ISC-145, ISC-146, ISC-150, ISC-151, ISC-173
 - [ ] P8-T4: Portable mode — closes ISC-152
 
 ## Phase 9: Image authoring ([plan](phases/phase-09/plan.md))
 
-- [ ] P9-T1: Paste images — closes ISC-154, ISC-155, ISC-160
-- [ ] P9-T2: Drop images — closes ISC-156
-- [ ] P9-T3: Resize images — closes ISC-157, ISC-158, ISC-159
+- [ ] P9-T1: Paste images — closes ISC-154, ISC-155, ISC-160, ISC-329
+- [ ] P9-T2: Drop images — closes ISC-156, ISC-328
+- [ ] P9-T3: Draw `<img>` tags — closes ISC-323, ISC-324
+- [ ] P9-T4: Select, resize and delete images — closes ISC-157, ISC-158, ISC-159, ISC-322, ISC-325, ISC-326
+- [ ] P9-T5: Images in untitled documents (a draft folder per document) — closes ISC-327, ISC-331, ISC-332, ISC-333
 
 ## Phase 10: Ship ([plan](phases/phase-10/plan.md))
 

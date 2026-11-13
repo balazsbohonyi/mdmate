@@ -1,3 +1,4 @@
+import { LINKS_ON_RENAME, type LinksOnRename } from '@/lib/settings'
 import { parseMoved, type Moved } from './workspace'
 
 /**
@@ -97,6 +98,14 @@ function numbers(object: Record<string, unknown>, field: string): number[] {
       throw new Error(`${field} holds a non-number`)
     return item
   })
+}
+
+/** Checks the answer of `links_on_rename_override`: one of the three values, or null for nothing. */
+export function parseLinksOnRename(value: unknown): LinksOnRename | null {
+  if (value === null || value === undefined) return null
+  const found = LINKS_ON_RENAME.find((mode) => mode === value)
+  if (found === undefined) throw new Error('links_on_rename_override: not a setting value')
+  return found
 }
 
 /** Checks the answer of `rewrite_plan`. */

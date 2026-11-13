@@ -17,11 +17,12 @@
 //! since it was read is never overwritten.
 
 use super::scan::{self, Link};
-use super::walk::{Scan, Scope, read_unless_binary, scan_bytes, walk};
+use super::walk::{Scan, Scope, read_unless_binary, scan_bytes, walk_indexed};
 use crate::error::{AppError, friendly_io};
 use crate::fs::atomic::{self, Stage};
 use crate::fs::document::content_hash;
 use crate::fs::encoding::{self, Decoded};
+use crate::workspace::index::WorkspaceIndex;
 use std::collections::HashSet;
 use std::ops::Range;
 use std::path::{Component, Path, PathBuf, Prefix};
@@ -406,6 +407,7 @@ pub(crate) fn buffer_edits(
 /// found until then is the plan.
 pub(crate) fn plan(
     roots: &[PathBuf],
+    index: Option<&WorkspaceIndex>,
     mv: &Move,
     ignore_case: bool,
     mut progress: impl FnMut(&Path) -> bool,
@@ -418,55 +420,62 @@ pub(crate) fn plan(
         if stopped {
             break;
         }
-        walk(root, Scope::Markdown, |path| {
-            let Some(file) = Abs::of(path) else {
-                return true;
-            };
-            // Roots can lie inside one another; a file is read once.
-            let key = fold(&file.to_path().to_string_lossy(), ignore_case);
-            if !seen.insert(key) {
-                return true;
-            }
-            if !progress(path) {
-                stopped = true;
-                return false;
-            }
-            let bytes = match read_unless_binary(path) {
-                Ok(Some(bytes)) => bytes,
-                Ok(None) => {
-                    plan.binary += 1;
+        walk_indexed(
+            index,
+            root,
+            Scope::Markdown,
+            || false,
+            |_| false,
+            |path| {
+                let Some(file) = Abs::of(path) else {
+                    return true;
+                };
+                // Roots can lie inside one another; a file is read once.
+                let key = fold(&file.to_path().to_string_lossy(), ignore_case);
+                if !seen.insert(key) {
                     return true;
                 }
-                Err(error) => {
-                    plan.skipped.push(Skipped {
-                        path: path.to_path_buf(),
-                        reason: friendly_io(&error),
-                    });
-                    return true;
+                if !progress(path) {
+                    stopped = true;
+                    return false;
                 }
-            };
-            match scan_bytes(&bytes) {
-                Scan::Binary => plan.binary += 1,
-                Scan::Encoding => plan.skipped.push(Skipped {
-                    path: path.to_path_buf(),
-                    reason: "its encoding is not one mdmate writes".into(),
-                }),
-                Scan::Links { links, .. } => {
-                    plan.scanned += 1;
-                    let edits =
-                        edits_for(&links, &file, &moves, ignore_case, &mut plan.unrelatable);
-                    if !edits.is_empty() {
-                        plan.files.push(FileEdits {
-                            before: path.to_path_buf(),
-                            after: moves.after(&file, ignore_case).to_path(),
-                            hash: content_hash(&bytes),
-                            edits,
+                let bytes = match read_unless_binary(path) {
+                    Ok(Some(bytes)) => bytes,
+                    Ok(None) => {
+                        plan.binary += 1;
+                        return true;
+                    }
+                    Err(error) => {
+                        plan.skipped.push(Skipped {
+                            path: path.to_path_buf(),
+                            reason: friendly_io(&error),
                         });
+                        return true;
+                    }
+                };
+                match scan_bytes(&bytes) {
+                    Scan::Binary => plan.binary += 1,
+                    Scan::Encoding => plan.skipped.push(Skipped {
+                        path: path.to_path_buf(),
+                        reason: "its encoding is not one mdmate writes".into(),
+                    }),
+                    Scan::Links { links, .. } => {
+                        plan.scanned += 1;
+                        let edits =
+                            edits_for(&links, &file, &moves, ignore_case, &mut plan.unrelatable);
+                        if !edits.is_empty() {
+                            plan.files.push(FileEdits {
+                                before: path.to_path_buf(),
+                                after: moves.after(&file, ignore_case).to_path(),
+                                hash: content_hash(&bytes),
+                                edits,
+                            });
+                        }
                     }
                 }
-            }
-            true
-        });
+                true
+            },
+        );
     }
     Ok(plan)
 }
@@ -796,6 +805,7 @@ mod tests {
     fn a_move_needs_full_paths() {
         let result = plan(
             &[],
+            None,
             &Move {
                 from: "a.md".into(),
                 to: "/w/b.md".into(),
@@ -825,6 +835,7 @@ mod tests {
     fn run(root: &Path, from: &Path, to: &Path) -> (Plan, Report) {
         let plan = plan(
             &[root.to_path_buf()],
+            None,
             &Move {
                 from: from.to_path_buf(),
                 to: to.to_path_buf(),
@@ -965,6 +976,7 @@ mod tests {
         let gone = put(root, "gone.md", b"[a](old.md)\n");
         let plan = plan(
             &[root.to_path_buf()],
+            None,
             &Move {
                 from: root.join("old.md"),
                 to: root.join("new.md"),
@@ -1027,6 +1039,7 @@ mod tests {
         put(root, "a.md", b"[a](old.md)\n");
         let plan = plan(
             &[root.to_path_buf()],
+            None,
             &Move {
                 from: root.join("old.md"),
                 to: root.join("new.md"),
@@ -1077,7 +1090,8 @@ mod tests {
             from: root.join("old.md"),
             to: root.join("new.md"),
         };
-        let plan = plan(&[root.to_path_buf()], &mv, ignore_case(), |_| true).expect("planned");
+        let plan =
+            plan(&[root.to_path_buf()], None, &mv, ignore_case(), |_| true).expect("planned");
         // Only a.md and UP.MD hold a link that follows; old.md is read too, and has none.
         assert_eq!(plan.links(), 2);
         assert_eq!(plan.scanned, 3);
@@ -1113,6 +1127,7 @@ mod tests {
         };
         let plan = plan(
             &[root.to_path_buf(), root.to_path_buf()],
+            None,
             &mv,
             ignore_case(),
             |_| true,
@@ -1127,7 +1142,7 @@ mod tests {
         // A "no" from the progress callback ends the walk: it is asked once and never again.
         let mut asked = 0;
         let both = [root.to_path_buf(), root.to_path_buf()];
-        let stopped = super::plan(&both, &mv, ignore_case(), |_| {
+        let stopped = super::plan(&both, None, &mv, ignore_case(), |_| {
             asked += 1;
             false
         })
@@ -1569,5 +1584,158 @@ mod tests {
             ],
             160,
         );
+    }
+    // ---- Phase 7.1: the file list comes from the index
+
+    fn indexed(root: &Path) -> WorkspaceIndex {
+        let index = WorkspaceIndex::new(ignore_case()).without_watcher();
+        index.add_root_now(root);
+        index
+    }
+
+    /// What a plan holds, in an order a walk and the index agree on.
+    fn shape(plan: &Plan) -> String {
+        let mut files: Vec<_> = plan
+            .files
+            .iter()
+            .map(|file| {
+                (
+                    file.before.clone(),
+                    file.after.clone(),
+                    file.hash,
+                    file.edits.clone(),
+                )
+            })
+            .collect();
+        files.sort_by(|a, b| a.0.cmp(&b.0));
+        format!(
+            "{files:?} skipped {} scanned {} binary {} unrelatable {}",
+            plan.skipped.len(),
+            plan.scanned,
+            plan.binary,
+            plan.unrelatable
+        )
+    }
+
+    fn linked_workspace(root: &Path) {
+        put(root, "old.md", b"# old\n");
+        put(root, "index.md", b"[a](old.md#h)\n\n[b](notes/n.md)\n");
+        put(root, "notes/n.md", b"[a](../old.md) and [b](sibling.md)\n");
+        put(root, "notes/sibling.md", b"nothing here\n");
+        put(root, "other.txt", b"[a](old.md)\n");
+        put(root, "bin/pkg.md", b"[a](../old.md)\n");
+        put(root, "node_modules/p/x.md", b"[a](../../old.md)\n");
+        put(root, ".git/note.md", b"[a](../old.md)\n");
+    }
+
+    #[test]
+    fn a_plan_from_the_index_is_the_plan_a_walk_makes() {
+        let dir = tempfile::tempdir().expect("a temp dir");
+        let root = dir.path();
+        linked_workspace(root);
+        let index = indexed(root);
+        let mv = Move {
+            from: root.join("old.md"),
+            to: root.join("renamed.md"),
+        };
+        let walked = plan(&[root.to_path_buf()], None, &mv, ignore_case(), |_| true).expect("walk");
+        let through = plan(
+            &[root.to_path_buf()],
+            Some(&index),
+            &mv,
+            ignore_case(),
+            |_| true,
+        )
+        .expect("index");
+        assert_eq!(shape(&through), shape(&walked));
+        assert!(through.files.len() >= 2, "the fixture has links to change");
+        // Nothing under an excluded folder was read, by either.
+        assert!(through.files.iter().all(|f| {
+            let text = f.before.to_string_lossy();
+            !text.contains("node_modules") && !text.contains(".git")
+        }));
+    }
+
+    #[test]
+    fn the_index_walks_nothing_for_a_move_and_a_cut_or_unread_root_is_walked() {
+        let dir = tempfile::tempdir().expect("a temp dir");
+        let root = dir.path();
+        linked_workspace(root);
+        let mv = Move {
+            from: root.join("old.md"),
+            to: root.join("renamed.md"),
+        };
+        let walked = plan(&[root.to_path_buf()], None, &mv, ignore_case(), |_| true).expect("walk");
+
+        let index = indexed(root);
+        put(root, "late.md", b"[a](old.md)\n");
+        let through = plan(
+            &[root.to_path_buf()],
+            Some(&index),
+            &mv,
+            ignore_case(),
+            |_| true,
+        )
+        .expect("index");
+        assert_eq!(
+            through.files.len(),
+            walked.files.len(),
+            "the list is what it holds"
+        );
+
+        let unread = WorkspaceIndex::new(ignore_case()).without_watcher();
+        unread.register_only(root);
+        let fallback = plan(
+            &[root.to_path_buf()],
+            Some(&unread),
+            &mv,
+            ignore_case(),
+            |_| true,
+        )
+        .expect("walk");
+        assert_eq!(
+            fallback.files.len(),
+            walked.files.len() + 1,
+            "walked, so late.md is found"
+        );
+
+        let cut = WorkspaceIndex::new(ignore_case()).without_watcher();
+        cut.set_cap(2);
+        cut.add_root_now(root);
+        let fallback = plan(
+            &[root.to_path_buf()],
+            Some(&cut),
+            &mv,
+            ignore_case(),
+            |_| true,
+        )
+        .expect("walk");
+        assert_eq!(fallback.files.len(), walked.files.len() + 1);
+    }
+
+    #[test]
+    fn progress_and_stopping_work_through_the_index() {
+        let dir = tempfile::tempdir().expect("a temp dir");
+        let root = dir.path();
+        linked_workspace(root);
+        let index = indexed(root);
+        let mv = Move {
+            from: root.join("old.md"),
+            to: root.join("renamed.md"),
+        };
+        let mut seen = 0;
+        let stopped = plan(
+            &[root.to_path_buf()],
+            Some(&index),
+            &mv,
+            ignore_case(),
+            |_| {
+                seen += 1;
+                seen < 2
+            },
+        )
+        .expect("plans");
+        assert_eq!(seen, 2, "the second file asked to stop");
+        assert!(stopped.scanned <= 1);
     }
 }

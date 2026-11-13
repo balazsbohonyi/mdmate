@@ -15,6 +15,8 @@ export type {
   WindowControls,
 } from './host'
 export type { FollowedLink, LinkInfo, LinkRefusal } from './links'
+export type { IndexStatus } from './indexStatus'
+export { IDLE_INDEX } from './indexStatus'
 export type { Reference, ReferenceProblem, ReferencesFound } from './references'
 export type { OutlineAnswer, OutlineHeading, OutlineRequest } from './outline'
 export { MAX_OUTLINE_HEADINGS } from './outline'
