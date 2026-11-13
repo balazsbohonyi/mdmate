@@ -1,8 +1,12 @@
 export { blockLayer, blockScans, blocksOf, imagesMoved, type BlockInfo } from './field'
 export {
+  bumpImageEpoch,
+  freshImageSrc,
   imageContext,
   imageSizeOf,
+  refreshPictures,
   rememberImageSize,
+  resetImageEpoch,
   resetImageSizes,
   resolveImageAddress,
   type ImageAddress,

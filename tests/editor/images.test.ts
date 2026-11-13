@@ -11,10 +11,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { EditorView } from '@codemirror/view'
 import {
   blocksOf,
+  bumpImageEpoch,
+  freshImageSrc,
   imageContext,
   imagesMoved,
   imageSizeOf,
+  refreshPictures,
   rememberImageSize,
+  resetImageEpoch,
   resetImageSizes,
   resolveImageAddress,
   scanBlocks,
@@ -307,10 +311,6 @@ describe('the image widget (ISC-66, ISC-67)', () => {
     expect(img?.referrerPolicy).toBe('no-referrer')
   })
 
-  it('draws an image alone on its line as a block, and one inside text inline', () => {
-    const doc = 'one ![small](s.png) two\n\n![big](b.png)\n\nend'
-    const [inline, block] = images(doc)
-    expect(inline?.block).toBe(false)
   it("shows a failed picture's reason, not its title, as the hint", () => {
     const view = mount('![a](a.png "A title")\n\ntext\n')
     const img = view.contentDOM.querySelector<HTMLImageElement>('.cm-md-image-frame img')
@@ -320,6 +320,10 @@ describe('the image widget (ISC-66, ISC-67)', () => {
     expect(view.contentDOM.querySelector('[title]')).toBeNull()
   })
 
+  it('draws an image alone on its line as a block, and one inside text inline', () => {
+    const doc = 'one ![small](s.png) two\n\n![big](b.png)\n\nend'
+    const [inline, block] = images(doc)
+    expect(inline?.block).toBe(false)
     expect(block?.block).toBe(true)
     expect(doc.slice(inline?.from, inline?.to)).toBe('![small](s.png)')
     expect(doc.slice(block?.from, block?.to)).toBe('![big](b.png)')
@@ -737,5 +741,122 @@ describe('a folder that changes under unchanged text (P9-T5)', () => {
     folder = '/notes/docs'
     view.dispatch({ effects: imagesMoved.of(null) })
     expect(srcs()).toEqual(['/notes/docs/assets/a.png', '/notes/docs/assets/b.png'])
+  })
+})
+
+describe('pictures are read from disk again, not from the webview memory (owner UAT)', () => {
+  // The webview keeps a loaded picture under its address for as long as the page lives, so a
+  // deleted picture kept drawing, even in a tab closed and opened again, until the app restarted.
+  // Real window: the same address was served from memory (`load-sync`), the same address with a
+  // changed query string was read from disk and failed, as it should.
+  const probes: { src: string }[] = []
+  const stubImage = (outcome: 'load' | 'error'): void => {
+    vi.stubGlobal(
+      'Image',
+      class {
+        onload: (() => void) | null = null
+        onerror: (() => void) | null = null
+        referrerPolicy = ''
+        set src(value: string) {
+          probes.push({ src: value })
+          queueMicrotask(() => {
+            if (outcome === 'load') this.onload?.()
+            else this.onerror?.()
+          })
+        }
+      },
+    )
+  }
+  const tick = async (): Promise<void> => {
+    await Promise.resolve()
+    await Promise.resolve()
+  }
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    probes.length = 0
+    resetImageEpoch()
+  })
+
+  it('leaves an address alone until the first bump, and numbers only local files after it', () => {
+    expect(freshImageSrc('asset://localhost/a.png')).toBe('asset://localhost/a.png')
+    bumpImageEpoch()
+    expect(freshImageSrc('asset://localhost/a.png')).toBe('asset://localhost/a.png?v=1')
+    expect(freshImageSrc('http://asset.localhost/C%3A%5Ca.png')).toBe(
+      'http://asset.localhost/C%3A%5Ca.png?v=1',
+    )
+    expect(freshImageSrc('https://asset.localhost/a.png?x=1')).toBe(
+      'https://asset.localhost/a.png?x=1&v=1',
+    )
+    // Not a local file: left exactly as it is.
+    for (const other of [
+      'https://example.com/a.png',
+      'http://example.com/asset.localhost/a.png',
+      'blob:http://localhost/1234',
+      'data:image/png;base64,AAAA',
+    ]) {
+      expect(freshImageSrc(other), other).toBe(other)
+    }
+    bumpImageEpoch()
+    expect(freshImageSrc('asset://localhost/a.png')).toBe('asset://localhost/a.png?v=2')
+  })
+
+  it('draws a picture under the current number, and keeps its size under the plain address', () => {
+    bumpImageEpoch()
+    const view = mount('![a](a.png)\n\nend')
+    const img = view.contentDOM.querySelector<HTMLImageElement>('.cm-md-image-frame img')
+    expect(img?.getAttribute('src')).toBe('asset://localhost/%2Fnotes%2Fdocs%2Fa.png?v=1')
+    Object.defineProperty(img, 'naturalWidth', { value: 40, configurable: true })
+    Object.defineProperty(img, 'naturalHeight', { value: 20, configurable: true })
+    img?.dispatchEvent(new Event('load'))
+    expect(imageSizeOf('asset://localhost/%2Fnotes%2Fdocs%2Fa.png')).toEqual({
+      width: 40,
+      height: 20,
+    })
+  })
+
+  it('reads the pictures on screen again, and switches to the new address once it is in', async () => {
+    stubImage('load')
+    const view = mount('![a](a.png)\n\ntext')
+    const img = view.contentDOM.querySelector<HTMLImageElement>('.cm-md-image-frame img')
+    expect(img?.getAttribute('src')).toBe('asset://localhost/%2Fnotes%2Fdocs%2Fa.png')
+    refreshPictures()
+    // Not yet: the picture on screen stays until the new one has loaded.
+    expect(img?.getAttribute('src')).toBe('asset://localhost/%2Fnotes%2Fdocs%2Fa.png')
+    expect(probes.map((p) => p.src)).toEqual(['asset://localhost/%2Fnotes%2Fdocs%2Fa.png?v=1'])
+    await tick()
+    expect(img?.getAttribute('src')).toBe('asset://localhost/%2Fnotes%2Fdocs%2Fa.png?v=1')
+    expect(frameOf(view).classList.contains('cm-md-image-failed')).toBe(false)
+    // And again: the number goes up, never doubles.
+    refreshPictures()
+    await tick()
+    expect(img?.getAttribute('src')).toBe('asset://localhost/%2Fnotes%2Fdocs%2Fa.png?v=2')
+  })
+
+  it('turns a picture whose file is gone into its label', async () => {
+    stubImage('error')
+    const view = mount('![the cat](a.png)\n\ntext')
+    refreshPictures()
+    await tick()
+    const frame = frameOf(view)
+    expect(frame.classList.contains('cm-md-image-failed')).toBe(true)
+    expect(frame.querySelector('.cm-md-image-label')?.textContent).toBe('the cat')
+    expect(view.contentDOM.querySelector<HTMLElement>('[data-hint]')?.dataset.hint).toBe(
+      'This image could not be loaded.',
+    )
+  })
+
+  it('does not read an https picture again, and a closed view stops listening', async () => {
+    stubImage('load')
+    const remote = mount('![r](https://example.com/p.png)\n\ntext')
+    refreshPictures()
+    await tick()
+    expect(probes).toEqual([])
+    expect(remote.contentDOM.querySelector('.cm-md-image-frame img')?.getAttribute('src')).toBe(
+      'https://example.com/p.png',
+    )
+    const local = mount('![a](a.png)\n\ntext')
+    local.destroy()
+    refreshPictures()
+    expect(probes).toEqual([])
   })
 })

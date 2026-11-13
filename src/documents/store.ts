@@ -1,5 +1,6 @@
 import { computed, shallowRef, watch } from 'vue'
 import { uniformEndings, type Endings } from '@/lib/endings'
+import { bumpImageEpoch, refreshPictures } from '@/editor/livePreview/blocks'
 import { getHost, type OpenedFile, type SaveAsHint } from '@/platform'
 import { isMarkdownName } from '@/features/tree/model'
 import { focusActiveEditor } from '@/workbench/focus'
@@ -176,6 +177,8 @@ export async function openDocument(
   const opened = await host.openFile(path, remember)
   const existing = documents.get(opened.id)
   if (existing !== undefined) return { doc: existing, opened, isNew: false }
+  // The pictures this document draws are read from disk, not remembered from an earlier open.
+  bumpImageEpoch()
   const doc = adopt(new Document(opened, publish, documentOptions(opened.id, host)))
   return { doc, opened, isNew: true }
 }
@@ -295,6 +298,7 @@ export async function openImage(path: string, paneId?: PaneId): Promise<TabId> {
     selectTab(existing)
     return existing
   }
+  bumpImageEpoch()
   return openTabFor({ kind: 'image', path: info.path, size: info.size }, paneId)
 }
 
@@ -581,9 +585,12 @@ function watchMissing(): void {
   const stopWatch = watch(() => activeDocument()?.id, check, { immediate: true })
   const target = typeof window === 'undefined' ? undefined : window
   target?.addEventListener('focus', check)
+  // Picture files are usually deleted or replaced while the user is elsewhere too.
+  target?.addEventListener('focus', refreshPictures)
   stopMissingCheck = () => {
     stopWatch()
     target?.removeEventListener('focus', check)
+    target?.removeEventListener('focus', refreshPictures)
   }
 }
 

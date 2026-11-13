@@ -1,5 +1,5 @@
 import { WidgetType, type EditorView } from '@codemirror/view'
-import { imageSizeOf, rememberImageSize, type ImageSize } from './image'
+import { freshImageSrc, imageSizeOf, rememberImageSize, type ImageSize } from './image'
 import { cancelDrag, createHandle } from './imageHandle'
 import { selectImage } from './imageSelect'
 import type { BlockItem, ImageItem, Inline, TableModel } from './scan'
@@ -433,7 +433,8 @@ export class ImageWidget extends BlockWidget {
         fail('This image could not be loaded.')
       })
       frame.append(img)
-      img.src = src
+      // A local file is asked for under its current number, not served from the webview's memory.
+      img.src = freshImageSrc(src)
     }
 
     wrap.addEventListener('mousedown', (event) => {

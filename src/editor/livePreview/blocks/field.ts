@@ -28,6 +28,7 @@ import {
   type TransactionSpec,
 } from '@codemirror/state'
 import { Decoration, EditorView, type DecorationSet } from '@codemirror/view'
+import { imageRefresh } from './imageRefresh'
 import { imageSelection, isSelected, selectedImageOf, type SelectedImage } from './imageSelect'
 import { scanBlocks, touchesRange, type BlockItem } from './scan'
 import { blockTheme } from './theme'
@@ -356,7 +357,7 @@ const stepIntoBlock = EditorState.transactionFilter.of(
 
 /** The block layer and its theme. */
 export function blockLayer(): Extension {
-  return [blockTheme, imageSelection(), blockField, stepIntoBlock]
+  return [blockTheme, imageSelection(), imageRefresh(), blockField, stepIntoBlock]
 }
 
 /** The blocks drawn now, in document order. Empty for a state without the layer. */
