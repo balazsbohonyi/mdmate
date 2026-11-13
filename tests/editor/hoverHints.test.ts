@@ -62,6 +62,32 @@ describe('the hint on a broken link', () => {
     expect(tip()?.querySelector('.editor-hint-arrow')).not.toBeNull()
   })
 
+  it('is drawn at the pointer, not at the hovered thing', async () => {
+    const { view, link } = await mountBroken()
+    const at = (type: string, x: number, y: number): void => {
+      link.dispatchEvent(new MouseEvent(type, { bubbles: true, clientX: x, clientY: y }))
+    }
+    // The pointer moves on while the wait runs; the hint goes where it ended up.
+    at('pointerover', 40, 60)
+    at('pointermove', 300, 200)
+    await wait(EDITOR_HINT_DELAY + 100)
+    const arrow = (): HTMLElement | null => tip()?.querySelector('.editor-hint-arrow') ?? null
+    // jsdom measures every box as 0 x 0, so the hint sits GAP above the point, centred on it.
+    expect(tip()?.style.left).toBe('300px')
+    expect(tip()?.style.top).toBe('192px')
+    expect(arrow()?.dataset.side).toBe('above')
+    expect(arrow()?.style.left).toBe('0px')
+    // Too near the top edge for room above: it goes below the pointer instead.
+    view.dom.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }))
+    link.dispatchEvent(
+      new MouseEvent('pointerout', { bubbles: true, relatedTarget: document.body }),
+    )
+    at('pointerover', 120, 3)
+    await wait(EDITOR_HINT_DELAY + 100)
+    expect(tip()?.style.top).toBe('25px')
+    expect(arrow()?.dataset.side).toBe('below')
+  })
+
   it('goes when the pointer leaves, on a press, on a key and on an edit', async () => {
     const { view, link } = await mountBroken()
     const reshow = async (): Promise<void> => {
