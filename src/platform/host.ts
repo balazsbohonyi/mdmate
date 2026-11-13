@@ -1,5 +1,6 @@
 import type { Endings } from '@/lib/endings'
 import type { FollowedLink, LinkInfo } from './links'
+import type { IndexStatus } from './indexStatus'
 import type { QuickOpenAnswer } from './quickOpen'
 import type { ReferencesFound } from './references'
 import type { RewriteBuffer, RewriteChange, RewriteDone, RewritePlanned } from './rewrite'
@@ -44,6 +45,20 @@ export interface PerfHost {
   grantFile(path: string): Promise<void>
   /** Makes a folder a workspace root without the native dialog, so a scan can read it. */
   grantRoot(path: string): Promise<void>
+  /** Waits until the workspace index has nothing left to read; says how many files it holds. */
+  indexIdle(): Promise<{ files: number; waitedMs: number }>
+  /** How many files the index holds right now, and whether it is reading. Does not wait. */
+  indexState(): Promise<{
+    files: number
+    indexing: boolean
+    /** Walks finished so far, and the milliseconds Rust has spent walking, the running walk included. */
+    walks: number
+    walkingMs: number
+  }>
+  /** Starts reading a root again, as the reconcile at start does. Use `indexIdle` to wait for it. */
+  indexReconcile(path: string): Promise<void>
+  /** Writes the index's cache files now, so the next launch finds them. */
+  indexFlush(): Promise<void>
   /** P0 lab: the URL that serves a local file through the asset protocol. */
   assetUrl(path: string): string
   /** P0 lab: grows the asset protocol scope while the app runs. */
@@ -249,6 +264,12 @@ export interface Host {
   /** Says which folders the sidebar has open, so only those are watched. Replaces the last set. */
   watchFolders(paths: readonly string[]): Promise<void>
   /**
+   * Calls `onStatus` with how the workspace index is doing, straight away with where it stands and
+   * then at each change: reading a folder (and how far along), and which folders hit the file
+   * limit. Returns the function that stops listening; one listener is live at a time.
+   */
+  watchIndex(onStatus: (status: IndexStatus) => void): Promise<() => void>
+  /**
    * Calls `handler` for each step of a file drag from the OS over the window, with positions in
    * page pixels. Returns the function that stops listening.
    */
@@ -310,12 +331,10 @@ export interface Host {
   /** Forgets a plan the user said no to. */
   rewriteDiscard(token: number): Promise<void>
   /**
-   * The best `limit` files of the open folders for what was typed in Ctrl+P. The first call reads
-   * the folders; later calls use that index until `quickOpenRefresh` replaces it.
+   * The best `limit` files of the open folders for what was typed in Ctrl+P, from the workspace
+   * index Rust keeps up to date. Nothing is read from the disk to answer.
    */
   quickOpenQuery(query: string, limit: number): Promise<QuickOpenAnswer>
-  /** Reads the folders again so a file made a moment ago is found. False when a read is already going. */
-  quickOpenRefresh(): Promise<boolean>
   /** Sends a file or folder of the workspace to the Recycle Bin. */
   deleteEntry(path: string): Promise<void>
   /** Shows a file or folder in the system's file manager, selected. */

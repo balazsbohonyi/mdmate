@@ -4,6 +4,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { decodeFrame, encodeFrame, openedFromFrame } from './frame'
 import type { DiskChange, Host, PerfConfig, PerfHost, SavedAs, SavedFile } from './host'
 import { parseFollowedLink, parseLinkInfo } from './links'
+import { parseIndexStatus } from './indexStatus'
 import { parseQuickOpenAnswer } from './quickOpen'
 import { parseReferencesFound } from './references'
 import { parseRewriteDone, parseRewritePlanned } from './rewrite'
@@ -37,6 +38,20 @@ const perfBridge: PerfHost = {
   },
   async grantRoot(path) {
     await invoke('perf_grant_root', { path })
+  },
+  async indexIdle() {
+    return invoke<{ files: number; waitedMs: number }>('perf_index_idle')
+  },
+  async indexState() {
+    return invoke<{ files: number; indexing: boolean; walks: number; walkingMs: number }>(
+      'perf_index_state',
+    )
+  },
+  async indexReconcile(path) {
+    await invoke('perf_index_reconcile', { path })
+  },
+  async indexFlush() {
+    await invoke('perf_index_flush')
   },
   assetUrl(path) {
     return convertFileSrc(path)
@@ -136,6 +151,22 @@ export const tauriHost: Host = {
   async watchFolders(paths) {
     await invoke('watch_folders', { paths })
   },
+  async watchIndex(onStatus) {
+    const channel = new Channel<unknown>()
+    channel.onmessage = (value) => {
+      try {
+        onStatus(parseIndexStatus(value))
+      } catch (error) {
+        // A status that does not parse is dropped; the next one replaces it.
+        console.error('Bad index status', error)
+      }
+    }
+    await invoke('watch_index', { onStatus: channel })
+    // Rust keeps one channel, and subscribing again replaces it, so stopping only mutes this one.
+    return () => {
+      channel.onmessage = () => undefined
+    }
+  },
   onFileDrag(handler) {
     return getCurrentWebview().onDragDropEvent((event) => {
       const payload = event.payload
@@ -200,9 +231,6 @@ export const tauriHost: Host = {
   },
   async quickOpenQuery(query, limit) {
     return parseQuickOpenAnswer(await invoke<unknown>('quick_open_query', { query, limit }))
-  },
-  async quickOpenRefresh() {
-    return (await invoke<boolean>('quick_open_refresh')) === true
   },
   async deleteEntry(path) {
     await invoke('delete_entry', { path })

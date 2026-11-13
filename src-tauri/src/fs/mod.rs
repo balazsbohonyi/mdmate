@@ -4,6 +4,7 @@ pub(crate) mod atomic;
 pub(crate) mod document;
 pub(crate) mod encoding;
 pub(crate) mod eol;
+pub(crate) mod exclude;
 pub(crate) mod frame;
 pub(crate) mod kind;
 

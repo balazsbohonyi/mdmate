@@ -1,5 +1,6 @@
 import { computed, shallowReactive, shallowRef, watch } from 'vue'
 import { describe, openInActivePane, problem, provideImageBoundary } from '@/documents/store'
+import { watchIndexStatus } from '@/features/index/status'
 import { getHost } from '@/platform'
 import { focusActiveEditor, holdingEditorFocus } from '@/workbench/focus'
 import {
@@ -463,6 +464,10 @@ async function subscribe(): Promise<void> {
   })
   subscribed = true
   await host.watchFolders(watchedFolders.value)
+  // The status bar's Indexing label comes from the same startup path as the tree's own changes.
+  await watchIndexStatus().catch((error: unknown) => {
+    console.error('Could not watch the index', error)
+  })
 }
 
 watch(

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { describe, openInActivePane, problem } from '@/documents/store'
+import { indexStatus } from '@/features/index/status'
 import { getHost } from '@/platform'
 import type { QuickOpenAnswer } from '@/platform/quickOpen'
 import { commandForEvent, runCommand } from '@/workbench/commands'
@@ -76,21 +77,16 @@ async function search(keep?: string): Promise<void> {
   }
 }
 
-/** Reads the folders again in the background, so a file made a moment ago shows up. */
-async function refresh(): Promise<void> {
-  try {
-    const host = await getHost()
-    if (await host.quickOpenRefresh()) await search(rows.value[selected.value]?.key)
-  } catch {
-    // The answer already on screen stands; the next query reports a real failure.
-  }
-}
-
 onMounted(() => {
   input.value?.focus()
-  if (mode === 'files') {
-    void search()
-    void refresh()
+  if (mode === 'files') void search()
+})
+
+// Opening the picker reads nothing: the index is already there. While a folder is being read for
+// the first time it grows, so the list follows it, on the row the user is on.
+watch(indexStatus, (now, before) => {
+  if (mode === 'files' && (now.indexing || before.indexing)) {
+    void search(rows.value[selected.value]?.key)
   }
 })
 

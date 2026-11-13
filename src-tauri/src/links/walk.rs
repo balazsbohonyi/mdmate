@@ -1,36 +1,48 @@
 //! Walks a folder for the files to scan and reads each one.
 //!
 //! What is offered depends on the [`Scope`]. The link scans (rename, move, References) look only at
-//! Markdown files, since a link is only a link there, and never enter a `node_modules` folder,
-//! which can hold tens of thousands of files and no notes. Quick Open lists everything. In both, a
-//! folder the tree would hide, or one a search would leave out, is walked all the same, except
-//! `.git`. Links, junctions and mount points are not followed, which also keeps a loop from
-//! running forever.
+//! Markdown files, since a link is only a link there. Quick Open lists everything. All three skip
+//! the folders on the built-in exclusion list (`crate::fs::exclude`: `.git`, `node_modules`,
+//! `target`, `build` and the like), which hold tens of thousands of files and no notes; a folder
+//! the tree would hide is walked all the same. The workspace index applies the same list, so what a
+//! walk offers and what the index holds cannot differ. Links, junctions and mount points are not
+//! followed, which also keeps a loop from running forever.
 
 use super::scan::{Link, scan};
 use crate::fs::encoding::{self, Decoded, Encoding, Format};
+use crate::fs::exclude::is_excluded_dir;
 use crate::fs::kind::{FileKind, is_known_binary, kind_of};
-use std::fs::File;
+use crate::workspace::index::WorkspaceIndex;
+use std::fs::{DirEntry, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-/// The folder (or file, for a worktree) that is never walked.
-const SKIPPED: &str = ".git";
-
-/// The folder of installed dependencies that the link scans do not enter.
-const DEPENDENCIES: &str = "node_modules";
+/// The name that is never walked, as a folder or as a file (a worktree has a `.git` file).
+pub(crate) const SKIPPED: &str = ".git";
 
 /// Which files a walk offers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Scope {
-    /// Every file. Quick Open uses this.
+    /// Every file. Quick Open and the workspace index use this.
     Everything,
-    /// Markdown files only (by extension), and not inside `node_modules`. The link scans use this.
+    /// Markdown files only (by extension). The link scans use this.
     Markdown,
-    /// Every file, but not inside `node_modules` and not one whose extension says it holds no
-    /// text (`.o`, `.png`): what a text search reads. Other binary files are left out by the
-    /// search itself, after a look at their first bytes.
+    /// Every file except one whose extension says it holds no text (`.o`, `.png`): what a text
+    /// search reads. Other binary files are left out by the search itself, after a look at their
+    /// first bytes.
     Text,
+}
+
+impl Scope {
+    /// Whether a file called `path` belongs in this scope. The one rule a walk and the index share,
+    /// decided from the name alone so a file that is not offered is never opened.
+    pub(crate) fn offers(self, path: &Path) -> bool {
+        match self {
+            Self::Everything => true,
+            Self::Markdown => kind_of(path) == FileKind::Markdown,
+            Self::Text => !is_known_binary(path),
+        }
+    }
 }
 
 /// How much of a file is read before it is called binary.
@@ -60,12 +72,14 @@ pub(crate) struct Walked {
 
 /// Calls `visit` for every file of `scope` under `root`, depth first. `visit` returns false to
 /// stop.
+#[cfg(test)]
 pub(crate) fn walk(root: &Path, scope: Scope, visit: impl FnMut(&Path) -> bool) -> Walked {
     walk_until(root, scope, || false, visit)
 }
 
 /// Like [`walk`], and `stop` is asked before every folder and every entry, so a walk over a huge
 /// tree ends within one entry of being told to, not at the next file it offers.
+#[cfg(test)]
 pub(crate) fn walk_until(
     root: &Path,
     scope: Scope,
@@ -85,6 +99,48 @@ pub(crate) fn walk_until_pruned(
     skip_dir: impl Fn(&Path) -> bool,
     mut visit: impl FnMut(&Path) -> bool,
 ) -> Walked {
+    walk_entries(root, scope, stop, skip_dir, |path, _| visit(path))
+}
+
+/// Like [`walk_until_pruned`], but when `index` holds `root` whole the files come from its list and
+/// the disk is not read. The list is in path order, not walk order, and has the same files: the
+/// index applies the exclusion list the walk applies, and a file the caller's own filter drops is
+/// dropped by `visit`, so `skip_dir`, which only saves reading folders, is not needed.
+/// `unreadable` and `links_left` stay empty: nothing was listed.
+pub(crate) fn walk_indexed(
+    index: Option<&WorkspaceIndex>,
+    root: &Path,
+    scope: Scope,
+    stop: impl Fn() -> bool,
+    skip_dir: impl Fn(&Path) -> bool,
+    mut visit: impl FnMut(&Path) -> bool,
+) -> Walked {
+    let Some(files) = index.and_then(|index| index.files_of(root, scope)) else {
+        return walk_until_pruned(root, scope, stop, skip_dir, visit);
+    };
+    let mut walked = Walked::default();
+    for path in files {
+        if stop() {
+            break;
+        }
+        walked.files += 1;
+        if !visit(&path) {
+            break;
+        }
+    }
+    walked
+}
+
+/// Like [`walk_until_pruned`], and `visit` also gets the directory entry, whose metadata the
+/// listing already holds (Windows reads no more than the listing to answer it). The workspace
+/// index takes each file's size and modified time from here.
+pub(crate) fn walk_entries(
+    root: &Path,
+    scope: Scope,
+    stop: impl Fn() -> bool,
+    skip_dir: impl Fn(&Path) -> bool,
+    mut visit: impl FnMut(&Path, &DirEntry) -> bool,
+) -> Walked {
     let mut walked = Walked::default();
     let mut pending = vec![root.to_path_buf()];
     while let Some(folder) = pending.pop() {
@@ -101,9 +157,7 @@ pub(crate) fn walk_until_pruned(
                 return walked;
             }
             let name = entry.file_name();
-            if name.eq_ignore_ascii_case(SKIPPED)
-                || (scope != Scope::Everything && name.eq_ignore_ascii_case(DEPENDENCIES))
-            {
+            if name.eq_ignore_ascii_case(SKIPPED) {
                 continue;
             }
             let Ok(kind) = entry.file_type() else {
@@ -112,21 +166,20 @@ pub(crate) fn walk_until_pruned(
             if kind.is_symlink() {
                 walked.links_left += 1;
             } else if kind.is_dir() {
+                if is_excluded_dir(&name) {
+                    continue;
+                }
                 let folder = entry.path();
                 if !skip_dir(&folder) {
                     subfolders.push(folder);
                 }
             } else if kind.is_file() {
-                // The extension is read from the name alone, so a file that is not offered is
-                // never opened.
-                if scope == Scope::Markdown && kind_of(&entry.path()) != FileKind::Markdown {
-                    continue;
-                }
-                if scope == Scope::Text && is_known_binary(&entry.path()) {
+                let path = entry.path();
+                if !scope.offers(&path) {
                     continue;
                 }
                 walked.files += 1;
-                if !visit(&entry.path()) {
+                if !visit(&path, &entry) {
                     return walked;
                 }
             }
@@ -248,16 +301,12 @@ mod tests {
         put(root, "deep/.git/x.md", b"[a](old.md)\n");
         put(root, "deep/.GIT/y.md", b"[a](old.md)\n");
 
+        // The built-in exclusion list (Phase 7.1) leaves out `node_modules` and `build`; the other
+        // folders a tree would hide are still walked.
         let names = visited(root, Scope::Everything);
         assert_eq!(
             names,
-            [
-                ".github/workflows/w.md",
-                ".obsidian/note.md",
-                "build/out/x.md",
-                "kept/a.md",
-                "node_modules/pkg/readme.md"
-            ]
+            [".github/workflows/w.md", ".obsidian/note.md", "kept/a.md"]
         );
         // The links in the folders a tree would hide are found and rewritten, byte for byte.
         for name in &names {
@@ -308,7 +357,7 @@ mod tests {
     }
 
     #[test]
-    fn the_markdown_scope_offers_only_markdown_files_and_skips_node_modules() {
+    fn the_markdown_scope_offers_only_markdown_files_and_skips_the_excluded_folders() {
         let dir = tempfile::tempdir().expect("a temp dir can be made");
         let root = dir.path();
         let all_files = [
@@ -350,11 +399,11 @@ mod tests {
                 "sub/deep/g.md"
             ]
         );
-        // The same tree, for Quick Open, still lists everything except `.git`.
+        // The same tree, for Quick Open, lists every file outside the excluded folders.
         let everything = visited(root, Scope::Everything);
-        assert_eq!(everything.len(), all_files.len(), "{everything:?}");
+        assert_eq!(everything.len(), all_files.len() - 3, "{everything:?}");
         assert!(everything.contains(&"notes.txt".to_string()));
-        assert!(everything.contains(&"node_modules/pkg/readme.md".to_string()));
+        assert!(!everything.iter().any(|name| name.contains("node_modules")));
         // The count is of the files offered, so a big node_modules does not show up in it.
         assert_eq!(walk(root, Scope::Markdown, |_| true).files, 8);
     }
@@ -499,7 +548,7 @@ mod tests {
     }
 
     #[test]
-    fn walk_until_offers_text_files_but_never_node_modules_or_git() {
+    fn walk_until_offers_text_files_but_never_the_excluded_folders() {
         let dir = tempfile::tempdir().expect("a temp dir can be made");
         let root = dir.path();
         for name in [
@@ -507,6 +556,7 @@ mod tests {
             "b.rs",
             "c/d.json",
             "node_modules/x/e.js",
+            "target/debug/h.rs",
             ".git/f",
             ".docs/g.md",
         ] {

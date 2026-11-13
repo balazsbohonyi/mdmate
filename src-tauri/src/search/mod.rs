@@ -23,7 +23,8 @@ use crate::documents::AppState;
 use crate::fs::encoding::{self, Decoded, Encoding};
 use crate::links::flow::Buffer;
 use crate::links::rewrite::place_key;
-use crate::links::walk::{Scope, read_unless_binary, walk_until_pruned};
+use crate::links::walk::{Scope, read_unless_binary, walk_indexed};
+use crate::workspace::index::WorkspaceIndex;
 use filters::Filters;
 use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Serialize};
@@ -329,6 +330,9 @@ fn has_utf16_mark(bytes: &[u8]) -> bool {
 /// What a search reads besides the disk.
 pub(crate) struct Inputs<'a> {
     pub(crate) roots: &'a [PathBuf],
+    /// The workspace index: where a root it holds whole has its files listed from, so the search
+    /// does not walk it. None walks every root.
+    pub(crate) index: Option<&'a WorkspaceIndex>,
     /// The text of open documents that have edits not yet saved, by `place_key` of their file.
     pub(crate) held: &'a HashMap<String, String>,
     pub(crate) ignore_case: bool,
@@ -388,7 +392,8 @@ pub(crate) fn run(
             break;
         }
         // A folder the filters rule out is never listed, and a file they drop is never opened.
-        let walked = walk_until_pruned(
+        let walked = walk_indexed(
+            inputs.index,
             root,
             Scope::Text,
             stop,
@@ -483,6 +488,7 @@ pub(crate) fn search_for(
     run(
         &Inputs {
             roots: &roots,
+            index: Some(state.index()),
             held: &held,
             ignore_case,
         },
@@ -530,6 +536,16 @@ mod tests {
         request: &Request,
         stop: &dyn Fn() -> bool,
     ) -> Outcome {
+        search_via(roots, held, request, stop, None)
+    }
+
+    fn search_via(
+        roots: &[&Path],
+        held: &[(&Path, &str)],
+        request: &Request,
+        stop: &dyn Fn() -> bool,
+        index: Option<&WorkspaceIndex>,
+    ) -> Outcome {
         let roots: Vec<PathBuf> = roots.iter().map(|root| root.to_path_buf()).collect();
         let held: HashMap<String, String> = held
             .iter()
@@ -540,6 +556,7 @@ mod tests {
         let summary = run(
             &Inputs {
                 roots: &roots,
+                index,
                 held: &held,
                 ignore_case: false,
             },
@@ -920,6 +937,7 @@ mod tests {
         let summary = run(
             &Inputs {
                 roots: &roots,
+                index: None,
                 held: &held,
                 ignore_case: false,
             },
@@ -993,7 +1011,9 @@ mod tests {
         write(dir, "docs/guide/c.md", b"needle");
         write(dir, "docs/other/d.md", b"needle");
         write(dir, "src/e.ts", b"needle");
-        write(dir, "build/f.md", b"needle");
+        write(dir, "gen/f.md", b"needle");
+        // On the built-in exclusion list, so no search reads it.
+        write(dir, "build/i.md", b"needle");
         write(dir, "node_modules/g.md", b"needle");
         write(dir, ".git/h.md", b"needle");
     }
@@ -1022,7 +1042,7 @@ mod tests {
     fn exclude_removes_files_and_folders() {
         let dir = tempfile::tempdir().expect("dir");
         tree(dir.path());
-        let outcome = search(dir.path(), &filtered("needle", "", "build, *.txt"));
+        let outcome = search(dir.path(), &filtered("needle", "", "gen, *.txt"));
         assert_eq!(names(&outcome), ["a.md", "c.md", "d.md", "e.ts"]);
         assert_eq!(outcome.summary.scanned, 4);
         let both = search(dir.path(), &filtered("needle", "*.md", "other"));
@@ -1172,5 +1192,152 @@ mod tests {
             &|| false,
         );
         assert_eq!(names(&by_outer), ["b.md"]);
+    }
+    // ---- Phase 7.1: the file list comes from the index
+
+    fn indexed(root: &Path) -> WorkspaceIndex {
+        let index = WorkspaceIndex::new(false).without_watcher();
+        index.add_root_now(root);
+        index
+    }
+
+    fn needle_tree(root: &Path) {
+        write(root, "a.md", b"needle one\n");
+        write(root, "sub/b.txt", b"needle two\n");
+        write(root, "sub/pic.png", b"needle in a picture\n");
+        write(root, "gen/d.md", b"needle three\n");
+        write(root, "build/e.md", b"needle four\n");
+        write(root, "node_modules/x/y.js", b"needle five\n");
+        write(root, ".git/config", b"needle six\n");
+        write(root, "deep/er/f.md", b"needle seven\n");
+        write(root, "notes.txt", b"no match here\n");
+    }
+
+    #[test]
+    fn a_search_through_the_index_finds_what_a_walk_finds_whatever_the_filters() {
+        let dir = tempfile::tempdir().expect("dir");
+        let root = dir.path();
+        needle_tree(root);
+        let index = indexed(root);
+        for (include, exclude) in [
+            ("", ""),
+            ("*.md", ""),
+            ("", "gen, *.txt"),
+            ("sub", ""),
+            ("**/er/**", ""),
+            ("a.md, sub/*.txt", "sub/pic.png"),
+        ] {
+            let request = filtered("needle", include, exclude);
+            let walked = search_via(&[root], &[], &request, &|| false, None);
+            let through = search_via(&[root], &[], &request, &|| false, Some(&index));
+            assert_eq!(
+                places(&through),
+                places(&walked),
+                "include {include:?} exclude {exclude:?}"
+            );
+            assert_eq!(
+                (
+                    through.summary.scanned,
+                    through.summary.files,
+                    through.summary.hits
+                ),
+                (
+                    walked.summary.scanned,
+                    walked.summary.files,
+                    walked.summary.hits
+                ),
+                "include {include:?} exclude {exclude:?}"
+            );
+        }
+        // And the built-in exclusions held for both: three of the seven needles are in folders
+        // nobody searches.
+        let all = search_via(&[root], &[], &request("needle"), &|| false, Some(&index));
+        assert_eq!(all.summary.hits, 4, "{:?}", places(&all));
+    }
+
+    #[test]
+    fn a_search_through_the_index_reads_the_list_it_holds() {
+        let dir = tempfile::tempdir().expect("dir");
+        let root = dir.path();
+        needle_tree(root);
+        let index = indexed(root);
+        write(root, "late.md", b"needle late\n");
+        let held = search_via(&[root], &[], &request("needle"), &|| false, Some(&index));
+        let walked = search_via(&[root], &[], &request("needle"), &|| false, None);
+        assert_eq!(
+            held.summary.hits + 1,
+            walked.summary.hits,
+            "the index has not heard of late.md"
+        );
+        index.changed(&root.join("late.md"));
+        let told = search_via(&[root], &[], &request("needle"), &|| false, Some(&index));
+        assert_eq!(places(&told), places(&walked));
+    }
+
+    #[test]
+    fn a_root_not_read_yet_or_cut_at_the_cap_is_walked_so_nothing_is_missed() {
+        let dir = tempfile::tempdir().expect("dir");
+        let root = dir.path();
+        needle_tree(root);
+        let walked = search_via(&[root], &[], &request("needle"), &|| false, None);
+
+        let unread = WorkspaceIndex::new(false).without_watcher();
+        unread.register_only(root);
+        let through = search_via(&[root], &[], &request("needle"), &|| false, Some(&unread));
+        assert_eq!(places(&through), places(&walked));
+
+        let cut = WorkspaceIndex::new(false).without_watcher();
+        cut.set_cap(2);
+        cut.add_root_now(root);
+        let through = search_via(&[root], &[], &request("needle"), &|| false, Some(&cut));
+        assert_eq!(places(&through), places(&walked));
+        assert!(walked.summary.hits > 2);
+    }
+
+    #[test]
+    fn open_documents_win_over_the_files_the_index_lists() {
+        let dir = tempfile::tempdir().expect("dir");
+        let root = dir.path();
+        needle_tree(root);
+        let index = indexed(root);
+        let a = root.join("a.md");
+        let through = search_via(
+            &[root],
+            &[(a.as_path(), "needle needle\nneedle\n")],
+            &request("needle"),
+            &|| false,
+            Some(&index),
+        );
+        let walked = search_via(
+            &[root],
+            &[(a.as_path(), "needle needle\nneedle\n")],
+            &request("needle"),
+            &|| false,
+            None,
+        );
+        assert_eq!(places(&through), places(&walked));
+        assert_eq!(
+            through
+                .hits
+                .iter()
+                .filter(|hit| hit.path.ends_with("a.md"))
+                .count(),
+            3
+        );
+    }
+
+    #[test]
+    fn stopping_ends_a_search_through_the_index_between_files() {
+        let dir = tempfile::tempdir().expect("dir");
+        let root = dir.path();
+        for i in 0..50 {
+            write(root, &format!("f{i:02}.md"), b"needle\n");
+        }
+        let index = indexed(root);
+        let reads = AtomicUsize::new(0);
+        let stop = || reads.fetch_add(1, Ordering::SeqCst) > 10;
+        let outcome = search_via(&[root], &[], &request("needle"), &stop, Some(&index));
+        assert!(outcome.summary.stopped);
+        assert!(outcome.summary.scanned < 50);
     }
 }

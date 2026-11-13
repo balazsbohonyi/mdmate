@@ -9,11 +9,12 @@
 use super::flow::{Buffer, Problem};
 use super::rewrite::{Wanted, place_key};
 use super::scan::{self, Link};
-use super::walk::{Scan, Scope, read_unless_binary, scan_bytes, walk};
+use super::walk::{Scan, Scope, read_unless_binary, scan_bytes, walk_indexed};
 use crate::access::display_path;
 use crate::documents::AppState;
 use crate::error::{AppError, friendly_io};
 use crate::fs::encoding::{self, Decoded};
+use crate::workspace::index::WorkspaceIndex;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -97,6 +98,7 @@ fn add(found: &mut Found, path: &Path, text: &str, hits: &[&Link]) {
 /// open with unsaved edits, by the file they are showing; it is read instead of the file.
 pub(crate) fn find(
     roots: &[PathBuf],
+    index: Option<&WorkspaceIndex>,
     target: &Path,
     ignore_case: bool,
     open: &[(PathBuf, String)],
@@ -113,51 +115,58 @@ pub(crate) fn find(
         if found.truncated {
             break;
         }
-        walk(root, Scope::Markdown, |path| {
-            let Some(key) = place_key(path, ignore_case) else {
-                return true;
-            };
-            // Roots can lie inside one another; a file is read once.
-            if !seen.insert(key.clone()) {
-                return true;
-            }
-            if let Some(text) = held.get(&key) {
-                found.scanned += 1;
-                let links = scan::scan(text);
-                let hits = wanted.linked_from(path, &links, ignore_case);
-                add(&mut found, path, text, &hits);
-                return !found.truncated;
-            }
-            let bytes = match read_unless_binary(path) {
-                Ok(Some(bytes)) => bytes,
-                Ok(None) => return true,
-                Err(error) => {
-                    found.skipped.push(Problem {
-                        path: display_path(path),
-                        reason: friendly_io(&error),
-                    });
+        walk_indexed(
+            index,
+            root,
+            Scope::Markdown,
+            || false,
+            |_| false,
+            |path| {
+                let Some(key) = place_key(path, ignore_case) else {
+                    return true;
+                };
+                // Roots can lie inside one another; a file is read once.
+                if !seen.insert(key.clone()) {
                     return true;
                 }
-            };
-            match scan_bytes(&bytes) {
-                Scan::Binary => {}
-                Scan::Encoding => found.skipped.push(Problem {
-                    path: display_path(path),
-                    reason: "its encoding is not one mdmate writes".into(),
-                }),
-                Scan::Links { links, .. } => {
+                if let Some(text) = held.get(&key) {
                     found.scanned += 1;
+                    let links = scan::scan(text);
                     let hits = wanted.linked_from(path, &links, ignore_case);
-                    // The text is decoded again only for a file that has something to show.
-                    if !hits.is_empty()
-                        && let Decoded::Text { text, .. } = encoding::decode(&bytes)
-                    {
-                        add(&mut found, path, &text, &hits);
+                    add(&mut found, path, text, &hits);
+                    return !found.truncated;
+                }
+                let bytes = match read_unless_binary(path) {
+                    Ok(Some(bytes)) => bytes,
+                    Ok(None) => return true,
+                    Err(error) => {
+                        found.skipped.push(Problem {
+                            path: display_path(path),
+                            reason: friendly_io(&error),
+                        });
+                        return true;
+                    }
+                };
+                match scan_bytes(&bytes) {
+                    Scan::Binary => {}
+                    Scan::Encoding => found.skipped.push(Problem {
+                        path: display_path(path),
+                        reason: "its encoding is not one mdmate writes".into(),
+                    }),
+                    Scan::Links { links, .. } => {
+                        found.scanned += 1;
+                        let hits = wanted.linked_from(path, &links, ignore_case);
+                        // The text is decoded again only for a file that has something to show.
+                        if !hits.is_empty()
+                            && let Decoded::Text { text, .. } = encoding::decode(&bytes)
+                        {
+                            add(&mut found, path, &text, &hits);
+                        }
                     }
                 }
-            }
-            !found.truncated
-        });
+                !found.truncated
+            },
+        );
     }
     // By file name. The sort is stable and each file's links come in the order they are written,
     // so the links of one file stay in line order.
@@ -191,7 +200,13 @@ pub(crate) fn find_for(
             Some((entry_path, buffer.text.clone()))
         })
         .collect();
-    find(&roots, &target.path, state.ignore_case(), &open)
+    find(
+        &roots,
+        Some(state.index()),
+        &target.path,
+        state.ignore_case(),
+        &open,
+    )
 }
 
 #[cfg(test)]
@@ -257,6 +272,7 @@ mod tests {
         let root = dir.path();
         let found = find(
             &[root.to_path_buf()],
+            None,
             &root.join("docs/target.md"),
             true,
             &[],
@@ -290,9 +306,10 @@ mod tests {
         let dir = workspace();
         let root = dir.path();
         let target = root.join("docs/target.md");
-        let found = find(&[root.to_path_buf()], &target, true, &[]).expect("a search runs");
+        let found = find(&[root.to_path_buf()], None, &target, true, &[]).expect("a search runs");
         let plan = super::super::rewrite::plan(
             &[root.to_path_buf()],
+            None,
             &super::super::rewrite::Move {
                 from: target.clone(),
                 to: root.join("docs/renamed.md"),
@@ -331,6 +348,7 @@ mod tests {
         )];
         let found = find(
             &[root.to_path_buf()],
+            None,
             &root.join("docs/target.md"),
             true,
             &open,
@@ -349,7 +367,7 @@ mod tests {
         let root = dir.path();
         put(root, "t.md", b"x\n");
         put(root, "a.md", b"first\nlast [y](t.md)");
-        let found = find(&[root.to_path_buf()], &root.join("t.md"), true, &[]).expect("runs");
+        let found = find(&[root.to_path_buf()], None, &root.join("t.md"), true, &[]).expect("runs");
         assert_eq!(found.references.len(), 1);
         assert_eq!(found.references[0].line, 2);
         assert_eq!(found.references[0].text, "last [y](t.md)");
@@ -363,7 +381,7 @@ mod tests {
         put(root, "B.md", b"[y](t.md)\n");
         put(root, "a.md", b"[y](t.md)\n");
         put(root, "C.md", b"[y](t.md)\n");
-        let found = find(&[root.to_path_buf()], &root.join("t.md"), true, &[]).expect("runs");
+        let found = find(&[root.to_path_buf()], None, &root.join("t.md"), true, &[]).expect("runs");
         assert_eq!(listed(root, &found), ["a.md:1", "B.md:1", "C.md:1"]);
     }
 
@@ -377,7 +395,7 @@ mod tests {
             "a.md",
             "  \u{1F600} é [x](t.md) and more\r\nplain [y](t.md)\r\n".as_bytes(),
         );
-        let found = find(&[root.to_path_buf()], &root.join("t.md"), true, &[]).expect("runs");
+        let found = find(&[root.to_path_buf()], None, &root.join("t.md"), true, &[]).expect("runs");
         let columns: Vec<(usize, usize)> = found
             .references
             .iter()
@@ -395,8 +413,8 @@ mod tests {
         put(root, "Target.md", b"x\n");
         put(root, "a.md", b"[x](TARGET.md)\n");
         let target = root.join("Target.md");
-        let folded = find(&[root.to_path_buf()], &target, true, &[]).expect("runs");
-        let exact = find(&[root.to_path_buf()], &target, false, &[]).expect("runs");
+        let folded = find(&[root.to_path_buf()], None, &target, true, &[]).expect("runs");
+        let exact = find(&[root.to_path_buf()], None, &target, false, &[]).expect("runs");
         assert_eq!(folded.references.len(), 1);
         assert_eq!(exact.references.len(), 0);
     }
@@ -408,7 +426,7 @@ mod tests {
         put(root, "t.md", b"x\n");
         let many = "[x](t.md)\n".repeat(MAX_REFERENCES + 5);
         put(root, "a.md", many.as_bytes());
-        let found = find(&[root.to_path_buf()], &root.join("t.md"), true, &[]).expect("runs");
+        let found = find(&[root.to_path_buf()], None, &root.join("t.md"), true, &[]).expect("runs");
         assert_eq!(found.references.len(), MAX_REFERENCES);
         assert!(found.truncated);
     }
@@ -421,6 +439,7 @@ mod tests {
         put(root, "sub/a.md", b"[x](../t.md)\n");
         let found = find(
             &[root.to_path_buf(), root.join("sub")],
+            None,
             &root.join("t.md"),
             true,
             &[],
@@ -432,7 +451,100 @@ mod tests {
 
     #[test]
     fn references_need_a_full_path() {
-        let error = find(&[], Path::new("relative.md"), true, &[]).expect_err("refused");
+        let error = find(&[], None, Path::new("relative.md"), true, &[]).expect_err("refused");
         assert_eq!(error.kind(), "invalid");
+    }
+    // ---- Phase 7.1: the file list comes from the index
+
+    fn indexed(root: &Path) -> WorkspaceIndex {
+        let index = WorkspaceIndex::new(true).without_watcher();
+        index.add_root_now(root);
+        index
+    }
+
+    fn sorted(root: &Path, found: &Found) -> Vec<String> {
+        let mut list = listed(root, found);
+        list.sort();
+        list
+    }
+
+    #[test]
+    fn the_index_gives_the_references_a_walk_gives() {
+        let dir = workspace();
+        let root = dir.path();
+        let index = indexed(root);
+        let target = root.join("docs/target.md");
+        let walked = find(&[root.to_path_buf()], None, &target, true, &[]).expect("a walk");
+        let through = find(&[root.to_path_buf()], Some(&index), &target, true, &[]).expect("index");
+        assert_eq!(sorted(root, &through), sorted(root, &walked));
+        assert!(!through.references.is_empty());
+        assert_eq!(
+            (
+                through.files,
+                through.scanned,
+                through.skipped.len(),
+                through.truncated
+            ),
+            (
+                walked.files,
+                walked.scanned,
+                walked.skipped.len(),
+                walked.truncated
+            )
+        );
+    }
+
+    #[test]
+    fn a_search_through_the_index_reads_the_list_and_a_walk_reads_the_disk() {
+        let dir = workspace();
+        let root = dir.path();
+        let index = indexed(root);
+        let target = root.join("docs/target.md");
+        let before = find(&[root.to_path_buf()], Some(&index), &target, true, &[]).expect("runs");
+        // A file made by another program that the index has not heard of yet.
+        put(root, "late.md", b"[t](docs/target.md)\n");
+        let held = find(&[root.to_path_buf()], Some(&index), &target, true, &[]).expect("runs");
+        assert_eq!(held.references.len(), before.references.len());
+        index.changed(&root.join("late.md"));
+        let told = find(&[root.to_path_buf()], Some(&index), &target, true, &[]).expect("runs");
+        assert_eq!(told.references.len(), before.references.len() + 1);
+        let walked = find(&[root.to_path_buf()], None, &target, true, &[]).expect("runs");
+        assert_eq!(sorted(root, &walked), sorted(root, &told));
+    }
+
+    #[test]
+    fn a_root_the_index_has_not_read_yet_or_has_cut_is_walked() {
+        let dir = workspace();
+        let root = dir.path();
+        let target = root.join("docs/target.md");
+        let walked = find(&[root.to_path_buf()], None, &target, true, &[]).expect("a walk");
+
+        let unread = WorkspaceIndex::new(true).without_watcher();
+        unread.register_only(root);
+        let through = find(&[root.to_path_buf()], Some(&unread), &target, true, &[]).expect("runs");
+        assert_eq!(sorted(root, &through), sorted(root, &walked));
+
+        let cut = WorkspaceIndex::new(true).without_watcher();
+        cut.set_cap(2);
+        cut.add_root_now(root);
+        let through = find(&[root.to_path_buf()], Some(&cut), &target, true, &[]).expect("runs");
+        assert_eq!(sorted(root, &through), sorted(root, &walked));
+        assert!(!through.references.is_empty());
+    }
+
+    #[test]
+    fn roots_inside_one_another_read_each_file_once_through_the_index() {
+        let dir = workspace();
+        let root = dir.path();
+        let inner = root.join("docs");
+        let index = WorkspaceIndex::new(true).without_watcher();
+        index.add_root_now(root);
+        index.add_root_now(&inner);
+        let target = root.join("docs/target.md");
+        let both = [root.to_path_buf(), inner];
+        let walked = find(&both, None, &target, true, &[]).expect("a walk");
+        let through = find(&both, Some(&index), &target, true, &[]).expect("index");
+        assert_eq!(sorted(root, &through), sorted(root, &walked));
+        assert_eq!(through.scanned, walked.scanned);
     }
 }

@@ -37,6 +37,10 @@ pub fn run() {
         .setup(|app| {
             use tauri::Manager as _;
             let dir = paths::data_dir_from_env(|| app.path().app_data_dir().ok());
+            // Before the page asks for its roots, so a cache file is there to answer from.
+            app.state::<Arc<AppState>>()
+                .index()
+                .set_cache_dir(dir.join("index"));
             app.manage(Arc::new(recent::RecentStore::new(
                 dir.clone(),
                 platform::current().paths_ignore_case(),
@@ -99,6 +103,7 @@ pub fn run() {
         commands::remove_root,
         commands::list_dir,
         commands::watch_tree,
+        commands::watch_index,
         commands::watch_folders,
         commands::drop_describe,
         commands::drop_open,
@@ -117,7 +122,6 @@ pub fn run() {
         commands::outline_scan,
         commands::rewrite_move,
         commands::quick_open_query,
-        commands::quick_open_refresh,
         commands::rewrite_cancel,
         commands::rewrite_discard,
         commands::delete_entry,
@@ -130,6 +134,10 @@ pub fn run() {
         commands::perf::perf_ready,
         commands::perf::perf_grant_file,
         commands::perf::perf_grant_root,
+        commands::perf::perf_index_idle,
+        commands::perf::perf_index_state,
+        commands::perf::perf_index_reconcile,
+        commands::perf::perf_index_flush,
         commands::perf::perf_allow_directory,
         commands::perf::perf_toggle_maximize,
         commands::perf::perf_start_dragging
@@ -164,6 +172,7 @@ pub fn run() {
         commands::remove_root,
         commands::list_dir,
         commands::watch_tree,
+        commands::watch_index,
         commands::watch_folders,
         commands::drop_describe,
         commands::drop_open,
@@ -182,7 +191,6 @@ pub fn run() {
         commands::outline_scan,
         commands::rewrite_move,
         commands::quick_open_query,
-        commands::quick_open_refresh,
         commands::rewrite_cancel,
         commands::rewrite_discard,
         commands::delete_entry,
@@ -192,6 +200,16 @@ pub fn run() {
         commands::copy_dropped
     ]);
     builder
-        .run(tauri::generate_context!())
-        .expect("the Tauri runtime failed to start");
+        .build(tauri::generate_context!())
+        .expect("the Tauri runtime failed to start")
+        .run(|app, event| {
+            use tauri::Manager as _;
+            // The index's cache file is written a moment after each change; an app that ends in
+            // that moment writes it now, so the next start finds the newest list.
+            if matches!(event, tauri::RunEvent::Exit)
+                && let Some(state) = app.try_state::<Arc<AppState>>()
+            {
+                state.index().flush_cache();
+            }
+        });
 }

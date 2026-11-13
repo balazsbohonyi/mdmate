@@ -29,6 +29,9 @@ pub(crate) fn mark_started() {
 pub(crate) fn allow_fixtures(state: &AppState) {
     if let Some(dir) = std::env::var_os("MDMATE_PERF_FIXTURES") {
         // A missing folder just leaves the harness unable to read fixtures, which it will report.
+        // Access only: the harness's fixtures folder holds a generated workspace of thousands of
+        // files, and indexing it in every run would put a walk under scenarios that do not ask
+        // for one. A scenario that wants a folder indexed grants it with `perf_grant_root`.
         let _ = state.access().grant_root(std::path::Path::new(&dir));
     }
 }
@@ -103,8 +106,96 @@ pub(crate) fn perf_grant_root(
     state: tauri::State<'_, std::sync::Arc<AppState>>,
     path: String,
 ) -> Result<(), AppError> {
-    state.access().grant_root(std::path::Path::new(&path))?;
+    crate::workspace::roots::grant(&state, std::path::Path::new(&path))?;
     Ok(())
+}
+
+/// What the index held when it went quiet.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct IndexIdle {
+    /// Files held across every root.
+    files: usize,
+    /// How long this call waited, in milliseconds.
+    waited_ms: u64,
+}
+
+/// Waits until the workspace index has nothing left to read, and says how many files it holds. A
+/// scenario calls it after `perf_grant_root` to time a first index, or after
+/// `perf_index_reconcile` to time a reconcile.
+#[tauri::command]
+pub(crate) async fn perf_index_idle(
+    state: tauri::State<'_, std::sync::Arc<AppState>>,
+) -> Result<IndexIdle, AppError> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let started = std::time::Instant::now();
+        let limit = std::time::Duration::from_secs(900);
+        while state.index().status().indexing {
+            if started.elapsed() > limit {
+                return Err(AppError::Task(
+                    "the index did not go quiet in 15 minutes".into(),
+                ));
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        Ok(IndexIdle {
+            files: state.index().file_count(),
+            waited_ms: u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
+        })
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// How the index stands right now, without waiting.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct IndexNow {
+    files: usize,
+    indexing: bool,
+    /// Walks the index has finished, and the milliseconds it has spent walking so far.
+    walks: u64,
+    walking_ms: f64,
+}
+
+#[tauri::command]
+pub(crate) fn perf_index_state(state: tauri::State<'_, std::sync::Arc<AppState>>) -> IndexNow {
+    let (walks, walking_ms) = state.index().walk_stats();
+    IndexNow {
+        files: state.index().file_count(),
+        indexing: state.index().status().indexing,
+        walks,
+        walking_ms,
+    }
+}
+
+/// Reads a root again, as the start-up reconcile does. Returns at once; `perf_index_idle` waits.
+#[tauri::command]
+pub(crate) fn perf_index_reconcile(
+    state: tauri::State<'_, std::sync::Arc<AppState>>,
+    path: String,
+) -> Result<(), AppError> {
+    // The index knows a root by the path Access resolved when it was granted, not by the text the
+    // page holds.
+    let resolved = state.access().check(std::path::Path::new(&path))?;
+    if state.index().reconcile(&resolved.path) {
+        Ok(())
+    } else {
+        Err(AppError::Task(format!("{path} is not an indexed root")))
+    }
+}
+
+/// Writes every cache file that is behind its list, now. A scenario that ends the app right after
+/// indexing calls it so the next launch finds a cache.
+#[tauri::command]
+pub(crate) async fn perf_index_flush(
+    state: tauri::State<'_, std::sync::Arc<AppState>>,
+) -> Result<(), AppError> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || state.index().flush_cache())
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))
 }
 
 /// P0 lab: grows the asset protocol scope while the app runs, which is what opening a folder

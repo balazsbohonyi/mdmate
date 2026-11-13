@@ -175,11 +175,17 @@ pub(crate) fn plan(
     };
     state.rewrite_stop().store(false, Ordering::Relaxed);
     let mut read = 0;
-    let mut plan = rewrite::plan(&roots, &mv, state.ignore_case(), |_| {
-        read += 1;
-        progress(read);
-        !state.rewrite_stop().load(Ordering::Relaxed)
-    })?;
+    let mut plan = rewrite::plan(
+        &roots,
+        Some(state.index()),
+        &mv,
+        state.ignore_case(),
+        |_| {
+            read += 1;
+            progress(read);
+            !state.rewrite_stop().load(Ordering::Relaxed)
+        },
+    )?;
     if state.rewrite_stop().load(Ordering::Relaxed) {
         *state.rewrite_slot() = None;
         return Ok(Planned {

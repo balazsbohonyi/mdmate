@@ -77,21 +77,36 @@ pub(crate) fn current(state: &AppState) -> Vec<String> {
         .collect()
 }
 
+/// Makes a folder a workspace root and starts indexing it. Every way a folder becomes a root goes
+/// through here, so the index and the access list name the same folders.
+pub(crate) fn grant(state: &AppState, path: &Path) -> Result<crate::access::Resolved, AppError> {
+    let resolved = state.access().grant_root(path)?;
+    state.index().add_root(&resolved.path);
+    Ok(resolved)
+}
+
 /// Makes a folder a workspace root and remembers it. Adding a folder that already is a root
 /// changes nothing. Returns the folder as people read it.
 pub(crate) fn add(state: &AppState, store: &RootStore, path: &Path) -> Result<String, AppError> {
-    let resolved = state.access().grant_root(path)?;
+    let resolved = grant(state, path)?;
     store.save(&current(state))?;
     Ok(display_path(&resolved.path))
 }
 
 /// Takes a folder out of the workspace and revokes the page's access to it. Files the user
-/// opened one by one stay open and savable.
+/// opened one by one stay open and savable. Its index and cache file go with it.
 pub(crate) fn remove(state: &AppState, store: &RootStore, path: &Path) -> Result<(), AppError> {
+    // The root as the access list holds it, found before it is revoked: the text the page sent
+    // can differ from it (case, a trailing slash, a link) and the index names roots the same way.
+    let held = state
+        .access()
+        .resolve(path)
+        .map_or_else(|_| path.to_path_buf(), |resolved| resolved.path);
     let was_root = state.access().revoke_root(path);
     if !was_root {
         return Err(AppError::Invalid("not a workspace folder".into()));
     }
+    state.index().remove_root(&held);
     store.save(&current(state))
 }
 
@@ -100,7 +115,7 @@ pub(crate) fn remove(state: &AppState, store: &RootStore, path: &Path) -> Result
 pub(crate) fn restore(state: &AppState, store: &RootStore) -> Vec<String> {
     for path in store.load() {
         // A folder that was deleted, or a drive that is not there, is simply not a root any more.
-        let _ = state.access().grant_root(Path::new(&path));
+        let _ = grant(state, Path::new(&path));
     }
     current(state)
 }

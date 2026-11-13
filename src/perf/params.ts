@@ -21,6 +21,8 @@ export interface PerfParams {
   journal: number
   /** crash-restore: 1 builds the session and reports it (the harness then kills the app), 2 restores it and reports what came back. */
   phase: number
+  /** Where the harness generated the 100,000-file workspace (`scripts/perf.ts`); empty when it did not. */
+  bigWorkspace: string
 }
 
 export const DEFAULT_PARAMS: PerfParams = {
@@ -37,6 +39,7 @@ export const DEFAULT_PARAMS: PerfParams = {
   outline: 1,
   journal: 1,
   phase: 0,
+  bigWorkspace: '',
 }
 
 /** What a scenario hands back. The harness computes every statistic from these raw numbers. */

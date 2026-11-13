@@ -599,6 +599,20 @@ pub(crate) fn watch_tree(
     }))
 }
 
+/// Starts telling the page how the workspace index is doing: whether it is reading a folder, how
+/// far along, and which folders hit the file limit. Once at startup; calling it again replaces
+/// the channel. The page hears the current state straight away.
+#[tauri::command]
+pub(crate) fn watch_index(
+    state: State<'_, Arc<AppState>>,
+    on_status: Channel<crate::workspace::index::Status>,
+) {
+    state.index().set_status_sink(Box::new(move |status| {
+        // A page that has gone away has nobody to tell; the next subscription replaces this one.
+        let _ = on_status.send(status);
+    }));
+}
+
 /// Says which folders the sidebar has open, so Rust watches exactly those. A folder outside the
 /// workspace is skipped.
 #[tauri::command]
@@ -809,7 +823,8 @@ pub(crate) async fn outline_scan(
         .map_err(|error| AppError::Task(error.to_string()))?
 }
 
-/// The best `limit` files for what was typed in Ctrl+P. The first call builds the file index.
+/// The best `limit` files for what was typed in Ctrl+P, from the workspace index. Reads what the
+/// index holds; walks nothing.
 #[tauri::command]
 pub(crate) async fn quick_open_query(
     state: State<'_, Arc<AppState>>,
@@ -817,17 +832,7 @@ pub(crate) async fn quick_open_query(
     limit: usize,
 ) -> Result<workspace::quick::Answer, AppError> {
     let state = state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || state.quick_open().query(&state, &query, limit))
-        .await
-        .map_err(|error| AppError::Task(error.to_string()))
-}
-
-/// Reads the workspace again for Ctrl+P, so a file made a moment ago is found. False when a read is
-/// already going, which will land by itself.
-#[tauri::command]
-pub(crate) async fn quick_open_refresh(state: State<'_, Arc<AppState>>) -> Result<bool, AppError> {
-    let state = state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || state.quick_open().refresh(&state))
+    tauri::async_runtime::spawn_blocking(move || workspace::quick::query(&state, &query, limit))
         .await
         .map_err(|error| AppError::Task(error.to_string()))
 }
