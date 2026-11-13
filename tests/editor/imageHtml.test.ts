@@ -219,7 +219,6 @@ describe('where an <img> tag is drawn (ISC-323)', () => {
       '<div>block</div>\n',
       'some <span>inline</span> html\n',
       '<br>\n',
-      '<img src="a.png">\nnext line stays in the block\n',
       '<img alt="no address">\n',
     ]) {
       expect(images(doc), JSON.stringify(doc)).toHaveLength(0)
@@ -422,6 +421,41 @@ describe('the hostile fixture still loads nothing it should not (ISC-324)', () =
       )
     }
     expect(document.title).toBe('')
+  })
+})
+
+describe('a tag with a line right under it (P9-T4)', () => {
+  const TAG = '<img src="a.png" width="9">'
+
+  it('is still drawn: the parser makes one HTML block of the tag and the line', () => {
+    const doc = `top\n\n${TAG}\nLorem ipsum\n\nend`
+    const found = images(doc)
+    expect(found).toHaveLength(1)
+    expect(found[0]).toMatchObject({ block: true, html: true, width: 9 })
+    // Only the tag's own line is the picture; the text under it is left alone.
+    expect(doc.slice(found[0]?.from, found[0]?.to)).toBe(TAG)
+  })
+
+  it('draws each tag the block opens with, and leaves the lines after them', () => {
+    const doc = `${TAG}\n<img src="b.png" width="5">\nLorem ipsum\n<img src="c.png">\n\nend`
+    const found = images(doc)
+    expect(found.map((item) => item.address)).toEqual(['a.png', 'b.png'])
+  })
+
+  it('is still not drawn when the block opens with other HTML', () => {
+    expect(images(`<div>\n${TAG}\n</div>\n\nend`)).toEqual([])
+  })
+
+  it('keeps the picture drawn as a line is typed under it and taken away again', () => {
+    const doc = `top\n\n${TAG}\n\nend`
+    const view = mount(doc)
+    const imageBlocks = (): string[] => drawn(view.state).filter((b) => b.startsWith('image'))
+    expect(imageBlocks()).toHaveLength(1)
+    const at = doc.indexOf(TAG) + TAG.length
+    view.dispatch({ changes: { from: at, insert: '\nLorem ipsum' } })
+    expect(imageBlocks()).toEqual([`image ${String(at - TAG.length)}-${String(at)}`])
+    view.dispatch({ changes: { from: at, to: at + '\nLorem ipsum'.length, insert: '' } })
+    expect(imageBlocks()).toEqual([`image ${String(at - TAG.length)}-${String(at)}`])
   })
 })
 

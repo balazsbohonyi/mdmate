@@ -299,6 +299,25 @@ function imgTagItem(state: EditorState, start: number, end: number): ImageItem |
   })
 }
 
+/**
+ * The `<img>` tags drawn from an HTML block `[from, to)`: the whole block when it is one tag, else
+ * each line it opens with that is a tag alone. Lines after those stay as they are, ordinary text
+ * under the pictures, which is also what another viewer shows for them.
+ */
+function leadingImgTags(state: EditorState, from: number, to: number): ImageItem[] {
+  const whole = imgTagItem(state, from, to)
+  if (whole !== null) return [whole]
+  const doc = state.doc
+  const items: ImageItem[] = []
+  for (let n = doc.lineAt(from).number; n <= doc.lineAt(to).number; n++) {
+    const line = doc.line(n)
+    const item = imgTagItem(state, Math.max(line.from, from), Math.min(line.to, to))
+    if (item === null) break
+    items.push(item)
+  }
+  return items
+}
+
 interface ImageParts {
   readonly address: string
   readonly alt: string
@@ -405,12 +424,12 @@ export function scanBlocks(
           }
           return false
         }
-        // A tag alone on its line, with no paragraph before it, is an HTML block to the parser.
+        // A tag alone on its line, with no paragraph before it, is an HTML block to the parser. The
+        // block runs to the next blank line, so a line typed right under the tag is part of it.
         if (node.name === 'HTMLBlock') {
           if (!seen.has(node.from)) {
             seen.add(node.from)
-            const item = imgTagItem(state, node.from, node.to)
-            if (item !== null) items.push(item)
+            items.push(...leadingImgTags(state, node.from, node.to))
           }
           return false
         }
