@@ -4,7 +4,7 @@
  * rescans only what changed, extends as the parser advances, and never leaves a selection inside
  * something it hides. The per-block checks (tables, images, ...) are in their own files.
  */
-import { forceParsing, syntaxTree } from '@codemirror/language'
+import { ensureSyntaxTree, forceParsing, syntaxTree } from '@codemirror/language'
 import { EditorState } from '@codemirror/state'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { EditorView } from '@codemirror/view'
@@ -249,5 +249,71 @@ describe('where the layer lives', () => {
     views.push(view)
     expect(view.contentDOM.querySelector('.cm-md-table')).toBeNull()
     expect(view.contentDOM.textContent).toContain('| a | b |')
+  })
+})
+
+describe('what an edit leaves drawn is what a fresh scan draws', () => {
+  // Found by the owner after P9-T1: paste a picture, move the caret away, undo. The text was gone
+  // and the picture stayed, because the widget's range shrank to a point on the edge of the rescan.
+  it('draws no picture once an undo has removed its source and the caret is elsewhere', () => {
+    const doc = 'after\n![](assets/a.png)'
+    const state = blockStateOf(doc, 0)
+    expect(drawn(state)).toEqual([`image 6-${String(doc.length)}`])
+    const undone = state.update({ changes: { from: 5, to: doc.length } }).state
+    expect(drawn(undone)).toEqual([])
+  })
+
+  it('draws no picture when its source is deleted, wherever it sat', () => {
+    for (const doc of [
+      '![](a.png)',
+      '![](a.png)\n\nnext',
+      'before\n\n![](a.png)',
+      'before\n\n![](a.png)\n\nnext',
+      'before\n![](a.png)\n![](b.png)\nnext',
+    ]) {
+      for (const caret of [0, doc.length]) {
+        const state = blockStateOf(doc, caret)
+        const at = doc.indexOf('![](a.png)')
+        const removed = state.update({ changes: { from: at, to: at + '![](a.png)'.length } }).state
+        const fresh = blockStateOf(removed.doc.toString(), Math.min(caret, removed.doc.length))
+        expect(drawn(removed), JSON.stringify({ doc, caret })).toEqual(drawn(fresh))
+      }
+    }
+  })
+
+  it('holds for random edits of a document of pictures', () => {
+    // Pictures only: a table that a selection touches is not drawn, so nothing remembers how far it
+    // reached, and an edit that makes it swallow or release its neighbours can leave them stale
+    // (see Remaining Work in ISA.md).
+    const base = 'top\n![](a.png)\n\n![](b.png)\nmid\n![](c.png)\n\nend\n![](e.png)'
+    const next = rng(11)
+    for (let round = 0; round < 300; round++) {
+      let state = blockStateOf(base, 0)
+      for (let step = 0; step < 4; step++) {
+        const length = state.doc.length
+        const from = Math.floor(next() * (length + 1))
+        const to = Math.min(length, from + Math.floor(next() * 30))
+        const pieces = ['\n', 'x', '![](d.png)', '\n\n']
+        const insert = next() < 0.4 ? (pieces[Math.floor(next() * 4)] ?? '') : ''
+        const caret = Math.floor(next() * (length - (to - from) + insert.length + 1))
+        state = state.update({
+          changes: { from, to, insert },
+          selection: { anchor: Math.min(caret, length - (to - from) + insert.length) },
+        }).state
+        // The parser has caught up with the edit, as it does in the page.
+        ensureSyntaxTree(state, state.doc.length, 5000)
+        state = state.update({}).state
+        const fresh = blockStateOf(state.doc.toString(), state.selection.main.head)
+        expect(
+          drawn(state),
+          JSON.stringify({
+            round,
+            step,
+            head: state.selection.main.head,
+            doc: state.doc.toString(),
+          }),
+        ).toEqual(drawn(fresh))
+      }
+    }
   })
 })

@@ -134,6 +134,14 @@ export interface SaveAsHint {
   readonly folder: string | null
 }
 
+/** An image Rust saved for a document. */
+export interface PastedImage {
+  /** The file's name inside the images folder. */
+  readonly name: string
+  /** The path to write in the document, relative to its folder, with `/` as the separator. */
+  readonly link: string
+}
+
 /** The Open Recent lists, newest first. */
 export interface RecentLists {
   readonly files: readonly string[]
@@ -292,6 +300,14 @@ export interface Host {
   imageInfo(path: string): Promise<ImageInfo>
   /** Says that no tab shows this image any more, so the next session does not grant it again. */
   imageClosed(path: string): Promise<void>
+  /**
+   * Saves an image pasted into an open document, in the `assets` folder next to its file, and says
+   * where it went. The page names no path: `stamp` is its local time (`YYYYMMDD-HHMMSS`) for the
+   * file name, a taken name gets `-2`, `-3`, and the type comes from the bytes. Rejects with
+   * `invalid` for bytes that are not a PNG, JPEG, GIF or WebP image and for a document with no file,
+   * `read-only` for a document that cannot be edited, and `not-open` for an id Rust does not have.
+   */
+  savePastedImage(id: number, bytes: ArrayBuffer, stamp: string): Promise<PastedImage>
   /** Makes a dropped folder a workspace root. Rejects with `not-allowed` for a path no drop delivered. */
   addDroppedRoot(path: string): Promise<string>
   /**

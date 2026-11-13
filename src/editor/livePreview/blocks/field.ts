@@ -107,8 +107,10 @@ function rescan(
     if (to < from) continue
     scanned.push({ from, to })
     set = set.update({
-      // Strict, like the scan: a block that only touches the span's edge is not part of it.
-      filter: (start, end) => end <= from || start >= to,
+      // Strict, like the scan: a block that only touches the edge is not part of it. An empty
+      // one is what an edit leaves of a block whose whole text it deleted (an undo of a paste);
+      // it can sit on that edge, so it goes whatever its place.
+      filter: (start, end) => end > start && (end <= from || start >= to),
       filterFrom: from,
       filterTo: to,
     })

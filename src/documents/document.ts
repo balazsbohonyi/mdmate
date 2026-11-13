@@ -10,6 +10,7 @@ import {
   type Text,
 } from '@codemirror/state'
 import { createFollowerState, createMasterState } from '@/editor/create'
+import { imageSink, imageStamp } from '@/editor/imagePaste'
 import { imageContext } from '@/editor/livePreview/blocks'
 import { brokenLinks, LinkStatus, linkStatus } from '@/editor/brokenLinks'
 import { linkNavigation } from '@/editor/links'
@@ -84,9 +85,20 @@ export interface DocumentOptions {
   readonly followLink?: (tabId: string, href: string) => void
   /** The number in the name of an untitled document, which has no path. */
   readonly untitledNumber?: number
+  /**
+   * Saves a pasted or dropped picture next to this document, by the stamp (local time) for its
+   * name, and resolves to the path to write in the link. Without it a paste of a picture is an
+   * ordinary paste.
+   */
+  readonly saveImage?: (bytes: ArrayBuffer, stamp: string) => Promise<string>
+  /** Shows the user a message about something that did not work. */
+  readonly notify?: (message: string) => void
   /** Says which link targets are missing files, for the broken-link style. Without it, none is drawn. */
   readonly checkLinks?: (hrefs: readonly string[]) => Promise<readonly boolean[]>
 }
+
+/** What a paste of a picture into a document with no file says, until it has a draft folder. */
+const UNTITLED_IMAGE_NOTICE = 'Save the file first so the image has a folder'
 
 /** Where a caret is, as the session stores it. */
 export interface Caret {
@@ -180,6 +192,7 @@ export class Document implements FollowerHost {
             sourceCopy(() => link.endings()),
             readOnlyFacet(this.readOnly),
             this.#imageSupport(),
+            this.#imageSinkSupport(),
             this.#linkSupport(tabId),
             this.#brokenLinkSupport(),
             this.#options.extensions ?? [],
@@ -223,6 +236,21 @@ export class Document implements FollowerHost {
       },
       boundary: () => (this.untitled ? null : (this.#options.imageBoundary?.(this.path) ?? null)),
       url,
+    })
+  }
+
+  /**
+   * What lets a tab take a picture: the paste (and later the drop) hands it to `saveImage`. A
+   * document with no file refuses it until it has a draft folder (P9-T5).
+   */
+  #imageSinkSupport(): Extension {
+    const save = this.#options.saveImage
+    if (save === undefined) return []
+    const notify = this.#options.notify ?? (() => undefined)
+    return imageSink.of({
+      refusal: () => (this.untitled ? UNTITLED_IMAGE_NOTICE : null),
+      save: (bytes) => save(bytes, imageStamp()),
+      notify,
     })
   }
 

@@ -17,6 +17,7 @@ import {
   parseImageInfo,
   parseMoved,
   parsePaths,
+  parseSavedImage,
   parseTreeEntries,
   toCssPosition,
   type FileDragEvent,
@@ -197,6 +198,14 @@ export const tauriHost: Host = {
   },
   async imageClosed(path) {
     await invoke('image_closed', { path })
+  },
+  async savePastedImage(id, bytes, stamp) {
+    // The body is the picture's bytes; the id and the stamp are plain ASCII in headers.
+    return parseSavedImage(
+      await invoke<unknown>('image_paste', new Uint8Array(bytes), {
+        headers: { 'x-document-id': String(id), 'x-image-stamp': stamp },
+      }),
+    )
   },
   async addDroppedRoot(path) {
     return invoke<string>('add_dropped_root', { path })

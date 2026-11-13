@@ -132,6 +132,28 @@ export interface MockHost extends Host {
   readonly recent: { files: string[]; folders: string[] }
   /** The hints the save dialog was shown, in order. */
   readonly saveDialogs: SaveAsHint[]
+  /** Every image `savePastedImage` wrote, in order, with its bytes. */
+  readonly pastedImages: { path: string; bytes: Uint8Array }[]
+}
+
+/** The extension Rust gives an image by its first bytes, or null when it is none of the four. */
+function sniffImageExtension(bytes: Uint8Array): string | null {
+  const at = (...values: number[]): boolean => values.every((value, i) => bytes[i] === value)
+  if (at(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) return 'png'
+  if (at(0xff, 0xd8, 0xff)) return 'jpg'
+  if (at(0x47, 0x49, 0x46, 0x38) && (bytes[4] === 0x37 || bytes[4] === 0x39) && bytes[5] === 0x61) {
+    return 'gif'
+  }
+  const text = (from: number, to: number): string => String.fromCharCode(...bytes.slice(from, to))
+  if (bytes.length >= 12 && text(0, 4) === 'RIFF' && text(8, 12) === 'WEBP') return 'webp'
+  return null
+}
+
+const IMAGE_MIME: Readonly<Record<string, string>> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
 }
 
 /**
@@ -286,6 +308,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
   const revealed: string[] = []
   const openedFolders: string[] = []
   const clipboard: string[] = []
+  const pastedImages: { path: string; bytes: Uint8Array }[] = []
   const trimmed = (path: string): string => pathKey(path).replace(/\/$/, '')
   const slashes = (path: string): string => path.replaceAll('\\', '/').replace(/\/$/, '')
   const parentOf = (path: string): string => slashes(path).split('/').slice(0, -1).join('/')
@@ -558,6 +581,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     clipboard,
     recent,
     saveDialogs,
+    pastedImages,
     files,
     openDocuments() {
       return new Map([...open].map(([id, doc]) => [id, doc.path]))
@@ -737,6 +761,30 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     },
     imageClosed() {
       return Promise.resolve()
+    },
+    savePastedImage(id, bytes, stamp) {
+      return attempt(() => {
+        // Like Rust: no file means no folder, and a document that cannot be edited takes no image.
+        if (untitled.has(id)) {
+          throw hostError('invalid', 'a document with no file has no folder for the image')
+        }
+        const doc = open.get(id)
+        if (doc === undefined) throw hostError('not-open', `no open document ${id}`)
+        if (doc.readOnly !== null) throw hostError('read-only', 'it cannot be edited')
+        if (!/^\d{8}-\d{6}$/.test(stamp)) throw hostError('invalid', 'bad image name stamp')
+        const data = new Uint8Array(bytes)
+        const ext = sniffImageExtension(data)
+        if (ext === null) throw hostError('invalid', 'not a PNG, JPEG, GIF or WebP image')
+        const folder = `${parentOf(doc.path)}/assets`
+        // The first free name; a taken one is never replaced.
+        let name = `image-${stamp}.${ext}`
+        for (let n = 2; files.has(`${folder}/${name}`); n++)
+          name = `image-${stamp}-${String(n)}.${ext}`
+        const path = `${folder}/${name}`
+        files.write(path, String.fromCharCode(...data.slice(0, 64)))
+        pastedImages.push({ path, bytes: data })
+        return { name, link: `assets/${name}` }
+      })
     },
     createFile(parent, name) {
       return attempt(() => {
@@ -1004,6 +1052,12 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     assetUrl(path) {
       const listed = options.images?.[files.canonicalPath(path) ?? path]
       if (listed !== undefined) return listed.url
+      const pasted = pastedImages.findLast((image) => pathKey(image.path) === pathKey(path))
+      if (pasted !== undefined) {
+        const ext = pasted.path.split('.').pop() ?? 'png'
+        const binary = Array.from(pasted.bytes, (byte) => String.fromCharCode(byte)).join('')
+        return `data:${IMAGE_MIME[ext] ?? 'image/png'};base64,${btoa(binary)}`
+      }
       // The mock's files are text, so an image here is an SVG. Anything else, or a file that is
       // not there, gets an address that fails to load, as a missing file does in the real app.
       const raw = path.toLowerCase().endsWith('.svg') ? files.read(path) : undefined

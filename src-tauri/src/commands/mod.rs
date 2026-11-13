@@ -685,6 +685,38 @@ pub(crate) fn image_closed(state: State<'_, Arc<AppState>>, path: String) {
     state.forget_image(std::path::Path::new(&path));
 }
 
+/// Saves an image pasted into the open document named by the `x-document-id` header, into the
+/// `assets` folder next to its file, under a name built here from the `x-image-stamp` header (the
+/// page's local time, `YYYYMMDD-HHMMSS`). The body is the image's bytes. The page never names a path.
+#[tauri::command]
+pub(crate) async fn image_paste(
+    state: State<'_, Arc<AppState>>,
+    request: tauri::ipc::Request<'_>,
+) -> Result<crate::images::SavedImage, AppError> {
+    let tauri::ipc::InvokeBody::Raw(body) = request.body() else {
+        return Err(AppError::Invalid("the body must be raw bytes".into()));
+    };
+    let header = |name: &str| {
+        request
+            .headers()
+            .get(name)
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_owned)
+    };
+    let id = header("x-document-id")
+        .and_then(|value| value.parse::<u32>().ok())
+        .ok_or_else(|| AppError::Invalid("missing or bad x-document-id header".into()))?;
+    let stamp =
+        header("x-image-stamp").ok_or_else(|| AppError::Invalid("missing x-image-stamp".into()))?;
+    let body = body.clone();
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::images::save_pasted(&state, id, &stamp, &body)
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
 /// Makes an empty file in a folder of the workspace. Returns its path.
 #[tauri::command]
 pub(crate) fn create_file(

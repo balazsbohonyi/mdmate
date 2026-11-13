@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 290/333
+progress: 295/334
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-13T18:00:00Z
+updated: 2026-11-13T18:30:00Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -258,6 +258,7 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-331 | bash | first Save As of an untitled document with two draft images, one name already taken at the target | both copied, the taken one renamed with its link updated, draft folder gone | pnpm test:rust draft_images | derived: byte-exact | | |
 | ISC-332 | bash | close an untitled tab with Don't Save, with Cancel, with no changes, and through Close Others and Close All; quit and restart; start with a draft folder no tab owns | removed only after a final close; Cancel and quit keep it; the unowned one is swept | pnpm test:rust draft_images | derived: reliable | | |
 | ISC-333 | bash | load an untitled tab's image, a link that leaves its draft folder, another tab's draft folder | first loads, the others refused | pnpm test:rust draft_images and tests/editor/imageAddress.test.ts | derived: security | | |
+| ISC-334 | bash | delete the source of a drawn picture (an undo of a paste) with the caret elsewhere, over fixed cases and random edits | no picture stays drawn, and what is drawn equals a fresh scan | pnpm test:web tests/editor/blocks.test.ts | derived: reported-by-owner | high | |
 | ISC-161 | manual | launch twice with a file | one window, new tab | Real app run | derived: os-integration | | |
 | ISC-162 | manual | second launch with a relative path from another folder | right file | Real app run | derived: os-integration | | |
 | ISC-163 | manual | run mdmate file.md while closed | file opens | Real app run | derived: os-integration | | |
@@ -625,13 +626,13 @@ Why: the look must be yours to change without rebuilding, which is why everythin
 ### F10 · Image authoring
 Why: screenshots are the most common thing dropped into documentation, and adding one should take a single paste.
 
-- [ ] ISC-154: A pasted image saves to an images folder next to the document (`assets`, created on the first paste), as `image-YYYYMMDD-HHMMSS.png`.
-- [ ] ISC-155: A pasted image inserts a relative link.
+- [x] ISC-154: A pasted image saves to an images folder next to the document (`assets`, created on the first paste), as `image-YYYYMMDD-HHMMSS.png` (`.png` for a screenshot; a copied JPEG, GIF or WebP keeps the extension of its own type).
+- [x] ISC-155: A pasted image inserts a relative link.
 - [ ] ISC-156: A dropped image inserts a link at the drop point.
 - [ ] ISC-157: A drag handle on a selected, loaded image (block or inline, local or `https`) resizes it: width only, aspect ratio kept, from 24 px up to the editor content width.
 - [ ] ISC-158: A resized Markdown image `![alt](src)` is written as `<img src alt width>`; a resized `<img>` has its `width` set.
 - [ ] ISC-159: Anti: a resize changes bytes only inside that image's source (and, for an `<img>` with a `height`, only that attribute besides `width`).
-- [ ] ISC-160: Unresized images stay standard `![]()` syntax.
+- [x] ISC-160: Unresized images stay standard `![]()` syntax.
 - [ ] ISC-322: A click on an image selects it (outline and resize handle) and its source stays hidden; Escape or a click elsewhere deselects, and Enter or an arrow key into it shows its source.
 - [ ] ISC-323: An `<img>` tag with `src`, `alt`, `title`, `width` and `height` draws as an image through the same address allowlist as `![]()` (ISC-180); a tag with any other attribute shows its allowed ones only, and other HTML stays source.
 - [ ] ISC-324: Anti: an `<img>` with a refused address, a `style`, or an `on*` attribute loads nothing from that address and runs no script.
@@ -639,11 +640,12 @@ Why: screenshots are the most common thing dropped into documentation, and addin
 - [ ] ISC-326: Resizing an `<img>` that has a `height` removes that `height` and changes nothing else in the tag.
 - [ ] ISC-327: A paste or a drop-copy into an untitled document saves the image in that document's own draft folder (`assets/image-….png` under it) and inserts the normal relative link, which draws the image; until P9-T5 builds this, such a paste is refused with a notice and writes nothing.
 - [ ] ISC-328: An image dropped on document text links in place when the file is inside the document's workspace folder, and is copied into the images folder and linked there when it is outside.
-- [ ] ISC-329: Anti: a pasted or copied image never overwrites an existing file; a taken name gets `-2`, `-3`.
+- [x] ISC-329: Anti: a pasted or copied image never overwrites an existing file; a taken name gets `-2`, `-3`.
 - [ ] ISC-330: `settings.json` holds `images.pasteFolder` (default `assets`) and a saved change applies to the next paste with no restart.
 - [ ] ISC-331: The first Save As of an untitled document copies its draft images into the images folder beside the saved file and then removes the draft folder; the links already resolve there, and a name that is taken there gets `-2`, `-3` with its link updated.
 - [ ] ISC-332: Closing an untitled tab removes its draft folder once the close is final (after "Don't Save", or at once for a tab with no changes), by every route that closes a tab; quitting the app keeps it, since the session restores the tab. Anti: a draft folder an open or restorable tab holds is never removed, and a folder whose tab is gone (a failed removal, a crash) is removed at the next start-up.
 - [ ] ISC-333: Anti: the asset protocol is granted a draft folder only for the untitled tab that owns it, and an image link in an untitled document that leaves its draft folder never loads.
+- [x] ISC-334: Anti: a picture whose source text an edit has deleted (an undo of a paste, with the caret elsewhere) is never left drawn.
 
 ### F11 · Release
 Why: it only becomes your everyday Markdown app once it opens from a double-click and strangers can install it.
@@ -916,6 +918,8 @@ Why: a large workspace stays quick to search only when mdmate keeps a list of it
 - 2026-11-13: refined: ISC-318 report lists are folded behind a chevron and drawn one line per file, name coloured, after the owner saw them wrapping over four lines (P7.1-T5).
 - 2026-11-13: refined: Phase 9 settled with the owner in a design session: it runs before Phase 8; a click selects an image and shows a width-only handle; a resize writes `<img src alt width>`, so mdmate now also draws `<img>` (new ISC-322 to ISC-330; ISC-154, 157, 158, 159 reworded). The paste folder is `assets` next to the document until P8-T1 makes it the `images.pasteFolder` setting (ISC-330). See `ai-docs/phases/phase-09/decisions.md`.
 - 2026-11-13: refined: untitled documents get a draft folder per document for pasted and copied images (new P9-T5; ISC-327 reworded, ISC-331 to ISC-333 added), chosen by the owner over base64 in the text (a bigger session snapshot, a CSP `data:` exception) and over asking to Save As on the first paste. Until P9-T5 an untitled paste refuses with a notice.
+- 2026-11-13: refined: added ISC-334 (P9-T1 follow-up) after the owner pasted a picture, moved the caret and pressed undo: the text went and the picture stayed drawn, because an edit that deletes a block's whole text leaves an empty widget on the edge of the rescanned lines, and the rescan kept anything that only touched that edge. The rescan now drops empty blocks. A random-edit test then found a related older gap with tables (Remaining Work).
+- 2026-11-13: refined: ISC-154 now says a copied JPEG, GIF or WebP keeps the extension of its own type (a screenshot is `.png`). The P9-T1 check in the real window showed that an Explorer file copy arrives as a `File` with its real name, type and bytes in `clipboardData.files`, like a screenshot, so one path handles both; saving JPEG bytes as `.png` would give a file that lies about its type. The check and the other P9-T1 choices are in `ai-docs/phases/phase-09/decisions.md`.
 
 ## Verification
 
@@ -1237,9 +1241,15 @@ Why: a large workspace stays quick to search only when mdmate keeps a list of it
 - ISC-318: same test file (`Update links reads the workspace, rewrites without a second question and says what it did`, `the line that only says what was updated goes away by itself`, `lists each with its reason after the others were written`): "Updated 3 links in 2 files." and "Updated 1 link in 1 file." show, a file nothing linked to gets "No links pointed to it, so none were changed.", `document.activeElement` is not inside the banner, the line is gone once a fake clock passes 6 s; with one file kept the line reads "Updated links in 1 file." above the list of failures. Real window: after the scan the banner read "Updated 2 links in 2 files." followed by "2 files could not be checked" with `latin1.md` named, and Dismiss had the keyboard (a report with something in it stays and takes focus). Changed later the same day (owner): the two lists of files (kept old links, could not be checked) are folded behind their title with a chevron (`RewriteFileList.vue`, `tests/features/rename.test.ts`: the list is absent until the title is clicked, then one line per file with the name in `text-primary` and name and reason both `truncate`; Dismiss keeps the keyboard). Real window, two Latin-1 files in the scratch root, 240 px sidebar: both rows 20 px high (one line), seen in a screenshot.
 - ISC-319: `cargo test --lib settings::` (`the_three_values_are_read_whatever_the_case_and_spaces`, `nothing_empty_or_unknown_is_left_to_the_page_default`) and the page tests `the environment wins over the setting, both ways` and `tests/platform/rewrite.test.ts` (the answer is one of the three or null, anything else refused). Real window: the variable unset and `sometimes` behaved as `never`, `ask` and `ASK` asked. The exe contains the variable name and reads it per call (the command `links_on_rename_override`), so a running app does not see a change: set it, then start the app again.
 - ISC-321: `cargo test --lib access:: links::flow links::references` (`roots_containing_names_every_root_that_holds_the_file_and_no_other`, `a_plan_reads_only_the_workspace_the_file_is_in`, `a_plan_reads_every_root_that_holds_the_file_when_roots_lie_inside_each_other`, `references_are_looked_for_in_the_workspace_the_file_is_in`): with two sibling roots a rename plans one link and two files read (`old.md`, `a.md`), a link in the other root written as `../root/old.md` is not planned and the file keeps its text after the move; with a root inside another the link from the outer root is found and each file is read once; Find References finds one reference for a file in the first root and two for a file no root holds. Real window, the scratch root next to `D:\develop\projects` as a second root, `ask` then Update links: renamed with both links rewritten in under 0.1 s after the answer ("Updated 2 links in 2 files."), where the same rename read 10,139 files in 23.8 s before the change.
+- ISC-154: `cargo test --lib paste_image_saved` (10): the file is in `assets` next to the document with the bytes sent, the folder is made on the first paste and reused, the extension follows the bytes (png, jpg, gif, webp), a non-image or a stamp that could name a path writes nothing and makes no folder, an `assets` that is a file or a real junction out of the folder is refused. Real window (debug build, isolated data and profile folders, 150% scale): a screenshot paste wrote `assets/image-20261113-174405.png` of 1159 bytes, the clipboard's own size (P9-T1).
+- ISC-155: `pnpm test:web tests/editor/imagePaste.test.ts` (20): the link goes in at the caret or over the selection as one edit, one per picture, one undo takes it back, a paste with text or without a picture is left alone, a read-only document or a state with no sink is untouched, a refusal or a failed save says why and inserts nothing, and the saved link resolves through the image allowlist to the saved file. Real window: the link was in the document and the image drew at its size (240 x 140), as did a copied jpg and png (P9-T1).
+- ISC-160: same file (`writes standard syntax only, never an <img> tag`): the inserted text matches `^!\[\]\(assets/image-\d{8}-\d{6}\.png\)$`; a seeded test of 300 awkward names goes through the real parser and the allowlist and reads back as the same file (P9-T1).
+- ISC-329: `cargo test --lib paste_image_saved_never_overwrites_a_taken_name`: with `image-20261113-153000.png` taken the next two are `-2` and `-3` and the taken file keeps its bytes; the file is created with `create_new`, so a name taken a moment earlier is never opened for writing. Page: `never replaces a file that is already there` on the mock host (P9-T1).
+- ISC-334: `pnpm test:web tests/editor/blocks.test.ts` (`draws no picture once an undo has removed its source and the caret is elsewhere`, `draws no picture when its source is deleted, wherever it sat`, `holds for random edits of a document of pictures`: 300 runs of 4 random edits, each compared with a fresh scan); with the one-condition fix removed all three fail, with it they pass. Real window: the owner pasted pictures, moved the caret, pressed undo, and no picture stayed drawn (P9-T1).
 
 ## Remaining Work
 
+- [ ] A block layer edge case found while fixing ISC-334: a table that a selection touches is not drawn, so nothing remembers how far it reached. An edit that makes it swallow the lines after it (a picture two lines below becomes a row) leaves that picture drawn, and an edit that makes it let them go leaves a picture undrawn until the next change near it. Reached only by a random-edit property test (seed 11, picture-and-table document); not seen in use. Fixing it needs the field to keep each hidden block's extent. Not part of Phase 9.
 - [ ] Ship the Inter font's OFL-1.1 notice with the installer and portable zip, and credit it in the README — the font is bundled from `@fontsource-variable/inter`; waits on P10-T3 to P10-T5.
 - [ ] Check the resolved Rust dependency graph for network crates with `cargo tree --target all` — `no-network` reads direct dependencies only, because the lockfile lists `reqwest` and `hyper` although none is in the Windows build graph; waits on P10-T2, where ISC-20 closes.
 - [ ] Check native drop positions at 125% display scale in the real window — `allow_directory` now runs when a workspace folder opens and `toCssPosition` divides drop positions by the pixel ratio (P6-T1, unit-tested), but the real-window drops in P6-T1 ran at 100% scale only; the one place a wrong ratio would show is a drop landing one row off on the tree (P6-T2).

@@ -2,7 +2,7 @@ This file provides guidance to AI coding agents working in this repository.
 
 ## Project
 
-**Status: Phase 6 is done (P6-T1 to P6-T9); Phase 7 is next. See `ai-docs/tasks.md` for what is done.**
+**Status: Phases 6, 7 and 7.1 are done. Phase 9 (image authoring) runs before Phase 8 and is under way: P9-T1 (paste) is done. See `ai-docs/tasks.md` for what is done.**
 
 mdmate is a fast desktop Markdown editor with Obsidian-style inline editing and a SublimeText look and feel. It ships for Windows first, and is built so macOS and Linux need only new platform implementations.
 

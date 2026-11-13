@@ -200,6 +200,10 @@ function documentOptions(
     imageBoundary: (path) => imageBoundaryOf(path),
     followLink: (tabId, href) => linkFollower?.(tabId, href),
     checkLinks: (hrefs) => host.checkLinks(id, hrefs),
+    saveImage: async (bytes, stamp) => (await host.savePastedImage(id, bytes, stamp)).link,
+    notify: (message) => {
+      problem.value = message
+    },
     ...(untitledNumber === undefined ? {} : { untitledNumber }),
   }
 }

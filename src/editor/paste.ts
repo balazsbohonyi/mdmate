@@ -2,8 +2,12 @@ import { syntaxTree } from '@codemirror/language'
 import type { EditorState, Extension, TransactionSpec } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { looksLikeUrl } from './format'
+import { imageSink, insertImages, pastedImageFiles } from './imagePaste'
 
 /**
+ * Pasting a picture (a screenshot, or files copied in Explorer) saves it next to the document and
+ * inserts a link to it (P9-T1, `imagePaste.ts`).
+ *
  * Pasting a web address over selected text makes a link: `[selected](address)`. Anything else
  * pastes as CodeMirror always does. The address is text the user put on the clipboard; what it may
  * do when followed is still decided by the link guard.
@@ -55,6 +59,15 @@ export function pasteAsLink(state: EditorState, text: string): TransactionSpec |
 export function smartPaste(): Extension {
   return EditorView.domEventHandlers({
     paste(event, view) {
+      const sink = view.state.facet(imageSink)
+      if (sink !== null && !view.state.readOnly) {
+        const images = pastedImageFiles(event.clipboardData)
+        if (images.length > 0) {
+          event.preventDefault()
+          void insertImages(view, sink, images)
+          return true
+        }
+      }
       const text = event.clipboardData?.getData('text/plain') ?? ''
       const spec = pasteAsLink(view.state, text)
       if (spec === null) return false

@@ -4,6 +4,7 @@ mod documents;
 mod drops;
 mod error;
 mod fs;
+mod images;
 mod links;
 mod outline;
 mod paths;
@@ -110,6 +111,7 @@ pub fn run() {
         commands::file_kind,
         commands::image_info,
         commands::image_closed,
+        commands::image_paste,
         commands::add_dropped_root,
         commands::create_file,
         commands::create_folder,
@@ -181,6 +183,7 @@ pub fn run() {
         commands::file_kind,
         commands::image_info,
         commands::image_closed,
+        commands::image_paste,
         commands::add_dropped_root,
         commands::create_file,
         commands::create_folder,
