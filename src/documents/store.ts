@@ -201,6 +201,7 @@ function documentOptions(
     followLink: (tabId, href) => linkFollower?.(tabId, href),
     checkLinks: (hrefs) => host.checkLinks(id, hrefs),
     saveImage: async (bytes, stamp) => (await host.savePastedImage(id, bytes, stamp)).link,
+    dropImage: async (path, stamp) => (await host.dropImage(id, path, stamp)).link,
     notify: (message) => {
       problem.value = message
     },

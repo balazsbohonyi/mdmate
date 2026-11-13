@@ -91,6 +91,11 @@ export interface DocumentOptions {
    * ordinary paste.
    */
   readonly saveImage?: (bytes: ArrayBuffer, stamp: string) => Promise<string>
+  /**
+   * Handles a file a native drop delivered onto this document's text: resolves to the link path,
+   * the file's own place when it is inside the workspace folder and a copy in `assets` when not.
+   */
+  readonly dropImage?: (path: string, stamp: string) => Promise<string>
   /** Shows the user a message about something that did not work. */
   readonly notify?: (message: string) => void
   /** Says which link targets are missing files, for the broken-link style. Without it, none is drawn. */
@@ -240,7 +245,7 @@ export class Document implements FollowerHost {
   }
 
   /**
-   * What lets a tab take a picture: the paste (and later the drop) hands it to `saveImage`. A
+   * What lets a tab take a picture: the paste hands it to `saveImage` and the drop to `dropImage`. A
    * document with no file refuses it until it has a draft folder (P9-T5).
    */
   #imageSinkSupport(): Extension {
@@ -250,6 +255,12 @@ export class Document implements FollowerHost {
     return imageSink.of({
       refusal: () => (this.untitled ? UNTITLED_IMAGE_NOTICE : null),
       save: (bytes) => save(bytes, imageStamp()),
+      drop: (path) => {
+        const handle = this.#options.dropImage
+        return handle === undefined
+          ? Promise.reject(new Error('this document takes no dropped images'))
+          : handle(path, imageStamp())
+      },
       notify,
     })
   }

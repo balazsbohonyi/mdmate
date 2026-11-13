@@ -134,6 +134,8 @@ export interface MockHost extends Host {
   readonly saveDialogs: SaveAsHint[]
   /** Every image `savePastedImage` wrote, in order, with its bytes. */
   readonly pastedImages: { path: string; bytes: Uint8Array }[]
+  /** The paths `dropImage` copied into an images folder, in order. */
+  readonly copiedImages: string[]
 }
 
 /** The extension Rust gives an image by its first bytes, or null when it is none of the four. */
@@ -309,6 +311,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
   const openedFolders: string[] = []
   const clipboard: string[] = []
   const pastedImages: { path: string; bytes: Uint8Array }[] = []
+  const copiedImages: string[] = []
   const trimmed = (path: string): string => pathKey(path).replace(/\/$/, '')
   const slashes = (path: string): string => path.replaceAll('\\', '/').replace(/\/$/, '')
   const parentOf = (path: string): string => slashes(path).split('/').slice(0, -1).join('/')
@@ -582,6 +585,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     recent,
     saveDialogs,
     pastedImages,
+    copiedImages,
     files,
     openDocuments() {
       return new Map([...open].map(([id, doc]) => [id, doc.path]))
@@ -784,6 +788,55 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
         files.write(path, String.fromCharCode(...data.slice(0, 64)))
         pastedImages.push({ path, bytes: data })
         return { name, link: `assets/${name}` }
+      })
+    },
+    dropImage(id, path, stamp) {
+      return attempt(() => {
+        const known = drops.flat().some((dropped) => pathKey(dropped) === pathKey(path))
+        if (!known)
+          throw hostError('not-allowed', 'access to a path no drop delivered is not allowed')
+        if (mockKindOf(path) !== 'image' || !files.has(path)) {
+          throw hostError('invalid', 'not an image')
+        }
+        // Like Rust: no file means no folder, and a document that cannot be edited takes no image.
+        if (untitled.has(id)) {
+          throw hostError('invalid', 'a document with no file has no folder for the image')
+        }
+        const doc = open.get(id)
+        if (doc === undefined) throw hostError('not-open', `no open document ${id}`)
+        if (doc.readOnly !== null) throw hostError('read-only', 'it cannot be edited')
+        if (!/^\d{8}-\d{6}$/.test(stamp)) throw hostError('invalid', 'bad image name stamp')
+        const folder = parentOf(doc.path)
+        // The innermost workspace folder that holds the document, or its own folder.
+        const boundary = roots
+          .filter((root) => pathKey(doc.path).startsWith(`${trimmed(root)}/`))
+          .sort((a, b) => b.length - a.length)[0]
+        const limit = trimmed(boundary ?? folder)
+        const key = pathKey(slashes(path))
+        if (key.startsWith(`${limit}/`)) {
+          const from = trimmed(folder).split('/')
+          const to = slashes(path).split('/')
+          let common = 0
+          while (
+            common < from.length &&
+            common < to.length - 1 &&
+            pathKey(from[common] ?? '') === pathKey(to[common] ?? '')
+          )
+            common++
+          const link = [
+            ...Array<string>(from.length - common).fill('..'),
+            ...to.slice(common),
+          ].join('/')
+          return { link, copied: false }
+        }
+        const ext = nameOf(path).includes('.') ? (nameOf(path).split('.').pop() ?? 'png') : 'png'
+        const target = `${folder}/assets`
+        let name = `image-${stamp}.${ext}`
+        for (let n = 2; files.has(`${target}/${name}`); n++)
+          name = `image-${stamp}-${String(n)}.${ext}`
+        files.write(`${target}/${name}`, files.read(path) ?? '')
+        copiedImages.push(`${target}/${name}`)
+        return { link: `assets/${name}`, copied: true }
       })
     },
     createFile(parent, name) {

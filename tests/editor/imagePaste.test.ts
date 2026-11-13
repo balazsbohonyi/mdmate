@@ -176,6 +176,7 @@ describe('a paste of a picture in a view (ISC-155)', () => {
       notes,
       links,
       refusal: () => null,
+      drop: () => Promise.reject(new Error('not a drop')),
       save: (bytes) => {
         saved.push(new Uint8Array(bytes))
         const link = `assets/image-20261113-15300${String(saved.length)}.png`

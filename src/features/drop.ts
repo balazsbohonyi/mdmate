@@ -1,5 +1,7 @@
 import { describe, openPath, problem } from '@/documents/store'
+import { dropPosition, insertDropped } from '@/editor/imagePaste'
 import { getHost, type Point } from '@/platform'
+import { EditorView } from '@codemirror/view'
 import type { PaneId } from '@/workbench/splitTree'
 import { parentPath } from './tree/model'
 import { copyDropInto } from './tree/ops'
@@ -30,24 +32,32 @@ function paneUnder(point: Point): PaneId | undefined {
   return pane?.dataset.paneId
 }
 
-/** True when the point is over the text of a document, where an image drop is P9-T2's to handle. */
-function overDocumentText(point: Point): boolean {
-  return document.elementFromPoint(point.x, point.y)?.closest('.cm-content') !== null
+/** The editor whose text a point is over, or null anywhere else (a tab strip, the tree, a margin). */
+function editorUnder(point: Point): EditorView | null {
+  const content = document.elementFromPoint(point.x, point.y)?.closest<HTMLElement>('.cm-content')
+  return content === null || content === undefined ? null : EditorView.findFromDOM(content)
 }
 
 /**
  * Opens the files of a drop in tabs, in the pane they landed on (the active pane when they landed
  * outside every pane). Rust grants each file only if a native drop delivered it. An image dropped
- * on a document's text opens nothing here: inserting a link to it is P9-T2.
+ * on a document's text opens nothing: it becomes a link at the drop point (Rust links it where it
+ * lies inside the workspace folder, and copies it into `assets` otherwise).
  */
 async function openDropped(
   items: readonly { path: string; fileKind?: string }[],
   position: Point,
 ): Promise<void> {
   const pane = paneUnder(position)
-  const onText = overDocumentText(position)
+  const view = editorUnder(position)
+  const at = view === null ? null : dropPosition(view, position)
+  const images = items.filter((item) => item.fileKind === 'image').map((item) => item.path)
+  // A view that takes no images (a read-only or unsaved-in-a-folder kind it knows nothing of) falls
+  // back to opening the picture in a tab, as before.
+  const linked =
+    view !== null && at !== null && images.length > 0 && (await insertDropped(view, images, at))
   for (const item of items) {
-    if (item.fileKind === 'image' && onText) continue
+    if (item.fileKind === 'image' && linked) continue
     try {
       await openPath(item.path, pane)
     } catch (error) {

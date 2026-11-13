@@ -717,6 +717,24 @@ pub(crate) async fn image_paste(
     .map_err(|error| AppError::Task(error.to_string()))?
 }
 
+/// A picture dropped onto the text of the open document `id`: `path` must be one a native drop
+/// delivered. Answers with the link to write, and whether the file was copied into `assets` (a file
+/// outside the document's workspace folder) or is linked where it lies.
+#[tauri::command]
+pub(crate) async fn image_drop(
+    state: State<'_, Arc<AppState>>,
+    id: u32,
+    path: String,
+    stamp: String,
+) -> Result<crate::images::DroppedImage, AppError> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::images::drop_image(&state, id, &path, &stamp)
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
 /// Makes an empty file in a folder of the workspace. Returns its path.
 #[tauri::command]
 pub(crate) fn create_file(

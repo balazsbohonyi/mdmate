@@ -17,6 +17,7 @@ import {
   parseImageInfo,
   parseMoved,
   parsePaths,
+  parseDroppedImage,
   parseSavedImage,
   parseTreeEntries,
   toCssPosition,
@@ -198,6 +199,9 @@ export const tauriHost: Host = {
   },
   async imageClosed(path) {
     await invoke('image_closed', { path })
+  },
+  async dropImage(id, path, stamp) {
+    return parseDroppedImage(await invoke<unknown>('image_drop', { id, path, stamp }))
   },
   async savePastedImage(id, bytes, stamp) {
     // The body is the picture's bytes; the id and the stamp are plain ASCII in headers.

@@ -1,7 +1,8 @@
 /**
  * Putting a picture into a document: what a paste carries, the link that stands for the saved file,
  * and the one edit that inserts it. The editor knows nothing about files. The document hands it a
- * sink that saves the bytes (next to the document, by Rust) and says where they went.
+ * sink that saves the bytes (next to the document, by Rust) and says where they went, and one that
+ * takes a file dropped from Explorer, which Rust links where it lies or copies in.
  */
 import { Facet } from '@codemirror/state'
 import type { EditorView } from '@codemirror/view'
@@ -12,6 +13,8 @@ export interface ImageSink {
   refusal(): string | null
   /** Saves the bytes next to the document and resolves to the path to write in the link. */
   save(bytes: ArrayBuffer): Promise<string>
+  /** Handles a dropped file (a path a native drop delivered) and resolves to the path to write. */
+  drop(path: string): Promise<string>
   /** Tells the user about something that did not work, or was refused. */
   notify(message: string): void
 }
@@ -100,27 +103,82 @@ export async function insertImages(
   try {
     for (const file of files) saved.push(await sink.save(await file.arrayBuffer()))
   } catch (error) {
-    const reason =
-      typeof error === 'object' && error !== null && 'message' in error
-        ? String(error.message)
-        : String(error)
-    sink.notify(`Could not save the image: ${reason}`)
+    sink.notify(`Could not save the image: ${reasonOf(error)}`)
   }
   if (saved.length === 0) return
   insertLinks(view, sink, saved)
 }
 
+function reasonOf(error: unknown): string {
+  return typeof error === 'object' && error !== null && 'message' in error
+    ? String(error.message)
+    : String(error)
+}
+
+/** Where a drop at `point` (page pixels) lands in the text of `view`, or null outside its text. */
+export function dropPosition(view: EditorView, point: { x: number; y: number }): number | null {
+  return view.posAtCoords(point)
+}
+
 /**
- * Inserts links for pictures that are already saved, at the caret. When the view has moved on to
- * another tab meanwhile, the links go nowhere and the user is told where the files are.
+ * Handles pictures dropped at `at` (a position in the text): each path goes to the sink, which
+ * links the file where it lies or copies it in, and one link per picture goes in at the drop point
+ * as a single edit. Failures and refusals go to the sink's notice. Returns false when the view
+ * takes no images, so the caller can do what it always did with the drop.
  */
-export function insertLinks(view: EditorView, sink: ImageSink, paths: readonly string[]): void {
+export async function insertDropped(
+  view: EditorView,
+  paths: readonly string[],
+  at: number,
+): Promise<boolean> {
+  const sink = view.state.facet(imageSink)
+  // A view that cannot be edited takes no link; the caller opens the picture in a tab instead.
+  if (sink === null || view.state.readOnly) return false
+  const refusal = sink.refusal()
+  if (refusal !== null) {
+    sink.notify(refusal)
+    return true
+  }
+  const links: string[] = []
+  for (const path of paths) {
+    try {
+      links.push(await sink.drop(path))
+    } catch (error) {
+      sink.notify(`Could not add the image: ${reasonOf(error)}`)
+    }
+  }
+  if (links.length > 0) insertLinks(view, sink, links, at)
+  return true
+}
+
+/**
+ * Inserts links for pictures that are already saved, at the caret or, for a drop, at `at` (held
+ * to the text as it is now, since it may have changed while the files were being handled). When the
+ * view has moved on to another tab meanwhile, the links go nowhere and the user is told where the
+ * files are.
+ */
+export function insertLinks(
+  view: EditorView,
+  sink: ImageSink,
+  paths: readonly string[],
+  at?: number,
+): void {
   if (view.state.facet(imageSink) !== sink || view.state.readOnly) {
     sink.notify(`Saved ${paths.join(', ')}, but the document it was meant for is not showing`)
     return
   }
-  const range = view.state.selection.main
   const insert = paths.map(imageMarkdown).join('\n')
+  if (at !== undefined) {
+    const where = Math.max(0, Math.min(at, view.state.doc.length))
+    view.dispatch({
+      changes: { from: where, insert },
+      selection: { anchor: where + insert.length },
+      scrollIntoView: true,
+      userEvent: 'input.drop',
+    })
+    return
+  }
+  const range = view.state.selection.main
   view.dispatch({
     changes: { from: range.from, to: range.to, insert },
     selection: { anchor: range.from + insert.length },

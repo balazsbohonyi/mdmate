@@ -134,6 +134,14 @@ export interface SaveAsHint {
   readonly folder: string | null
 }
 
+/** What a dropped picture came to. */
+export interface DroppedImage {
+  /** The path to write in the document, relative to its folder, with `/` as the separator. */
+  readonly link: string
+  /** True when the file was copied into the images folder, false when it is linked where it lies. */
+  readonly copied: boolean
+}
+
 /** An image Rust saved for a document. */
 export interface PastedImage {
   /** The file's name inside the images folder. */
@@ -308,6 +316,14 @@ export interface Host {
    * `read-only` for a document that cannot be edited, and `not-open` for an id Rust does not have.
    */
   savePastedImage(id: number, bytes: ArrayBuffer, stamp: string): Promise<PastedImage>
+  /**
+   * Handles a picture dropped onto the text of an open document: `path` must be one a native drop
+   * delivered. Rust links a file inside the document's workspace folder where it lies, and copies
+   * any other into `assets` (named like a paste, from `stamp`) and links the copy. Rejects with
+   * `not-allowed` for a path no drop delivered, `invalid` for a file that is not an image and for a
+   * document with no file, and `read-only` and `not-open` as `savePastedImage` does.
+   */
+  dropImage(id: number, path: string, stamp: string): Promise<DroppedImage>
   /** Makes a dropped folder a workspace root. Rejects with `not-allowed` for a path no drop delivered. */
   addDroppedRoot(path: string): Promise<string>
   /**

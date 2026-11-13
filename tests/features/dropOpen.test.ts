@@ -141,10 +141,10 @@ describe('an image dropped from Explorer (ISC-201)', () => {
     expect(imageTabs()[0]?.[1]).toMatchObject({ kind: 'image', path: '/in/c.png' })
   })
 
-  it("opens nothing over a document's text, where inserting a link is P9-T2", async () => {
+  it("opens a tab when the text it lands on is no editor's (a drop onto a real view links instead: dropImage.test.ts)", async () => {
     await start()
     await dropOn(inPane(workbenchLayout.value.activePane, 'cm-content'), ['/in/c.png'])
-    expect(imageTabs()).toHaveLength(0)
+    expect(imageTabs()).toHaveLength(1)
     expect(problem.value).toBeNull()
   })
 
