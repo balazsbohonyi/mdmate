@@ -355,8 +355,8 @@ export const tauriHost: Host = {
   async writeSession(json) {
     await invoke('session_write', new TextEncoder().encode(json))
   },
-  async recoverBuffer(name, text) {
-    return invoke<string>('session_recover', { name, text })
+  async recoverBuffer(name, text, untitled) {
+    return invoke<string>('session_recover', { name, text, untitled })
   },
   async watchClose(onClose) {
     const channel = new Channel<null>()

@@ -488,7 +488,7 @@ export async function restoreSession(): Promise<RestoreReport | null> {
     const raw = endings === null ? buffer.text : joinWithEndings(buffer.text, endings)
     const name = bufferName(buffer)
     try {
-      const kept = await host.recoverBuffer(name, raw)
+      const kept = await host.recoverBuffer(name, raw, buffer.untitled ?? undefined)
       notices.push(`${why}: the unsaved text of ${name} is in ${kept}.`)
     } catch (error) {
       notices.push(

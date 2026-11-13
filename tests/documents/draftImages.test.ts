@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { docMeta } from '@/documents/meta'
 import {
   closeAllTabs,
+  closeTabs,
   documentOfTab,
   followerOfTab,
   requestCloseTab,
@@ -164,6 +165,36 @@ describe('when a draft folder goes (ISC-332)', () => {
     requestCloseTab(first)
     await vi.waitFor(() => expect(host.files.isFolder(`${DRAFT_ROOT}/1`)).toBe(false))
     expect(host.files.isFolder(`${DRAFT_ROOT}/2`)).toBe(true)
+  })
+
+  it('stays when the user cancels the question', async () => {
+    await newUntitledTab()
+    const tab = activeTab()
+    const id = documentOfTab(tab)?.id ?? 0
+    await paste(id, '20261113-153000')
+    type(tab, `![](assets/${FIRST})`)
+    requestCloseTab(tab)
+    await resolvePendingClose('cancel')
+    expect(allTabs(workbenchLayout.value)).toEqual([tab])
+    expect(host.files.has(`${DRAFT_ROOT}/1/assets/${FIRST}`)).toBe(true)
+  })
+
+  it('goes through Close Others for the tabs it closes, and stays for the one it keeps', async () => {
+    await newUntitledTab()
+    const first = activeTab()
+    await newUntitledTab()
+    const kept = activeTab()
+    await newUntitledTab()
+    const third = activeTab()
+    for (const tab of [first, kept, third])
+      await paste(documentOfTab(tab)?.id ?? 0, '20261113-153000')
+    expect(await closeTabs([first, third])).toBe(true)
+    await vi.waitFor(() => {
+      expect(host.files.isFolder(`${DRAFT_ROOT}/1`)).toBe(false)
+      expect(host.files.isFolder(`${DRAFT_ROOT}/3`)).toBe(false)
+    })
+    expect(host.files.isFolder(`${DRAFT_ROOT}/2`)).toBe(true)
+    expect(allTabs(workbenchLayout.value)).toEqual([kept])
   })
 
   it('goes through Close All too, for every tab it closes', async () => {

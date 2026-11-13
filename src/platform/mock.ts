@@ -261,6 +261,42 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
   /** The number in the name of each untitled document, which keys its draft folder. */
   const draftNumbers = new Map<number, number>()
   const draftFolder = (number: number): string => `${DRAFT_ROOT}/${String(number)}`
+  /**
+   * Copies the images of draft `number` that `text` links to into `<folder>/assets`, under their own
+   * names when free and `-2`, `-3` when taken, and returns the text with the renamed links updated.
+   * What Rust does for the first Save As and for recovered text.
+   */
+  const adoptDraftImages = (
+    number: number,
+    text: string,
+    folder: string,
+  ): { text: string; renamedImages: { from: string; to: string }[] } => {
+    const source = `${draftFolder(number)}/assets`
+    const names = (files.listDir(source) ?? [])
+      .filter((entry) => entry.kind === 'file' && DRAFT_IMAGE.test(entry.name))
+      .map((entry) => entry.name)
+      .sort()
+    const used = new Set(draftLinkUses(text, names).map((use) => use.name))
+    const target = `${folder}/assets`
+    const renamedImages: { from: string; to: string }[] = []
+    for (const name of names.filter((candidate) => used.has(candidate))) {
+      const dot = name.lastIndexOf('.')
+      const stem = name.slice(0, dot)
+      const ext = name.slice(dot)
+      let finalName = name
+      for (let n = 2; files.has(`${target}/${finalName}`); n++)
+        finalName = `${stem}-${String(n)}${ext}`
+      files.write(`${target}/${finalName}`, files.read(`${source}/${name}`) ?? '')
+      const bytes = pastedImages.findLast(
+        (image) => pathKey(image.path) === pathKey(`${source}/${name}`),
+      )
+      if (bytes !== undefined)
+        pastedImages.push({ path: `${target}/${finalName}`, bytes: bytes.bytes })
+      if (finalName !== name) renamedImages.push({ from: name, to: finalName })
+    }
+    const renames = new Map(renamedImages.map((image) => [image.from, image.to]))
+    return { text: rewriteDraftLinks(text, renames), renamedImages }
+  }
   const recent = {
     files: [...(options.recent?.files ?? [])],
     folders: [...(options.recent?.folders ?? [])],
@@ -1103,8 +1139,13 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
       host.session = json
       return Promise.resolve()
     },
-    recoverBuffer(name, text) {
-      host.recovered.push({ name, text })
+    recoverBuffer(name, text, untitledNumber) {
+      // Like Rust: the images of an untitled document's text are kept beside the recovered file.
+      const kept =
+        untitledNumber === undefined
+          ? text
+          : adoptDraftImages(untitledNumber, text, '/recovered').text
+      host.recovered.push({ name, text: kept })
       return Promise.resolve(`/recovered/${name}-${String(host.recovered.length)}.md`)
     },
     watchClose(onClose) {
@@ -1250,32 +1291,12 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
       }
       // Like Rust: the images of an untitled document the text links to are copied beside the new
       // file first, a taken name is not overwritten, and the links in what is written follow.
-      const renamedImages: { from: string; to: string }[] = []
+      let renamedImages: { from: string; to: string }[] = []
       let written = text
       if (number !== undefined) {
-        const source = `${draftFolder(number)}/assets`
-        const names = (files.listDir(source) ?? [])
-          .filter((entry) => entry.kind === 'file' && DRAFT_IMAGE.test(entry.name))
-          .map((entry) => entry.name)
-          .sort()
-        const used = new Set(draftLinkUses(text, names).map((use) => use.name))
-        const target = `${parentOf(canonical)}/assets`
-        for (const name of names.filter((candidate) => used.has(candidate))) {
-          const dot = name.lastIndexOf('.')
-          const stem = name.slice(0, dot)
-          const ext = name.slice(dot)
-          let finalName = name
-          for (let n = 2; files.has(`${target}/${finalName}`); n++)
-            finalName = `${stem}-${String(n)}${ext}`
-          files.write(`${target}/${finalName}`, files.read(`${source}/${name}`) ?? '')
-          const bytes = pastedImages.findLast(
-            (image) => pathKey(image.path) === pathKey(`${source}/${name}`),
-          )
-          if (bytes !== undefined)
-            pastedImages.push({ path: `${target}/${finalName}`, bytes: bytes.bytes })
-          if (finalName !== name) renamedImages.push({ from: name, to: finalName })
-        }
-        written = rewriteDraftLinks(text, new Map(renamedImages.map((r) => [r.from, r.to])))
+        const adopted = adoptDraftImages(number, text, parentOf(canonical))
+        renamedImages = adopted.renamedImages
+        written = adopted.text
         files.remove(draftFolder(number))
         draftNumbers.delete(id)
       }

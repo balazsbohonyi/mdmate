@@ -718,9 +718,10 @@ describe('untitled tabs (P6-T8)', () => {
       expect(host.files.has(`${DRAFT_ROOT}/1/assets/image-20261113-153001.png`)).toBe(true)
     })
 
-    it('sweeps nothing when the session did not come back whole, since a draft may be the only copy', async () => {
+    it('keeps the images with the recovered text when the tab cannot come back, and sweeps nothing', async () => {
       const tab = await untitledTab('rescue me')
-      await pasteInto(tab)
+      const name = await pasteInto(tab)
+      typeInto(tab, 0, `![](assets/${name})`)
       await flushSession()
       const written = JSON.parse(host.session ?? '{}') as { tabs: unknown[] }
       written.tabs = []
@@ -730,6 +731,12 @@ describe('untitled tabs (P6-T8)', () => {
       host.files.write(`${DRAFT_ROOT}/9/assets/image-20261113-153000.png`, 'unlisted')
       const report = await restoreOnStart()
       expect(report?.notices.length).toBeGreaterThan(0)
+      // The document is closed after its text is kept, which removes its draft folder; the images
+      // its text links to are beside the recovered file by then, and the link still reads the same.
+      expect(host.recovered).toHaveLength(1)
+      expect(host.recovered[0]?.text).toContain(`![](assets/${name})`)
+      expect(host.files.has(`/recovered/assets/${name}`)).toBe(true)
+      // And nothing else is swept after a restore that had a problem.
       expect(host.sweeps).toEqual([])
       expect(host.files.isFolder(`${DRAFT_ROOT}/9`)).toBe(true)
     })

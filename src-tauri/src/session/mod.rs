@@ -8,6 +8,7 @@
 
 use crate::access::display_path;
 use crate::documents::AppState;
+use crate::drafts::{self, take_back};
 use crate::error::AppError;
 use crate::fs::atomic::{self, Stage};
 use serde::de::IgnoredAny;
@@ -124,6 +125,36 @@ impl SessionStore {
             if name.starts_with(&prefix) && name.ends_with(".tmp") {
                 let _ = std::fs::remove_file(entry.path());
             }
+        }
+    }
+
+    /// `recover` for the text of an untitled document: the images its text links to are copied
+    /// into `recovered/assets/` first (a taken name gets `-2`, and its link is updated), so the
+    /// recovered file's `assets/…` links resolve beside it. Closing the document removes its draft
+    /// folder afterwards, which is why they cannot stay there. The text is never lost for the sake
+    /// of its pictures: if they cannot be copied, the text is recovered as it is.
+    pub(crate) fn recover_with_images(
+        &self,
+        state: &AppState,
+        name: &str,
+        text: &str,
+        untitled: Option<u32>,
+    ) -> Result<PathBuf, AppError> {
+        let Some(number) = untitled else {
+            return self.recover(name, text);
+        };
+        let folder = self.dir.join(RECOVERED);
+        std::fs::create_dir_all(&folder)?;
+        let copied = std::fs::canonicalize(&folder)
+            .map_err(AppError::from)
+            .and_then(|resolved| {
+                drafts::adopt(state.drafts(), number, text, &resolved, state.ignore_case())
+            });
+        match copied {
+            Ok(adopted) => self.recover(name, &adopted.text).inspect_err(|_| {
+                take_back(&adopted.created);
+            }),
+            Err(_) => self.recover(name, text),
         }
     }
 
@@ -441,5 +472,56 @@ mod tests {
             "not-allowed",
             "the closed one stays closed"
         );
+    }
+
+    #[test]
+    fn draft_images_recovered_untitled_text_takes_its_images_along() {
+        const PNG: &[u8] = b"\x89PNG\r\n\x1a\n-pretend-pixels-";
+        let (keep, store) = store();
+        let state = AppState::new(false);
+        state.drafts().set_root(keep.path().join("drafts"));
+        let draft = state.drafts().ensure(3).expect("draft folder");
+        std::fs::create_dir_all(draft.join("assets")).expect("assets");
+        std::fs::write(draft.join("assets").join("image-20261113-153000.png"), PNG).expect("image");
+        std::fs::write(draft.join("assets").join("image-20261113-153001.png"), PNG)
+            .expect("unused");
+        let text = "![a](assets/image-20261113-153000.png)\n";
+
+        let path = store
+            .recover_with_images(&state, "Untitled-3", text, Some(3))
+            .expect("recovers");
+        assert_eq!(std::fs::read_to_string(&path).expect("readable"), text);
+        let assets = store.dir().join(RECOVERED).join("assets");
+        assert_eq!(
+            std::fs::read(assets.join("image-20261113-153000.png")).expect("copied"),
+            PNG
+        );
+        assert!(!assets.join("image-20261113-153001.png").exists());
+
+        // A second recovered text that links the same name gets its own copy and its link follows.
+        let again = store
+            .recover_with_images(&state, "Untitled-3", text, Some(3))
+            .expect("recovers");
+        assert_eq!(
+            std::fs::read_to_string(&again).expect("readable"),
+            "![a](assets/image-20261113-153000-2.png)\n"
+        );
+        assert!(assets.join("image-20261113-153000-2.png").is_file());
+    }
+
+    #[test]
+    fn draft_images_recovered_text_without_a_draft_is_kept_as_it_is() {
+        let (keep, store) = store();
+        let state = AppState::new(false);
+        state.drafts().set_root(keep.path().join("drafts"));
+        let text = "![a](assets/image-20261113-153000.png)\n";
+        let path = store
+            .recover_with_images(&state, "Untitled-9", text, Some(9))
+            .expect("recovers");
+        assert_eq!(std::fs::read_to_string(path).expect("readable"), text);
+        let plain = store
+            .recover_with_images(&state, "x", text, None)
+            .expect("recovers");
+        assert_eq!(std::fs::read_to_string(plain).expect("readable"), text);
     }
 }

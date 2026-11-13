@@ -430,16 +430,23 @@ pub(crate) async fn session_load(
 }
 
 /// Keeps text that could not be put back in a tab, in a file of its own. Returns where it went.
+/// `untitled` is the number of an untitled document whose text this is: the images it links to
+/// are kept with it.
 #[tauri::command]
 pub(crate) async fn session_recover(
     store: State<'_, Arc<SessionStore>>,
+    state: State<'_, Arc<AppState>>,
     name: String,
     text: String,
+    untitled: Option<u32>,
 ) -> Result<String, AppError> {
     let store = store.inner().clone();
-    let path = tauri::async_runtime::spawn_blocking(move || store.recover(&name, &text))
-        .await
-        .map_err(|error| AppError::Task(error.to_string()))??;
+    let state = state.inner().clone();
+    let path = tauri::async_runtime::spawn_blocking(move || {
+        store.recover_with_images(&state, &name, &text, untitled)
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))??;
     Ok(display_path(&path))
 }
 

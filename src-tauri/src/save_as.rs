@@ -318,12 +318,16 @@ mod tests {
         }
     }
 
+    /// A state with no draft folder, for tests that never save an untitled document.
     fn state() -> AppState {
+        AppState::new(false)
+    }
+
+    /// A state whose drafts live in `dir`, so no two tests share a folder. The root is set once per
+    /// state (it is a OnceLock), so set it here and nowhere else.
+    fn state_in(dir: &Path) -> AppState {
         let state = AppState::new(false);
-        // Nothing is ever written here; the tests that need a real draft folder set their own.
-        state
-            .drafts()
-            .set_root(std::env::temp_dir().join("mdmate-test-no-drafts"));
+        state.drafts().set_root(dir.join("drafts"));
         state
     }
 
@@ -352,7 +356,7 @@ mod tests {
     #[test]
     fn save_new_file_writes_utf8_with_lf_and_no_byte_order_mark() {
         let dir = temp();
-        let state = state();
+        let state = state_in(&dir.path);
         let id = state.documents().register_untitled();
         let target = dir.path.join("notes.md");
         let asked = RefCell::new(None);
@@ -405,7 +409,7 @@ mod tests {
     #[test]
     fn save_new_file_cleans_the_suggested_name_before_the_dialog_sees_it() {
         let dir = temp();
-        let state = state();
+        let state = state_in(&dir.path);
         let id = state.documents().register_untitled();
         let asked = RefCell::new(String::new());
         // A page that sends a name with folders and characters Windows forbids.
@@ -426,7 +430,7 @@ mod tests {
     #[test]
     fn save_new_file_writes_the_endings_it_is_given_and_never_a_stray_return() {
         let dir = temp();
-        let state = state();
+        let state = state_in(&dir.path);
         let id = state.documents().register_untitled();
         let target = dir.path.join("crlf.md");
         let endings = Endings {
@@ -443,7 +447,7 @@ mod tests {
     #[test]
     fn save_new_file_cancelled_changes_nothing() {
         let dir = temp();
-        let state = state();
+        let state = state_in(&dir.path);
         let id = state.documents().register_untitled();
         let answer = save_as(&state, id, &frame_for("text", &lf(), "x.md"), &|_| None)
             .expect("cancelling is not an error");
@@ -455,7 +459,7 @@ mod tests {
     #[test]
     fn save_new_file_adds_md_to_a_name_with_no_extension_and_never_replaces_a_file_for_it() {
         let dir = temp();
-        let state = state();
+        let state = state_in(&dir.path);
         let id = state.documents().register_untitled();
         let bare = dir.path.join("plain");
         save_as(&state, id, &frame_for("hello\n", &lf(), "x.md"), &|_| {
@@ -486,7 +490,7 @@ mod tests {
     #[test]
     fn save_new_file_refuses_a_file_that_is_open_in_another_tab() {
         let dir = temp();
-        let state = state();
+        let state = state_in(&dir.path);
         let taken = dir.path.join("taken.md");
         std::fs::write(&taken, b"mine\n").expect("written");
         let open_id = open(&state, &taken);
@@ -517,7 +521,7 @@ mod tests {
     #[test]
     fn save_as_original_stays_byte_for_byte_the_same() {
         let dir = temp();
-        let state = state();
+        let state = state_in(&dir.path);
         let original = dir.path.join("original.md");
         let bytes: &[u8] = b"\xEF\xBB\xBF# One\r\ntwo\nthree\r\n";
         std::fs::write(&original, bytes).expect("written");
@@ -551,7 +555,7 @@ mod tests {
     #[test]
     fn save_as_original_is_not_opened_again_when_the_copy_is_made_over_another_file() {
         let dir = temp();
-        let state = state();
+        let state = state_in(&dir.path);
         let original = dir.path.join("original.md");
         std::fs::write(&original, b"keep me\n").expect("written");
         let id = open(&state, &original);
@@ -569,7 +573,7 @@ mod tests {
     #[test]
     fn save_as_to_the_same_file_is_a_plain_save_and_guards_a_change_made_elsewhere() {
         let dir = temp();
-        let state = state();
+        let state = state_in(&dir.path);
         let file = dir.path.join("same.md");
         std::fs::write(&file, b"one\n").expect("written");
         let id = open(&state, &file);
@@ -596,7 +600,7 @@ mod tests {
     #[test]
     fn save_as_read_only_writes_utf8_and_makes_the_document_editable() {
         let dir = temp();
-        let state = state();
+        let state = state_in(&dir.path);
         // "café" in Latin-1: the é is one byte, 0xE9.
         let latin1 = dir.path.join("latin1.md");
         let bytes: &[u8] = b"caf\xE9\r\nna\xEFve\r\n";
@@ -638,7 +642,7 @@ mod tests {
     #[test]
     fn save_as_read_only_never_replaces_its_own_original() {
         let dir = temp();
-        let state = state();
+        let state = state_in(&dir.path);
         let latin1 = dir.path.join("latin1.md");
         let bytes: &[u8] = b"caf\xE9\n";
         std::fs::write(&latin1, bytes).expect("written");
@@ -657,7 +661,7 @@ mod tests {
     #[test]
     fn save_as_moves_the_watch_to_the_new_file() {
         let dir = temp();
-        let state = state();
+        let state = state_in(&dir.path);
         let original = dir.path.join("a.md");
         std::fs::write(&original, b"x\n").expect("written");
         let id = open(&state, &original);
@@ -712,8 +716,7 @@ mod tests {
 
     /// A state whose drafts live in `dir`, with an untitled document numbered `number`.
     fn with_draft(dir: &Path, number: u32) -> (AppState, u32) {
-        let state = AppState::new(false);
-        state.drafts().set_root(dir.join("drafts"));
+        let state = state_in(dir);
         let id = state
             .documents()
             .register_untitled_numbered(number)

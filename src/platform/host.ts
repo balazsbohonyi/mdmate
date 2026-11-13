@@ -259,8 +259,12 @@ export interface Host {
   loadSession(): Promise<string | null>
   /** Replaces the session snapshot on disk. Resolves once it is safely written. */
   writeSession(json: string): Promise<void>
-  /** Keeps text that could not be put back in a tab, in a file of its own. Resolves to where it went. */
-  recoverBuffer(name: string, text: string): Promise<string>
+  /**
+   * Keeps text that could not be put back in a tab, in a file of its own. Resolves to where it went.
+   * For the text of an untitled document, `untitled` is its number: the images its text links to
+   * are kept beside the file, since its draft folder goes when the document is closed.
+   */
+  recoverBuffer(name: string, text: string, untitled?: number): Promise<string>
   /**
    * Calls `onClose` when the user closes the window, instead of the window closing. The page then
    * writes the session and calls `quitApp`. Only one listener is live at a time.
