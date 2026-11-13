@@ -1,5 +1,5 @@
 import { shallowRef } from 'vue'
-import { describe, followerOfTab, openInActivePane, problem } from '@/documents/store'
+import { describe, followerOfTab, openInActivePane } from '@/documents/store'
 import { dirtyBuffers } from '@/features/links/rewrite'
 import { includeForFolder, scopeText } from './folderFilter'
 import { pathKey, samePath, workspaceRoots } from '@/features/tree/store'
@@ -13,6 +13,7 @@ import {
 import { focusActiveEditor, holdingEditorFocus } from '@/workbench/focus'
 import { seedQueryFromEditor } from '@/workbench/find'
 import { showSidebar } from '@/workbench/sidebar'
+import { reportError } from '@/shell/toasts'
 
 /**
  * Search in folders (Ctrl+Shift+F). The search is Rust's: it reads every text file in the open
@@ -284,7 +285,6 @@ let opening: Promise<void> = Promise.resolve()
  * `focusEditor` is for Enter and a double click, which mean "take me there".
  */
 export function openHit(hit: SearchHit, how: { focusEditor?: boolean } = {}): Promise<void> {
-  problem.value = null
   opening = opening.then(async () => {
     try {
       if (how.focusEditor === true) {
@@ -294,7 +294,7 @@ export function openHit(hit: SearchHit, how: { focusEditor?: boolean } = {}): Pr
         await holdingEditorFocus(() => reveal(hit))
       }
     } catch (error) {
-      problem.value = `Could not open ${hit.path}: ${describe(error)}`
+      reportError(`Could not open ${hit.path}: ${describe(error)}`)
     }
   })
   return opening

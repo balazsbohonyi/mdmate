@@ -102,8 +102,8 @@ export interface DocumentOptions {
    * the file's own place when it is inside the workspace folder and a copy in `assets` when not.
    */
   readonly dropImage?: (path: string, stamp: string) => Promise<string>
-  /** Shows the user a message about something that did not work. */
-  readonly notify?: (message: string) => void
+  /** Shows the user a message about something that did not work: a warning for a refusal, an error for a failure. */
+  readonly notify?: (message: string, level: 'warning' | 'error') => void
   /** Says which link targets are missing files, for the broken-link style. Without it, none is drawn. */
   readonly checkLinks?: (hrefs: readonly string[]) => Promise<readonly boolean[]>
 }

@@ -1,5 +1,5 @@
 import { computed, shallowReactive, shallowRef, watch } from 'vue'
-import { describe, openInActivePane, problem, provideImageBoundary } from '@/documents/store'
+import { describe, openInActivePane, provideImageBoundary } from '@/documents/store'
 import { watchIndexStatus } from '@/features/index/status'
 import { getHost } from '@/platform'
 import { focusActiveEditor, holdingEditorFocus } from '@/workbench/focus'
@@ -13,6 +13,7 @@ import {
   type Place,
   type TreeRow,
 } from './model'
+import { reportError } from '@/shell/toasts'
 
 /**
  * The sidebar's state: the workspace roots, which folders are open and what each holds. Rust is the
@@ -348,13 +349,12 @@ function addRoot(path: string): void {
 
 /** Shows the folder dialog and adds the chosen folder as a workspace root. */
 export async function openFolderDialog(): Promise<void> {
-  problem.value = null
   try {
     const host = await getHost()
     const path = await host.openFolder()
     if (path !== null) addRoot(path)
   } catch (error) {
-    problem.value = `Could not open the folder: ${describe(error)}`
+    reportError(`Could not open the folder: ${describe(error)}`)
   }
 }
 
@@ -370,7 +370,7 @@ export async function addRootFromDrop(path: string): Promise<void> {
     const host = await getHost()
     addRoot(await host.addDroppedRoot(path))
   } catch (error) {
-    problem.value = `Could not add the folder: ${describe(error)}`
+    reportError(`Could not add the folder: ${describe(error)}`)
   }
 }
 
@@ -380,7 +380,7 @@ export async function removeRootFolder(path: string): Promise<void> {
     const host = await getHost()
     await host.removeRoot(path)
   } catch (error) {
-    problem.value = `Could not remove the folder: ${describe(error)}`
+    reportError(`Could not remove the folder: ${describe(error)}`)
     return
   }
   const wasSelectedHere = selectedRoot.value !== null && samePath(selectedRoot.value, path)
@@ -414,7 +414,7 @@ export function activateRow(row: TreeRow, how: { focusEditor?: boolean } = {}): 
         await holdingEditorFocus(() => openInActivePane(path))
       }
     } catch (error) {
-      problem.value = `Could not open ${path}: ${describe(error)}`
+      reportError(`Could not open ${path}: ${describe(error)}`)
     }
   })
   return opening
@@ -516,7 +516,7 @@ export async function restoreWorkspace(
   expanded.value = next
   for (const path of new Set([...next.values()].map((place) => place.path))) void loadFolder(path)
   await subscribe().catch((error: unknown) => {
-    problem.value = `Could not watch the folders for changes: ${describe(error)}`
+    reportError(`Could not watch the folders for changes: ${describe(error)}`)
   })
 }
 

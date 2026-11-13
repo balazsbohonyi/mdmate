@@ -1,4 +1,4 @@
-import { describe, openPath, problem } from '@/documents/store'
+import { describe, openPath } from '@/documents/store'
 import { dropPosition, insertDropped } from '@/editor/imagePaste'
 import { getHost, type Point } from '@/platform'
 import { EditorView } from '@codemirror/view'
@@ -6,6 +6,7 @@ import type { PaneId } from '@/workbench/splitTree'
 import { parentPath } from './tree/model'
 import { copyDropInto } from './tree/ops'
 import { addRootFromDrop } from './tree/store'
+import { reportError } from '@/shell/toasts'
 
 /**
  * What a file or folder dragged in from Explorer does, decided by where it lands. The OS reports
@@ -61,7 +62,7 @@ async function openDropped(
     try {
       await openPath(item.path, pane)
     } catch (error) {
-      problem.value = `Could not open ${item.path}: ${describe(error)}`
+      reportError(`Could not open ${item.path}: ${describe(error)}`)
     }
   }
 }
@@ -99,7 +100,7 @@ export async function handleDrop(paths: readonly string[], position: Point): Pro
       )
     }
   } catch (error) {
-    problem.value = `Could not use the dropped files: ${describe(error)}`
+    reportError(`Could not use the dropped files: ${describe(error)}`)
   }
 }
 

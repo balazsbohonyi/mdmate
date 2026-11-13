@@ -14,7 +14,6 @@ import {
   documentOfTab,
   followerOfTab,
   openPath,
-  problem,
   requestCloseTab,
   resetDocuments,
   resolvePendingClose,
@@ -42,6 +41,7 @@ import {
   tabRecord,
   workbenchLayout,
 } from '@/workbench/store'
+import { toasts } from '../helpers/toasts'
 
 const A = 'C:/notes/a.md'
 const B = 'C:/notes/b.md'
@@ -535,7 +535,7 @@ describe('closing the app', () => {
     expect(JSON.parse(host.session ?? '{}')).toMatchObject({
       buffers: [{ path: A, text: 'typed a moment ago# A\n\nfirst\n' }],
     })
-    expect(problem.value).toBeNull()
+    expect(toasts.last).toBeNull()
   })
 
   it('ends even when the write fails', async () => {

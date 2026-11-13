@@ -8,7 +8,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick, watch as watchRef, type App } from 'vue'
 import { tooltipApp } from '../helpers/tooltips'
-import { documentOfTab, openPath, problem, resetDocuments } from '@/documents/store'
+import { documentOfTab, openPath, resetDocuments } from '@/documents/store'
 import RewriteBanner from '@/features/links/RewriteBanner.vue'
 import {
   answerRewrite,
@@ -75,7 +75,6 @@ beforeEach(() => {
   resetDocuments()
   resetWorkbench()
   resetSettings()
-  problem.value = null
   rewriteState.value = null
   phases = []
   stopWatching = watchRef(

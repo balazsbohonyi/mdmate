@@ -10,7 +10,7 @@ import { undo } from '@codemirror/commands'
 import { EditorSelection, EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { documentOfTab, followerOfTab, openPath, problem, resetDocuments } from '@/documents/store'
+import { documentOfTab, followerOfTab, openPath, resetDocuments } from '@/documents/store'
 import { newUntitledTab, resetUntitled } from '@/documents/untitled'
 import { createState, createView } from '@/editor/create'
 import { imageSink, insertDropped, type ImageSink } from '@/editor/imagePaste'
@@ -20,6 +20,7 @@ import { resetTree, restoreWorkspace } from '@/features/tree/store'
 import { setHost } from '@/platform'
 import { createMockHost, type MockHost } from '@/platform/mock'
 import { imageTabs, resetWorkbench, workbenchLayout } from '@/workbench/store'
+import { toasts } from '../helpers/toasts'
 
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 async function flush(): Promise<void> {
@@ -45,14 +46,21 @@ afterEach(() => {
 })
 
 describe('the links a drop inserts, in a view (ISC-156)', () => {
-  function sink(overrides: Partial<ImageSink> = {}): ImageSink & { notes: string[] } {
+  function sink(
+    overrides: Partial<ImageSink> = {},
+  ): ImageSink & { notes: string[]; levels: string[] } {
     const notes: string[] = []
+    const levels: string[] = []
     return {
       refusal: () => null,
       save: () => Promise.reject(new Error('not a paste')),
       drop: (path) => Promise.resolve(`pics/${path.split('/').pop() ?? ''}`),
-      notify: (message) => notes.push(message),
+      notify: (message, level) => {
+        notes.push(message)
+        levels.push(level)
+      },
       notes,
+      levels,
       ...overrides,
     }
   }
@@ -100,8 +108,31 @@ describe('the links a drop inserts, in a view (ISC-156)', () => {
     })
     const view = viewOf('x', 0, taking)
     await insertDropped(view, ['/in/bad.png', '/in/good.png'], 1)
-    expect(taking.notes).toEqual(['Could not add the image: not an image'])
+    // A refusal names the file and is a warning.
+    expect(taking.notes).toEqual(['bad.png: not an image'])
+    expect(taking.levels).toEqual(['warning'])
     expect(view.state.doc.toString()).toBe('x![](ok.png)')
+  })
+
+  it('gives each refused file its own warning, and a failure of the disk an error', async () => {
+    const taking = sink({
+      drop: (path) =>
+        // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- Tauri rejects with a plain { kind, message } object, not an Error
+        Promise.reject(
+          path.endsWith('.svg')
+            ? { kind: 'invalid', message: 'invalid request: not a PNG, JPEG, GIF or WebP image' }
+            : { kind: 'io', message: 'the disk is full' },
+        ),
+    })
+    const view = viewOf('x', 0, taking)
+    await insertDropped(view, ['C:\\in\\cat.svg', '/in/note.txt', '/in/big.png'], 1)
+    expect(taking.notes).toEqual([
+      'cat.svg: not a PNG, JPEG, GIF or WebP image',
+      'Could not add note.txt: the disk is full',
+      'Could not add big.png: the disk is full',
+    ])
+    expect(taking.levels).toEqual(['warning', 'error', 'error'])
+    expect(view.state.doc.toString()).toBe('x')
   })
 
   it('says so and inserts nothing when the document refuses, and the drop is still handled', async () => {
@@ -152,7 +183,6 @@ describe('a picture dropped onto a document from Explorer (ISC-156, ISC-328, ISC
     resetDocuments()
     resetUntitled()
     resetTree()
-    problem.value = null
     await restoreWorkspace([])
     await installFileDrop()
     document.elementFromPoint = () => hit
@@ -279,7 +309,7 @@ describe('a picture dropped onto a document from Explorer (ISC-156, ISC-328, ISC
     if (tab === null) throw new Error('no tab')
     const view = viewOfTab(tab, 0)
     await dropOnText(view, ['C:/ws/notes/pic.png'])
-    expect(problem.value).toBeNull()
+    expect(toasts.last).toBeNull()
     expect(host.copiedImages).toHaveLength(1)
     expect(host.copiedImages[0]).toBe('/mock-data/drafts/1/assets/pic.png')
     expect(view.state.doc.toString()).toBe('![](assets/pic.png)')

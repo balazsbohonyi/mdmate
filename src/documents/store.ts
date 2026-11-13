@@ -21,6 +21,7 @@ import { Document } from './document'
 import type { Follower } from './follower'
 import { clearDocMeta, docMeta, patchDocMeta, removeDocMeta, setDocMeta } from './meta'
 import { suggestedFileName } from './suggest'
+import { reportError, reportWarning } from '@/shell/toasts'
 
 /**
  * The open documents. Several tabs can show one document; the document lives until its last tab
@@ -111,9 +112,6 @@ export function activeDocument(): Document | undefined {
   const tab = findPane(layout, layout.activePane)?.activeTab
   return tab === null || tab === undefined ? undefined : documentOfTab(tab)
 }
-
-/** A message about the last thing the user tried that did not work, for the status bar. */
-export const problem = shallowRef<string | null>(null)
 
 let linkFollower: ((tabId: TabId, href: string) => void) | undefined
 
@@ -207,8 +205,9 @@ function documentOptions(
     checkLinks: (hrefs) => host.checkLinks(id, hrefs),
     saveImage: async (bytes, stamp) => (await host.savePastedImage(id, bytes, stamp)).link,
     dropImage: async (path, stamp) => (await host.dropImage(id, path, stamp)).link,
-    notify: (message) => {
-      problem.value = message
+    notify: (message, level) => {
+      if (level === 'warning') reportWarning(message)
+      else reportError(message)
     },
     ...(untitledNumber === undefined ? {} : { untitledNumber }),
     ...(draftFolder === undefined ? {} : { draftFolder }),
@@ -342,9 +341,8 @@ export function openInActivePane(path: string): Promise<TabId> {
   return openPath(path, workbenchLayout.value.activePane)
 }
 
-/** Shows the open dialog and opens what the user chose. Failures go to `problem`. */
+/** Shows the open dialog and opens what the user chose. Failures show as a toast. */
 export async function openFromDialog(): Promise<void> {
-  problem.value = null
   try {
     const host = await getHost()
     for (const path of await host.pickFiles()) {
@@ -352,11 +350,11 @@ export async function openFromDialog(): Promise<void> {
         await openInActivePane(path)
         focusActiveEditor()
       } catch (error) {
-        problem.value = `Could not open ${path}: ${describe(error)}`
+        reportError(`Could not open ${path}: ${describe(error)}`)
       }
     }
   } catch (error) {
-    problem.value = `Could not show the open dialog: ${describe(error)}`
+    reportError(`Could not show the open dialog: ${describe(error)}`)
   }
 }
 
@@ -501,7 +499,7 @@ function raiseConflict(doc: Document): void {
 }
 
 function reportSyncFailure(doc: Document, error: unknown): void {
-  problem.value = `Could not read ${doc.name} after it changed on disk: ${describe(error)}`
+  reportError(`Could not read ${doc.name} after it changed on disk: ${describe(error)}`)
 }
 
 async function syncFromDisk(doc: Document): Promise<void> {
@@ -567,7 +565,7 @@ export async function watchDisk(): Promise<void> {
     watchMissing()
   } catch (error) {
     // Saving still refuses to overwrite a changed file, so this costs the live reload, not data.
-    problem.value = `Could not watch open files for changes: ${describe(error)}`
+    reportError(`Could not watch open files for changes: ${describe(error)}`)
   }
 }
 
@@ -723,7 +721,7 @@ export async function requestRevert(): Promise<void> {
   // The file may have gone since the last look; Revert has nothing to reload then.
   await refreshMissing(doc.id)
   if (docMeta(doc.id)?.missing === true) {
-    problem.value = `${doc.name} is no longer on disk, so there is nothing to revert to.`
+    reportWarning(`${doc.name} is no longer on disk, so there is nothing to revert to.`)
     return
   }
   pendingRevert.value = { tabId, docId: doc.id }
@@ -745,7 +743,7 @@ export async function resolvePendingRevert(choice: 'revert' | 'cancel'): Promise
     patchDocMeta(doc.id, { conflict: null, saveError: null, missing: false })
   } catch (error) {
     if (errorKind(error) === 'not-found') patchDocMeta(doc.id, { missing: true })
-    problem.value = `Could not revert ${doc.name}: ${describe(error)}`
+    reportError(`Could not revert ${doc.name}: ${describe(error)}`)
   }
 }
 
@@ -802,5 +800,4 @@ export function resetDocuments(): void {
   closeWaiter = undefined
   pendingRevert.value = null
   lastFolder = null
-  problem.value = null
 }

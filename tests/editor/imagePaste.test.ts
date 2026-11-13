@@ -8,7 +8,7 @@ import { ensureSyntaxTree } from '@codemirror/language'
 import { EditorSelection, EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { documentOfTab, followerOfTab, openPath, problem, resetDocuments } from '@/documents/store'
+import { documentOfTab, followerOfTab, openPath, resetDocuments } from '@/documents/store'
 import { newUntitledTab, resetUntitled } from '@/documents/untitled'
 import { createState, createView } from '@/editor/create'
 import {
@@ -24,6 +24,7 @@ import { resetTree } from '@/features/tree/store'
 import { setHost } from '@/platform'
 import { createMockHost, type MockHost } from '@/platform/mock'
 import { resetWorkbench, workbenchLayout } from '@/workbench/store'
+import { toasts } from '../helpers/toasts'
 
 const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4])
 /** Another picture: the same bytes are the same picture. */
@@ -318,7 +319,6 @@ describe('a paste of a picture into a document (ISC-154, ISC-155, ISC-327)', () 
     resetDocuments()
     resetUntitled()
     resetTree()
-    problem.value = null
   })
 
   afterEach(() => {
@@ -412,7 +412,7 @@ describe('a paste of a picture into a document (ISC-154, ISC-155, ISC-327)', () 
     await vi.waitFor(() =>
       expect(view.state.doc.toString()).toMatch(/^!\[\]\(assets\/image-\d{8}-\d{6}\.png\)$/),
     )
-    expect(problem.value).toBeNull()
+    expect(toasts.last).toBeNull()
   })
 
   it('tells the user when the host refuses the bytes, and leaves the text alone', async () => {
@@ -420,7 +420,7 @@ describe('a paste of a picture into a document (ISC-154, ISC-155, ISC-327)', () 
     const view = viewOfTab(tab)
     // Something that is not a picture, under an image type: the host looks at the bytes.
     paste(view, clipboard([file(new Uint8Array([1, 2, 3]), 'fake.png')]))
-    await vi.waitFor(() => expect(problem.value).toContain('Could not save the image'))
+    await vi.waitFor(() => expect(toasts.last).toContain('Could not save the image'))
     expect(host.pastedImages).toHaveLength(0)
     expect(view.state.doc.toString()).toBe('hello\n')
   })

@@ -1,8 +1,9 @@
 import { shallowRef } from 'vue'
-import { describe, followerOfTab, openPath, problem } from '@/documents/store'
+import { describe, followerOfTab, openPath } from '@/documents/store'
 import { dirtyBuffers } from '@/features/links/rewrite'
 import { getHost, type Reference, type ReferencesFound } from '@/platform'
 import { showSidebar } from '@/workbench/sidebar'
+import { reportError } from '@/shell/toasts'
 
 /**
  * Find File References: the links that lead to one file, listed in the sidebar. The search is
@@ -49,7 +50,6 @@ export function closeReferences(): void {
 
 /** Opens the file a reference is in and puts the caret on its link. */
 export async function openReference(reference: Reference): Promise<void> {
-  problem.value = null
   try {
     const tab = await openPath(reference.path)
     const follower = followerOfTab(tab)
@@ -58,7 +58,7 @@ export async function openReference(reference: Reference): Promise<void> {
     const line = doc.line(Math.min(Math.max(reference.line, 1), doc.lines))
     follower.reveal(line.from + Math.min(reference.column, line.length))
   } catch (error) {
-    problem.value = `Could not open ${reference.path}: ${describe(error)}`
+    reportError(`Could not open ${reference.path}: ${describe(error)}`)
   }
 }
 

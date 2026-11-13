@@ -12,7 +12,6 @@ import {
   followerOfTab,
   openPath,
   pendingClose,
-  problem,
   resetDocuments,
   resolvePendingClose,
 } from '@/documents/store'
@@ -63,6 +62,7 @@ import {
   splitActivePane,
   workbenchLayout,
 } from '@/workbench/store'
+import { toasts } from '../helpers/toasts'
 
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
@@ -116,7 +116,6 @@ beforeEach(() => {
   resetUntitled()
   resetSidebar()
   resetReferences()
-  problem.value = null
 })
 
 afterEach(() => {
@@ -339,12 +338,11 @@ describe('Copy Path (ISC-214)', () => {
     expect(host.clipboard).toEqual([])
   })
 
-  it('clears an older message when a copy works', async () => {
+  it('reports nothing when a copy works', async () => {
     await start()
     const a = await openPath('/work/a.md')
-    problem.value = 'an older problem'
     await copyTabPath(a)
-    expect(problem.value).toBeNull()
+    expect(toasts.last).toBeNull()
   })
 
   it('says so when the clipboard refuses', async () => {
@@ -352,7 +350,7 @@ describe('Copy Path (ISC-214)', () => {
     const a = await openPath('/work/a.md')
     host.writeClipboard = () => Promise.reject(new Error('no clipboard here'))
     await copyTabPath(a)
-    expect(problem.value).toContain('no clipboard here')
+    expect(toasts.last).toContain('no clipboard here')
   })
 })
 
@@ -504,7 +502,7 @@ describe('Rename and Find File References from the menu', () => {
     expect(tabMenuState(outside).canRename).toBe(false)
     await renameTab(outside)
     expect(naming.value).toBeNull()
-    expect(problem.value).toBe(RENAME_OUTSIDE_FOLDER)
+    expect(toasts.last).toBe(RENAME_OUTSIDE_FOLDER)
   })
 
   it('Find File References lists the links to a tab that is in the background', async () => {
@@ -625,7 +623,7 @@ describe('why Rename is off (ISC-220)', () => {
     await start()
     const outside = await openPath('/outside/o.md')
     await renameTab(outside)
-    expect(problem.value).toBe(RENAME_OUTSIDE_FOLDER)
+    expect(toasts.last).toBe(RENAME_OUTSIDE_FOLDER)
   })
 })
 

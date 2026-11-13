@@ -4,7 +4,7 @@ import { Text } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { followLinkFrom, jumpToFragment, pendingLink, resolvePendingLink } from '@/documents/links'
-import { documentOfTab, followerOfTab, openPath, problem, resetDocuments } from '@/documents/store'
+import { documentOfTab, followerOfTab, openPath, resetDocuments } from '@/documents/store'
 import { createState } from '@/editor/create'
 import { findAnchor, githubSlug, headingAnchors, headingText } from '@/editor/headingSlug'
 import { isFollowGesture, linkAt, linkNavigation, type LinkHit } from '@/editor/links'
@@ -12,6 +12,7 @@ import { setHost } from '@/platform'
 import { createMockHost, type MockHost } from '@/platform/mock'
 import { findPane, panesOf } from '@/workbench/splitTree'
 import { resetWorkbench, workbenchLayout } from '@/workbench/store'
+import { toasts } from '../helpers/toasts'
 
 beforeAll(() => {
   // jsdom has no layout; CodeMirror's mouse handling asks ranges for their boxes.
@@ -196,7 +197,6 @@ describe('following links through the store', () => {
     setHost(host)
     resetWorkbench()
     resetDocuments()
-    problem.value = null
     pendingLink.value = null
   })
   afterEach(() => {
@@ -264,11 +264,11 @@ describe('following links through the store', () => {
   it('reports a refused, a missing and a heading-less target and changes nothing', async () => {
     const a = await openPath('C:/notes/a.md')
     await followLinkFrom(a, 'javascript:alert(1)')
-    expect(problem.value).toContain('cannot be followed')
+    expect(toasts.last).toContain('cannot be followed')
     await followLinkFrom(a, 'gone.md')
-    expect(problem.value).toContain('not found')
+    expect(toasts.last).toContain('not found')
     expect(jumpToFragment(a, 'nowhere')).toBe(false)
-    expect(problem.value).toContain('#nowhere')
+    expect(toasts.last).toContain('#nowhere')
     expect(tabCount()).toBe(1)
     expect(host.opened).toEqual([])
   })

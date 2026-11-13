@@ -1,6 +1,6 @@
 import type { Text } from '@codemirror/state'
 import { shallowRef, watch } from 'vue'
-import { describe, followerOfTab, activeDocument, problem, watchDocuments } from '@/documents/store'
+import { describe, followerOfTab, activeDocument, watchDocuments } from '@/documents/store'
 import { getHost, type OutlineHeading, type OutlineRequest } from '@/platform'
 import { focusActiveEditor, holdingEditorFocus } from '@/workbench/focus'
 import { showSidebar } from '@/workbench/sidebar'
@@ -162,7 +162,6 @@ export async function openHeading(
 ): Promise<void> {
   const heading = outlineState.value.headings[index]
   if (heading === undefined) return
-  problem.value = null
   if (how.focusEditor === true) {
     reveal(heading)
     focusActiveEditor()

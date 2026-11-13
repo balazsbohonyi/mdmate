@@ -6,7 +6,7 @@ import {
   recentLists,
   refreshRecent,
 } from '@/documents/recent'
-import { openPath, problem, resetDocuments } from '@/documents/store'
+import { openPath, resetDocuments } from '@/documents/store'
 import { restoreSession, resetSession, flushSession } from '@/documents/session'
 import { resetTree, workspaceRoots } from '@/features/tree/store'
 import { setHost } from '@/platform'
@@ -16,6 +16,7 @@ import { clearCommands } from '@/workbench/commands'
 import { registerDefaultCommands } from '@/workbench/defaultCommands'
 import { allTabs } from '@/workbench/splitTree'
 import { resetWorkbench, workbenchLayout } from '@/workbench/store'
+import { toasts } from '../helpers/toasts'
 
 const FILES: Record<string, string> = {
   'C:/notes/a.md': 'a\n',
@@ -80,13 +81,13 @@ describe('Open Recent', () => {
     resetDocuments()
     await openRecentFile('C:/notes/a.md')
     expect(allTabs(workbenchLayout.value)).toHaveLength(1)
-    expect(problem.value).toBeNull()
+    expect(toasts.last).toBeNull()
   })
 
   it('refuses a path that is not on the list and says so', async () => {
     await openRecentFile('C:/work/docs/c.md')
     expect(allTabs(workbenchLayout.value)).toEqual([])
-    expect(problem.value).toMatch(/Could not open/)
+    expect(toasts.last).toMatch(/Could not open/)
   })
 
   it('drops a file that is gone when the list is read again', async () => {

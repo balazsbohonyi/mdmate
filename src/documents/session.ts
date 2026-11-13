@@ -31,9 +31,9 @@ import {
   documentById,
   onDocumentsTouched,
   openDocument,
-  problem,
 } from './store'
 import { noteUntitledNumber } from './untitled'
+import { reportError, reportWarning } from '@/shell/toasts'
 
 /**
  * Hot exit, page side. The session is one JSON snapshot: the layout, each tab's file and caret, and
@@ -275,7 +275,9 @@ export async function startJournal(options: JournalOptions = {}): Promise<void> 
     })
   } catch (error) {
     // Without it a close still works, but only the last interval's edits are kept.
-    problem.value = `Could not watch for the window closing: ${error instanceof Error ? error.message : JSON.stringify(error)}`
+    reportError(
+      `Could not watch for the window closing: ${error instanceof Error ? error.message : JSON.stringify(error)}`,
+    )
   }
 }
 
@@ -454,7 +456,9 @@ export async function restoreSession(): Promise<RestoreReport | null> {
   setSidebarWidth(snapshot?.sidebarWidth ?? null, currentWindowWidth())
   await restoreWorkspace(snapshot?.expanded ?? [], snapshot?.places ?? undefined).catch(
     (error: unknown) => {
-      problem.value = `Could not restore the workspace: ${error instanceof Error ? error.message : JSON.stringify(error)}`
+      reportError(
+        `Could not restore the workspace: ${error instanceof Error ? error.message : JSON.stringify(error)}`,
+      )
     },
   )
   if (text === null) return null
@@ -681,17 +685,19 @@ async function sweepDraftsAfter(report: RestoreReport | null): Promise<void> {
   }
 }
 
-/** Restores the last session before the first paint. It never fails startup: a problem becomes a notice. */
+/** Restores the last session before the first paint. It never fails startup: a problem becomes a toast. */
 export async function restoreOnStart(): Promise<RestoreReport | null> {
   performance.mark('restore-start')
   try {
     const report = await restoreSession()
     performance.mark('restore-end')
-    if (report !== null && report.notices.length > 0) problem.value = report.notices.join(' ')
+    if (report !== null && report.notices.length > 0) reportWarning(report.notices.join(' '))
     await sweepDraftsAfter(report)
     return report
   } catch (error) {
-    problem.value = `Could not restore the last session: ${error instanceof Error ? error.message : JSON.stringify(error)}`
+    reportError(
+      `Could not restore the last session: ${error instanceof Error ? error.message : JSON.stringify(error)}`,
+    )
     return null
   }
 }

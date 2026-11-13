@@ -1,15 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { problem } from '@/documents/store'
 import { indexCutNote, indexStatus } from '@/features/index/status'
 import { findCounts } from '@/workbench/find'
 import { workbenchLayout } from '@/workbench/store'
 
-// A message wins; else the match count of the find bar in the focused pane, when one is open; else
-// the note about a folder too big to index whole.
+// The match count of the find bar in the focused pane, when one is open; else the note about a
+// folder too big to index whole. Things that went wrong are toasts (shell/toasts.ts).
 const text = computed(
-  () =>
-    problem.value ?? findCounts.get(workbenchLayout.value.activePane) ?? (indexCutNote.value || ''),
+  () => findCounts.get(workbenchLayout.value.activePane) ?? (indexCutNote.value || ''),
 )
 </script>
 

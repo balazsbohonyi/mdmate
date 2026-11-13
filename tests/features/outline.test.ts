@@ -13,7 +13,6 @@ import {
   activeDocument,
   followerOfTab,
   openPath,
-  problem,
   resetDocuments,
   saveDocument,
 } from '@/documents/store'
@@ -164,7 +163,6 @@ beforeEach(() => {
   resetFind()
   clearCommands()
   removeCommands = registerDefaultCommands()
-  problem.value = null
 })
 
 afterEach(() => {

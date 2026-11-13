@@ -8,7 +8,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick, type App, type Component } from 'vue'
 import { tooltipApp } from '../helpers/tooltips'
-import { problem, resetDocuments } from '@/documents/store'
+import { resetDocuments } from '@/documents/store'
 import { handleDrop, installFileDrop } from '@/features/drop'
 import CopyBanner from '@/features/tree/CopyBanner.vue'
 import { answerClash, cancelCopy, copyDropInto, copyPrompt } from '@/features/tree/ops'
@@ -22,6 +22,7 @@ import {
 import { setHost } from '@/platform'
 import { createMockHost, type MockHost } from '@/platform/mock'
 import { resetWorkbench } from '@/workbench/store'
+import { toasts } from '../helpers/toasts'
 
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 async function flush(): Promise<void> {
@@ -94,7 +95,6 @@ beforeEach(() => {
   resetTree()
   resetDocuments()
   resetWorkbench()
-  problem.value = null
   copyPrompt.value = null
 })
 
@@ -121,7 +121,7 @@ describe('dropping files on a folder of the tree (ISC-197)', () => {
     expect(names()).toContain('    new.md')
     expect(selectedPath.value).toBe('/work/dest/new.md')
     expect(host.openDocuments().size).toBe(0)
-    expect(problem.value).toBeNull()
+    expect(toasts.last).toBeNull()
   })
 
   it('copies several at once', async () => {
@@ -151,7 +151,7 @@ describe('dropping files on a folder of the tree (ISC-197)', () => {
     await handleDrop(['/elsewhere/never.md'], { x: 5, y: 5 })
     await copyDropInto('/work/dest', ['/elsewhere/never.md'])
     expect(host.files.has('/work/dest/never.md')).toBe(false)
-    expect(problem.value).toContain('not allowed')
+    expect(toasts.last).toContain('not allowed')
   })
 
   it('refuses a folder outside the workspace as the place to copy to', async () => {
@@ -160,7 +160,7 @@ describe('dropping files on a folder of the tree (ISC-197)', () => {
     await flush()
     await copyDropInto('/outside/tree', ['/outside/new.md'])
     expect(host.files.has('/outside/tree/new.md')).toBe(false)
-    expect(problem.value).toContain('not allowed')
+    expect(toasts.last).toContain('not allowed')
   })
 })
 
@@ -279,7 +279,7 @@ describe('a name that is taken (ISC-199)', () => {
     await dropOn(treeRow('/work', 'root'), ['/outside/tree'])
     expect(copyPrompt.value).toBe(before)
     expect(host.files.has('/work/tree/one.md')).toBe(false)
-    expect(problem.value).toContain('earlier drop')
+    expect(toasts.last).toContain('earlier drop')
   })
 
   it('copying a file onto itself keeps both, never replaces', async () => {
@@ -299,7 +299,7 @@ describe('a name that is taken (ISC-199)', () => {
     await dropOn(treeRow('/work/dest', 'folder'), ['/outside/sub'])
     await answerClash('replace')
     await flush()
-    expect(problem.value).toContain('cannot replace each other')
+    expect(toasts.last).toContain('cannot replace each other')
     expect(host.files.read('/work/dest/sub/inner.md')).toBe('inner')
     expect(host.recycled).toEqual([])
   })

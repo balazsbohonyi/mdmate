@@ -6,7 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { nextTick, type App } from 'vue'
 import { tooltipApp } from '../helpers/tooltips'
-import { problem, resetDocuments } from '@/documents/store'
+import { resetDocuments } from '@/documents/store'
 import { referencesState, resetReferences } from '@/features/references/store'
 import { resetSearch, searchOptions, filtersOpen } from '@/features/search/store'
 import FileTree from '@/features/tree/FileTree.vue'
@@ -36,7 +36,6 @@ beforeEach(async () => {
   resetReferences()
   resetSearch()
   resetSidebar()
-  problem.value = null
   removeCommands = registerDefaultCommands()
   host = createMockHost({
     files: { '/work/notes/a.md': '# a\n', '/work/readme.md': '# readme\n' },
@@ -84,6 +83,7 @@ function choose(name: string): void {
 }
 
 import { setSearchOptions } from '@/features/search/store'
+import { toasts } from '../helpers/toasts'
 const setSearchQuery = (query: string): void => {
   setSearchOptions({ query })
 }
@@ -264,6 +264,6 @@ describe('what the items do', () => {
     host.files.remove('/work/notes')
     choose('Open Folder')
     await flush()
-    expect(problem.value).toContain('Could not open notes')
+    expect(toasts.last).toContain('Could not open notes')
   })
 })

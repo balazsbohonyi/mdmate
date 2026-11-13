@@ -7,6 +7,9 @@
 import { Facet } from '@codemirror/state'
 import type { EditorView } from '@codemirror/view'
 
+/** How a notice reads: a refusal the user can fix by choosing another file is a warning, a failure an error. */
+export type NoticeLevel = 'warning' | 'error'
+
 /** What the editor needs from the app to take an image into a document. */
 export interface ImageSink {
   /** The notice to show instead of saving, or null when this document can take an image now. */
@@ -15,8 +18,8 @@ export interface ImageSink {
   save(bytes: ArrayBuffer): Promise<string>
   /** Handles a dropped file (a path a native drop delivered) and resolves to the path to write. */
   drop(path: string): Promise<string>
-  /** Tells the user about something that did not work, or was refused. */
-  notify(message: string): void
+  /** Tells the user about something that did not work (`error`) or was refused (`warning`). */
+  notify(message: string, level: NoticeLevel): void
 }
 
 /** Provided per tab. Without it a paste of an image is an ordinary paste. */
@@ -96,23 +99,41 @@ export async function insertImages(
 ): Promise<void> {
   const refusal = sink.refusal()
   if (refusal !== null) {
-    sink.notify(refusal)
+    sink.notify(refusal, 'warning')
     return
   }
   const saved: string[] = []
   try {
     for (const file of files) saved.push(await sink.save(await file.arrayBuffer()))
   } catch (error) {
-    sink.notify(`Could not save the image: ${reasonOf(error)}`)
+    sink.notify(`Could not save the image: ${reasonOf(error)}`, levelOf(error))
   }
   if (saved.length === 0) return
   insertLinks(view, sink, saved)
 }
 
+/**
+ * A host error that says the file is not one the app takes (not a picture, too large, outside what
+ * it may read) is a warning; anything else, a disk that failed for instance, is an error.
+ */
+function levelOf(error: unknown): NoticeLevel {
+  const kind =
+    typeof error === 'object' && error !== null && 'kind' in error ? error.kind : undefined
+  return kind === 'invalid' || kind === 'not-allowed' ? 'warning' : 'error'
+}
+
+/** The last part of a path, for a message that names the file. */
+function nameOf(path: string): string {
+  return path.split(/[\\/]/).pop() ?? path
+}
+
 function reasonOf(error: unknown): string {
-  return typeof error === 'object' && error !== null && 'message' in error
-    ? String(error.message)
-    : String(error)
+  const text =
+    typeof error === 'object' && error !== null && 'message' in error
+      ? String(error.message)
+      : String(error)
+  // Rust words a refusal "invalid request: <why>"; the user wants the why.
+  return text.replace(/^invalid request: /, '')
 }
 
 /** Where a drop at `point` (page pixels) lands in the text of `view`, or null outside its text. */
@@ -136,7 +157,7 @@ export async function insertDropped(
   if (sink === null || view.state.readOnly) return false
   const refusal = sink.refusal()
   if (refusal !== null) {
-    sink.notify(refusal)
+    sink.notify(refusal, 'warning')
     return true
   }
   const links: string[] = []
@@ -144,7 +165,15 @@ export async function insertDropped(
     try {
       links.push(await sink.drop(path))
     } catch (error) {
-      sink.notify(`Could not add the image: ${reasonOf(error)}`)
+      // Every file that fails gets a message of its own, starting with its name.
+      const level = levelOf(error)
+      const reason = reasonOf(error)
+      sink.notify(
+        level === 'warning'
+          ? `${nameOf(path)}: ${reason}`
+          : `Could not add ${nameOf(path)}: ${reason}`,
+        level,
+      )
     }
   }
   if (links.length > 0) insertLinks(view, sink, links, at)
@@ -164,7 +193,10 @@ export function insertLinks(
   at?: number,
 ): void {
   if (view.state.facet(imageSink) !== sink || view.state.readOnly) {
-    sink.notify(`Saved ${paths.join(', ')}, but the document it was meant for is not showing`)
+    sink.notify(
+      `Saved ${paths.join(', ')}, but the document it was meant for is not showing`,
+      'warning',
+    )
     return
   }
   const insert = paths.map(imageMarkdown).join('\n')

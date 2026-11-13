@@ -8,7 +8,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { nextTick, type App } from 'vue'
 import { tooltipApp } from '../helpers/tooltips'
-import { problem, resetDocuments } from '@/documents/store'
+import { resetDocuments } from '@/documents/store'
 import {
   flatten,
   isMarkdownName,
@@ -41,6 +41,7 @@ import { setHost } from '@/platform'
 import { createMockHost, type MockHost } from '@/platform/mock'
 import { findPane } from '@/workbench/splitTree'
 import { resetWorkbench, tabRecord, workbenchLayout } from '@/workbench/store'
+import { toasts } from '../helpers/toasts'
 
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
@@ -382,7 +383,7 @@ describe('roots (ISC-97, ISC-192, ISC-193)', () => {
     await restoreWorkspace([])
     await openFolderDialog()
     expect(workspaceRoots.value).toEqual([])
-    expect(problem.value).toBeNull()
+    expect(toasts.last).toBeNull()
   })
 
   it('a folder that does not exist is reported, not added', async () => {
@@ -390,7 +391,7 @@ describe('roots (ISC-97, ISC-192, ISC-193)', () => {
     await restoreWorkspace([])
     await openFolderDialog()
     expect(workspaceRoots.value).toEqual([])
-    expect(problem.value).toMatch(/does not exist/)
+    expect(toasts.last).toMatch(/does not exist/)
   })
 
   it('removing a root takes its rows away and revokes the host side', async () => {
@@ -421,7 +422,7 @@ describe('roots (ISC-97, ISC-192, ISC-193)', () => {
     await restoreWorkspace([])
     await removeRootFolder('/not-a-root')
     expect(workspaceRoots.value).toEqual(['/work'])
-    expect(problem.value).toMatch(/not a workspace folder/)
+    expect(toasts.last).toMatch(/not a workspace folder/)
   })
 })
 
