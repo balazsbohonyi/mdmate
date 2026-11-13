@@ -193,6 +193,7 @@ function documentOptions(
   id: number,
   host: Awaited<ReturnType<typeof getHost>>,
   untitledNumber?: number,
+  draftFolder?: string,
 ): ConstructorParameters<typeof Document>[2] {
   return {
     touched,
@@ -206,6 +207,7 @@ function documentOptions(
       problem.value = message
     },
     ...(untitledNumber === undefined ? {} : { untitledNumber }),
+    ...(draftFolder === undefined ? {} : { draftFolder }),
   }
 }
 
@@ -238,7 +240,7 @@ export async function createUntitled(
   buffer?: { text: string; endings: Endings },
 ): Promise<Document> {
   const host = await getHost()
-  const id = await host.newUntitled()
+  const { id, draftFolder } = await host.newUntitled(number)
   const empty: OpenedFile = {
     id,
     path: '',
@@ -252,7 +254,7 @@ export async function createUntitled(
     endings: uniformEndings(),
     kind: 'markdown',
   }
-  const doc = adopt(new Document(empty, publish, documentOptions(id, host, number)))
+  const doc = adopt(new Document(empty, publish, documentOptions(id, host, number, draftFolder)))
   if (buffer !== undefined) doc.restoreBuffer(empty, buffer)
   return doc
 }

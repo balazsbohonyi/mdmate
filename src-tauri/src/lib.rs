@@ -1,6 +1,7 @@
 mod access;
 mod commands;
 mod documents;
+mod drafts;
 mod drops;
 mod error;
 mod fs;
@@ -42,6 +43,9 @@ pub fn run() {
             app.state::<Arc<AppState>>()
                 .index()
                 .set_cache_dir(dir.join("index"));
+            app.state::<Arc<AppState>>()
+                .drafts()
+                .set_root(dir.join("drafts"));
             app.manage(Arc::new(recent::RecentStore::new(
                 dir.clone(),
                 platform::current().paths_ignore_case(),
@@ -82,6 +86,7 @@ pub fn run() {
         commands::open_file,
         commands::save_file,
         commands::document_new_untitled,
+        commands::drafts_sweep,
         commands::document_save_as,
         commands::document_exists,
         commands::recent_list,
@@ -155,6 +160,7 @@ pub fn run() {
         commands::open_file,
         commands::save_file,
         commands::document_new_untitled,
+        commands::drafts_sweep,
         commands::document_save_as,
         commands::document_exists,
         commands::recent_list,

@@ -375,18 +375,21 @@ describe('a paste of a picture into a document (ISC-154, ISC-155, ISC-327)', () 
     ])
   })
 
-  it('refuses in a document with no file, with the notice, and writes nothing (ISC-327)', async () => {
+  it('goes to the draft folder in a document with no file, and is linked like any other (ISC-327)', async () => {
     await newUntitledTab()
     const tab =
       workbenchLayout.value.root.kind === 'pane' ? workbenchLayout.value.root.activeTab : null
     if (tab === null) throw new Error('no tab')
     const view = viewOfTab(tab)
     expect(paste(view, clipboard([file(PNG)]))).toBe(true)
-    await vi.waitFor(() =>
-      expect(problem.value).toBe('Save the file first so the image has a folder'),
+    await vi.waitFor(() => expect(host.pastedImages).toHaveLength(1))
+    expect(host.pastedImages[0]?.path).toMatch(
+      /^\/mock-data\/drafts\/1\/assets\/image-\d{8}-\d{6}\.png$/,
     )
-    expect(host.pastedImages).toHaveLength(0)
-    expect(view.state.doc.toString()).toBe('')
+    await vi.waitFor(() =>
+      expect(view.state.doc.toString()).toMatch(/^!\[\]\(assets\/image-\d{8}-\d{6}\.png\)$/),
+    )
+    expect(problem.value).toBeNull()
   })
 
   it('tells the user when the host refuses the bytes, and leaves the text alone', async () => {

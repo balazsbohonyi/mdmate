@@ -247,16 +247,17 @@ describe('a picture dropped onto a document from Explorer (ISC-156, ISC-328, ISC
     expect(imageTabs()).toHaveLength(0)
   })
 
-  it('refuses in a document with no file, with the notice, copies nothing and opens no tab', async () => {
+  it('copies into the draft folder in a document with no file, whatever the picture is, and opens no tab (ISC-328)', async () => {
     await newUntitledTab()
     const tab =
       workbenchLayout.value.root.kind === 'pane' ? workbenchLayout.value.root.activeTab : null
     if (tab === null) throw new Error('no tab')
     const view = viewOfTab(tab, 0)
-    await dropOnText(view, ['C:/out/q.png'])
-    expect(problem.value).toBe('Save the file first so the image has a folder')
-    expect(host.copiedImages).toEqual([])
-    expect(view.state.doc.toString()).toBe('')
+    await dropOnText(view, ['C:/ws/notes/pic.png'])
+    expect(problem.value).toBeNull()
+    expect(host.copiedImages).toHaveLength(1)
+    expect(host.copiedImages[0]).toMatch(/^\/mock-data\/drafts\/1\/assets\/image-\d{8}-\d{6}\.png$/)
+    expect(view.state.doc.toString()).toMatch(/^!\[\]\(assets\/image-\d{8}-\d{6}\.png\)$/)
     expect(imageTabs()).toHaveLength(0)
   })
 

@@ -22,6 +22,7 @@ import type {
   Point,
 } from './workspace'
 import { DEMO_IMAGES } from './demoImages'
+import { draftLinkUses, rewriteDraftLinks } from '@/documents/draftLinks'
 import { joinRaw, MockFiles, mockHash, pathKey, splitRaw } from './mockFiles'
 import { mockQuickOpen } from './mockQuickOpen'
 import { applyEdits, isScannable, mockEdits, mockReferences, movedPath } from './mockRewrite'
@@ -136,7 +137,15 @@ export interface MockHost extends Host {
   readonly pastedImages: { path: string; bytes: Uint8Array }[]
   /** The paths `dropImage` copied into an images folder, in order. */
   readonly copiedImages: string[]
+  /** The `keep` lists `sweepDrafts` was called with, in order. */
+  readonly sweeps: number[][]
 }
+
+/** Where the mock keeps the draft folders of untitled documents. */
+export const DRAFT_ROOT = '/mock-data/drafts'
+
+/** The images of a draft that its text links to, and what the stamp-named file starts with. */
+const DRAFT_IMAGE = /^image-\d{8}-\d{6}(?:-\d+)?\.(?:png|jpg|gif|webp)$/
 
 /** The extension Rust gives an image by its first bytes, or null when it is none of the four. */
 function sniffImageExtension(bytes: Uint8Array): string | null {
@@ -249,6 +258,9 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
   const open = new Map<number, Open>()
   /** Documents with no file yet. They have an id and nothing else. */
   const untitled = new Set<number>()
+  /** The number in the name of each untitled document, which keys its draft folder. */
+  const draftNumbers = new Map<number, number>()
+  const draftFolder = (number: number): string => `${DRAFT_ROOT}/${String(number)}`
   const recent = {
     files: [...(options.recent?.files ?? [])],
     folders: [...(options.recent?.folders ?? [])],
@@ -312,6 +324,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
   const clipboard: string[] = []
   const pastedImages: { path: string; bytes: Uint8Array }[] = []
   const copiedImages: string[] = []
+  const sweeps: number[][] = []
   const trimmed = (path: string): string => pathKey(path).replace(/\/$/, '')
   const slashes = (path: string): string => path.replaceAll('\\', '/').replace(/\/$/, '')
   const parentOf = (path: string): string => slashes(path).split('/').slice(0, -1).join('/')
@@ -586,6 +599,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     saveDialogs,
     pastedImages,
     copiedImages,
+    sweeps,
     files,
     openDocuments() {
       return new Map([...open].map(([id, doc]) => [id, doc.path]))
@@ -768,18 +782,22 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     },
     savePastedImage(id, bytes, stamp) {
       return attempt(() => {
-        // Like Rust: no file means no folder, and a document that cannot be edited takes no image.
-        if (untitled.has(id)) {
-          throw hostError('invalid', 'a document with no file has no folder for the image')
-        }
+        // Like Rust: an untitled document's images go to its draft folder, and a document that
+        // cannot be edited takes none.
+        const number = draftNumbers.get(id)
         const doc = open.get(id)
-        if (doc === undefined) throw hostError('not-open', `no open document ${id}`)
-        if (doc.readOnly !== null) throw hostError('read-only', 'it cannot be edited')
+        if (number === undefined) {
+          if (doc === undefined) throw hostError('not-open', `no open document ${id}`)
+          if (doc.readOnly !== null) throw hostError('read-only', 'it cannot be edited')
+        }
         if (!/^\d{8}-\d{6}$/.test(stamp)) throw hostError('invalid', 'bad image name stamp')
         const data = new Uint8Array(bytes)
         const ext = sniffImageExtension(data)
         if (ext === null) throw hostError('invalid', 'not a PNG, JPEG, GIF or WebP image')
-        const folder = `${parentOf(doc.path)}/assets`
+        const folder =
+          number !== undefined
+            ? `${draftFolder(number)}/assets`
+            : `${parentOf(doc?.path ?? '')}/assets`
         // The first free name; a taken one is never replaced.
         let name = `image-${stamp}.${ext}`
         for (let n = 2; files.has(`${folder}/${name}`); n++)
@@ -798,9 +816,19 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
         if (mockKindOf(path) !== 'image' || !files.has(path)) {
           throw hostError('invalid', 'not an image')
         }
-        // Like Rust: no file means no folder, and a document that cannot be edited takes no image.
-        if (untitled.has(id)) {
-          throw hostError('invalid', 'a document with no file has no folder for the image')
+        // Like Rust: an untitled document copies every picture into its draft folder, and a
+        // document that cannot be edited takes none.
+        const number = draftNumbers.get(id)
+        if (number !== undefined) {
+          if (!/^\d{8}-\d{6}$/.test(stamp)) throw hostError('invalid', 'bad image name stamp')
+          const target = `${draftFolder(number)}/assets`
+          const ext = nameOf(path).includes('.') ? (nameOf(path).split('.').pop() ?? 'png') : 'png'
+          let name = `image-${stamp}.${ext}`
+          for (let n = 2; files.has(`${target}/${name}`); n++)
+            name = `image-${stamp}-${String(n)}.${ext}`
+          files.write(`${target}/${name}`, files.read(path) ?? '')
+          copiedImages.push(`${target}/${name}`)
+          return { link: `assets/${name}`, copied: true }
         }
         const doc = open.get(id)
         if (doc === undefined) throw hostError('not-open', `no open document ${id}`)
@@ -1150,10 +1178,26 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
       open.set(id, doc)
       return Promise.resolve(describe(id, doc, raw))
     },
-    newUntitled() {
+    newUntitled(number) {
+      if ([...draftNumbers.values()].includes(number)) {
+        return Promise.reject(hostError('invalid', `Untitled-${String(number)} is already open`))
+      }
       const id = ++nextId
       untitled.add(id)
-      return Promise.resolve(id)
+      draftNumbers.set(id, number)
+      return Promise.resolve({ id, draftFolder: draftFolder(number) })
+    },
+    sweepDrafts(keep) {
+      sweeps.push([...keep])
+      const held = new Set([...keep, ...draftNumbers.values()])
+      let removed = 0
+      for (const entry of files.listDir(DRAFT_ROOT) ?? []) {
+        const number = Number(entry.name)
+        if (entry.kind !== 'folder' || !Number.isInteger(number) || held.has(number)) continue
+        files.remove(`${DRAFT_ROOT}/${entry.name}`)
+        removed++
+      }
+      return Promise.resolve(removed)
     },
     saveAs(id, text, endings, hint) {
       const doc = open.get(id)
@@ -1188,6 +1232,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
           kind: mockKindOf(doc.path),
           encoding: 'utf-8',
           bom: false,
+          renamedImages: [],
         }))
       }
       const other = ids.get(key)
@@ -1199,7 +1244,42 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
           ),
         )
       }
-      const raw = joinRaw(text, endings)
+      const number = draftNumbers.get(id)
+      if (number !== undefined && pathKey(canonical).startsWith(`${pathKey(DRAFT_ROOT)}/`)) {
+        return Promise.reject(hostError('invalid', 'choose a folder of your own'))
+      }
+      // Like Rust: the images of an untitled document the text links to are copied beside the new
+      // file first, a taken name is not overwritten, and the links in what is written follow.
+      const renamedImages: { from: string; to: string }[] = []
+      let written = text
+      if (number !== undefined) {
+        const source = `${draftFolder(number)}/assets`
+        const names = (files.listDir(source) ?? [])
+          .filter((entry) => entry.kind === 'file' && DRAFT_IMAGE.test(entry.name))
+          .map((entry) => entry.name)
+          .sort()
+        const used = new Set(draftLinkUses(text, names).map((use) => use.name))
+        const target = `${parentOf(canonical)}/assets`
+        for (const name of names.filter((candidate) => used.has(candidate))) {
+          const dot = name.lastIndexOf('.')
+          const stem = name.slice(0, dot)
+          const ext = name.slice(dot)
+          let finalName = name
+          for (let n = 2; files.has(`${target}/${finalName}`); n++)
+            finalName = `${stem}-${String(n)}${ext}`
+          files.write(`${target}/${finalName}`, files.read(`${source}/${name}`) ?? '')
+          const bytes = pastedImages.findLast(
+            (image) => pathKey(image.path) === pathKey(`${source}/${name}`),
+          )
+          if (bytes !== undefined)
+            pastedImages.push({ path: `${target}/${finalName}`, bytes: bytes.bytes })
+          if (finalName !== name) renamedImages.push({ from: name, to: finalName })
+        }
+        written = rewriteDraftLinks(text, new Map(renamedImages.map((r) => [r.from, r.to])))
+        files.remove(draftFolder(number))
+        draftNumbers.delete(id)
+      }
+      const raw = joinRaw(written, endings)
       const hash = mockHash(raw)
       // Like Rust, the file is written before the document is pointed at it, and its hash is
       // recorded, so the write is not news to the watcher.
@@ -1224,6 +1304,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
         kind: mockKindOf(canonical),
         encoding: 'utf-8',
         bom: false,
+        renamedImages,
       })
     },
     documentExists(id) {
@@ -1287,6 +1368,11 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     closeDocument(id) {
       open.delete(id)
       untitled.delete(id)
+      const number = draftNumbers.get(id)
+      if (number !== undefined) {
+        draftNumbers.delete(id)
+        files.remove(draftFolder(number))
+      }
       return Promise.resolve()
     },
     reloadDocument(id) {

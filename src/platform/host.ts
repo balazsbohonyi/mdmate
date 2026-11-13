@@ -113,6 +113,19 @@ export interface SavedFile {
   readonly size: number
 }
 
+/** An image that changed name on its way from a draft folder to the saved file's folder. */
+export interface RenamedImage {
+  readonly from: string
+  readonly to: string
+}
+
+/** What a new untitled tab gets from the host. */
+export interface NewUntitled {
+  readonly id: number
+  /** Where its images go: its own folder under the app's data folder, made with the first image. */
+  readonly draftFolder: string
+}
+
 /** What Save As wrote: the file the document now has. */
 export interface SavedAs {
   /** The path as people read it, with symlinks resolved. */
@@ -124,6 +137,11 @@ export interface SavedAs {
   readonly kind: 'markdown' | 'text' | 'image'
   readonly encoding: 'utf-8' | 'utf-16le' | 'utf-16be'
   readonly bom: boolean
+  /**
+   * Draft images that got another name beside the file because theirs was taken there. The text
+   * that was written already links to the new names; the page makes the same change to its own.
+   */
+  readonly renamedImages: readonly RenamedImage[]
 }
 
 /** What the page suggests the save dialog shows. */
@@ -188,14 +206,28 @@ export interface Host {
    * restored session does not pass it.
    */
   openFile(path: string, remember?: boolean): Promise<OpenedFile>
-  /** Gives a new untitled tab its document id. The document has no file until `saveAs`. */
-  newUntitled(): Promise<number>
+  /**
+   * Gives a new untitled tab its document id and its draft folder. The document has no file until
+   * `saveAs`. `number` is the one in its name (`Untitled-3`), which keys the folder: a restored tab
+   * brings its number back and finds its images. Rejects with `invalid` for a number that another
+   * open untitled document has.
+   */
+  newUntitled(number: number): Promise<NewUntitled>
+  /**
+   * Removes the draft folders that no untitled tab holds: the numbers in `keep` and those of every
+   * untitled document open now stay. Call it once the last session is back, never before. Resolves
+   * to how many folders went.
+   */
+  sweepDrafts(keep: readonly number[]): Promise<number>
   /**
    * Shows the save dialog and writes the document into the file the user chooses: the first save of
    * an untitled document, or Save As. Granting the chosen file happens in the host, never on the
    * page's say-so. The document then has that file; the original of a Save As is not touched, and a
    * file in an encoding mdmate cannot write is written as UTF-8. Resolves to null when the user
-   * cancels. Rejects with `invalid` for a file open in another tab, `exists` for a name the dialog
+   * cancels. The images of an untitled document are copied beside the file first, so its links
+   * resolve at once; a name taken there is not overwritten, and `renamedImages` says which links
+   * the written text already has changed. Rejects with `invalid` for a file open in another tab or
+   * inside the app's draft folder, `exists` for a name the dialog
    * could not have asked about, and `read-only` when asked to replace an unwritable original.
    */
   saveAs(id: number, text: string, endings: Endings, hint: SaveAsHint): Promise<SavedAs | null>

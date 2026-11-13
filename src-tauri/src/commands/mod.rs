@@ -160,10 +160,61 @@ pub(crate) async fn save_file(
     })
 }
 
-/// Gives a new untitled tab its document id. The document has no file until Save As.
+/// What a new untitled tab gets: its document id, and the folder its images go in (`drafts.rs`).
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct NewUntitled {
+    id: u32,
+    draft_folder: String,
+}
+
+/// Lets the page load the images of one draft folder, that folder and nothing above it, both as the
+/// path the page was told and as it really is on disk. The scope only grows while the app runs;
+/// what keeps a tab off another tab's draft is the page's address allowlist (a link must stay in
+/// its own document's folder). A folder that is not there yet is granted when its first image is.
+fn grant_draft(app: &tauri::AppHandle, state: &AppState, number: u32) {
+    if !state.drafts().exists(number) {
+        return;
+    }
+    if let Ok(real) = state.drafts().ensure(number) {
+        allow_images_from(app, &real);
+    }
+    if let Ok(shown) = state.drafts().folder(number) {
+        allow_images_from(app, &shown);
+    }
+}
+
+/// Gives a new untitled tab its document id. The document has no file until Save As. `number` is
+/// the one in its name, which keys its draft folder; the folder itself is made with the first image.
+/// A restored tab brings its number back, so its folder, if it has one, is found again and granted.
 #[tauri::command]
-pub(crate) fn document_new_untitled(state: State<'_, Arc<AppState>>) -> u32 {
-    state.documents().register_untitled()
+pub(crate) fn document_new_untitled(
+    app: tauri::AppHandle,
+    state: State<'_, Arc<AppState>>,
+    number: u32,
+) -> Result<NewUntitled, AppError> {
+    let id = state.documents().register_untitled_numbered(number)?;
+    let draft_folder = display_path(&state.drafts().folder(number)?);
+    grant_draft(&app, &state, number);
+    Ok(NewUntitled { id, draft_folder })
+}
+
+/// Removes the draft folders no untitled tab holds: `keep` is the numbers the restored session
+/// lists, and the numbers of every untitled document that is open are kept too. Called once the page
+/// has restored the session, never before, so a tab that is about to come back keeps its folder.
+#[tauri::command]
+pub(crate) async fn drafts_sweep(
+    state: State<'_, Arc<AppState>>,
+    keep: Vec<u32>,
+) -> Result<usize, AppError> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut keep: std::collections::HashSet<u32> = keep.into_iter().collect();
+        keep.extend(state.documents().untitled_numbers());
+        state.drafts().sweep(&keep)
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))
 }
 
 /// Whether an open document's file is still on disk, for Revert File.
@@ -303,7 +354,15 @@ pub(crate) async fn recent_open_folder(
 /// Forgets a document once its last tab is gone.
 #[tauri::command]
 pub(crate) fn close_document(state: State<'_, Arc<AppState>>, id: u32) {
-    documents::close_document(&state, id);
+    if let Some(number) = documents::close_document(&state, id) {
+        // An untitled document's draft folder goes with its last tab, off this thread: it can hold
+        // a few large pictures, and the system may hold one for a moment. A failure is left for
+        // the sweep at the next start-up.
+        let state = state.inner().clone();
+        drop(tauri::async_runtime::spawn_blocking(move || {
+            state.drafts().remove(number)
+        }));
+    }
 }
 
 /// Reads an open document's file again and returns it as a frame, like `open_file`. The document
@@ -690,6 +749,7 @@ pub(crate) fn image_closed(state: State<'_, Arc<AppState>>, path: String) {
 /// page's local time, `YYYYMMDD-HHMMSS`). The body is the image's bytes. The page never names a path.
 #[tauri::command]
 pub(crate) async fn image_paste(
+    app: tauri::AppHandle,
     state: State<'_, Arc<AppState>>,
     request: tauri::ipc::Request<'_>,
 ) -> Result<crate::images::SavedImage, AppError> {
@@ -711,7 +771,12 @@ pub(crate) async fn image_paste(
     let body = body.clone();
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        crate::images::save_pasted(&state, id, &stamp, &body)
+        let saved = crate::images::save_pasted(&state, id, &stamp, &body)?;
+        // The first image of an untitled document makes its draft folder, which the page may now load.
+        if let Some(number) = state.documents().untitled_number(id) {
+            grant_draft(&app, &state, number);
+        }
+        Ok(saved)
     })
     .await
     .map_err(|error| AppError::Task(error.to_string()))?
@@ -722,6 +787,7 @@ pub(crate) async fn image_paste(
 /// outside the document's workspace folder) or is linked where it lies.
 #[tauri::command]
 pub(crate) async fn image_drop(
+    app: tauri::AppHandle,
     state: State<'_, Arc<AppState>>,
     id: u32,
     path: String,
@@ -729,7 +795,11 @@ pub(crate) async fn image_drop(
 ) -> Result<crate::images::DroppedImage, AppError> {
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        crate::images::drop_image(&state, id, &path, &stamp)
+        let dropped = crate::images::drop_image(&state, id, &path, &stamp)?;
+        if let Some(number) = state.documents().untitled_number(id) {
+            grant_draft(&app, &state, number);
+        }
+        Ok(dropped)
     })
     .await
     .map_err(|error| AppError::Task(error.to_string()))?

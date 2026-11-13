@@ -14,6 +14,7 @@ import { imageSink, imageStamp } from '@/editor/imagePaste'
 import { imageContext } from '@/editor/livePreview/blocks'
 import { brokenLinks, LinkStatus, linkStatus } from '@/editor/brokenLinks'
 import { linkNavigation } from '@/editor/links'
+import { renameEdits } from './draftLinks'
 import { isLargeFile } from './largeFile'
 import { endingsOf, lineEndingsFor } from '@/editor/lineEndings'
 import { sourceCopy } from '@/editor/sourceCopy'
@@ -86,6 +87,11 @@ export interface DocumentOptions {
   /** The number in the name of an untitled document, which has no path. */
   readonly untitledNumber?: number
   /**
+   * Where the images of an untitled document are kept, since it has no folder of its own: its
+   * pictures are linked and loaded from here until the first Save As copies them beside the file.
+   */
+  readonly draftFolder?: string
+  /**
    * Saves a pasted or dropped picture next to this document, by the stamp (local time) for its
    * name, and resolves to the path to write in the link. Without it a paste of a picture is an
    * ordinary paste.
@@ -102,8 +108,11 @@ export interface DocumentOptions {
   readonly checkLinks?: (hrefs: readonly string[]) => Promise<readonly boolean[]>
 }
 
-/** What a paste of a picture into a document with no file says, until it has a draft folder. */
-const UNTITLED_IMAGE_NOTICE = 'Save the file first so the image has a folder'
+/** `doc` with the links of renamed images updated. */
+function renamedLinks(doc: Text, renames: ReadonlyMap<string, string>): Text {
+  const edits = renameEdits(doc.toString(), renames)
+  return edits.length === 0 ? doc : ChangeSet.of(edits, doc.length).apply(doc)
+}
 
 /** Where a caret is, as the session stores it. */
 export interface Caret {
@@ -236,6 +245,7 @@ export class Document implements FollowerHost {
     if (url === undefined) return []
     return imageContext.of({
       folder: () => {
+        if (this.untitled) return this.#options.draftFolder ?? null
         const cut = Math.max(this.path.lastIndexOf('/'), this.path.lastIndexOf('\\'))
         return cut <= 0 ? null : this.path.slice(0, cut)
       },
@@ -246,14 +256,14 @@ export class Document implements FollowerHost {
 
   /**
    * What lets a tab take a picture: the paste hands it to `saveImage` and the drop to `dropImage`. A
-   * document with no file refuses it until it has a draft folder (P9-T5).
+   * document with no file keeps them in its draft folder, which the host makes with the first one.
    */
   #imageSinkSupport(): Extension {
     const save = this.#options.saveImage
     if (save === undefined) return []
     const notify = this.#options.notify ?? (() => undefined)
     return imageSink.of({
-      refusal: () => (this.untitled ? UNTITLED_IMAGE_NOTICE : null),
+      refusal: () => null,
       save: (bytes) => save(bytes, imageStamp()),
       drop: (path) => {
         const handle = this.#options.dropImage
@@ -401,18 +411,39 @@ export class Document implements FollowerHost {
   /**
    * Gives the document the file a Save As wrote: it follows the file, `snapshot` is what that file
    * holds, and the history stays. A document that could not be saved (a file in an encoding mdmate
-   * cannot write) can be saved from now on, since what was written is UTF-8.
+   * cannot write) can be saved from now on, since what was written is UTF-8. Images that got
+   * another name beside the file are renamed in the links of the text too, as one change that is
+   * not a step of history (the written file has it already).
    */
   relocate(snapshot: Snapshot, saved: SavedAs): void {
+    const renames = new Map(saved.renamedImages.map((image) => [image.from, image.to]))
+    const baseline = renames.size === 0 ? snapshot.doc : renamedLinks(snapshot.doc, renames)
+    if (renames.size > 0) this.#renameImageLinks(renames)
     this.path = saved.path
     this.name = saved.name
     this.untitledNumber = null
-    this.#saved = { doc: snapshot.doc, endings: snapshot.endings }
+    this.#saved = { doc: baseline, endings: snapshot.endings }
     this.diskHash = saved.hash
     this.#applyReadOnly(null)
     this.#touched()
     this.#refreshDirty()
     this.#changed(this)
+  }
+
+  /**
+   * Points the links of renamed images at their new names, in the master and every follower, as a
+   * change history does not record: undo takes back typing, never a rename the disk already has.
+   */
+  #renameImageLinks(renames: ReadonlyMap<string, string>): void {
+    const master = this.#master
+    const edits = renameEdits(master.doc.toString(), renames)
+    if (edits.length === 0) return
+    const changes = ChangeSet.of(edits, master.doc.length, master.lineBreak)
+    this.#master = master.update({
+      changes,
+      annotations: Transaction.addToHistory.of(false),
+    }).state
+    for (const follower of this.#followers.values()) follower.receive(changes)
   }
 
   /**

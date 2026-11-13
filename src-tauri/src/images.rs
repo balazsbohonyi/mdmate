@@ -161,27 +161,38 @@ pub(crate) fn save_into(
 
 /// Saves an image pasted into the open document `id`, next to its file.
 ///
-/// A document with no file has no folder to put `assets` in (until P9-T5 gives it a draft folder),
-/// and a read-only one takes no pasted text either, so both are refused.
+/// A document with no file puts `assets` in its draft folder (`drafts.rs`), and a read-only one takes
+/// no pasted text, so it is refused.
 pub(crate) fn save_pasted(
     state: &AppState,
     id: u32,
     stamp: &str,
     bytes: &[u8],
 ) -> Result<SavedImage, AppError> {
-    let (_, folder) = document_for_images(state, id)?;
-    save_into(&folder, state.ignore_case(), stamp, bytes)
+    let home = document_for_images(state, id)?;
+    save_into(&home.folder, state.ignore_case(), stamp, bytes)
 }
 
-/// The file of the open document `id` and the folder `assets` goes in: refused for a document with
-/// no file (until P9-T5 gives it a draft folder), for one that cannot be edited, and for an unknown id.
-fn document_for_images(state: &AppState, id: u32) -> Result<(PathBuf, PathBuf), AppError> {
+/// Where the images of a document go.
+pub(crate) struct ImageHome {
+    /// The document's file, or `None` for an untitled document, which has a draft folder instead.
+    pub(crate) file: Option<PathBuf>,
+    /// The folder `assets` goes in, as it really is on disk.
+    pub(crate) folder: PathBuf,
+}
+
+/// The folder `assets` goes in for the open document `id`: beside its file, or in the draft folder
+/// of an untitled document (made now, since it is only made when the first image comes). Refused for
+/// a document that cannot be edited and for an unknown id.
+pub(crate) fn document_for_images(state: &AppState, id: u32) -> Result<ImageHome, AppError> {
     let entry = {
         let documents = state.documents();
-        if documents.is_untitled(id) {
-            return Err(AppError::Invalid(
-                "a document with no file has no folder for the image".into(),
-            ));
+        if let Some(number) = documents.untitled_number(id) {
+            drop(documents);
+            return Ok(ImageHome {
+                file: None,
+                folder: state.drafts().ensure(number)?,
+            });
         }
         documents.get(id).cloned().ok_or(AppError::NotOpen(id))?
     };
@@ -193,7 +204,10 @@ fn document_for_images(state: &AppState, id: u32) -> Result<(PathBuf, PathBuf), 
         .parent()
         .map(Path::to_path_buf)
         .ok_or_else(|| AppError::Invalid("the document has no folder".into()))?;
-    Ok((entry.path, folder))
+    Ok(ImageHome {
+        file: Some(entry.path),
+        folder,
+    })
 }
 
 /// What a dropped picture came to: the path to write in the link, and whether the file had to be
@@ -257,7 +271,8 @@ pub(crate) fn drop_image(
     if kind_of(&dropped) != FileKind::Image {
         return Err(AppError::Invalid("not an image".into()));
     }
-    let (document_path, folder) = document_for_images(state, id)?;
+    let home = document_for_images(state, id)?;
+    let folder = home.folder;
     let resolved_folder = std::fs::canonicalize(&folder)?;
     let resolved_file = std::fs::canonicalize(&dropped)?;
     if !resolved_file.is_file() {
@@ -273,15 +288,20 @@ pub(crate) fn drop_image(
             text
         }
     };
-    let boundary = {
-        let access = state.access();
-        let document = access.resolve(&document_path)?;
-        // The innermost root that holds the document, as the page picks its boundary.
-        access
-            .roots_containing(&document)
-            .into_iter()
-            .filter_map(|root| std::fs::canonicalize(root).ok())
-            .max_by_key(|root| display_path(root).len())
+    // An untitled document has no workspace: its draft folder is the whole of what it may link to,
+    // so a dropped picture is always copied there.
+    let boundary = match &home.file {
+        Some(document_path) => {
+            let access = state.access();
+            let document = access.resolve(document_path)?;
+            // The innermost root that holds the document, as the page picks its boundary.
+            access
+                .roots_containing(&document)
+                .into_iter()
+                .filter_map(|root| std::fs::canonicalize(root).ok())
+                .max_by_key(|root| display_path(root).len())
+        }
+        None => None,
     }
     .unwrap_or_else(|| resolved_folder.clone());
     if is_inside(&key(&resolved_file), &key(&boundary))
@@ -467,8 +487,45 @@ mod tests {
         assert!(dir.path().join("assets").join(&saved.name).is_file());
     }
 
+    /// A state whose drafts live in `dir`.
+    fn state_with_drafts(dir: &Path) -> AppState {
+        let state = AppState::new(false);
+        state.drafts().set_root(dir.join("drafts"));
+        state
+    }
+
     #[test]
-    fn paste_image_saved_refuses_an_untitled_or_unknown_document() {
+    fn draft_images_paste_into_an_untitled_document_lands_in_its_draft_folder() {
+        let dir = temp();
+        let state = state_with_drafts(dir.path());
+        let id = state
+            .documents()
+            .register_untitled_numbered(3)
+            .expect("number 3");
+        let saved = save_pasted(&state, id, STAMP, PNG).expect("saves");
+        assert_eq!(saved.link, "assets/image-20261113-153000.png");
+        let file = dir
+            .path()
+            .join("drafts")
+            .join("3")
+            .join("assets")
+            .join(&saved.name);
+        assert_eq!(std::fs::read(file).expect("written"), PNG);
+        // A second one in the same second does not replace it.
+        let again = save_pasted(&state, id, STAMP, PNG).expect("saves");
+        assert_eq!(again.link, "assets/image-20261113-153000-2.png");
+        // Another untitled document has a folder of its own.
+        let other = state
+            .documents()
+            .register_untitled_numbered(4)
+            .expect("number 4");
+        let there = save_pasted(&state, other, STAMP, PNG).expect("saves");
+        assert_eq!(there.link, "assets/image-20261113-153000.png");
+        assert!(dir.path().join("drafts").join("4").join("assets").is_dir());
+    }
+
+    #[test]
+    fn draft_images_paste_without_a_draft_folder_set_up_is_refused() {
         let state = AppState::new(false);
         let untitled = state.documents().register_untitled();
         assert_eq!(
@@ -477,6 +534,11 @@ mod tests {
                 .kind(),
             "invalid"
         );
+    }
+
+    #[test]
+    fn paste_image_saved_refuses_an_unknown_document() {
+        let state = AppState::new(false);
         assert_eq!(
             save_pasted(&state, 999, STAMP, PNG)
                 .expect_err("not open")
@@ -646,19 +708,39 @@ mod tests {
     }
 
     #[test]
-    fn drop_image_refuses_an_untitled_document_and_an_unknown_one() {
+    fn draft_images_a_dropped_picture_is_copied_into_the_draft_folder_whatever_it_is() {
+        let dir = temp();
+        let outside = temp();
+        let state = state_with_drafts(dir.path());
+        // Even a file inside a workspace folder is copied: an untitled document has no workspace.
+        state.access().grant_root(outside.path()).expect("granted");
+        let file = outside.path().join("p.png");
+        write_png(&file);
+        let text = dropped(&state, &file);
+        let id = state
+            .documents()
+            .register_untitled_numbered(2)
+            .expect("number 2");
+        let got = drop_image(&state, id, &text, STAMP).expect("copied");
+        assert!(got.copied);
+        assert_eq!(got.link, "assets/image-20261113-153000.png");
+        assert!(
+            dir.path()
+                .join("drafts")
+                .join("2")
+                .join("assets")
+                .join("image-20261113-153000.png")
+                .is_file()
+        );
+    }
+
+    #[test]
+    fn drop_image_refuses_an_unknown_document() {
         let dir = temp();
         let file = dir.path().join("p.png");
         write_png(&file);
         let state = AppState::new(false);
         let text = dropped(&state, &file);
-        let untitled = state.documents().register_untitled();
-        assert_eq!(
-            drop_image(&state, untitled, &text, STAMP)
-                .expect_err("no folder")
-                .kind(),
-            "invalid"
-        );
         assert_eq!(
             drop_image(&state, 999, &text, STAMP)
                 .expect_err("not open")

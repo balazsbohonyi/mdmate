@@ -107,7 +107,7 @@ Phase 9 runs before this phase (owner's decision, 2026-11-13): image paste ships
 - [ ] P9-T2: Drop images — closes ISC-156, ISC-328 (code and tests are done; the real-window drop is still to run, so both stay open)
 - [x] P9-T3: Draw `<img>` tags — closes ISC-323, ISC-324
 - [ ] P9-T4: Select, resize and delete images — closes ISC-157, ISC-158, ISC-159, ISC-322, ISC-325, ISC-326 (code and tests are done and ISC-158, 159, 325 and 326 are closed; the real-window drag and click are still to run, so ISC-157 and ISC-322 stay open)
-- [ ] P9-T5: Images in untitled documents (a draft folder per document) — closes ISC-327, ISC-331, ISC-332, ISC-333
+- [ ] P9-T5: Images in untitled documents (a draft folder per document) — closes ISC-327, ISC-331, ISC-332, ISC-333 (code and tests are done and ISC-331 is closed; the Tauri commands, the asset scope and the real kill-and-restart are still to run in the real window, so ISC-327, 332 and 333 stay open)
 
 ## Phase 10: Ship ([plan](phases/phase-10/plan.md))
 

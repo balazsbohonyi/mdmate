@@ -666,6 +666,21 @@ export const sessionReady = new Promise<RestoreReport | null>((resolve) => {
   markReady = resolve
 })
 
+/**
+ * Removes the draft folders of untitled tabs that are gone, once the session is back and nothing
+ * about it went wrong: a damaged or partly restored session may still name a draft whose tab did
+ * not come back, and that folder is the only copy of its images. The numbers of the tabs that are
+ * open are kept by the host. A first start has nothing to sweep, and a failure here costs only disk.
+ */
+async function sweepDraftsAfter(report: RestoreReport | null): Promise<void> {
+  if (report === null || report.notices.length > 0) return
+  try {
+    await (await getHost()).sweepDrafts([])
+  } catch {
+    // Left for the next start.
+  }
+}
+
 /** Restores the last session before the first paint. It never fails startup: a problem becomes a notice. */
 export async function restoreOnStart(): Promise<RestoreReport | null> {
   performance.mark('restore-start')
@@ -673,6 +688,7 @@ export async function restoreOnStart(): Promise<RestoreReport | null> {
     const report = await restoreSession()
     performance.mark('restore-end')
     if (report !== null && report.notices.length > 0) problem.value = report.notices.join(' ')
+    await sweepDraftsAfter(report)
     return report
   } catch (error) {
     problem.value = `Could not restore the last session: ${error instanceof Error ? error.message : JSON.stringify(error)}`
