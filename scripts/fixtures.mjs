@@ -335,6 +335,20 @@ reserved for examples (\`.invalid\`, \`example.com\`) or a harmless placeholder.
 ![remote https image](https://example.invalid/pixel.png)
 
 ![remote http image](http://example.invalid/pixel.png)
+
+## img tag attributes
+
+<img src="http://example.invalid/pixel.png">
+
+<img src="file:///C:/Windows/win.ini">
+
+<img src="C:\\Windows\\win.ini">
+
+<img src="//host.invalid/share/c.png">
+
+<img src="x.png" style="background:url(https://example.invalid/style.png)" onerror="document.title = 'img onerror ran'" onload="document.title = 'img onload ran'">
+
+<img srcset="https://example.invalid/a.png 2x" src="y.png" width="40" height="30">
 `
 
 const SMALL_BYTES = 24 * 1024

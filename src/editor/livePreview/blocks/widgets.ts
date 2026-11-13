@@ -223,6 +223,22 @@ const INLINE_PLACEHOLDER = 20
 /** The padding above and below a block image, in px. */
 const IMAGE_PADDING = 14
 
+/**
+ * The size an image is shown at: an `<img>` tag's `width` and `height` where it has them, with the
+ * other side following the picture's own proportions when only one is given. Both given means
+ * exactly that box, as a browser draws it.
+ */
+export function shownSize(
+  natural: ImageSize,
+  width: number | null,
+  height: number | null,
+): ImageSize {
+  if (width !== null && height !== null) return { width, height }
+  if (width !== null) return { width, height: (width * natural.height) / natural.width }
+  if (height !== null) return { width: (height * natural.width) / natural.height, height }
+  return natural
+}
+
 /** Fits `frame` to an image of this size, so it takes the space the image will fill. */
 function reserve(frame: HTMLElement, size: ImageSize, block: boolean): void {
   frame.classList.add('cm-md-image-sized')
@@ -292,6 +308,8 @@ export class ImageWidget extends BlockWidget {
   readonly alt: string
   readonly title: string | null
   readonly block: boolean
+  readonly width: number | null
+  readonly height: number | null
 
   constructor(item: ImageItem) {
     super()
@@ -299,6 +317,8 @@ export class ImageWidget extends BlockWidget {
     this.alt = item.alt
     this.title = item.title
     this.block = item.block
+    this.width = item.width
+    this.height = item.height
   }
 
   override eq(other: WidgetType): boolean {
@@ -307,14 +327,17 @@ export class ImageWidget extends BlockWidget {
       other.src === this.src &&
       other.alt === this.alt &&
       other.title === this.title &&
-      other.block === this.block
+      other.block === this.block &&
+      other.width === this.width &&
+      other.height === this.height
     )
   }
 
   override get estimatedHeight(): number {
     if (!this.block) return -1
     const known = this.src === null ? undefined : imageSizeOf(this.src)
-    return (known?.height ?? BLOCK_PLACEHOLDER) + IMAGE_PADDING * 2
+    const shown = known === undefined ? undefined : shownSize(known, this.width, this.height)
+    return (shown?.height ?? BLOCK_PLACEHOLDER) + IMAGE_PADDING * 2
   }
 
   override toDOM(view: EditorView): HTMLElement {
@@ -328,7 +351,7 @@ export class ImageWidget extends BlockWidget {
     if (known === undefined) {
       frame.style.minHeight = `${String(this.block ? BLOCK_PLACEHOLDER : INLINE_PLACEHOLDER)}px`
     } else {
-      reserve(frame, known, this.block)
+      reserve(frame, shownSize(known, this.width, this.height), this.block)
     }
 
     const fail = (reason: string): void => {
@@ -353,6 +376,9 @@ export class ImageWidget extends BlockWidget {
       if (this.title !== null) img.title = this.title
       img.decoding = 'async'
       img.draggable = false
+      // A tag with both sizes is that box exactly, as a browser draws it; the frame's own rule
+      // would letterbox it.
+      if (this.width !== null && this.height !== null) img.style.objectFit = 'fill'
       // The address of the document is nobody else's business.
       img.referrerPolicy = 'no-referrer'
       img.addEventListener('load', () => {
@@ -366,7 +392,7 @@ export class ImageWidget extends BlockWidget {
         // scroll position is and where the first line is. Applied here it could land after a
         // scroll that moved the image into the one place nothing makes up for.
         const apply = (): void => {
-          reserve(frame, size, this.block)
+          reserve(frame, shownSize(size, this.width, this.height), this.block)
           frame.classList.add('cm-md-image-loaded')
         }
         view.requestMeasure({

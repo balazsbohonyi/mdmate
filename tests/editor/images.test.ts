@@ -189,9 +189,9 @@ describe('which addresses can load (ISC-180)', () => {
     expect(resolved).toBeGreaterThan(50)
   })
 
-  it('lets only an https image of hostile.md load', () => {
+  it('lets only an https image of hostile.md load (its <img> tags are in imageHtml.test.ts)', () => {
     const hostile = readFileSync(join(import.meta.dirname, '../fixtures/hostile.md'), 'utf8')
-    const found = images(hostile)
+    const found = images(hostile).filter((item) => !item.html)
     expect(found.length).toBeGreaterThanOrEqual(6)
     const loadable = found.filter((item) => item.src !== null)
     expect(loadable.map((item) => item.image.kind)).toEqual(['remote'])

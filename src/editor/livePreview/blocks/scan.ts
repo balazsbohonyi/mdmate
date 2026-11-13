@@ -8,6 +8,7 @@ import { syntaxTree } from '@codemirror/language'
 import type { EditorState, Text } from '@codemirror/state'
 import { frontmatterEnd } from '../frontmatter'
 import { imageContext, resolveImageAddress, type ImageAddress } from './image'
+import { parseImgTag } from './imageTag'
 
 type Tree = ReturnType<typeof syntaxTree>
 type SyntaxNode = Tree['topNode']
@@ -61,8 +62,14 @@ export interface ImageItem {
   readonly image: ImageAddress
   /** What the webview loads, or null when the address is refused. */
   readonly src: string | null
-  /** The Markdown the widget stands for. */
+  /** The Markdown or `<img>` tag the widget stands for. */
   readonly source: string
+  /** The `width` of an `<img>` tag, in CSS pixels, or null (always null for `![]()`). */
+  readonly width: number | null
+  /** The `height` of an `<img>` tag, in CSS pixels, or null (always null for `![]()`). */
+  readonly height: number | null
+  /** True for an `<img>` tag, false for `![]()`. */
+  readonly html: boolean
 }
 
 /**
@@ -258,9 +265,54 @@ function imageItem(state: EditorState, node: SyntaxNode): ImageItem | null {
   }
   // `![alt][ref]` has no address of its own; it stays Markdown.
   if (url === null) return null
+  const inner = innerRange(node)
+  return buildImage(state, node.from, node.to, {
+    address: doc.sliceString(url.from, url.to),
+    alt: doc.sliceString(inner.from, inner.to),
+    title: title === null ? null : titleText(doc.sliceString(title.from, title.to)),
+    width: null,
+    height: null,
+    html: false,
+  })
+}
+
+/**
+ * An `<img>` tag in `[from, to)`, or null when that text is not exactly one tag with an address
+ * (any other HTML stays source). Only the allowed attributes are read (`imageTag.ts`).
+ */
+function imgTagItem(state: EditorState, from: number, to: number): ImageItem | null {
+  const tag = parseImgTag(state.doc.sliceString(from, to))
+  if (tag === null) return null
+  return buildImage(state, from, to, {
+    address: tag.src,
+    alt: tag.alt,
+    title: tag.title,
+    width: tag.width,
+    height: tag.height,
+    html: true,
+  })
+}
+
+interface ImageParts {
+  readonly address: string
+  readonly alt: string
+  readonly title: string | null
+  readonly width: number | null
+  readonly height: number | null
+  readonly html: boolean
+}
+
+/** The item for an image written in `[nodeFrom, nodeTo)`: a Markdown image or an `<img>` tag. */
+function buildImage(
+  state: EditorState,
+  nodeFrom: number,
+  nodeTo: number,
+  parts: ImageParts,
+): ImageItem {
+  const doc = state.doc
   const context = state.facet(imageContext)
   const image = resolveImageAddress(
-    doc.sliceString(url.from, url.to),
+    parts.address,
     context?.folder() ?? null,
     context?.boundary() ?? null,
   )
@@ -270,23 +322,25 @@ function imageItem(state: EditorState, node: SyntaxNode): ImageItem | null {
       : image.kind === 'remote'
         ? image.url
         : null
-  const inner = innerRange(node)
-  const line = doc.lineAt(node.from)
+  const line = doc.lineAt(nodeFrom)
   const alone =
-    doc.lineAt(node.to).number === line.number &&
-    doc.sliceString(line.from, line.to).trim() === doc.sliceString(node.from, node.to)
-  const from = alone ? line.from : node.from
-  const to = alone ? line.to : node.to
+    doc.lineAt(nodeTo).number === line.number &&
+    doc.sliceString(line.from, line.to).trim() === doc.sliceString(nodeFrom, nodeTo)
+  const from = alone ? line.from : nodeFrom
+  const to = alone ? line.to : nodeTo
   return {
     kind: 'image',
     from,
     to,
     block: alone,
-    alt: doc.sliceString(inner.from, inner.to),
-    title: title === null ? null : titleText(doc.sliceString(title.from, title.to)),
+    alt: parts.alt,
+    title: parts.title,
     image,
     src,
     source: doc.sliceString(from, to),
+    width: parts.width,
+    height: parts.height,
+    html: parts.html,
   }
 }
 
@@ -323,10 +377,13 @@ export function scanBlocks(
         // The parser sees a rule and a paragraph there; the pill owns that range.
         if (frontmatter !== null && node.from < frontmatter) return false
         if (inParagraph) {
-          if (node.name !== 'Image') return
+          if (node.name !== 'Image' && node.name !== 'HTMLTag') return
           if (!seen.has(node.from)) {
             seen.add(node.from)
-            const item = imageItem(state, node.node)
+            const item =
+              node.name === 'Image'
+                ? imageItem(state, node.node)
+                : imgTagItem(state, node.from, node.to)
             if (item !== null) items.push(item)
           }
           return false
@@ -337,6 +394,15 @@ export function scanBlocks(
           if (!seen.has(node.from)) {
             seen.add(node.from)
             const item = tableItem(state, node.node)
+            if (item !== null) items.push(item)
+          }
+          return false
+        }
+        // A tag alone on its line, with no paragraph before it, is an HTML block to the parser.
+        if (node.name === 'HTMLBlock') {
+          if (!seen.has(node.from)) {
+            seen.add(node.from)
+            const item = imgTagItem(state, node.from, node.to)
             if (item !== null) items.push(item)
           }
           return false
