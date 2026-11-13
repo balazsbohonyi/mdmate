@@ -53,7 +53,7 @@ function addressOf(raw: string): string {
   return address
 }
 
-/** `![alt](src "title")` as an `<img>` of `width` pixels, or null when the tag would say something else. */
+/** `![alt](src "title")` as a self-closed `<img .../>` of `width` pixels, or null when the tag would say something else. */
 function markdownAsTag(target: ResizeTarget, width: number): string | null {
   const src = addressOf(target.address)
   if (src === '') return null
@@ -62,7 +62,8 @@ function markdownAsTag(target: ResizeTarget, width: number): string | null {
   let tag = `<img src="${attribute(src)}"`
   if (alt !== '') tag += ` alt="${attribute(alt)}"`
   if (title !== null && title !== '') tag += ` title="${attribute(title)}"`
-  tag += ` width="${String(width)}">`
+  // Self-closed, as the owner writes a tag by hand; a tag that is already there keeps its own end.
+  tag += ` width="${String(width)}"/>`
   const back = parseImgTag(tag)
   if (back?.src !== src || back.alt !== alt || back.width !== width) return null
   if ((back.title ?? '') !== (title ?? '')) return null

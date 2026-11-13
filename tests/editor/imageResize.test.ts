@@ -187,19 +187,19 @@ describe('a Markdown image written as an <img> tag (ISC-158)', () => {
 
   it('gives the address, the label, the title and the width', () => {
     expect(write(target({ address: 'a.png', alt: 'An A' }))).toBe(
-      '<img src="a.png" alt="An A" width="100">',
+      '<img src="a.png" alt="An A" width="100"/>',
     )
     expect(write(target({ address: 'a.png', source: '![](a.png)' }))).toBe(
-      '<img src="a.png" width="100">',
+      '<img src="a.png" width="100"/>',
     )
     expect(
       write(target({ address: 'a.png', alt: 'A', title: 'The A', source: '![A](a.png "The A")' })),
-    ).toBe('<img src="a.png" alt="A" title="The A" width="100">')
+    ).toBe('<img src="a.png" alt="A" title="The A" width="100"/>')
   })
 
   it('keeps the whitespace around it and rounds the width', () => {
     expect(write(target({ address: 'a.png', source: '  ![](a.png) ' }), 99.6)).toBe(
-      '  <img src="a.png" width="100"> ',
+      '  <img src="a.png" width="100"/> ',
     )
   })
 
@@ -240,8 +240,8 @@ describe('a Markdown image written as an <img> tag (ISC-158)', () => {
 
   it('ends the tag with a line break when the next line would join its HTML block', () => {
     const t = target({ address: 'a.png', source: '![](a.png)', joinsNext: true })
-    expect(write(t)).toBe('<img src="a.png" width="100">\n')
-    expect(write({ ...t, lineBreak: '\r\n' })).toBe('<img src="a.png" width="100">\r\n')
+    expect(write(t)).toBe('<img src="a.png" width="100"/>\n')
+    expect(write({ ...t, lineBreak: '\r\n' })).toBe('<img src="a.png" width="100"/>\r\n')
     // A tag already is an HTML block: nothing is added.
     expect(write({ ...t, html: true, source: '<img src="a.png">', address: 'a.png' })).toBe(
       '<img src="a.png" width="100">',
@@ -525,7 +525,9 @@ describe('the handle (ISC-157)', () => {
     send('pointermove', 150)
     expect(view.state.doc.toString()).toBe(before)
     send('pointerup', 150)
-    expect(view.state.doc.toString()).toBe('top\n\n<img src="a.png" alt="a" width="250">\n\nbottom')
+    expect(view.state.doc.toString()).toBe(
+      'top\n\n<img src="a.png" alt="a" width="250"/>\n\nbottom',
+    )
     const [item] = items(view.state)
     expect(item).toMatchObject({ html: true, width: 250, alt: 'a' })
     expect(selectedImageOf(view.state)).toEqual({ from: item?.from, to: item?.to })
@@ -592,7 +594,7 @@ describe('the handle (ISC-157)', () => {
     const frame = image(inline)
     if (frame === null) throw new Error('no frame')
     drag(inline, 100, 180)
-    expect(inline.state.doc.toString()).toBe('one <img src="a.png" alt="a" width="180"> two')
+    expect(inline.state.doc.toString()).toBe('one <img src="a.png" alt="a" width="180"/> two')
 
     const tag = mount('<img src="a.png" alt="x y" width="50" height="40" class="k">\n\nend')
     press(tag)
@@ -618,7 +620,7 @@ describe('the handle (ISC-157)', () => {
       expect(out.startsWith(text.slice(0, at)), JSON.stringify(eol)).toBe(true)
       expect(out.endsWith(text.slice(end)), JSON.stringify(eol)).toBe(true)
       expect(out.slice(at, out.length - (text.length - end))).toBe(
-        '<img src="a.png" alt="a" width="150">',
+        '<img src="a.png" alt="a" width="150"/>',
       )
     }
   })
@@ -630,7 +632,7 @@ describe('the handle (ISC-157)', () => {
     await load(view)
     drag(view, 100, 150)
     expect(view.state.doc.toString()).toBe(
-      'top\n\n<img src="a.png" alt="a" width="150">\n\n_caption_\n\nend\n',
+      'top\n\n<img src="a.png" alt="a" width="150"/>\n\n_caption_\n\nend\n',
     )
     expect(items(view.state)).toHaveLength(1)
     expect(undo(view)).toBe(true)
@@ -643,7 +645,7 @@ describe('the handle (ISC-157)', () => {
     await load(second)
     drag(second, 100, 150)
     expect(second.state.doc.toString()).toBe(
-      'top\n<img src="a.png" alt="a" width="150">\n_caption_\n',
+      'top\n<img src="a.png" alt="a" width="150"/>\n_caption_\n',
     )
     expect(items(second.state)).toHaveLength(1)
 
@@ -653,7 +655,9 @@ describe('the handle (ISC-157)', () => {
     press(both)
     await load(both)
     drag(both, 100, 150)
-    expect(both.state.doc.toString()).toBe('<img src="a.png" alt="a" width="150">\n\n![b](b.png)\n')
+    expect(both.state.doc.toString()).toBe(
+      '<img src="a.png" alt="a" width="150"/>\n\n![b](b.png)\n',
+    )
     expect(items(both.state)).toHaveLength(2)
   })
 
@@ -791,7 +795,7 @@ describe('through the real document (ISC-325, ISC-158)', () => {
       )
     }
     expect(doc?.master.doc.toString()).toBe(
-      'top\n\n<img src="a.png" alt="a" width="160">\n\nbottom\n',
+      'top\n\n<img src="a.png" alt="a" width="160"/>\n\nbottom\n',
     )
     expect(follower.undo()).toBe(true)
     expect(doc?.master.doc.toString()).toBe(text)
