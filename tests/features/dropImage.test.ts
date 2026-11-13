@@ -139,6 +139,9 @@ describe('a picture dropped onto a document from Explorer (ISC-156, ISC-328, ISC
     'C:/ws/img/p.png': 'PNG',
     'C:/out/q.png': 'PNG',
     'C:/out/r.jpg': 'JPG',
+    // Pictures of their own: the same bytes would be one file whatever the name.
+    'C:/out/my cat #1.png': 'CAT',
+    'C:/other/q.png': 'OTHER',
   }
   let hit: Element | null = null
 
@@ -218,10 +221,8 @@ describe('a picture dropped onto a document from Explorer (ISC-156, ISC-328, ISC
     } finally {
       vi.useRealTimers()
     }
-    expect(documentOfTab(tab)?.master.doc.toString()).toBe(
-      'hello![](assets/image-20261113-153000.png)\n',
-    )
-    expect(host.copiedImages).toEqual(['C:/ws/notes/assets/image-20261113-153000.png'])
+    expect(documentOfTab(tab)?.master.doc.toString()).toBe('hello![](assets/q.png)\n')
+    expect(host.copiedImages).toEqual(['C:/ws/notes/assets/q.png'])
     expect(host.files.has('C:/out/q.png')).toBe(true)
     expect(imageTabs()).toHaveLength(0)
   })
@@ -230,10 +231,34 @@ describe('a picture dropped onto a document from Explorer (ISC-156, ISC-328, ISC
     const tab = await openPath('C:/ws/notes/a.md')
     const view = viewOfTab(tab, 0)
     await dropOnText(view, ['C:/ws/notes/pic.png', 'C:/out/r.jpg'])
-    expect(documentOfTab(tab)?.master.doc.toString()).toMatch(
-      /^!\[\]\(pic\.png\)\n!\[\]\(assets\/image-\d{8}-\d{6}\.jpg\)hello\n$/,
-    )
+    expect(documentOfTab(tab)?.master.doc.toString()).toBe('![](pic.png)\n![](assets/r.jpg)hello\n')
     expect(host.copiedImages).toHaveLength(1)
+  })
+
+  it('dropping the same picture again links the copy that is there instead of copying it twice', async () => {
+    const tab = await openPath('C:/ws/notes/a.md')
+    const view = viewOfTab(tab, 5)
+    await dropOnText(view, ['C:/out/q.png'])
+    await dropOnText(view, ['C:/out/q.png'])
+    await dropOnText(view, ['C:/out/q.png'])
+    expect(documentOfTab(tab)?.master.doc.toString()).toBe(
+      'hello![](assets/q.png)![](assets/q.png)![](assets/q.png)\n',
+    )
+    expect(host.copiedImages).toEqual(['C:/ws/notes/assets/q.png'])
+  })
+
+  it('keeps the file name of a copy, cleaned for a link, and numbers a different picture of that name', async () => {
+    const tab = await openPath('C:/ws/notes/a.md')
+    const view = viewOfTab(tab, 0)
+    await dropOnText(view, ['C:/out/my cat #1.png'])
+    expect(view.state.doc.toString()).toBe('![](<assets/my cat -1.png>)hello\n')
+    await dropOnText(view, ['C:/other/q.png'])
+    await dropOnText(view, ['C:/out/q.png'])
+    expect(host.copiedImages).toEqual([
+      'C:/ws/notes/assets/my cat -1.png',
+      'C:/ws/notes/assets/q.png',
+      'C:/ws/notes/assets/q-2.png',
+    ])
   })
 
   it('opens the Markdown file of a drop that has one, and links the picture that came with it', async () => {
@@ -256,8 +281,8 @@ describe('a picture dropped onto a document from Explorer (ISC-156, ISC-328, ISC
     await dropOnText(view, ['C:/ws/notes/pic.png'])
     expect(problem.value).toBeNull()
     expect(host.copiedImages).toHaveLength(1)
-    expect(host.copiedImages[0]).toMatch(/^\/mock-data\/drafts\/1\/assets\/image-\d{8}-\d{6}\.png$/)
-    expect(view.state.doc.toString()).toMatch(/^!\[\]\(assets\/image-\d{8}-\d{6}\.png\)$/)
+    expect(host.copiedImages[0]).toBe('/mock-data/drafts/1/assets/pic.png')
+    expect(view.state.doc.toString()).toBe('![](assets/pic.png)')
     expect(imageTabs()).toHaveLength(0)
   })
 

@@ -12,7 +12,7 @@
 
 use crate::access::{display_path, is_inside};
 use crate::error::AppError;
-use crate::images::{IMAGES_FOLDER, save_into, valid_stamp};
+use crate::images::{IMAGES_FOLDER, clean_stem, save_into_where};
 use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -257,18 +257,30 @@ pub(crate) fn rewrite_links(text: &str, renames: &BTreeMap<String, String>) -> S
     out
 }
 
-/// The time part of a draft image's name (`image-20261113-153000-2.png`), or `None` when the name is
-/// not one this app made.
-fn stamp_of(name: &str) -> Option<&str> {
-    let stamp = name.strip_prefix("image-")?.get(..15)?;
-    valid_stamp(stamp).then_some(stamp)
+/// The name of a draft image without its extension (`cat` for `cat.png`), or `None` when the file
+/// is not one of the four kinds of image this app saves or its name is not one the app would make.
+fn image_stem(name: &str) -> Option<&str> {
+    let (stem, extension) = name.rsplit_once('.')?;
+    let known = ["png", "jpg", "gif", "webp"]
+        .iter()
+        .any(|known| extension.eq_ignore_ascii_case(known));
+    (known && clean_stem(stem)).then_some(stem)
+}
+
+/// Whether a name can be written into a link as it is: letters, digits, `-`, `_` and `.` only, no
+/// space or bracket that would make the link need `<...>`.
+fn plain_name(name: &str) -> bool {
+    name.chars()
+        .all(|c| c.is_alphanumeric() || matches!(c, '-' | '_' | '.'))
 }
 
 /// Copies the images of draft `number` that `text` links to into `target_folder/assets`, under the
 /// names they had when those are free and `-2`, `-3` when they are not, and returns the text with
-/// the links of the renamed ones updated. Images the text does not use stay behind, so a picture
-/// that was pasted and then undone does not end up in the folder. Nothing is overwritten. If any
-/// copy fails, the ones already made are removed again and the error is returned.
+/// the links of the renamed ones updated. An image whose bytes are already in that folder under
+/// another name is not copied: the links go to the file that is there. Images the text does not
+/// use stay behind, so a picture that was pasted and then undone does not end up in the folder.
+/// Nothing is overwritten. If any copy fails, the ones this call made are removed again (never one
+/// that was already there) and the error is returned.
 pub(crate) fn adopt(
     drafts: &Drafts,
     number: u32,
@@ -290,7 +302,7 @@ pub(crate) fn adopt(
         .flatten()
         .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_file()))
         .filter_map(|entry| entry.file_name().into_string().ok())
-        .filter(|name| stamp_of(name).is_some())
+        .filter(|name| image_stem(name).is_some())
         .take(MAX_IMAGES)
         .collect();
     names.sort();
@@ -303,14 +315,21 @@ pub(crate) fn adopt(
         let copied = std::fs::read(images.join(name))
             .map_err(AppError::from)
             .and_then(|bytes| {
-                let stamp = stamp_of(name).unwrap_or_default();
-                save_into(target_folder, ignore_case, stamp, &bytes)
+                let stem = image_stem(name).unwrap_or_default();
+                // The links are rewritten as plain text, so an existing file under a name that
+                // would need `<...>` in a link is only reused when the link is to it already.
+                save_into_where(target_folder, ignore_case, stem, &bytes, |existing| {
+                    existing == name || plain_name(existing)
+                })
             });
         match copied {
             Ok(saved) => {
-                adopted
-                    .created
-                    .push(target_folder.join(IMAGES_FOLDER).join(&saved.name));
+                // A file that was already there is not this call's to take back.
+                if !saved.reused {
+                    adopted
+                        .created
+                        .push(target_folder.join(IMAGES_FOLDER).join(&saved.name));
+                }
                 if saved.name != *name {
                     adopted.renames.insert(name.clone(), saved.name);
                 }
@@ -338,7 +357,9 @@ mod tests {
     use super::*;
 
     const PNG: &[u8] = b"\x89PNG\r\n\x1a\n-pretend-pixels-";
-    const STAMP: &str = "20261113-153000";
+    /// Two more pictures, with bytes of their own: the same bytes are the same picture.
+    const PNG_B: &[u8] = b"\x89PNG\r\n\x1a\n-other-pixels-";
+    const PNG_C: &[u8] = b"\x89PNG\r\n\x1a\n-third-pixels-";
 
     fn drafts_in(dir: &Path) -> Drafts {
         let drafts = Drafts::default();
@@ -491,8 +512,8 @@ mod tests {
         let dir = tempfile::tempdir().expect("temp");
         let drafts = drafts_in(dir.path());
         put(&drafts, 1, "image-20261113-153000.png", PNG);
-        put(&drafts, 1, "image-20261113-153001.png", PNG);
-        put(&drafts, 1, "image-20261113-153002.png", PNG);
+        put(&drafts, 1, "image-20261113-153001.png", PNG_B);
+        put(&drafts, 1, "image-20261113-153002.png", PNG_C);
         let target = dir.path().join("notes");
         std::fs::create_dir(&target).expect("target");
         let text = "![a](assets/image-20261113-153000.png) <img src=\"assets/image-20261113-153002.png\" width=\"9\">";
@@ -511,7 +532,7 @@ mod tests {
         let dir = tempfile::tempdir().expect("temp");
         let drafts = drafts_in(dir.path());
         put(&drafts, 1, "image-20261113-153000.png", PNG);
-        put(&drafts, 1, "image-20261113-153001.png", PNG);
+        put(&drafts, 1, "image-20261113-153001.png", PNG_B);
         let target = dir.path().join("notes");
         std::fs::create_dir_all(target.join(IMAGES_FOLDER)).expect("assets");
         let theirs = b"\x89PNG\r\n\x1a\nthe-owners-picture";
@@ -586,17 +607,124 @@ mod tests {
     }
 
     #[test]
-    fn draft_images_stamp_names_only_ours() {
+    fn draft_images_names_are_only_ours_to_copy() {
         assert_eq!(
-            stamp_of("image-20261113-153000.png"),
-            Some("20261113-153000")
+            image_stem("image-20261113-153000.png"),
+            Some("image-20261113-153000")
         );
         assert_eq!(
-            stamp_of("image-20261113-153000-2.jpg"),
-            Some("20261113-153000")
+            image_stem("image-20261113-153000-2.jpg"),
+            Some("image-20261113-153000-2")
         );
-        assert_eq!(stamp_of("cat.png"), None);
-        assert_eq!(stamp_of("image-2026.png"), None);
-        assert!(STAMP.len() == 15);
+        assert_eq!(image_stem("my cat (1).webp"), Some("my cat (1)"));
+        assert_eq!(image_stem("CAT.PNG"), Some("CAT"));
+        assert_eq!(image_stem("notes.txt"), None, "not an image kind");
+        assert_eq!(image_stem("cat"), None, "no extension");
+        assert_eq!(image_stem("con.png"), None, "a device name");
+        assert_eq!(image_stem("a?b.png"), None, "a character no copy keeps");
+    }
+
+    #[test]
+    fn draft_images_adopt_keeps_the_name_the_picture_has() {
+        let dir = tempfile::tempdir().expect("temp");
+        let drafts = drafts_in(dir.path());
+        put(&drafts, 1, "my cat (1).png", PNG);
+        let target = dir.path().join("notes");
+        std::fs::create_dir(&target).expect("target");
+        let text = "![](<assets/my cat (1).png>)";
+        let adopted = adopt(&drafts, 1, text, &target, false).expect("adopted");
+        assert_eq!(adopted.text, text);
+        assert!(adopted.renames.is_empty());
+        assert_eq!(
+            std::fs::read(target.join(IMAGES_FOLDER).join("my cat (1).png")).expect("copied"),
+            PNG
+        );
+    }
+
+    #[test]
+    fn draft_images_adopt_links_to_the_same_picture_already_in_the_folder() {
+        let dir = tempfile::tempdir().expect("temp");
+        let drafts = drafts_in(dir.path());
+        put(&drafts, 1, "image-20261113-153000.png", PNG);
+        put(&drafts, 1, "image-20261113-153001.png", PNG_B);
+        let target = dir.path().join("notes");
+        std::fs::create_dir_all(target.join(IMAGES_FOLDER)).expect("assets");
+        std::fs::write(target.join(IMAGES_FOLDER).join("cat.png"), PNG).expect("theirs");
+        let text = "![a](assets/image-20261113-153000.png) ![b](assets/image-20261113-153001.png)";
+        let adopted = adopt(&drafts, 1, text, &target, false).expect("adopted");
+        assert_eq!(
+            adopted.text,
+            "![a](assets/cat.png) ![b](assets/image-20261113-153001.png)"
+        );
+        assert!(
+            !target
+                .join(IMAGES_FOLDER)
+                .join("image-20261113-153000.png")
+                .exists(),
+            "the same picture is not copied again"
+        );
+        assert_eq!(
+            adopted.created,
+            [target.join(IMAGES_FOLDER).join("image-20261113-153001.png")],
+            "only what was made is listed to take back"
+        );
+    }
+
+    #[test]
+    fn draft_images_adopt_two_drafts_of_one_picture_make_one_file() {
+        let dir = tempfile::tempdir().expect("temp");
+        let drafts = drafts_in(dir.path());
+        put(&drafts, 1, "a.png", PNG);
+        put(&drafts, 1, "b.png", PNG);
+        let target = dir.path().join("notes");
+        std::fs::create_dir(&target).expect("target");
+        let text = "![](assets/a.png) ![](assets/b.png)";
+        let adopted = adopt(&drafts, 1, text, &target, false).expect("adopted");
+        assert_eq!(adopted.text, "![](assets/a.png) ![](assets/a.png)");
+        assert_eq!(adopted.created.len(), 1);
+        assert_eq!(
+            std::fs::read_dir(target.join(IMAGES_FOLDER))
+                .expect("lists")
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn draft_images_adopt_does_not_point_a_link_at_a_name_that_needs_brackets() {
+        let dir = tempfile::tempdir().expect("temp");
+        let drafts = drafts_in(dir.path());
+        put(&drafts, 1, "a.png", PNG);
+        let target = dir.path().join("notes");
+        std::fs::create_dir_all(target.join(IMAGES_FOLDER)).expect("assets");
+        std::fs::write(target.join(IMAGES_FOLDER).join("my cat.png"), PNG).expect("theirs");
+        let adopted = adopt(&drafts, 1, "![](assets/a.png)", &target, false).expect("adopted");
+        // A link `assets/my cat.png` without brackets would stop being a link, so the picture is
+        // copied under its own name instead.
+        assert_eq!(adopted.text, "![](assets/a.png)");
+        assert!(target.join(IMAGES_FOLDER).join("a.png").is_file());
+    }
+
+    #[test]
+    fn draft_images_adopt_failing_after_a_reuse_leaves_the_file_that_was_there() {
+        let dir = tempfile::tempdir().expect("temp");
+        let drafts = drafts_in(dir.path());
+        put(&drafts, 1, "a.png", PNG);
+        // Sorted after `a.png`, so the reuse happens first; this one is refused.
+        put(&drafts, 1, "b.png", b"not an image at all");
+        let target = dir.path().join("notes");
+        std::fs::create_dir_all(target.join(IMAGES_FOLDER)).expect("assets");
+        let theirs = target.join(IMAGES_FOLDER).join("cat.png");
+        std::fs::write(&theirs, PNG).expect("theirs");
+        let text = "![](assets/a.png) ![](assets/b.png)";
+        assert!(adopt(&drafts, 1, text, &target, false).is_err());
+        assert_eq!(std::fs::read(&theirs).expect("still there"), PNG);
+        assert_eq!(
+            std::fs::read_dir(target.join(IMAGES_FOLDER))
+                .expect("lists")
+                .count(),
+            1,
+            "nothing else was left"
+        );
     }
 }

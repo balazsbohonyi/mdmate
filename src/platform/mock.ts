@@ -144,8 +144,44 @@ export interface MockHost extends Host {
 /** Where the mock keeps the draft folders of untitled documents. */
 export const DRAFT_ROOT = '/mock-data/drafts'
 
-/** The images of a draft that its text links to, and what the stamp-named file starts with. */
-const DRAFT_IMAGE = /^image-\d{8}-\d{6}(?:-\d+)?\.(?:png|jpg|gif|webp)$/
+/** The files of a draft's `assets` that can be copied: a name and one of the four extensions. */
+const DRAFT_IMAGE = /^[^/\\]+\.(?:png|jpg|gif|webp)$/i
+
+/** Characters a copied picture's name never keeps, as in Rust's `forbidden_in_name`. */
+const NAME_FORBIDDEN = new Set([...'<>:"/\\|?*#%&'])
+
+function forbiddenInName(char: string): boolean {
+  const code = char.codePointAt(0) ?? 0
+  return (
+    code < 0x20 ||
+    (code >= 0x7f && code < 0xa0) ||
+    NAME_FORBIDDEN.has(char) ||
+    (code >= 0x200b && code <= 0x200f) ||
+    (code >= 0x202a && code <= 0x202e) ||
+    (code >= 0x2066 && code <= 0x2069) ||
+    code === 0xfeff
+  )
+}
+
+/** Names Windows keeps for devices, with or without an extension. */
+function reservedName(stem: string): boolean {
+  const base = (stem.split('.')[0] ?? '').trimEnd().toUpperCase()
+  return ['CON', 'PRN', 'AUX', 'NUL'].includes(base) || /^(?:COM|LPT)[1-9]$/.test(base)
+}
+
+/** The name a dropped picture's copy keeps, as in Rust's `safe_stem`. Empty when there is none. */
+function safeStem(original: string): string {
+  const mapped = [...original]
+    .map((char) => (forbiddenInName(char) ? '-' : char))
+    .slice(0, 100)
+    .join('')
+  const kept = mapped.replace(/[. ]+$/, '')
+  const stem = kept + '-'.repeat(mapped.length - kept.length)
+  return reservedName(stem) ? `image-${stem}` : stem
+}
+
+/** A name that can sit in a link as it is, with no `<...>` around it. */
+const PLAIN_NAME = /^[\p{L}\p{N}_.-]+$/u
 
 /** The extension Rust gives an image by its first bytes, or null when it is none of the four. */
 function sniffImageExtension(bytes: Uint8Array): string | null {
@@ -262,9 +298,34 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
   const draftNumbers = new Map<number, number>()
   const draftFolder = (number: number): string => `${DRAFT_ROOT}/${String(number)}`
   /**
+   * Puts a picture in `folder` as Rust's `save_into` does: a file there with the same content is
+   * the picture already (nothing is written), otherwise it is written under `stem` and the first
+   * free number (`-2`, `-3`), and a taken name is never replaced. `mayReuse` says which names of
+   * identical files will do.
+   */
+  const placeImage = (
+    folder: string,
+    stem: string,
+    ext: string,
+    content: string,
+    mayReuse: (name: string) => boolean = () => true,
+  ): { name: string; reused: boolean } => {
+    const held = (files.listDir(folder) ?? [])
+      .filter((entry) => entry.kind === 'file' && mayReuse(entry.name))
+      .map((entry) => entry.name)
+      .sort()
+      .find((name) => files.read(`${folder}/${name}`) === content)
+    if (held !== undefined) return { name: held, reused: true }
+    let name = `${stem}.${ext}`
+    for (let n = 2; files.has(`${folder}/${name}`); n++) name = `${stem}-${String(n)}.${ext}`
+    files.write(`${folder}/${name}`, content)
+    return { name, reused: false }
+  }
+  /**
    * Copies the images of draft `number` that `text` links to into `<folder>/assets`, under their own
-   * names when free and `-2`, `-3` when taken, and returns the text with the renamed links updated.
-   * What Rust does for the first Save As and for recovered text.
+   * names when free and `-2`, `-3` when taken (a picture already there under another name is linked
+   * instead), and returns the text with the renamed links updated. What Rust does for the first Save
+   * As and for recovered text.
    */
   const adoptDraftImages = (
     number: number,
@@ -275,24 +336,29 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     const names = (files.listDir(source) ?? [])
       .filter((entry) => entry.kind === 'file' && DRAFT_IMAGE.test(entry.name))
       .map((entry) => entry.name)
+      .filter((name) => {
+        const stem = name.slice(0, name.lastIndexOf('.'))
+        return safeStem(stem) === stem
+      })
       .sort()
     const used = new Set(draftLinkUses(text, names).map((use) => use.name))
     const target = `${folder}/assets`
     const renamedImages: { from: string; to: string }[] = []
     for (const name of names.filter((candidate) => used.has(candidate))) {
       const dot = name.lastIndexOf('.')
-      const stem = name.slice(0, dot)
-      const ext = name.slice(dot)
-      let finalName = name
-      for (let n = 2; files.has(`${target}/${finalName}`); n++)
-        finalName = `${stem}-${String(n)}${ext}`
-      files.write(`${target}/${finalName}`, files.read(`${source}/${name}`) ?? '')
+      const placed = placeImage(
+        target,
+        name.slice(0, dot),
+        name.slice(dot + 1),
+        files.read(`${source}/${name}`) ?? '',
+        (existing) => existing === name || PLAIN_NAME.test(existing),
+      )
       const bytes = pastedImages.findLast(
         (image) => pathKey(image.path) === pathKey(`${source}/${name}`),
       )
-      if (bytes !== undefined)
-        pastedImages.push({ path: `${target}/${finalName}`, bytes: bytes.bytes })
-      if (finalName !== name) renamedImages.push({ from: name, to: finalName })
+      if (bytes !== undefined && !placed.reused)
+        pastedImages.push({ path: `${target}/${placed.name}`, bytes: bytes.bytes })
+      if (placed.name !== name) renamedImages.push({ from: name, to: placed.name })
     }
     const renames = new Map(renamedImages.map((image) => [image.from, image.to]))
     return { text: rewriteDraftLinks(text, renames), renamedImages }
@@ -834,14 +900,12 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
           number !== undefined
             ? `${draftFolder(number)}/assets`
             : `${parentOf(doc?.path ?? '')}/assets`
-        // The first free name; a taken one is never replaced.
-        let name = `image-${stamp}.${ext}`
-        for (let n = 2; files.has(`${folder}/${name}`); n++)
-          name = `image-${stamp}-${String(n)}.${ext}`
-        const path = `${folder}/${name}`
-        files.write(path, String.fromCharCode(...data.slice(0, 64)))
-        pastedImages.push({ path, bytes: data })
-        return { name, link: `assets/${name}` }
+        // The same picture again is the file that is there; otherwise the first free name, and a
+        // taken one is never replaced.
+        const content = Array.from(data, (byte) => String.fromCharCode(byte)).join('')
+        const placed = placeImage(folder, `image-${stamp}`, ext, content)
+        if (!placed.reused) pastedImages.push({ path: `${folder}/${placed.name}`, bytes: data })
+        return { name: placed.name, link: `assets/${placed.name}` }
       })
     },
     dropImage(id, path, stamp) {
@@ -855,21 +919,35 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
         // Like Rust: an untitled document copies every picture into its draft folder, and a
         // document that cannot be edited takes none.
         const number = draftNumbers.get(id)
-        if (number !== undefined) {
-          if (!/^\d{8}-\d{6}$/.test(stamp)) throw hostError('invalid', 'bad image name stamp')
-          const target = `${draftFolder(number)}/assets`
-          const ext = nameOf(path).includes('.') ? (nameOf(path).split('.').pop() ?? 'png') : 'png'
-          let name = `image-${stamp}.${ext}`
-          for (let n = 2; files.has(`${target}/${name}`); n++)
-            name = `image-${stamp}-${String(n)}.${ext}`
-          files.write(`${target}/${name}`, files.read(path) ?? '')
-          copiedImages.push(`${target}/${name}`)
-          return { link: `assets/${name}`, copied: true }
+        // The copy keeps the file's own name, cleaned; a file with no usable name is named like
+        // a pasted one. Unlike Rust the extension is the file's own: the mock's files are not
+        // real images, so there are no bytes to read it from.
+        const copyOf = (folder: string): { link: string; copied: true } => {
+          const dot = nameOf(path).lastIndexOf('.')
+          const own = safeStem(dot > 0 ? nameOf(path).slice(0, dot) : nameOf(path))
+          if (own === '' && !/^\d{8}-\d{6}$/.test(stamp)) {
+            throw hostError('invalid', 'bad image name stamp')
+          }
+          const ext =
+            dot > 0
+              ? nameOf(path)
+                  .slice(dot + 1)
+                  .toLowerCase()
+              : 'png'
+          const target = `${folder}/assets`
+          const placed = placeImage(
+            target,
+            own === '' ? `image-${stamp}` : own,
+            ext,
+            files.read(path) ?? '',
+          )
+          if (!placed.reused) copiedImages.push(`${target}/${placed.name}`)
+          return { link: `assets/${placed.name}`, copied: true }
         }
+        if (number !== undefined) return copyOf(draftFolder(number))
         const doc = open.get(id)
         if (doc === undefined) throw hostError('not-open', `no open document ${id}`)
         if (doc.readOnly !== null) throw hostError('read-only', 'it cannot be edited')
-        if (!/^\d{8}-\d{6}$/.test(stamp)) throw hostError('invalid', 'bad image name stamp')
         const folder = parentOf(doc.path)
         // The innermost workspace folder that holds the document, or its own folder.
         const boundary = roots
@@ -893,14 +971,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
           ].join('/')
           return { link, copied: false }
         }
-        const ext = nameOf(path).includes('.') ? (nameOf(path).split('.').pop() ?? 'png') : 'png'
-        const target = `${folder}/assets`
-        let name = `image-${stamp}.${ext}`
-        for (let n = 2; files.has(`${target}/${name}`); n++)
-          name = `image-${stamp}-${String(n)}.${ext}`
-        files.write(`${target}/${name}`, files.read(path) ?? '')
-        copiedImages.push(`${target}/${name}`)
-        return { link: `assets/${name}`, copied: true }
+        return copyOf(folder)
       })
     },
     createFile(parent, name) {

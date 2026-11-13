@@ -46,7 +46,10 @@ function type(tab: string, text: string): void {
 
 /** Puts a picture in the draft folder of the untitled document `id`, as a paste does. */
 async function paste(id: number, stamp: string): Promise<string> {
-  return (await host.savePastedImage(id, PNG.buffer.slice(0), stamp)).name
+  // Each picture has bytes of its own: the same bytes would be one file.
+  const bytes = PNG.slice()
+  bytes[bytes.length - 1] = Number(stamp.slice(-1))
+  return (await host.savePastedImage(id, bytes.buffer, stamp)).name
 }
 
 beforeEach(() => {
@@ -120,6 +123,22 @@ describe('the first Save As of an untitled document with images (ISC-331)', () =
     expect(doc?.master.doc.toString()).toBe(written)
     expect(docMeta(id)).toMatchObject({ dirty: false })
     expect(doc?.untitled).toBe(false)
+  })
+
+  it('links to a picture that is already beside the file instead of copying it again', async () => {
+    const { id } = await untitledWithImages()
+    // The owner's own copy of the first picture, under another name.
+    host.files.write(
+      'C:/notes/assets/holiday.png',
+      host.files.read(`${DRAFT_ROOT}/1/assets/${FIRST}`) ?? '',
+    )
+    picked = 'C:/notes/new.md'
+    expect(await saveDocument(id)).toBe(true)
+    expect(host.files.has(`C:/notes/assets/${FIRST}`)).toBe(false)
+    expect(host.files.has(`C:/notes/assets/${SECOND}`)).toBe(true)
+    expect(host.files.read('C:/notes/new.md')).toBe(
+      `![a](assets/holiday.png)\n<img src="assets/${SECOND}" width="80">\n`,
+    )
   })
 
   it('leaves the draft in place when the dialog is cancelled', async () => {

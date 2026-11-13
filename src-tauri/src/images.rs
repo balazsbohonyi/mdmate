@@ -64,6 +64,10 @@ pub(crate) struct SavedImage {
     pub(crate) name: String,
     /// Relative to the document's folder, with `/` as the separator on every OS.
     pub(crate) link: String,
+    /// True when a file with exactly these bytes was already in the folder and nothing was written:
+    /// the link points at that file. Its owner is not this call, so nobody may remove it again.
+    #[serde(skip)]
+    pub(crate) reused: bool,
 }
 
 /// The time part of a file name, `YYYYMMDD-HHMMSS`. The page knows the local time; Rust holds it to
@@ -78,21 +82,102 @@ pub(crate) fn valid_stamp(stamp: &str) -> bool {
             .all(|(at, byte)| at == 8 || byte.is_ascii_digit())
 }
 
-/// Writes `bytes` as a new file in `folder/IMAGES_FOLDER`, creating that folder on the first use.
-/// A name that is taken gets `-2`, `-3`, and a file that is there is never opened for writing: the
-/// file is created in the same step that checks the name, so two pastes in one second cannot meet.
+/// The name, without its extension, of a picture that has no name of its own (a pasted one):
+/// `image-YYYYMMDD-HHMMSS`.
+pub(crate) fn stamp_stem(stamp: &str) -> Result<String, AppError> {
+    if valid_stamp(stamp) {
+        Ok(format!("image-{stamp}"))
+    } else {
+        Err(AppError::Invalid("bad image name stamp".into()))
+    }
+}
+
+/// The longest name, without its extension, that is made from a dropped file's own name.
+const MAX_STEM: usize = 100;
+
+/// Characters a copied picture's name never keeps. The first nine are the ones Windows forbids in a
+/// file name; `#`, `%` and `&` are legal there but would need escaping in a link or in an `<img>`
+/// tag, and the name is written into the document as it is.
+fn forbidden_in_name(c: char) -> bool {
+    c.is_control()
+        // Invisible characters that reorder or hide text, so a name cannot pose as another.
+        || matches!(c, '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}' | '\u{FEFF}')
+        || matches!(
+            c,
+            '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*' | '#' | '%' | '&'
+        )
+}
+
+/// Names Windows keeps for devices, with or without an extension (`con.png` is `con`).
+fn reserved_name(stem: &str) -> bool {
+    let base = stem.split('.').next().unwrap_or_default().trim_end();
+    let upper = base.to_ascii_uppercase();
+    matches!(upper.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || ["COM", "LPT"].iter().any(|prefix| {
+            upper
+                .strip_prefix(prefix)
+                .is_some_and(|rest| matches!(rest.as_bytes(), [b'1'..=b'9']))
+        })
+}
+
+/// A name, without its extension, that is safe to create and to write into a link as it is.
+pub(crate) fn clean_stem(stem: &str) -> bool {
+    !stem.is_empty()
+        && !stem.chars().any(forbidden_in_name)
+        && !stem.ends_with(['.', ' '])
+        && !reserved_name(stem)
+}
+
+/// The name a copied picture keeps from the file it was dropped as: its own name, minus what
+/// cannot stay (see `forbidden_in_name`), cut to 100 characters, with a name Windows keeps for a
+/// device made into another one. Empty when the file had no name to keep. Spaces, dots inside the
+/// name and non-ASCII letters stay: the link handles them.
+pub(crate) fn safe_stem(original: &str) -> String {
+    let mut stem: String = original
+        .chars()
+        .map(|c| if forbidden_in_name(c) { '-' } else { c })
+        .take(MAX_STEM)
+        .collect();
+    // A name cannot end in a dot or a space on Windows, and a cut can leave one.
+    let kept = stem.trim_end_matches(['.', ' ']).len();
+    let trailing = stem.len() - kept;
+    stem.truncate(kept);
+    stem.push_str(&"-".repeat(trailing));
+    if reserved_name(&stem) {
+        stem = format!("image-{stem}");
+    }
+    stem
+}
+
+/// Writes `bytes` as a new file in `folder/IMAGES_FOLDER`, creating that folder on the first use,
+/// unless a file with exactly these bytes is already there: then nothing is written and the link
+/// is to that file (`reused`). A name that is taken by another image gets `-2`, `-3`, and a file
+/// that is there is never opened for writing: the file is created in the same step that checks the
+/// name, so two pastes in one second cannot meet.
 ///
-/// `folder` is the folder of the document, already resolved. A `assets` that is not a folder, or
-/// that leads out of `folder` (a link or junction), is refused: an image saved there would not load,
-/// and the write would reach a place the document does not own.
+/// `stem` is the name without its extension, which comes from what the bytes are. `folder` is the
+/// folder of the document, already resolved. A `assets` that is not a folder, or that leads out of
+/// `folder` (a link or junction), is refused: an image saved there would not load, and the write
+/// would reach a place the document does not own.
 pub(crate) fn save_into(
     folder: &Path,
     ignore_case: bool,
-    stamp: &str,
+    stem: &str,
     bytes: &[u8],
 ) -> Result<SavedImage, AppError> {
-    if !valid_stamp(stamp) {
-        return Err(AppError::Invalid("bad image name stamp".into()));
+    save_into_where(folder, ignore_case, stem, bytes, |_| true)
+}
+
+/// [`save_into`], reusing an identical file only when `may_reuse` accepts its name.
+pub(crate) fn save_into_where(
+    folder: &Path,
+    ignore_case: bool,
+    stem: &str,
+    bytes: &[u8],
+    may_reuse: impl Fn(&str) -> bool,
+) -> Result<SavedImage, AppError> {
+    if !clean_stem(stem) {
+        return Err(AppError::Invalid("bad image name".into()));
     }
     if bytes.len() > MAX_BYTES {
         return Err(AppError::Invalid("the image is too large".into()));
@@ -129,12 +214,21 @@ pub(crate) fn save_into(
         )));
     }
 
+    // The same picture dropped or pasted again is the same file: one image, one copy.
+    if let Some(name) = find_identical(&resolved, bytes, may_reuse) {
+        return Ok(SavedImage {
+            link: format!("{IMAGES_FOLDER}/{name}"),
+            name,
+            reused: true,
+        });
+    }
+
     let ext = kind.extension();
     for attempt in 1..=MAX_SUFFIX {
         let name = if attempt == 1 {
-            format!("image-{stamp}.{ext}")
+            format!("{stem}.{ext}")
         } else {
-            format!("image-{stamp}-{attempt}.{ext}")
+            format!("{stem}-{attempt}.{ext}")
         };
         let mut file = match std::fs::OpenOptions::new()
             .write(true)
@@ -154,9 +248,37 @@ pub(crate) fn save_into(
         return Ok(SavedImage {
             link: format!("{IMAGES_FOLDER}/{name}"),
             name,
+            reused: false,
         });
     }
-    Err(AppError::Exists(format!("image-{stamp}.{ext}")))
+    Err(AppError::Exists(format!("{stem}.{ext}")))
+}
+
+/// How many entries of `assets` are looked at for a copy of an image; no folder holds anywhere near
+/// it, and a folder that does is not worth reading in full on every paste.
+const MAX_COMPARED: usize = 20_000;
+
+/// The name of a file in `images` that holds exactly `bytes`, and that `may_reuse` accepts. Only
+/// plain files are looked at (a link is never followed), and only those of the same size are read.
+fn find_identical(images: &Path, bytes: &[u8], may_reuse: impl Fn(&str) -> bool) -> Option<String> {
+    let mut names: Vec<String> = std::fs::read_dir(images)
+        .ok()?
+        .flatten()
+        .take(MAX_COMPARED)
+        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_file()))
+        .filter(|entry| {
+            entry
+                .metadata()
+                .is_ok_and(|meta| meta.len() == bytes.len() as u64)
+        })
+        .filter_map(|entry| entry.file_name().into_string().ok())
+        .filter(|name| may_reuse(name))
+        .collect();
+    // The same answer every time, whatever order the file system lists in.
+    names.sort();
+    names
+        .into_iter()
+        .find(|name| std::fs::read(images.join(name)).is_ok_and(|held| held == bytes))
 }
 
 /// Saves an image pasted into the open document `id`, next to its file.
@@ -169,8 +291,9 @@ pub(crate) fn save_pasted(
     stamp: &str,
     bytes: &[u8],
 ) -> Result<SavedImage, AppError> {
+    let stem = stamp_stem(stamp)?;
     let home = document_for_images(state, id)?;
-    save_into(&home.folder, state.ignore_case(), stamp, bytes)
+    save_into(&home.folder, state.ignore_case(), &stem, bytes)
 }
 
 /// Where the images of a document go.
@@ -210,8 +333,9 @@ pub(crate) fn document_for_images(state: &AppState, id: u32) -> Result<ImageHome
     })
 }
 
-/// What a dropped picture came to: the path to write in the link, and whether the file had to be
-/// copied into `assets` to get there (false: the link points at the file where it lies).
+/// What a dropped picture came to: the path to write in the link, and whether the link goes to a
+/// copy in `assets` (true: a copy made now, or one of the same bytes that was already there) or
+/// points at the file where it lies (false).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub(crate) struct DroppedImage {
     pub(crate) link: String,
@@ -258,8 +382,9 @@ fn relative_link(folder: &Path, file: &Path, ignore_case: bool) -> Option<String
 ///
 /// A file inside the document's workspace folder (the innermost one that holds the document, or
 /// the document's own folder when it is in none) is linked where it lies, because the image loads
-/// from there. Any other is copied into `assets` under a new name and linked there, because a path
-/// outside would never load (ISC-180). A link that goes through a link or junction to a file
+/// from there. Any other is copied into `assets`, under its own name, and linked there, because a
+/// path outside would never load (ISC-180). The same picture dropped again is not copied again: the
+/// link goes to the file that is already there. A link that goes through a link or junction to a file
 /// outside counts as outside: the real file is what is checked.
 pub(crate) fn drop_image(
     state: &AppState,
@@ -318,9 +443,21 @@ pub(crate) fn drop_image(
         return Err(AppError::Invalid("the image is too large".into()));
     }
     let bytes = std::fs::read(&resolved_file)?;
-    let saved = save_into(&folder, ignore_case, stamp, &bytes)?;
+    // The copy keeps the file's own name, as the owner dropped it; a file with no usable name is
+    // named like a pasted one. The name comes from the path the drop delivered, not from the page.
+    let own = dropped
+        .file_stem()
+        .map(|stem| safe_stem(&stem.to_string_lossy()))
+        .unwrap_or_default();
+    let stem = if own.is_empty() {
+        stamp_stem(stamp)?
+    } else {
+        own
+    };
+    let saved = save_into(&folder, ignore_case, &stem, &bytes)?;
     Ok(DroppedImage {
         link: saved.link,
+        // True also when the copy was already there: the link goes to `assets`, not to the original.
         copied: true,
     })
 }
@@ -330,7 +467,10 @@ mod tests {
     use super::*;
 
     const PNG: &[u8] = b"\x89PNG\r\n\x1a\n-pretend-pixels-";
+    /// Another picture: the same bytes are the same picture, so tests that mean two need two.
+    const PNG_B: &[u8] = b"\x89PNG\r\n\x1a\n-pretend-pixelsB";
     const STAMP: &str = "20261113-153000";
+    const STEM: &str = "image-20261113-153000";
 
     fn temp() -> tempfile::TempDir {
         tempfile::tempdir().expect("a temp dir can be created")
@@ -339,7 +479,7 @@ mod tests {
     #[test]
     fn paste_image_saved_in_assets_next_to_the_document() {
         let dir = temp();
-        let saved = save_into(dir.path(), false, STAMP, PNG).expect("saves");
+        let saved = save_into(dir.path(), false, STEM, PNG).expect("saves");
         assert_eq!(saved.name, "image-20261113-153000.png");
         assert_eq!(saved.link, "assets/image-20261113-153000.png");
         let on_disk = dir.path().join("assets").join(&saved.name);
@@ -353,8 +493,8 @@ mod tests {
             !dir.path().join("assets").exists(),
             "nothing before a paste"
         );
-        save_into(dir.path(), false, STAMP, PNG).expect("first");
-        save_into(dir.path(), false, "20261113-153001", PNG).expect("second");
+        save_into(dir.path(), false, STEM, PNG).expect("first");
+        save_into(dir.path(), false, "image-20261113-153001", PNG_B).expect("second");
         let count = std::fs::read_dir(dir.path().join("assets"))
             .expect("lists")
             .count();
@@ -367,9 +507,9 @@ mod tests {
         std::fs::create_dir(dir.path().join("assets")).expect("creates");
         let original = dir.path().join("assets").join("image-20261113-153000.png");
         std::fs::write(&original, b"the owner's own file").expect("writes");
-        let second = save_into(dir.path(), false, STAMP, PNG).expect("saves");
+        let second = save_into(dir.path(), false, STEM, PNG).expect("saves");
         assert_eq!(second.name, "image-20261113-153000-2.png");
-        let third = save_into(dir.path(), false, STAMP, PNG).expect("saves");
+        let third = save_into(dir.path(), false, STEM, PNG_B).expect("saves");
         assert_eq!(third.name, "image-20261113-153000-3.png");
         assert_eq!(
             std::fs::read(&original).expect("still there"),
@@ -379,23 +519,78 @@ mod tests {
     }
 
     #[test]
+    fn paste_image_saved_twice_is_one_file() {
+        let dir = temp();
+        let first = save_into(dir.path(), false, STEM, PNG).expect("first");
+        assert!(!first.reused);
+        // The same bytes a second later, and under another name: still the one file.
+        let second = save_into(dir.path(), false, "image-20261113-153001", PNG).expect("second");
+        assert!(second.reused);
+        assert_eq!(second.link, first.link);
+        assert_eq!(
+            std::fs::read_dir(dir.path().join("assets"))
+                .expect("lists")
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn paste_image_saved_reuses_a_file_the_owner_put_there_under_any_name() {
+        let dir = temp();
+        std::fs::create_dir(dir.path().join("assets")).expect("creates");
+        std::fs::write(dir.path().join("assets").join("my cat.png"), PNG).expect("writes");
+        let saved = save_into(dir.path(), false, STEM, PNG).expect("saves");
+        assert!(saved.reused);
+        assert_eq!(saved.link, "assets/my cat.png");
+    }
+
+    #[test]
+    fn paste_image_saved_with_the_same_size_but_other_bytes_is_a_new_file() {
+        let dir = temp();
+        assert_eq!(PNG.len(), PNG_B.len(), "the test needs equal sizes");
+        save_into(dir.path(), false, STEM, PNG).expect("first");
+        let other = save_into(dir.path(), false, STEM, PNG_B).expect("second");
+        assert!(!other.reused);
+        assert_eq!(other.name, "image-20261113-153000-2.png");
+    }
+
+    #[test]
+    fn paste_image_saved_never_reuses_a_refused_image() {
+        let dir = temp();
+        std::fs::create_dir(dir.path().join("assets")).expect("creates");
+        std::fs::write(dir.path().join("assets").join("note.png"), b"# a note").expect("writes");
+        let error = save_into(dir.path(), false, STEM, b"# a note").expect_err("not an image");
+        assert_eq!(error.kind(), "invalid");
+    }
+
+    #[test]
+    fn paste_image_saved_looks_for_a_copy_only_among_files_of_the_folder() {
+        let dir = temp();
+        std::fs::create_dir_all(dir.path().join("assets").join("sub")).expect("creates");
+        std::fs::write(dir.path().join("assets").join("sub").join("p.png"), PNG).expect("writes");
+        let saved = save_into(dir.path(), false, STEM, PNG).expect("saves");
+        assert!(!saved.reused, "a file in a folder below is not looked at");
+    }
+
+    #[test]
     fn paste_image_saved_with_the_extension_of_what_the_bytes_are() {
         let dir = temp();
         let jpeg = [0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3];
         assert_eq!(
-            save_into(dir.path(), false, STAMP, &jpeg)
+            save_into(dir.path(), false, STEM, &jpeg)
                 .expect("jpeg")
                 .name,
             "image-20261113-153000.jpg"
         );
         assert_eq!(
-            save_into(dir.path(), false, STAMP, b"GIF89a-bytes")
+            save_into(dir.path(), false, STEM, b"GIF89a-bytes")
                 .expect("gif")
                 .name,
             "image-20261113-153000.gif"
         );
         assert_eq!(
-            save_into(dir.path(), false, STAMP, b"RIFF\0\0\0\0WEBPVP8 ")
+            save_into(dir.path(), false, STEM, b"RIFF\0\0\0\0WEBPVP8 ")
                 .expect("webp")
                 .name,
             "image-20261113-153000.webp"
@@ -411,7 +606,7 @@ mod tests {
             b"<svg onload=alert(1)>",
             b"MZ\x90\x00",
         ] {
-            let error = save_into(dir.path(), false, STAMP, bytes).expect_err("not an image");
+            let error = save_into(dir.path(), false, STEM, bytes).expect_err("not an image");
             assert_eq!(error.kind(), "invalid");
         }
         assert!(
@@ -422,7 +617,6 @@ mod tests {
 
     #[test]
     fn paste_image_saved_only_with_a_stamp_that_cannot_name_a_path() {
-        let dir = temp();
         for stamp in [
             "",
             "..",
@@ -434,8 +628,20 @@ mod tests {
             "2026111a-153000",
             "20261113-153000/..",
         ] {
-            let error = save_into(dir.path(), false, stamp, PNG).expect_err(stamp);
+            let error = stamp_stem(stamp).expect_err(stamp);
             assert_eq!(error.kind(), "invalid", "{stamp}");
+        }
+        assert_eq!(stamp_stem(STAMP).expect("a good stamp"), STEM);
+    }
+
+    #[test]
+    fn paste_image_saved_only_under_a_name_that_cannot_name_a_path() {
+        let dir = temp();
+        for stem in [
+            "", "..", "../x", "a/b", "a\\b", "a:b", "cat.", "cat ", "con", "NUL.x", "a#b", "a%b",
+        ] {
+            let error = save_into(dir.path(), false, stem, PNG).expect_err(stem);
+            assert_eq!(error.kind(), "invalid", "{stem}");
         }
         assert!(!dir.path().join("assets").exists());
     }
@@ -444,7 +650,7 @@ mod tests {
     fn paste_image_saved_refuses_an_assets_that_is_a_file() {
         let dir = temp();
         std::fs::write(dir.path().join("assets"), b"a file").expect("writes");
-        assert!(save_into(dir.path(), false, STAMP, PNG).is_err());
+        assert!(save_into(dir.path(), false, STEM, PNG).is_err());
         assert_eq!(
             std::fs::read(dir.path().join("assets")).expect("untouched"),
             b"a file"
@@ -459,7 +665,7 @@ mod tests {
         std::fs::create_dir(&document).expect("creates");
         crate::platform::make_folder_link(outside.path(), &document.join("assets"))
             .expect("a folder link can be made here");
-        let error = save_into(&document, false, STAMP, PNG).expect_err("leads out");
+        let error = save_into(&document, false, STEM, PNG).expect_err("leads out");
         assert_eq!(error.kind(), "not-allowed");
         assert_eq!(
             std::fs::read_dir(outside.path()).expect("lists").count(),
@@ -511,8 +717,11 @@ mod tests {
             .join("assets")
             .join(&saved.name);
         assert_eq!(std::fs::read(file).expect("written"), PNG);
-        // A second one in the same second does not replace it.
-        let again = save_pasted(&state, id, STAMP, PNG).expect("saves");
+        // The same picture again is the same file; another one in the same second does not
+        // replace it.
+        let same = save_pasted(&state, id, STAMP, PNG).expect("saves");
+        assert_eq!(same.link, "assets/image-20261113-153000.png");
+        let again = save_pasted(&state, id, STAMP, PNG_B).expect("saves");
         assert_eq!(again.link, "assets/image-20261113-153000-2.png");
         // Another untitled document has a folder of its own.
         let other = state
@@ -618,11 +827,11 @@ mod tests {
         assert_eq!(
             done,
             DroppedImage {
-                link: "assets/image-20261113-153000.png".into(),
+                link: "assets/holiday.png".into(),
                 copied: true
             }
         );
-        let copy = dir.path().join("notes/assets/image-20261113-153000.png");
+        let copy = dir.path().join("notes/assets/holiday.png");
         assert_eq!(std::fs::read(copy).expect("copied"), PNG);
         assert!(file.is_file(), "the original is left where it was");
     }
@@ -723,13 +932,13 @@ mod tests {
             .expect("number 2");
         let got = drop_image(&state, id, &text, STAMP).expect("copied");
         assert!(got.copied);
-        assert_eq!(got.link, "assets/image-20261113-153000.png");
+        assert_eq!(got.link, "assets/p.png");
         assert!(
             dir.path()
                 .join("drafts")
                 .join("2")
                 .join("assets")
-                .join("image-20261113-153000.png")
+                .join("p.png")
                 .is_file()
         );
     }
@@ -764,21 +973,141 @@ mod tests {
             done.copied,
             "the real file is outside, whatever the path says"
         );
-        assert_eq!(done.link, "assets/image-20261113-153000.png");
+        assert_eq!(done.link, "assets/p.png");
     }
 
     #[test]
-    fn drop_image_never_overwrites_and_keeps_the_original() {
+    fn drop_image_dropped_ten_times_is_one_file_and_the_original_stays() {
         let dir = temp();
         let outside = temp();
         let (state, id) = open_in(dir.path(), "a.md");
         let file = outside.path().join("p.png");
         write_png(&file);
         let text = dropped(&state, &file);
-        let first = drop_image(&state, id, &text, STAMP).expect("first");
-        let second = drop_image(&state, id, &text, STAMP).expect("second");
-        assert_eq!(first.link, "assets/image-20261113-153000.png");
-        assert_eq!(second.link, "assets/image-20261113-153000-2.png");
+        for _ in 0..10 {
+            let done = drop_image(&state, id, &text, STAMP).expect("drops");
+            assert_eq!(done.link, "assets/p.png");
+        }
+        assert_eq!(
+            std::fs::read_dir(dir.path().join("assets"))
+                .expect("lists")
+                .count(),
+            1
+        );
+        assert_eq!(std::fs::read(&file).expect("the original"), PNG);
+    }
+
+    #[test]
+    fn drop_image_the_same_picture_under_another_name_is_still_one_file() {
+        let dir = temp();
+        let outside = temp();
+        let (state, id) = open_in(dir.path(), "a.md");
+        let one = outside.path().join("cat.png");
+        let two = outside.path().join("copy of cat.png");
+        write_png(&one);
+        write_png(&two);
+        let first = drop_image(&state, id, &dropped(&state, &one), STAMP).expect("first");
+        let second = drop_image(&state, id, &dropped(&state, &two), STAMP).expect("second");
+        assert_eq!(first.link, "assets/cat.png");
+        assert_eq!(second.link, "assets/cat.png");
+    }
+
+    #[test]
+    fn drop_image_another_picture_with_the_same_name_gets_a_number() {
+        let dir = temp();
+        let outside = temp();
+        let other = temp();
+        let (state, id) = open_in(dir.path(), "a.md");
+        let one = outside.path().join("cat.png");
+        let two = other.path().join("cat.png");
+        write_png(&one);
+        std::fs::write(&two, PNG_B).expect("writes");
+        let first = drop_image(&state, id, &dropped(&state, &one), STAMP).expect("first");
+        let second = drop_image(&state, id, &dropped(&state, &two), STAMP).expect("second");
+        assert_eq!(first.link, "assets/cat.png");
+        assert_eq!(second.link, "assets/cat-2.png");
+    }
+
+    #[test]
+    fn drop_image_keeps_the_dropped_files_name_cleaned_for_a_link() {
+        let dir = temp();
+        let outside = temp();
+        let (state, id) = open_in(dir.path(), "a.md");
+        for (given, kept) in [
+            ("my cat (1).png", "my cat (1).png"),
+            ("Café ünï.png", "Café ünï.png"),
+            ("a#b%c&d.png", "a-b-c-d.png"),
+            ("trailing.. .png", "trailing---.png"),
+            ("UPPER.PNG", "UPPER.png"),
+        ] {
+            let file = outside.path().join(given);
+            write_png(&file);
+            // One picture under several names would be one file, so each gets its own bytes.
+            let mut bytes = PNG.to_vec();
+            bytes.extend_from_slice(given.as_bytes());
+            std::fs::write(&file, bytes).expect("writes");
+            let done = drop_image(&state, id, &dropped(&state, &file), STAMP).expect(given);
+            assert_eq!(done.link, format!("assets/{kept}"), "{given}");
+        }
+    }
+
+    #[test]
+    fn drop_image_names_the_extension_after_what_the_bytes_are() {
+        let dir = temp();
+        let outside = temp();
+        let (state, id) = open_in(dir.path(), "a.md");
+        let file = outside.path().join("photo.png");
+        std::fs::write(&file, [0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3]).expect("writes");
+        let done = drop_image(&state, id, &dropped(&state, &file), STAMP).expect("copies");
+        assert_eq!(done.link, "assets/photo.jpg");
+    }
+
+    #[test]
+    fn drop_image_into_an_untitled_document_twice_is_one_file() {
+        let dir = temp();
+        let outside = temp();
+        let state = state_with_drafts(dir.path());
+        let file = outside.path().join("p.png");
+        write_png(&file);
+        let id = state
+            .documents()
+            .register_untitled_numbered(2)
+            .expect("number 2");
+        let text = dropped(&state, &file);
+        drop_image(&state, id, &text, STAMP).expect("first");
+        let again = drop_image(&state, id, &text, STAMP).expect("again");
+        assert_eq!(again.link, "assets/p.png");
+        assert_eq!(
+            std::fs::read_dir(dir.path().join("drafts").join("2").join("assets"))
+                .expect("lists")
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn name_rules_safe_stem_keeps_what_can_stay_and_nothing_else() {
+        assert_eq!(safe_stem("cat"), "cat");
+        assert_eq!(safe_stem("my cat (1)"), "my cat (1)");
+        assert_eq!(safe_stem("a<b>c:d\"e/f\\g|h?i*j"), "a-b-c-d-e-f-g-h-i-j");
+        assert_eq!(safe_stem("tab\there"), "tab-here");
+        assert_eq!(safe_stem("1.2.3 final"), "1.2.3 final");
+        assert_eq!(safe_stem("end. "), "end--");
+        assert_eq!(safe_stem(""), "");
+        assert_eq!(safe_stem("COM1"), "image-COM1");
+        assert_eq!(safe_stem("lpt9.backup"), "image-lpt9.backup");
+        assert_eq!(safe_stem("com10"), "com10", "COM10 is not a device name");
+        assert_eq!(safe_stem("console"), "console");
+        let long = "x".repeat(250);
+        assert_eq!(safe_stem(&long).chars().count(), MAX_STEM);
+        // A cut that ends on a space must not leave one.
+        let cut = format!("{} y", "x".repeat(MAX_STEM - 1));
+        assert!(clean_stem(&safe_stem(&cut)));
+        assert_eq!(safe_stem("x\u{202e}y"), "x-y");
+        for name in ["?", ". ", "..."] {
+            let stem = safe_stem(name);
+            assert!(stem.is_empty() || clean_stem(&stem), "{name:?} -> {stem:?}");
+        }
     }
 
     #[test]

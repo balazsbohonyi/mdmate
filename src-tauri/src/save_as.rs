@@ -736,8 +736,19 @@ mod tests {
         let dir = temp();
         let (state, id) = with_draft(&dir.path, 1);
         draft_image(&state, 1, "image-20261113-153000.png", PNG);
-        draft_image(&state, 1, "image-20261113-153001.png", PNG);
-        draft_image(&state, 1, "image-20261113-153002.png", PNG);
+        // Pictures with bytes of their own: the same bytes would be one file.
+        draft_image(
+            &state,
+            1,
+            "image-20261113-153001.png",
+            b"\x89PNG\r\n\x1a\n-second-picture",
+        );
+        draft_image(
+            &state,
+            1,
+            "image-20261113-153002.png",
+            b"\x89PNG\r\n\x1a\n-third-picture",
+        );
         let target_folder = dir.path.join("notes");
         std::fs::create_dir_all(target_folder.join("assets")).expect("target assets");
         let theirs: &[u8] = b"\x89PNG\r\n\x1a\nthe-owners-picture";
@@ -784,6 +795,62 @@ mod tests {
         // The draft folder is gone, and the document is an ordinary one now.
         assert!(!state.drafts().exists(1));
         assert!(!state.documents().is_untitled(id));
+    }
+
+    #[test]
+    fn draft_images_save_as_links_to_the_same_picture_already_beside_the_file() {
+        let dir = temp();
+        let (state, id) = with_draft(&dir.path, 1);
+        draft_image(&state, 1, "cat.png", PNG);
+        let target_folder = dir.path.join("notes");
+        std::fs::create_dir_all(target_folder.join("assets")).expect("target assets");
+        std::fs::write(target_folder.join("assets").join("holiday.png"), PNG).expect("same");
+        let target = target_folder.join("doc.md");
+        let saved = save_as(
+            &state,
+            id,
+            &frame_for("![a](assets/cat.png)\n", &lf(), "doc.md"),
+            &|_: &SaveRequest| Some(target.clone()),
+        )
+        .expect("saves")
+        .expect("not cancelled");
+
+        // Nothing new was copied; the file links to the picture that was there.
+        assert_eq!(
+            std::fs::read_dir(target_folder.join("assets"))
+                .expect("lists")
+                .count(),
+            1
+        );
+        assert_eq!(
+            std::fs::read_to_string(&target).expect("the file"),
+            "![a](assets/holiday.png)\n"
+        );
+        assert_eq!(saved.renamed_images.len(), 1);
+        assert_eq!(saved.renamed_images[0].to, "holiday.png");
+    }
+
+    #[test]
+    fn draft_images_a_failed_save_as_after_a_reuse_leaves_the_file_that_was_there() {
+        let dir = temp();
+        let (state, id) = with_draft(&dir.path, 1);
+        draft_image(&state, 1, "cat.png", PNG);
+        let target_folder = dir.path.join("notes");
+        std::fs::create_dir_all(target_folder.join("assets")).expect("target assets");
+        let theirs = target_folder.join("assets").join("holiday.png");
+        std::fs::write(&theirs, PNG).expect("same");
+        // The text cannot be written: its name is a folder.
+        let target = target_folder.join("doc.md");
+        std::fs::create_dir(&target).expect("a folder in the way");
+        let result = save_as(
+            &state,
+            id,
+            &frame_for("![a](assets/cat.png)\n", &lf(), "doc.md"),
+            &|_: &SaveRequest| Some(target.clone()),
+        );
+        assert!(result.is_err());
+        assert_eq!(std::fs::read(&theirs).expect("still there"), PNG);
+        assert!(state.drafts().exists(1), "the draft is kept");
     }
 
     #[test]

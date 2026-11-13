@@ -26,6 +26,8 @@ import { createMockHost, type MockHost } from '@/platform/mock'
 import { resetWorkbench, workbenchLayout } from '@/workbench/store'
 
 const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4])
+/** Another picture: the same bytes are the same picture. */
+const OTHER_PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 9, 9, 9, 9])
 
 function file(bytes: Uint8Array<ArrayBuffer>, name = 'image.png', type = 'image/png'): File {
   return new File([bytes], name, { type })
@@ -357,14 +359,14 @@ describe('a paste of a picture into a document (ISC-154, ISC-155, ISC-327)', () 
     expect(host.files.has(saved?.path ?? '')).toBe(true)
   })
 
-  it('never replaces a file that is already there: the second paste in a second gets -2', async () => {
+  it('never replaces a file that is already there: another picture in the same second gets -2', async () => {
     const tab = await openPath('C:/notes/a.md')
     const view = viewOfTab(tab)
     vi.useFakeTimers({ now: new Date(2026, 10, 13, 15, 30, 0), toFake: ['Date'] })
     try {
       paste(view, clipboard([file(PNG)]))
       await vi.waitFor(() => expect(host.pastedImages).toHaveLength(1))
-      paste(view, clipboard([file(PNG)]))
+      paste(view, clipboard([file(OTHER_PNG)]))
       await vi.waitFor(() => expect(host.pastedImages).toHaveLength(2))
     } finally {
       vi.useRealTimers()
@@ -373,6 +375,27 @@ describe('a paste of a picture into a document (ISC-154, ISC-155, ISC-327)', () 
       'C:/notes/assets/image-20261113-153000.png',
       'C:/notes/assets/image-20261113-153000-2.png',
     ])
+  })
+
+  it('pasting the same picture again links the file that is there instead of saving it twice', async () => {
+    const tab = await openPath('C:/notes/a.md')
+    const view = viewOfTab(tab)
+    vi.useFakeTimers({ now: new Date(2026, 10, 13, 15, 30, 0), toFake: ['Date'] })
+    try {
+      paste(view, clipboard([file(PNG)]))
+      await vi.waitFor(() => expect(host.pastedImages).toHaveLength(1))
+      vi.setSystemTime(new Date(2026, 10, 13, 15, 30, 7))
+      paste(view, clipboard([file(PNG)]))
+      await vi.waitFor(() =>
+        expect(documentOfTab(tab)?.master.doc.toString().split('![](')).toHaveLength(3),
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+    expect(host.pastedImages).toHaveLength(1)
+    expect(documentOfTab(tab)?.master.doc.toString()).toBe(
+      '![](assets/image-20261113-153000.png)![](assets/image-20261113-153000.png)hello\n',
+    )
   })
 
   it('goes to the draft folder in a document with no file, and is linked like any other (ISC-327)', async () => {

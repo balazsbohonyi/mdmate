@@ -498,12 +498,25 @@ mod tests {
         );
         assert!(!assets.join("image-20261113-153001.png").exists());
 
-        // A second recovered text that links the same name gets its own copy and its link follows.
+        // A second recovered text that links the same picture is not given a second copy: it
+        // points at the file that is there.
         let again = store
             .recover_with_images(&state, "Untitled-3", text, Some(3))
             .expect("recovers");
+        assert_eq!(std::fs::read_to_string(&again).expect("readable"), text);
+        assert!(!assets.join("image-20261113-153000-2.png").exists());
+
+        // A different picture under the same name does get its own, and its link follows.
+        std::fs::write(
+            draft.join("assets").join("image-20261113-153000.png"),
+            b"\x89PNG\r\n\x1a\n-changed-pixels",
+        )
+        .expect("changed");
+        let third = store
+            .recover_with_images(&state, "Untitled-3", text, Some(3))
+            .expect("recovers");
         assert_eq!(
-            std::fs::read_to_string(&again).expect("readable"),
+            std::fs::read_to_string(&third).expect("readable"),
             "![a](assets/image-20261113-153000-2.png)\n"
         );
         assert!(assets.join("image-20261113-153000-2.png").is_file());

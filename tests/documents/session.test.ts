@@ -708,10 +708,13 @@ describe('untitled tabs (P6-T8)', () => {
       expect(host.files.has(`${DRAFT_ROOT}/1/assets/${name}`)).toBe(true)
       expect(host.files.isFolder(`${DRAFT_ROOT}/9`)).toBe(false)
       expect(host.sweeps).toHaveLength(1)
-      // And a new image of the restored tab lands in the same folder.
+      // And a new image of the restored tab lands in the same folder (another picture: the same
+      // bytes would be the file that is there).
+      const other = PNG.slice()
+      other[other.length - 1] = 0x7f
       const next = await host.savePastedImage(
         documentOfTab(tab)?.id ?? 0,
-        PNG.buffer.slice(0),
+        other.buffer,
         '20261113-153001',
       )
       expect(next.link).toBe('assets/image-20261113-153001.png')
