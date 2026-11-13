@@ -282,9 +282,7 @@ describe('what an edit leaves drawn is what a fresh scan draws', () => {
   })
 
   it('holds for random edits of a document of pictures', () => {
-    // Pictures only: a table that a selection touches is not drawn, so nothing remembers how far it
-    // reached, and an edit that makes it swallow or release its neighbours can leave them stale
-    // (see Remaining Work in ISA.md).
+    // Pictures only; the next test adds tables.
     const base = 'top\n![](a.png)\n\n![](b.png)\nmid\n![](c.png)\n\nend\n![](e.png)'
     const next = rng(11)
     for (let round = 0; round < 300; round++) {
@@ -313,6 +311,49 @@ describe('what an edit leaves drawn is what a fresh scan draws', () => {
             doc: state.doc.toString(),
           }),
         ).toEqual(drawn(fresh))
+      }
+    }
+  })
+
+  it('holds for random edits of a document of tables and pictures, with the caret in a table', () => {
+    // A table that a selection touches is not drawn, and one that an edit makes swallow the lines
+    // after it, or let them go, must leave those lines drawn the way a fresh scan draws them.
+    const base =
+      'top\n\n| a | b |\n|---|---|\n| 1 | 2 |\n![](a.png)\n\n![](b.png)\n| x |\n|---|\n| y |\n\nmid\n![](c.png)\n\n| p |\n|---|\n![](e.png)'
+    const pieces = ['\n', '\n\n', '|', '| a |', '|---|', '![](d.png)', 'x', '| 1 | 2 |\n']
+    for (const seed of [11, 3]) {
+      const next = rng(seed)
+      for (let round = 0; round < 800; round++) {
+        // Start with the caret inside a table, as an edit there is the case this is about.
+        const inside = base.indexOf('| 1 | 2 |') + 2 + Math.floor(next() * 3) * 6
+        let state = blockStateOf(base, inside)
+        for (let step = 0; step < 5; step++) {
+          const length = state.doc.length
+          const from = Math.floor(next() * (length + 1))
+          const to = Math.min(length, from + Math.floor(next() * 12))
+          const insert = next() < 0.6 ? (pieces[Math.floor(next() * pieces.length)] ?? '') : ''
+          const caretNear = next() < 0.5
+          const size = length - (to - from) + insert.length
+          const caret = caretNear
+            ? Math.min(size, from + insert.length)
+            : Math.floor(next() * (size + 1))
+          state = state.update({
+            changes: { from, to, insert },
+            selection: { anchor: Math.min(caret, size) },
+          }).state
+          ensureSyntaxTree(state, state.doc.length, 5000)
+          state = state.update({}).state
+          const fresh = blockStateOf(state.doc.toString(), state.selection.main.head)
+          expect(
+            drawn(state),
+            JSON.stringify({
+              round,
+              step,
+              head: state.selection.main.head,
+              doc: state.doc.toString(),
+            }),
+          ).toEqual(drawn(fresh))
+        }
       }
     }
   })
