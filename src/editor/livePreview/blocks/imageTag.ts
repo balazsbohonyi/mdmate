@@ -6,6 +6,13 @@
  * The address still goes through the same allowlist as a Markdown image (`resolveImageAddress`).
  */
 
+/** One change to a text: replace `[from, to)` with `insert`. */
+export interface TextEdit {
+  readonly from: number
+  readonly to: number
+  readonly insert: string
+}
+
 export interface ImgTag {
   /** The raw address, as written (entities read), not yet checked by the allowlist. */
   readonly src: string
@@ -52,13 +59,32 @@ function pixels(value: string | undefined): number | null {
 const NAME = /[^\s"'<>/=`]+/y
 const UNQUOTED = /[^\s"'<>=`]+/y
 
-/**
- * The attributes of `text` read as one `<img>` tag, by name (lower case, the first of a repeated
- * one), or null when `text` is anything but exactly one such tag on one line.
- */
-function attributesOf(text: string): Map<string, string> | null {
+/** Where one attribute sits in the scanned text. */
+export interface AttributeSpan {
+  /** Lower case. */
+  readonly name: string
+  /** The start of the name. */
+  readonly from: number
+  /** The end of the attribute, after a closing quote. */
+  readonly to: number
+  /** The value's text, inside any quotes, or -1 for an attribute written without a value. */
+  readonly valueFrom: number
+  readonly valueTo: number
+  readonly quoted: boolean
+}
+
+interface TagScan {
+  /** By name (lower case), the first of a repeated one, entities read. */
+  readonly attributes: Map<string, string>
+  /** Every attribute in the order written, repeated ones too. */
+  readonly spans: AttributeSpan[]
+}
+
+/** `text` read as one `<img>` tag on one line, or null when it is anything else. */
+function scanTag(text: string): TagScan | null {
   if (/[\r\n]/.test(text) || !/^<img(?=[\s/>])/i.test(text) || !text.endsWith('>')) return null
   const attributes = new Map<string, string>()
+  const spans: AttributeSpan[] = []
   const end = text.endsWith('/>') ? text.length - 2 : text.length - 1
   let at = 4
   while (at < end) {
@@ -68,8 +94,12 @@ function attributesOf(text: string): Map<string, string> | null {
     NAME.lastIndex = at
     const name = NAME.exec(text)
     if (name === null || at + name[0].length > end) return null
+    const from = at
     at += name[0].length
     let value = ''
+    let valueFrom = -1
+    let valueTo = -1
+    let quoted = false
     const afterName = /^\s*=\s*/.exec(text.slice(at, end))
     if (afterName !== null) {
       at += afterName[0].length
@@ -78,6 +108,9 @@ function attributesOf(text: string): Map<string, string> | null {
         const close = text.indexOf(quote, at + 1)
         if (close < 0 || close >= end) return null
         value = text.slice(at + 1, close)
+        quoted = true
+        valueFrom = at + 1
+        valueTo = close
         at = close + 1
         // A quoted value must be followed by a gap or the end of the tag.
         if (at < end && !/\s/.test(text[at] ?? '')) return null
@@ -86,13 +119,51 @@ function attributesOf(text: string): Map<string, string> | null {
         const bare = UNQUOTED.exec(text)
         if (bare === null || at + bare[0].length > end) return null
         value = bare[0]
-        at += value.length
+        valueFrom = at
+        valueTo = at + value.length
+        at = valueTo
       }
     }
     const key = name[0].toLowerCase()
+    spans.push({ name: key, from, to: at, valueFrom, valueTo, quoted })
     if (!attributes.has(key)) attributes.set(key, decodeEntities(value))
   }
-  return attributes
+  return { attributes, spans }
+}
+
+/**
+ * The edits (offsets in `source`) that make an `<img>` tag `width` pixels wide and nothing else
+ * but drop its `height`, which would otherwise stretch the picture. The first `width` is the one
+ * a browser reads, so that is the one set (its quotes stay); a tag with none gets ` width="N"`
+ * after its last attribute; every `height` goes, with the gap before it. Null when `source` is not
+ * an `<img>` tag this reader accepts; empty when the tag already says exactly that.
+ */
+export function widthEdits(source: string, width: number): TextEdit[] | null {
+  const lead = source.length - source.trimStart().length
+  const scan = scanTag(source.trim())
+  if (scan === null) return null
+  const edits: TextEdit[] = []
+  const first = scan.spans.find((span) => span.name === 'width')
+  const kept = scan.spans.filter((span) => span.name !== 'height')
+  const last = kept[kept.length - 1]
+  if (first === undefined) {
+    if (last === undefined) return null
+    edits.push({ from: lead + last.to, to: lead + last.to, insert: ` width="${String(width)}"` })
+  } else if (first.quoted) {
+    if (source.slice(lead + first.valueFrom, lead + first.valueTo) !== String(width)) {
+      edits.push({ from: lead + first.valueFrom, to: lead + first.valueTo, insert: String(width) })
+    }
+  } else {
+    edits.push({ from: lead + first.from, to: lead + first.to, insert: `width="${String(width)}"` })
+  }
+  const text = source.trim()
+  for (const span of scan.spans) {
+    if (span.name !== 'height') continue
+    let from = span.from
+    while (from > 0 && /\s/.test(text[from - 1] ?? '')) from--
+    edits.push({ from: lead + from, to: lead + span.to, insert: '' })
+  }
+  return edits.sort((a, b) => a.from - b.from)
 }
 
 /**
@@ -100,8 +171,9 @@ function attributesOf(text: string): Map<string, string> | null {
  * `src` (then it stays source, like any other HTML).
  */
 export function parseImgTag(text: string): ImgTag | null {
-  const attributes = attributesOf(text.trim())
-  if (attributes === null) return null
+  const scan = scanTag(text.trim())
+  if (scan === null) return null
+  const attributes = scan.attributes
   const src = attributes.get('src')?.trim() ?? ''
   if (src === '') return null
   const title = attributes.get('title')

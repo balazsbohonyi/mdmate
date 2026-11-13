@@ -70,6 +70,8 @@ export interface ImageItem {
   readonly height: number | null
   /** True for an `<img>` tag, false for `![]()`. */
   readonly html: boolean
+  /** The address as written (angle brackets of a Markdown image included), before the allowlist. */
+  readonly address: string
 }
 
 /**
@@ -280,9 +282,13 @@ function imageItem(state: EditorState, node: SyntaxNode): ImageItem | null {
  * An `<img>` tag in `[from, to)`, or null when that text is not exactly one tag with an address
  * (any other HTML stays source). Only the allowed attributes are read (`imageTag.ts`).
  */
-function imgTagItem(state: EditorState, from: number, to: number): ImageItem | null {
-  const tag = parseImgTag(state.doc.sliceString(from, to))
+function imgTagItem(state: EditorState, start: number, end: number): ImageItem | null {
+  const text = state.doc.sliceString(start, end)
+  const tag = parseImgTag(text)
   if (tag === null) return null
+  // An HTML block may carry the spaces after its tag; the image is the tag alone.
+  const from = start + (text.length - text.trimStart().length)
+  const to = end - (text.length - text.trimEnd().length)
   return buildImage(state, from, to, {
     address: tag.src,
     alt: tag.alt,
@@ -341,6 +347,7 @@ function buildImage(
     width: parts.width,
     height: parts.height,
     html: parts.html,
+    address: parts.address,
   }
 }
 

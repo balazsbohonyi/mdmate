@@ -423,3 +423,12 @@ describe('the hostile fixture still loads nothing it should not (ISC-324)', () =
     expect(document.title).toBe('')
   })
 })
+
+describe('a tag with spaces around it (P9-T4)', () => {
+  it('is the tag alone, so a tag alone on its line is still a block', () => {
+    const doc = 'top\n\n  <img src="a.png" width="9">  \n\nend'
+    const [item] = images(doc)
+    expect(item).toMatchObject({ block: true, html: true, width: 9 })
+    expect(doc.slice(item?.from, item?.to)).toBe('  <img src="a.png" width="9">  ')
+  })
+})

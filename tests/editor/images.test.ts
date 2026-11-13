@@ -357,14 +357,16 @@ describe('the image widget (ISC-66, ISC-67)', () => {
     expect(view.contentDOM.textContent).toContain('![s](s.png)')
   })
 
-  it('puts the caret on the image source when it is pressed', () => {
+  it('selects the image when it is pressed, and leaves the caret and the picture where they are', () => {
     const doc = 'top\n\n![a](a.png)\n\nbottom'
     const view = mount(doc)
+    const caret = view.state.selection.main.head
     view.contentDOM
       .querySelector('.cm-md-image-frame img')
       ?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }))
-    expect(view.state.selection.main.head).toBe(doc.indexOf('![a]'))
-    expect(view.contentDOM.querySelector('.cm-md-image-frame img')).toBeNull()
+    expect(view.state.selection.main.head).toBe(caret)
+    expect(view.contentDOM.querySelector('.cm-md-image-frame img')).not.toBeNull()
+    expect(view.contentDOM.querySelector('.cm-md-image-selected')).not.toBeNull()
   })
 
   it('leaves the document itself alone', () => {

@@ -24,6 +24,7 @@ import {
   type TransactionSpec,
 } from '@codemirror/state'
 import { Decoration, EditorView, type DecorationSet } from '@codemirror/view'
+import { imageSelection, isSelected, selectedImageOf, type SelectedImage } from './imageSelect'
 import { scanBlocks, touchesRange, type BlockItem } from './scan'
 import { blockTheme } from './theme'
 import { FrontmatterWidget, ImageWidget, TableWidget, type BlockWidget } from './widgets'
@@ -50,7 +51,10 @@ export interface BlockInfo {
   readonly estimatedHeight: number
 }
 
-function decorationFor(item: BlockItem): ReturnType<Decoration['range']> {
+function decorationFor(
+  item: BlockItem,
+  selected: SelectedImage | null,
+): ReturnType<Decoration['range']> {
   if (item.kind === 'frontmatter') {
     return Decoration.replace({
       widget: new FrontmatterWidget(item.source),
@@ -58,10 +62,10 @@ function decorationFor(item: BlockItem): ReturnType<Decoration['range']> {
     }).range(item.from, item.to)
   }
   if (item.kind === 'image') {
-    return Decoration.replace({ widget: new ImageWidget(item), block: item.block }).range(
-      item.from,
-      item.to,
-    )
+    return Decoration.replace({
+      widget: new ImageWidget(item, isSelected(selected, item)),
+      block: item.block,
+    }).range(item.from, item.to)
   }
   return Decoration.replace({
     widget: new TableWidget(item.model, item.source),
@@ -99,6 +103,7 @@ function rescan(
   set: DecorationSet,
   spans: readonly Span[],
   limit: number,
+  selected: SelectedImage | null,
 ): { set: DecorationSet; scanned: Span[] } {
   const scanned: Span[] = []
   for (const span of spans) {
@@ -117,7 +122,7 @@ function rescan(
     const ranges = state.selection.ranges
     const add = scanBlocks(state, [{ from, to }])
       .filter((item) => !touchesRange(ranges, item.from, item.to))
-      .map(decorationFor)
+      .map((item) => decorationFor(item, selected))
     if (add.length > 0) set = set.update({ add, sort: true })
   }
   return { set, scanned }
@@ -142,18 +147,31 @@ function update(value: BlockValue, tr: Transaction): BlockValue {
       dirty.push(widen(tr.state, range.from, range.to, 0))
     }
   }
+  // An image that was selected or is now: its outline and handle come and go without the text or
+  // the caret moving, so it needs its own redraw.
+  const selected = selectedImageOf(tr.state)
+  const wasSelected = selectedImageOf(tr.startState)
+  if (selected?.from !== wasSelected?.from || selected?.to !== wasSelected?.to) {
+    // The new one is in the new text already; the old one is in the text before the change.
+    if (selected !== null) dirty.push(widen(tr.state, selected.from, selected.to, 0))
+    if (wasSelected !== null) {
+      const from = Math.min(tr.changes.mapPos(wasSelected.from, -1), tr.newDoc.length)
+      const to = Math.min(tr.changes.mapPos(wasSelected.to, 1), tr.newDoc.length)
+      dirty.push(widen(tr.state, from, to, 0))
+    }
+  }
   if (treeTo > parsedTo) dirty.push({ from: parsedTo, to: treeTo })
   parsedTo = Math.min(treeTo, tr.newDoc.length)
 
   if (dirty.length === 0) return { set, parsedTo, scanned: [] }
-  const result = rescan(tr.state, set, merge(dirty), treeTo)
+  const result = rescan(tr.state, set, merge(dirty), treeTo, selected)
   return { set: result.set, parsedTo, scanned: result.scanned }
 }
 
 export const blockField = StateField.define<BlockValue>({
   create(state) {
     const treeTo = syntaxTree(state).length
-    const result = rescan(state, Decoration.none, [{ from: 0, to: treeTo }], treeTo)
+    const result = rescan(state, Decoration.none, [{ from: 0, to: treeTo }], treeTo, null)
     return { set: result.set, parsedTo: treeTo, scanned: result.scanned }
   },
   update,
@@ -208,7 +226,7 @@ const stepIntoBlock = EditorState.transactionFilter.of(
 
 /** The block layer and its theme. */
 export function blockLayer(): Extension {
-  return [blockTheme, blockField, stepIntoBlock]
+  return [blockTheme, imageSelection(), blockField, stepIntoBlock]
 }
 
 /** The blocks drawn now, in document order. Empty for a state without the layer. */

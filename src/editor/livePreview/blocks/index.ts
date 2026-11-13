@@ -19,3 +19,11 @@ export {
   type TableItem,
   type TableModel,
 } from './scan'
+export {
+  commitResize,
+  selectedImage,
+  selectedImageOf,
+  selectImage,
+  type SelectedImage,
+} from './imageSelect'
+export { MIN_IMAGE_WIDTH, resizeEdits, type ResizeTarget } from './imageEdit'

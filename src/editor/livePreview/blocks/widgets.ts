@@ -1,5 +1,7 @@
 import { WidgetType, type EditorView } from '@codemirror/view'
 import { imageSizeOf, rememberImageSize, type ImageSize } from './image'
+import { cancelDrag, createHandle } from './imageHandle'
+import { selectImage } from './imageSelect'
 import type { BlockItem, ImageItem, Inline, TableModel } from './scan'
 
 /** Common ground of the block widgets: what kind of block this is, for the field and the tests. */
@@ -310,8 +312,14 @@ export class ImageWidget extends BlockWidget {
   readonly block: boolean
   readonly width: number | null
   readonly height: number | null
+  readonly html: boolean
+  readonly address: string
+  /** The image's own text, which a resize is written against. */
+  readonly source: string
+  /** True while this is the selected image: outlined, with a resize handle once it has loaded. */
+  readonly selected: boolean
 
-  constructor(item: ImageItem) {
+  constructor(item: ImageItem, selected = false) {
     super()
     this.src = item.src
     this.alt = item.alt
@@ -319,6 +327,10 @@ export class ImageWidget extends BlockWidget {
     this.block = item.block
     this.width = item.width
     this.height = item.height
+    this.html = item.html
+    this.address = item.address
+    this.source = item.source
+    this.selected = selected
   }
 
   override eq(other: WidgetType): boolean {
@@ -329,7 +341,9 @@ export class ImageWidget extends BlockWidget {
       other.title === this.title &&
       other.block === this.block &&
       other.width === this.width &&
-      other.height === this.height
+      other.height === this.height &&
+      other.source === this.source &&
+      other.selected === this.selected
     )
   }
 
@@ -343,6 +357,7 @@ export class ImageWidget extends BlockWidget {
   override toDOM(view: EditorView): HTMLElement {
     const wrap: HTMLElement = document.createElement(this.block ? 'div' : 'span')
     wrap.className = this.block ? 'cm-md-image cm-md-image-block' : 'cm-md-image'
+    if (this.selected) wrap.classList.add('cm-md-image-selected')
     const frame: HTMLElement = document.createElement(this.block ? 'div' : 'span')
     frame.className = 'cm-md-image-frame'
     wrap.append(frame)
@@ -394,6 +409,10 @@ export class ImageWidget extends BlockWidget {
         const apply = (): void => {
           reserve(frame, shownSize(size, this.width, this.height), this.block)
           frame.classList.add('cm-md-image-loaded')
+          // Only a picture that has loaded can be resized.
+          if (this.selected && frame.querySelector('.cm-md-image-handle') === null) {
+            frame.append(createHandle(view, wrap, frame, this))
+          }
         }
         view.requestMeasure({
           read: () => (wrap.isConnected ? lineItWouldMove(view, wrap) : undefined),
@@ -415,11 +434,16 @@ export class ImageWidget extends BlockWidget {
 
     wrap.addEventListener('mousedown', (event) => {
       if (event.button !== 0) return
-      const start = view.posAtDOM(wrap)
       event.preventDefault()
-      view.dispatch({ selection: { anchor: start }, scrollIntoView: true })
+      // The caret stays where it was; the click selects the image (outline, handle, keys).
+      const start = view.posAtDOM(wrap)
+      view.dispatch({ effects: selectImage.of({ from: start, to: start + this.source.length }) })
       view.focus()
     })
     return wrap
+  }
+
+  override destroy(dom: HTMLElement): void {
+    cancelDrag(dom)
   }
 }
