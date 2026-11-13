@@ -1,4 +1,4 @@
-export { blockLayer, blockScans, blocksOf, type BlockInfo } from './field'
+export { blockLayer, blockScans, blocksOf, imagesMoved, type BlockInfo } from './field'
 export {
   imageContext,
   imageSizeOf,

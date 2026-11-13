@@ -21,6 +21,7 @@ type SyntaxNode = ReturnType<ReturnType<typeof syntaxTree>['resolve']>
 import {
   EditorSelection,
   EditorState,
+  StateEffect,
   StateField,
   Transaction,
   type Extension,
@@ -239,6 +240,13 @@ function rescan(
   return { set, hidden, scanned }
 }
 
+/**
+ * Says the folder the images are read from has changed (a document got its first file, or its file
+ * moved), so every picture is resolved again. Without it, a picture whose link text did not change
+ * keeps the address it had, and loads from a folder that may be gone.
+ */
+export const imagesMoved = StateEffect.define<null>()
+
 function update(value: BlockValue, tr: Transaction): BlockValue {
   const selectionMoved = tr.docChanged || !tr.startState.selection.eq(tr.newSelection)
   const treeTo = syntaxTree(tr.state).length
@@ -275,6 +283,7 @@ function update(value: BlockValue, tr: Transaction): BlockValue {
       dirty.push(widen(tr.state, from, to, 0))
     }
   }
+  if (tr.effects.some((effect) => effect.is(imagesMoved))) dirty.push({ from: 0, to: treeTo })
   if (treeTo > parsedTo) dirty.push({ from: parsedTo, to: treeTo })
   parsedTo = Math.min(treeTo, tr.newDoc.length)
 

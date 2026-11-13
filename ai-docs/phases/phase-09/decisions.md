@@ -114,3 +114,11 @@ Found while fixing ISC-334 and left in Remaining Work; the owner asked for it to
 - **The fix (`blocks/field.ts`).** The field keeps `hidden`, the extents of blocks a selection hides. Every rescan (1) is grown over each drawn or hidden block it overlaps, so a block that is removed is looked at again over its whole old reach; (2) clears what a rescanned block now covers, even beyond the span; and (3) for an edit, is enclosed in the whole of each top-level block it lands in and in the paragraphs, tables and HTML blocks on the very next line, which a blank-line deletion or a Setext underline can join to it. Adjacency stops at a blank line and at other block kinds, so a document of headings with no blank lines is not rescanned whole.
 - **Cost.** An edit in the middle of a 20,000-line list, quote, code block or paragraph takes the same time as before (measured with and without the change).
 - **Not changed:** how a block is drawn, and a change in the page that is not an edit or a selection.
+
+## Pictures after a Save As or a move (2026-11-13)
+
+Found in the real window, not by a test: after a first Save As the three pictures of an untitled tab still read `data/drafts/1/assets/…`, a folder that Save As had just removed. They stayed on screen only because the old elements lived on; the one renamed to `-2` (new link text) failed to load until the field was told.
+
+- **Cause.** The block field resolves a picture's address when it scans, and scans only on an edit or a selection. A Save As or a file move changes the folder the pictures are read from and not the text, so every picture whose link text stayed the same kept its old address. A remount (tab switch, restart) would have broken them.
+- **Fix.** `imagesMoved`, a state effect exported from `blocks/field.ts`, makes the field rescan the whole document. `Document.imagesMoved()` sends it to every tab; `relocate` (Save As) and `documentMoved` (a rename or move in the tree) call it.
+- **Checked.** `tests/editor/images.test.ts` (`a folder that changes under unchanged text`) and the real window: after Save As all three pictures read `ws2/assets/…` and loaded, including the renamed `-2` one, and again after a tab switch.

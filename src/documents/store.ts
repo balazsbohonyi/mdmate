@@ -58,6 +58,7 @@ export function documentMoved(id: number, path: string): void {
   if (doc === undefined) return
   doc.path = path
   doc.name = path.split(/[\\/]/).pop() ?? path
+  doc.imagesMoved()
   publish(doc)
   touched()
 }

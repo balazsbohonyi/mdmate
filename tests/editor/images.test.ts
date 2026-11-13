@@ -12,6 +12,7 @@ import type { EditorView } from '@codemirror/view'
 import {
   blocksOf,
   imageContext,
+  imagesMoved,
   imageSizeOf,
   rememberImageSize,
   resetImageSizes,
@@ -703,5 +704,28 @@ describe('a late image and the first visible line (ISC-72)', () => {
     const refused = view.contentDOM.querySelector<HTMLElement>('[data-hint]')
     expect(refused?.dataset.hint).toMatch(/^Not loaded/)
     expect(view.contentDOM.querySelector('[title]')).toBeNull()
+  })
+})
+
+describe('a folder that changes under unchanged text (P9-T5)', () => {
+  it('resolves the pictures again when told the folder moved', () => {
+    // A draft that is saved keeps its link text, but its pictures now live in another folder, and the
+    // old address points at a folder that is gone. Real window: they stayed drawn from the old one.
+    let folder = '/data/drafts/1'
+    const context = imageContext.of({
+      folder: () => folder,
+      boundary: () => null,
+      url: (path: string) => `asset://localhost/${encodeURIComponent(path)}`,
+    })
+    const view = mountPreview('![](assets/a.png)\n\n![](assets/b.png)\n\nend', 40, context)
+    views.push(view)
+    const srcs = () =>
+      [...view.contentDOM.querySelectorAll('.cm-md-image-frame img')].map((img) =>
+        decodeURIComponent((img.getAttribute('src') ?? '').replace('asset://localhost/', '')),
+      )
+    expect(srcs()).toEqual(['/data/drafts/1/assets/a.png', '/data/drafts/1/assets/b.png'])
+    folder = '/notes/docs'
+    view.dispatch({ effects: imagesMoved.of(null) })
+    expect(srcs()).toEqual(['/notes/docs/assets/a.png', '/notes/docs/assets/b.png'])
   })
 })

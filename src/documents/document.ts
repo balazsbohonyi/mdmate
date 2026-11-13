@@ -11,7 +11,7 @@ import {
 } from '@codemirror/state'
 import { createFollowerState, createMasterState } from '@/editor/create'
 import { imageSink, imageStamp } from '@/editor/imagePaste'
-import { imageContext } from '@/editor/livePreview/blocks'
+import { imageContext, imagesMoved } from '@/editor/livePreview/blocks'
 import { brokenLinks, LinkStatus, linkStatus } from '@/editor/brokenLinks'
 import { linkNavigation } from '@/editor/links'
 import { renameEdits } from './draftLinks'
@@ -425,6 +425,7 @@ export class Document implements FollowerHost {
     this.#saved = { doc: baseline, endings: snapshot.endings }
     this.diskHash = saved.hash
     this.#applyReadOnly(null)
+    this.imagesMoved()
     this.#touched()
     this.#refreshDirty()
     this.#changed(this)
@@ -500,6 +501,15 @@ export class Document implements FollowerHost {
     this.#master = this.#master.update({ effects: effect }).state
     for (const follower of this.#followers.values()) follower.reconfigure(effect)
     this.#changed(this)
+  }
+
+  /**
+   * Tells every tab that the folder its pictures load from has changed: the document got a file, or
+   * its file moved. The text may be the same, so the pictures are resolved again on purpose.
+   */
+  imagesMoved(): void {
+    const effect = imagesMoved.of(null)
+    for (const follower of this.#followers.values()) follower.reconfigure(effect)
   }
 
   #refreshDirty(): void {
