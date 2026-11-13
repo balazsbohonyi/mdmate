@@ -176,20 +176,28 @@ pub(crate) fn find(
     Ok(found)
 }
 
-/// Finds the links to `path` under the open folders. `buffers` are the open documents with edits
-/// not yet saved.
+/// Finds the links to `path` under the open folders the file lies in, the same ones a rename reads;
+/// for a file no folder holds (opened on its own), under all of them. `buffers` are the open
+/// documents with edits not yet saved.
 pub(crate) fn find_for(
     state: &AppState,
     path: &Path,
     buffers: &[Buffer],
 ) -> Result<Found, AppError> {
     let target = state.access().check(path)?;
-    let roots: Vec<PathBuf> = state
-        .access()
-        .roots()
-        .iter()
-        .map(|root| root.path.clone())
-        .collect();
+    let roots = {
+        let access = state.access();
+        let held = access.roots_containing(&target);
+        if held.is_empty() {
+            access
+                .roots()
+                .iter()
+                .map(|root| root.path.clone())
+                .collect()
+        } else {
+            held
+        }
+    };
     let open: Vec<(PathBuf, String)> = buffers
         .iter()
         .filter_map(|buffer| {
@@ -530,6 +538,36 @@ mod tests {
         let through = find(&[root.to_path_buf()], Some(&cut), &target, true, &[]).expect("runs");
         assert_eq!(sorted(root, &through), sorted(root, &walked));
         assert!(!through.references.is_empty());
+    }
+
+    #[test]
+    fn references_are_looked_for_in_the_workspace_the_file_is_in() {
+        use crate::platform::Platform as _;
+        let dir = tempfile::tempdir().expect("a temp dir can be made");
+        let base = fs::canonicalize(dir.path()).expect("canonical");
+        let (a, b) = (base.join("a"), base.join("b"));
+        put(&a, "t.md", b"# t\n");
+        put(&a, "x.md", b"[t](t.md)\n");
+        put(&b, "y.md", b"[t](../a/t.md)\n");
+        put(&base, "c/o.md", b"# o\n");
+        put(&a, "p.md", b"[o](../c/o.md)\n");
+        put(&b, "q.md", b"[o](../c/o.md)\n");
+        let state = AppState::new(crate::platform::current().paths_ignore_case());
+        state.access().grant_root(&a).expect("granted");
+        state.access().grant_root(&b).expect("granted");
+
+        // A file in the first workspace: only that workspace's links.
+        let found = find_for(&state, &a.join("t.md"), &[]).expect("found");
+        assert_eq!(found.references.len(), 1, "{found:?}");
+        assert!(found.references[0].path.ends_with("x.md"));
+
+        // A file no workspace holds is looked for in all of them.
+        state
+            .access()
+            .grant_file(&base.join("c/o.md"))
+            .expect("granted");
+        let found = find_for(&state, &base.join("c/o.md"), &[]).expect("found");
+        assert_eq!(found.references.len(), 2, "{found:?}");
     }
 
     #[test]

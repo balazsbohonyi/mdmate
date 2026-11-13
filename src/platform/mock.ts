@@ -1,5 +1,6 @@
 import type { Endings } from '@/lib/endings'
 import { freeName, nameProblem } from '@/lib/fileNames'
+import type { LinksOnRename } from '@/lib/settings'
 import type {
   DiskChange,
   Host,
@@ -171,6 +172,8 @@ function safeDecode(text: string): string {
 }
 
 export interface MockHostOptions {
+  /** What the environment says a rename does about links (the `MDMATE_LINKS_ON_RENAME` variable). Default: nothing. */
+  readonly linksOnRename?: LinksOnRename
   /** Files that exist from the start, by path. */
   readonly files?: Readonly<Record<string, string>>
   /** What the open dialog returns each time it is shown. Default: no files, as if cancelled. */
@@ -760,6 +763,12 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     },
     moveEntry(path, into) {
       return attempt(() => moveInto(path, into))
+    },
+    rewriteCheck(path, change) {
+      return attempt(() => targetOf(path, change) !== null)
+    },
+    linksOnRenameOverride() {
+      return Promise.resolve(options.linksOnRename ?? null)
     },
     rewritePlan(path, change, buffers, onProgress) {
       return planRewrite(path, change, buffers, onProgress)

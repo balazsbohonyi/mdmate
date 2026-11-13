@@ -147,7 +147,28 @@ fn leave_out(plan: &mut Plan, state: &AppState, held: &[Held]) {
         .retain(|file| !keys.contains(state.spelling_key(&file.before).as_str()));
 }
 
-/// Checks the change, reads the workspace for the links it would break, and keeps the answer.
+/// The file or folder a change would move, and where to. None when it would change nothing (the
+/// same name, the same folder). Refuses a change the move itself would refuse.
+fn target_of(
+    state: &AppState,
+    path: &Path,
+    change: &Change,
+) -> Result<Option<(Resolved, PathBuf)>, AppError> {
+    match change {
+        Change::Rename { name } => ops::rename_target(state, path, name),
+        Change::Move { into } => ops::move_target(state, path, Path::new(into)),
+    }
+}
+
+/// Checks a change the way the move itself will, without reading the workspace: true when
+/// something would move. Refuses as [`plan`] does, so the page can ask whether to look for links
+/// only after it knows the change can be done.
+pub(crate) fn check(state: &AppState, path: &Path, change: &Change) -> Result<bool, AppError> {
+    Ok(target_of(state, path, change)?.is_some())
+}
+
+/// Checks the change, reads the workspace the file is in for the links it would break, and keeps
+/// the answer.
 /// `progress` hears how many files were read so far. Nothing on disk changes.
 pub(crate) fn plan(
     state: &AppState,
@@ -156,19 +177,13 @@ pub(crate) fn plan(
     buffers: &[Buffer],
     mut progress: impl FnMut(usize),
 ) -> Result<Planned, AppError> {
-    let found = match change {
-        Change::Rename { name } => ops::rename_target(state, path, name)?,
-        Change::Move { into } => ops::move_target(state, path, Path::new(into))?,
-    };
-    let Some((source, target)) = found else {
+    let Some((source, target)) = target_of(state, path, change)? else {
         return Ok(Planned::default());
     };
-    let roots: Vec<PathBuf> = state
-        .access()
-        .roots()
-        .iter()
-        .map(|root| root.path.clone())
-        .collect();
+    // Only the workspaces the file lies in: another root is another project, and reading it would
+    // cost time for links that are not to this file. Roots that hold the file together (one inside
+    // the other) are all read.
+    let roots = state.access().roots_containing(&source);
     let mv = Move {
         from: source.path.clone(),
         to: target.clone(),
@@ -449,6 +464,104 @@ mod tests {
         assert_eq!(bad.expect_err("bad name").kind(), "invalid");
         // Nothing was kept for a plan that did not happen.
         assert!(w.state.rewrite_slot().is_none());
+    }
+
+    #[test]
+    fn a_check_says_whether_anything_would_move_and_reads_no_file_for_links() {
+        let w = workspace();
+        put(&w.root.join("a.md"), "x\n");
+        put(&w.root.join("b.md"), "y\n");
+        put(&w.root.join("sub/c.md"), "[a](../a.md)\n");
+        let a = w.root.join("a.md");
+        assert!(check(&w.state, &a, &rename("new.md")).expect("checked"));
+        // The same name or the same folder changes nothing.
+        assert!(!check(&w.state, &a, &rename("a.md")).expect("checked"));
+        let same = Change::Move {
+            into: w.root.display().to_string(),
+        };
+        assert!(!check(&w.state, &a, &same).expect("checked"));
+        let into = Change::Move {
+            into: w.root.join("sub").display().to_string(),
+        };
+        assert!(check(&w.state, &a, &into).expect("checked"));
+        // A check keeps nothing and changes nothing.
+        assert!(w.state.rewrite_slot().is_none());
+        assert!(a.exists());
+    }
+
+    #[test]
+    fn a_check_refuses_what_the_move_would_refuse() {
+        let w = workspace();
+        put(&w.root.join("a.md"), "x\n");
+        put(&w.root.join("b.md"), "y\n");
+        let a = w.root.join("a.md");
+        assert_eq!(
+            check(&w.state, &a, &rename("b.md"))
+                .expect_err("taken")
+                .kind(),
+            "exists"
+        );
+        assert_eq!(
+            check(&w.state, &a, &rename("x/y")).expect_err("bad").kind(),
+            "invalid"
+        );
+        let outside = tempfile::tempdir().expect("outside");
+        let stray = outside.path().join("o.md");
+        put(&stray, "o\n");
+        assert!(check(&w.state, &stray, &rename("p.md")).is_err());
+    }
+
+    /// A second workspace root next to the first, with its own files.
+    fn other_root(w: &Workspace) -> PathBuf {
+        let other = w
+            .root
+            .parent()
+            .expect("the root has a parent")
+            .join("other");
+        fs::create_dir_all(&other).expect("other root");
+        w.state.access().grant_root(&other).expect("granted");
+        other
+    }
+
+    #[test]
+    fn a_plan_reads_only_the_workspace_the_file_is_in() {
+        let w = workspace();
+        let other = other_root(&w);
+        put(&w.root.join("old.md"), "# old\n");
+        put(&w.root.join("a.md"), "[x](old.md)\n");
+        // A link from the other workspace, written so that it does reach the file.
+        put(&other.join("b.md"), "[x](../root/old.md)\n");
+        put(&other.join("c.md"), "[x](old.md)\n");
+
+        let planned = plan_of(&w, &w.root.join("old.md"), &rename("new.md"), &[]);
+        assert_eq!((planned.links, planned.files), (1, 1));
+        // old.md and a.md: nothing in the other root was read.
+        assert_eq!(planned.scanned, 2);
+        finish(&w.state, planned.token, &[]).expect("done");
+        assert_eq!(
+            fs::read_to_string(w.root.join("a.md")).expect("a"),
+            "[x](new.md)\n"
+        );
+        assert_eq!(
+            fs::read_to_string(other.join("b.md")).expect("b"),
+            "[x](../root/old.md)\n"
+        );
+    }
+
+    #[test]
+    fn a_plan_reads_every_root_that_holds_the_file_when_roots_lie_inside_each_other() {
+        let w = workspace();
+        let inner = w.root.join("inner");
+        fs::create_dir_all(&inner).expect("inner");
+        w.state.access().grant_root(&inner).expect("granted");
+        put(&inner.join("x.md"), "# x\n");
+        put(&w.root.join("top.md"), "[x](inner/x.md)\n");
+        put(&inner.join("near.md"), "[x](x.md)\n");
+
+        let planned = plan_of(&w, &inner.join("x.md"), &rename("y.md"), &[]);
+        // The link from the outer root is found, and each file is read once.
+        assert_eq!((planned.links, planned.files), (2, 2));
+        assert_eq!(planned.scanned, 3);
     }
 
     #[test]

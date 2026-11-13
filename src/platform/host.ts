@@ -1,4 +1,5 @@
 import type { Endings } from '@/lib/endings'
+import type { LinksOnRename } from '@/lib/settings'
 import type { FollowedLink, LinkInfo } from './links'
 import type { IndexStatus } from './indexStatus'
 import type { QuickOpenAnswer } from './quickOpen'
@@ -307,6 +308,17 @@ export interface Host {
   renameEntry(path: string, newName: string): Promise<Moved>
   /** Moves a file or folder into another folder of the workspace; a folder never into itself. */
   moveEntry(path: string, into: string): Promise<Moved>
+  /**
+   * Checks a rename or move the way the move itself will, without reading any file for links:
+   * resolves to true when something would move, false for the same name or folder. Rejects for the
+   * reasons `renameEntry` and `moveEntry` do.
+   */
+  rewriteCheck(path: string, change: RewriteChange): Promise<boolean>
+  /**
+   * What the environment (`MDMATE_LINKS_ON_RENAME`) says a rename or move does about links, or null
+   * when it says nothing the page can use. Temporary, until `settings.json` arrives (P8-T1).
+   */
+  linksOnRenameOverride(): Promise<LinksOnRename | null>
   /**
    * Checks a rename or move and reads the workspace for the links it would change, without
    * changing anything. `onProgress` hears how many files were read so far. `buffers` are the open

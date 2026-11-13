@@ -1,25 +1,43 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import HoverHint from '@/components/HoverHint.vue'
 import { baseName } from '@/features/tree/model'
 import { answerRewrite, cancelRewriteScan, dismissRewriteReport, rewriteState } from './rewrite'
+import RewriteFileList from './RewriteFileList.vue'
 
 const box = ref<HTMLElement | null>(null)
 
 const state = computed(() => rewriteState.value)
-const asking = computed(() => (state.value?.phase === 'asking' ? state.value.planned : null))
+const asking = computed(() => (state.value?.phase === 'asking' ? state.value.path : null))
+
+const updatedLine = computed(() => {
+  const report = state.value
+  if (report?.phase !== 'report' || report.updated === null) return null
+  const { links, files } = report.updated
+  if (links === 0) return 'No links pointed to it, so none were changed.'
+  const where = plural(files, 'file', 'files')
+  return links === null
+    ? `Updated links in ${where}.`
+    : `Updated ${plural(links, 'link', 'links')} in ${where}.`
+})
 
 function plural(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`
 }
 
-// The question takes the keyboard so Escape and Enter work.
+// The question takes the keyboard so Escape and Enter work, and so does a list of what went
+// wrong. A line that only says what was updated does not: the keyboard stays where it was.
 watch(
-  () => state.value?.phase,
-  async (phase) => {
-    if (phase !== 'asking' && phase !== 'report') return
+  () => {
+    const now = state.value
+    if (now?.phase === 'asking') return 'asking'
+    if (now?.phase === 'report' && (now.failed.length > 0 || now.skipped.length > 0))
+      return 'report'
+    return null
+  },
+  async (asks) => {
+    if (asks === null) return
     await nextTick()
-    box.value?.querySelector('button')?.focus()
+    box.value?.querySelector<HTMLElement>('[data-answer]')?.focus()
   },
   { flush: 'post' },
 )
@@ -57,35 +75,28 @@ watch(
         class="break-words"
         data-rewrite-question
       >
-        Update
+        Update links to
         <span
           class="font-medium"
-          data-links
-          >{{ plural(asking.links, 'link', 'links') }}</span
-        >
-        in
-        <span
-          class="font-medium"
-          data-files
-          >{{ plural(asking.files, 'file', 'files') }}</span
+          data-name
+          >{{ baseName(asking) }}</span
         >?
       </p>
       <p
-        v-if="asking.skipped.length > 0"
         class="text-muted-foreground"
         data-rewrite-note
       >
-        {{ plural(asking.skipped.length, 'file', 'files') }} could not be checked and will keep
-        {{ asking.skipped.length === 1 ? 'its' : 'their' }} links.
+        Scans this workspace's Markdown files. May take a while.
       </p>
       <div class="flex flex-wrap gap-1.5">
+        <!-- Yes comes first, so it is the button that has the keyboard and Enter picks it. -->
         <button
           type="button"
           class="rounded border border-sidebar-border bg-sidebar px-2 py-1 hover:bg-sidebar-accent"
           data-answer="update"
           @click="answerRewrite('update')"
         >
-          Update links
+          Yes
         </button>
         <button
           type="button"
@@ -93,7 +104,7 @@ watch(
           data-answer="move-only"
           @click="answerRewrite('move-only')"
         >
-          Don't update
+          No
         </button>
         <button
           type="button"
@@ -108,49 +119,23 @@ watch(
 
     <template v-else-if="state.phase === 'report'">
       <p
-        v-if="state.failed.length > 0"
-        class="font-medium"
-        data-rewrite-failed-title
+        v-if="updatedLine !== null"
+        data-rewrite-updated
       >
-        {{ plural(state.failed.length, 'file kept', 'files kept') }} its old links
+        {{ updatedLine }}
       </p>
-      <ul
+      <RewriteFileList
         v-if="state.failed.length > 0"
-        class="flex flex-col gap-1"
-        data-rewrite-failed
-      >
-        <li
-          v-for="item in state.failed"
-          :key="item.path"
-          class="break-words"
-        >
-          <HoverHint :text="item.path">
-            <span class="font-medium">{{ baseName(item.path) }}</span> </HoverHint
-          >: {{ item.reason }}
-        </li>
-      </ul>
-      <p
+        kind="failed"
+        :heading="`${plural(state.failed.length, 'file kept', 'files kept')} its old links`"
+        :items="state.failed"
+      />
+      <RewriteFileList
         v-if="state.skipped.length > 0"
-        class="font-medium"
-        data-rewrite-skipped-title
-      >
-        {{ plural(state.skipped.length, 'file', 'files') }} could not be checked
-      </p>
-      <ul
-        v-if="state.skipped.length > 0"
-        class="flex flex-col gap-1"
-        data-rewrite-skipped
-      >
-        <li
-          v-for="item in state.skipped"
-          :key="item.path"
-          class="break-words"
-        >
-          <HoverHint :text="item.path">
-            <span class="font-medium">{{ baseName(item.path) }}</span> </HoverHint
-          >: {{ item.reason }}
-        </li>
-      </ul>
+        kind="skipped"
+        :heading="`${plural(state.skipped.length, 'file', 'files')} could not be checked`"
+        :items="state.skipped"
+      />
       <div class="flex gap-1.5">
         <button
           type="button"

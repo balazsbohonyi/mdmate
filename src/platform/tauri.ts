@@ -7,7 +7,7 @@ import { parseFollowedLink, parseLinkInfo } from './links'
 import { parseIndexStatus } from './indexStatus'
 import { parseQuickOpenAnswer } from './quickOpen'
 import { parseReferencesFound } from './references'
-import { parseRewriteDone, parseRewritePlanned } from './rewrite'
+import { parseLinksOnRename, parseRewriteDone, parseRewritePlanned } from './rewrite'
 import { parseOutlineAnswer } from './outline'
 import { parseSearchBatch, parseSearchSummary } from './search'
 import {
@@ -212,6 +212,12 @@ export const tauriHost: Host = {
   },
   async moveEntry(path, into) {
     return parseMoved(await invoke<unknown>('move_entry', { path, into }))
+  },
+  async rewriteCheck(path, change) {
+    return (await invoke<boolean>('rewrite_check', { path, change })) === true
+  },
+  async linksOnRenameOverride() {
+    return parseLinksOnRename(await invoke<unknown>('links_on_rename_override'))
   },
   async rewritePlan(path, change, buffers, onProgress) {
     const channel = new Channel<number>()

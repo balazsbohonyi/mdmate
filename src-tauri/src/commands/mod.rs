@@ -729,6 +729,25 @@ pub(crate) fn move_entry(
     )
 }
 
+/// Checks a rename or move the way the move itself will, without reading the workspace: true when
+/// something would move, false for the same name or folder. Refuses for the reasons
+/// [`rename_entry`] and [`move_entry`] do.
+#[tauri::command]
+pub(crate) fn rewrite_check(
+    state: State<'_, Arc<AppState>>,
+    path: String,
+    change: links::flow::Change,
+) -> Result<bool, AppError> {
+    links::flow::check(&state, std::path::Path::new(&path), &change)
+}
+
+/// What the environment says a rename or move does about links (`ask`, `update` or `never`), or
+/// None when it says nothing the page can use. Temporary, until `settings.json` (P8-T1).
+#[tauri::command]
+pub(crate) fn links_on_rename_override() -> Option<&'static str> {
+    crate::settings::links_on_rename_from_env()
+}
+
 /// Checks a rename or move and reads the workspace for the links it would change, without
 /// changing anything. `on_progress` hears how many files were read, a few times a second; the
 /// answer says how many links in how many files, and names the plan for [`rewrite_move`].

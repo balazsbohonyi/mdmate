@@ -90,10 +90,11 @@ Mark `[x]` only when the task's "Done when" in its phase plan holds. Each task l
 - [x] P7.1-T2: Quick Open from the index — closes ISC-290, ISC-291
 - [x] P7.1-T3: Link scans and folder search from the index — closes ISC-293, ISC-294
 - [x] P7.1-T4: Ctrl+P matches names as typed, and only the name unless the query has a slash — closes ISC-313, ISC-314
+- [x] P7.1-T5: Rename and move ask before they read, or do not look for links at all (`links.onRename`: ask, update, never) — closes ISC-315 to ISC-319 and ISC-321; ISC-320 is P8-T1
 
 ## Phase 8: Configuration ([plan](phases/phase-08/plan.md))
 
-- [ ] P8-T1: Settings and palette toggles — closes ISC-147, ISC-148, ISC-153, ISC-249
+- [ ] P8-T1: Settings and palette toggles — closes ISC-147, ISC-148, ISC-153, ISC-249, ISC-320
 - [ ] P8-T2: Keybindings — closes ISC-149
 - [ ] P8-T3: Theme switching and user themes — closes ISC-145, ISC-146, ISC-150, ISC-151, ISC-173
 - [ ] P8-T4: Portable mode — closes ISC-152
