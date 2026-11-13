@@ -89,6 +89,7 @@ Mark `[x]` only when the task's "Done when" in its phase plan holds. Each task l
 - [x] P7.1-T1: The index (build, exclusion list, disk cache, reconcile, watcher, own-op updates, status bar) — closes ISC-281, ISC-282, ISC-283, ISC-284, ISC-285, ISC-286, ISC-287, ISC-288, ISC-289, ISC-292
 - [x] P7.1-T2: Quick Open from the index — closes ISC-290, ISC-291
 - [x] P7.1-T3: Link scans and folder search from the index — closes ISC-293, ISC-294
+- [x] P7.1-T4: Ctrl+P matches names as typed, and only the name unless the query has a slash — closes ISC-313, ISC-314
 
 ## Phase 8: Configuration ([plan](phases/phase-08/plan.md))
 

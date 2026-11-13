@@ -5,6 +5,11 @@
 //! workspace of any size answers as fast as it can be scored. Matching is done here, so only the few
 //! best results cross to the page.
 //!
+//! A query with no slash is matched against file names only, so a folder never makes a file match;
+//! a query with a slash is matched against the whole path. The typed text must appear in the name
+//! as it was typed (case aside, spaces ignored); only when no file has it does the search fall back
+//! to letters in order, still within names, so `pln` finds `plan.md`.
+//!
 //! What is listed is what the index holds: every file except those under a folder on the built-in
 //! exclusion list (`crate::fs::exclude`), at any depth. The tree hides nothing; this does. While a
 //! root is read for the first time, the files found so far are offered.
@@ -114,11 +119,18 @@ struct Scratch {
 
 const NONE: i32 = i32::MIN / 2;
 
-/// Whether `query` (folded) is a subsequence of the folded letters of a path as shown: the cheap
-/// test that most files fail, run without building the letters.
-fn could_match(query: &[char], prefix: &str, rel: &str) -> bool {
+/// Whether `query` (folded) is a subsequence of the folded letters of what is searched: the whole
+/// path as shown, or only the file's name. The cheap test that most files fail, run without
+/// building the letters.
+fn could_match(query: &[char], prefix: &str, rel: &str, name_only: bool) -> bool {
     let mut next = 0;
-    for c in prefix.chars().chain(rel.chars()) {
+    let searched = if name_only {
+        rel.rsplit('/').next().unwrap_or(rel)
+    } else {
+        rel
+    };
+    let prefix = if name_only { "" } else { prefix };
+    for c in prefix.chars().chain(searched.chars()) {
         if next < query.len() && fold(c) == query[next] {
             next += 1;
         }
@@ -126,16 +138,37 @@ fn could_match(query: &[char], prefix: &str, rel: &str) -> bool {
     next == query.len()
 }
 
-/// Scores `query` (folded, spaces removed) against the filled `scratch.hay` and says which letters
-/// matched when `at` is given, or None when it is not a subsequence. Letters are matched in order;
-/// the best placement is chosen.
+/// Where `query` sits as an unbroken run in `text` (both folded), as the start of the run: the
+/// first one that begins a word, else the first one. `rel` is the same text as shown.
+fn literal_start(rel: &[char], text: &[char], query: &[char]) -> Option<usize> {
+    let (m, n) = (query.len(), text.len());
+    if m == 0 || m > n {
+        return None;
+    }
+    let mut first = None;
+    for start in 0..=n - m {
+        if text[start..start + m] == *query {
+            if boundary(rel, start) > 0 {
+                return Some(start);
+            }
+            first = first.or(Some(start));
+        }
+    }
+    first
+}
+
+/// Scores `query` (folded, spaces removed) against the filled `scratch.hay`, from letter `from` on
+/// (the start of the name when only names are searched), and says which letters matched when `at` is
+/// given, or None when it is not a subsequence. Letters are matched in order; the best placement is
+/// chosen.
 fn score(
     query: &[char],
     typed: &[char],
     scratch: &mut Scratch,
+    from: usize,
     at: Option<&mut Vec<usize>>,
 ) -> Option<i32> {
-    let hay = &scratch.hay.folded;
+    let hay = &scratch.hay.folded[from..];
     let (m, n) = (query.len(), hay.len());
     if m == 0 || m > n {
         return None;
@@ -154,7 +187,10 @@ fn score(
     scratch.score.resize(m * n, NONE);
     scratch.from.clear();
     scratch.from.resize(m * n, usize::MAX);
-    let (rel, name_start) = (&scratch.hay.rel, scratch.hay.name_start);
+    let (rel, name_start) = (
+        &scratch.hay.rel[from..],
+        scratch.hay.name_start.saturating_sub(from),
+    );
     for i in 0..m {
         // For letter i at place j, the best earlier placement of letter i-1 at k <= j-2, after
         // paying GAP for each letter skipped: score[k] - GAP*(j-k-1) = (score[k] + GAP*k) - GAP*(j-1).
@@ -222,6 +258,9 @@ fn score(
                 j = scratch.from[i * n + j];
             }
         }
+        for place in at.iter_mut() {
+            *place += from;
+        }
     }
     Some(best)
 }
@@ -287,6 +326,18 @@ fn better(lists: &[Listing<'_>], a: Candidate, b: Candidate) -> Ordering {
 struct Query<'a> {
     typed: &'a [char],
     folded: &'a [char],
+    /// Only the file's name is searched: the query holds no slash.
+    name_only: bool,
+    /// The query must appear in what is searched as one unbroken run; when false, letters in order
+    /// are enough.
+    literal: bool,
+}
+
+impl Query<'_> {
+    /// The first letter of the searched text in a filled `Hay`.
+    fn from(self, hay: &Hay) -> usize {
+        if self.name_only { hay.name_start } else { 0 }
+    }
 }
 
 /// Scores one stretch (`from..to`) of one list. Returns what matched.
@@ -300,11 +351,22 @@ fn score_range(
 ) {
     let one = &lists[list];
     for (i, entry) in one.entries[from..to].iter().enumerate() {
-        if !could_match(q.folded, &one.prefix, &entry.rel) {
+        if !could_match(q.folded, &one.prefix, &entry.rel, q.name_only) {
             continue;
         }
         scratch.hay.fill(one, entry);
-        if let Some(points) = score(q.folded, q.typed, scratch, None) {
+        let begin = q.from(&scratch.hay);
+        if q.literal
+            && literal_start(
+                &scratch.hay.rel[begin..],
+                &scratch.hay.folded[begin..],
+                q.folded,
+            )
+            .is_none()
+        {
+            continue;
+        }
+        if let Some(points) = score(q.folded, q.typed, scratch, begin, None) {
             out.push(Candidate {
                 points,
                 list: u32::try_from(list).unwrap_or(u32::MAX),
@@ -359,15 +421,25 @@ fn matches(lists: &[Listing<'_>], q: Query<'_>) -> Vec<Candidate> {
 }
 
 /// The best `limit` files of these lists for what was typed. Spaces in the query are ignored, and
-/// case does not matter. An empty query lists files in path order.
+/// case does not matter. A query with no slash is looked for in file names only; one with a slash
+/// (a backslash counts as one) in the whole path. The typed text must appear as one unbroken run;
+/// only when no file has it are files with the letters in order listed. An empty query lists files
+/// in path order.
 pub(crate) fn search(lists: &[Listing<'_>], cut: bool, typed: &str, limit: usize) -> Answer {
     let typed: Vec<char> = typed
         .chars()
         .filter(|c| !c.is_whitespace())
+        .map(|c| if c == '\\' { '/' } else { c })
         .take(MAX_QUERY)
         .collect();
     let query: Vec<char> = typed.iter().map(|c| fold(*c)).collect();
     let indexed: usize = lists.iter().map(|list| list.entries.len()).sum();
+    let mut how = Query {
+        typed: &typed,
+        folded: &query,
+        name_only: !typed.contains(&'/'),
+        literal: true,
+    };
     let mut found: Vec<Candidate> = if query.is_empty() {
         lists
             .iter()
@@ -381,13 +453,12 @@ pub(crate) fn search(lists: &[Listing<'_>], cut: bool, typed: &str, limit: usize
             })
             .collect()
     } else {
-        matches(
-            lists,
-            Query {
-                typed: &typed,
-                folded: &query,
-            },
-        )
+        let mut found = matches(lists, how);
+        if found.is_empty() {
+            how.literal = false;
+            found = matches(lists, how);
+        }
+        found
     };
     let total = found.len();
     let order = |a: &Candidate, b: &Candidate| {
@@ -415,7 +486,17 @@ pub(crate) fn search(lists: &[Listing<'_>], cut: bool, typed: &str, limit: usize
             scratch.hay.fill(list, entry);
             at.clear();
             if !query.is_empty() {
-                score(&query, &typed, &mut scratch, Some(&mut at));
+                let from = how.from(&scratch.hay);
+                if how.literal {
+                    let hay = &scratch.hay;
+                    if let Some(start) =
+                        literal_start(&hay.rel[from..], &hay.folded[from..], &query)
+                    {
+                        at.extend(from + start..from + start + query.len());
+                    }
+                } else {
+                    score(&query, &typed, &mut scratch, from, Some(&mut at));
+                }
             }
             let offsets = utf16_offsets(&scratch.hay.rel);
             Item {
@@ -487,7 +568,9 @@ mod tests {
     }
 
     #[test]
-    fn only_files_that_hold_the_letters_in_order_match() {
+    fn the_typed_text_must_appear_in_the_name_as_typed() {
+        // `explain.md` holds the letters of "plan" in order but not together: it is not offered
+        // while a file has them together.
         let index = of(&[
             "notes/plan.md",
             "plan.md",
@@ -497,13 +580,66 @@ mod tests {
         ]);
         let answer = index.search("plan", 10);
         let found = names(&answer);
+        assert_eq!(answer.total, 2, "{found:?}");
         assert!(found.contains(&"plan.md") && found.contains(&"notes/plan.md"));
-        assert!(found.contains(&"docs/explain.md"));
+    }
+
+    #[test]
+    fn letters_in_order_are_offered_only_when_no_file_has_the_text() {
+        let index = of(&["notes/plan.md", "docs/explain.md", "pla.md", "nap.md"]);
+        let answer = index.search("pln", 10);
+        let found = names(&answer);
         assert!(
-            !found.contains(&"pla.md") && !found.contains(&"nap.md"),
+            found.contains(&"notes/plan.md") && found.contains(&"docs/explain.md"),
             "{found:?}"
         );
+        assert!(!found.contains(&"pla.md") && !found.contains(&"nap.md"));
+        // One file with the text together hides the scattered ones.
+        let with_text = of(&["notes/plan.md", "docs/explain.md", "xplnx.md"]);
+        assert_eq!(names(&with_text.search("pln", 10)), ["xplnx.md"]);
+    }
+
+    #[test]
+    fn a_name_is_not_found_through_its_folder_unless_the_query_has_a_slash() {
+        let index = of(&["agents/Max.md", "extract_agents/system.md", "agents.md"]);
+        assert_eq!(names(&index.search("agents.md", 10)), ["agents.md"]);
+        assert_eq!(names(&index.search("agents", 10)), ["agents.md"]);
+        let with_slash = index.search("agents/ma", 10);
+        assert_eq!(names(&with_slash), ["agents/Max.md"]);
+        assert_eq!(names(&index.search("agents\\ma", 10)), ["agents/Max.md"]);
+    }
+
+    #[test]
+    fn a_search_for_agents_md_offers_only_files_named_that() {
+        // What the owner saw in Ctrl+P with the loose matching, each with how it used to match.
+        let index = of(&[
+            "AGENTS.md",
+            "projects/mdmate/AGENTS.md",
+            "agents.md",
+            "AgentSystem.md",
+            "multi-agent-support-plan.md",
+            "create-agents-md.md",
+            "LeveragePoints.md",
+            "agent-instructions.md",
+            "windows.ai.agents.mcp.idl",
+            "2026-06-05-user-global-storage-requirements.md",
+            "2026-01-22_ai-agent-spec-writing-workflow.md",
+            "install/agents/Max.md",
+            "install/agents/Grok.md",
+            "Patterns/extract_wisdom_agents/system.md",
+            "extensions/agents/SKILL.md",
+        ]);
+        let answer = index.search("agents.md", 20);
+        let mut found = names(&answer);
+        found.sort_unstable();
+        assert_eq!(
+            found,
+            ["AGENTS.md", "agents.md", "projects/mdmate/AGENTS.md"]
+        );
         assert_eq!(answer.total, 3);
+        let item = &answer.items[0];
+        assert_eq!(item.matches.len(), "agents.md".len());
+        assert_eq!(item.matches[0], item.name_start);
     }
 
     #[test]
@@ -533,20 +669,33 @@ mod tests {
     }
 
     #[test]
-    fn a_run_of_letters_beats_scattered_ones() {
-        let index = of(&["axbxc.md", "a-b-c.md", "abc.md"]);
-        assert_eq!(names(&index.search("abc", 10))[0], "abc.md");
-        let second = index.search("abc", 10);
-        assert_eq!(names(&second)[1], "a-b-c.md", "word starts beat plain gaps");
+    fn scattered_letters_rank_by_word_starts_when_no_file_has_the_text() {
+        let index = of(&["axbxc.md", "a-b-c.md"]);
+        let found = index.search("abc", 10);
+        assert_eq!(names(&found), ["a-b-c.md", "axbxc.md"]);
     }
 
     #[test]
-    fn a_match_in_the_name_beats_the_same_match_in_a_folder() {
+    fn a_whole_name_beats_a_name_that_holds_the_text() {
+        let index = of(&["xabc.md", "abc.md", "my-abc.md"]);
+        assert_eq!(names(&index.search("abc", 10))[0], "abc.md");
+    }
+
+    #[test]
+    fn the_matched_letters_are_the_unbroken_run_in_the_name() {
+        let index = of(&["docs/my-agents.md"]);
+        let answer = index.search("agents", 10);
+        let [item] = answer.items.as_slice() else {
+            panic!("{answer:?}")
+        };
+        assert_eq!(item.matches, [8, 9, 10, 11, 12, 13]);
+    }
+
+    #[test]
+    fn a_folder_alone_never_makes_a_file_match() {
         let index = of(&["foo/bar.md", "bar/foo.md"]);
-        assert_eq!(
-            names(&index.search("foo", 10)),
-            ["bar/foo.md", "foo/bar.md"]
-        );
+        assert_eq!(names(&index.search("foo", 10)), ["bar/foo.md"]);
+        assert_eq!(names(&index.search("foo/", 10)), ["foo/bar.md"]);
     }
 
     #[test]
@@ -616,7 +765,7 @@ mod tests {
     #[test]
     fn a_folder_and_a_name_can_share_the_query() {
         let index = of(&["notes/plan.md", "notes/idea.md", "plan/notes.md"]);
-        assert_eq!(names(&index.search("notes/pla", 10))[0], "notes/plan.md");
+        assert_eq!(names(&index.search("notes/pla", 10)), ["notes/plan.md"]);
     }
 
     #[test]
@@ -682,6 +831,8 @@ mod tests {
         let q = Query {
             typed: &typed,
             folded: &query,
+            name_only: true,
+            literal: false,
         };
         let mut one = Vec::new();
         let mut scratch = Scratch::default();

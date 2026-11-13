@@ -96,6 +96,16 @@ What I did not add: a periodic reconcile or one on window focus. Either would wa
 
 **Decided: `walk` and `walk_until` stay, for tests only.** Their last real callers moved to `walk_indexed`.
 
+## P7.1-T4: Ctrl+P matches names as typed
+
+The owner searched Ctrl+P for `agents.md` and found files that only held those nine letters somewhere in their path in that order: `Max.md` and `Grok.md` through a folder called `agents`, `LeveragePoints.md` and `agent-instructions.md` through letters scattered across a name, `windows.ai.agents.mcp.idl` through its last letter, and also `AgentSystem.md` and `multi-agent-support-plan.md`. That scorer is the Phase 6 one, unchanged; Phase 7.1 only made its file list faster.
+
+**Decided with the owner: names only unless the query has a slash, and the typed text as written.** A query with no slash is looked for in the file name only (a backslash counts as a slash). The typed text, case and spaces aside, must appear in the name as one unbroken run; the match shown is that run. Only when no file anywhere has it does the search fall back to the old letters-in-order scoring, still within names, so `pln` finds `plan.md` (ISC-130) but a file that holds `pln` as written hides it. I proposed a rule that let letters skip only at word starts; the owner said `AgentSystem.md` and `multi-agent-support-plan.md` should not match `agents.md` either, which needs the literal rule.
+
+**Cost.** A query nothing matches literally is scored twice (the literal pass is cheap and leaves nothing). `quick-open-query` on 100,000 files after the change: ask p95 13.8 ms (12.8 to 14.2), repeatable, against 50 ms. The 14 queries of the scenario still find files; the page-side mock host in `src/platform/mock.ts` keeps its own simpler matching and is not meant to mirror this.
+
+**Known trade-off.** Typing initials that happen to appear as written in some other name hides the file the initials were meant for (`pln` while a file called `xplnx.md` exists). The list changes kind as soon as the typed text stops appearing in any name.
+
 ## Results (release build, Windows)
 
 **Perf gates, five runs each, all inside target and repeatable:**
