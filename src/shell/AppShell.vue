@@ -1,18 +1,21 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onUnmounted } from 'vue'
+import { computed, defineAsyncComponent, onUnmounted, watch } from 'vue'
 import { refreshRecent } from '@/documents/recent'
 import { activeDocument, refreshMissing } from '@/documents/store'
+import { Toaster } from '@/components/ui/sonner'
 import { paletteMode } from '@/features/palette/state'
 import DeleteDialog from '@/features/tree/DeleteDialog.vue'
 import { runCommand } from '@/workbench/commands'
 import { registerDefaultCommands } from '@/workbench/defaultCommands'
 import { installKeybindings } from '@/workbench/keyboard'
+import { activeTabId } from '@/workbench/tabMenu'
 import { sidebarVisible } from '@/workbench/sidebar'
 import WorkbenchView from '@/workbench/WorkbenchView.vue'
 import { buildMenuEntries, findMenuItem } from './menuEntries'
 import SidebarFrame from './SidebarFrame.vue'
 import StatusBar from './StatusBar.vue'
 import TitleBar from './TitleBar.vue'
+import { dismissAllToasts } from './toasts'
 
 // The pickers are code the user may never need, so they load the first time one opens.
 const PaletteHost = defineAsyncComponent(() => import('@/features/palette/PaletteHost.vue'))
@@ -24,6 +27,10 @@ onUnmounted(() => {
   removeKeybindings()
   removeCommands()
 })
+
+// A toast is about what the user just tried, so it goes when they move to another tab: a tab
+// switch, another pane taking the focus, or the tab closing all change the active tab.
+watch(() => activeTabId(), dismissAllToasts)
 
 const menuEntries = computed(() => buildMenuEntries())
 
@@ -64,5 +71,12 @@ function menuOpened(): void {
       :mode="paletteMode"
     />
     <DeleteDialog />
+    <Toaster
+      position="bottom-right"
+      expand
+      close-button
+      close-button-position="top-right"
+      :visible-toasts="4"
+    />
   </div>
 </template>

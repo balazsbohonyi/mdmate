@@ -1,0 +1,41 @@
+/*
+ * Toasts (vue-sonner, through components/ui/sonner). The library reads its colours from its own
+ * variables; they are pointed at the app's tokens here, so a toast follows the theme and no colour
+ * literal lives outside src/styles/. An error and a warning differ by the colour of their icon and
+ * a stripe on the left edge, not by a fill of their own.
+ */
+[data-sonner-toaster] {
+  --normal-bg: var(--popover);
+  --normal-bg-hover: var(--accent);
+  --normal-text: var(--popover-foreground);
+  --normal-border: var(--border);
+  --normal-border-hover: var(--border);
+  --gray1: var(--popover);
+  --gray2: var(--accent);
+  --gray3: var(--border);
+  --gray4: var(--border);
+  --gray5: var(--border);
+  --gray6: var(--border);
+  --gray7: var(--muted-foreground);
+  --gray8: var(--muted-foreground);
+  --gray9: var(--muted-foreground);
+  --gray10: var(--popover-foreground);
+  --gray11: var(--popover-foreground);
+  --gray12: var(--popover-foreground);
+}
+
+[data-sonner-toast][data-type='warning'] {
+  box-shadow: inset 3px 0 0 var(--syntax-heading);
+}
+
+[data-sonner-toast][data-type='error'] {
+  box-shadow: inset 3px 0 0 var(--destructive);
+}
+
+[data-sonner-toast][data-type='warning'] [data-icon] {
+  color: var(--syntax-heading);
+}
+
+[data-sonner-toast][data-type='error'] [data-icon] {
+  color: var(--destructive);
+}

@@ -12,6 +12,7 @@ export default defineConfig({
   },
   test: {
     include: ['tests/**/*.test.ts'],
+    setupFiles: ['tests/helpers/setupToasts.ts'],
   },
   clearScreen: false,
   server: {
