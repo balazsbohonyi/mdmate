@@ -29,10 +29,11 @@ const CODE_TITLE =
   /(?<!this)\.title\s*=(?!=)|setAttribute\(\s*['"]title['"]|attributes:\s*\{[^}]*\btitle\b/
 
 /**
- * The few lines that may set a title. A Markdown image's own title is document content, not app
- * UI; `document.title` inside a test SVG string is not an element; the perf lab is not shipped UI.
+ * The few lines that may set a title. `document.title` inside a test SVG string is not an element;
+ * the perf lab is not shipped UI. A Markdown image's own title is not allowed: it is drawn as a
+ * `data-hint`, like every other tooltip.
  */
-const ALLOWED_CODE = [/img\.title = this\.title/, /document\.title = 'SVG-RAN'/]
+const ALLOWED_CODE = [/document\.title = 'SVG-RAN'/]
 const ALLOWED_FILES = ['perf/lab.ts']
 
 function codeOffenders(files: { file: string; text: string }[]): string[] {
@@ -92,7 +93,7 @@ describe('no title set from code (ISC-226)', () => {
     expect(see("Decoration.mark({ attributes: { title: 'Missing file' } })")).toEqual(['x.ts:1'])
     expect(see('this.title = item.title')).toEqual([])
     expect(see('if (a.title === b.title) return')).toEqual([])
-    expect(see('img.title = this.title')).toEqual([])
+    expect(see('img.title = this.title')).toEqual(['x.ts:1'])
     expect(see("wrap.title = this.title + 'more'")).toEqual(['x.ts:1'])
   })
 })

@@ -299,10 +299,11 @@ describe('the image widget (ISC-66, ISC-67)', () => {
     )
   })
 
-  it('carries the title and sends no referrer', () => {
+  it('shows the title as an editor hint, never a native title, and sends no referrer', () => {
     const view = mount('![a](a.png "A title")\n\ntext\n')
     const img = view.contentDOM.querySelector<HTMLImageElement>('.cm-md-image-frame img')
-    expect(img?.getAttribute('title')).toBe('A title')
+    expect(img?.closest<HTMLElement>('[data-hint]')?.dataset.hint).toBe('A title')
+    expect(view.contentDOM.querySelector('[title]')).toBeNull()
     expect(img?.referrerPolicy).toBe('no-referrer')
   })
 
@@ -310,6 +311,15 @@ describe('the image widget (ISC-66, ISC-67)', () => {
     const doc = 'one ![small](s.png) two\n\n![big](b.png)\n\nend'
     const [inline, block] = images(doc)
     expect(inline?.block).toBe(false)
+  it("shows a failed picture's reason, not its title, as the hint", () => {
+    const view = mount('![a](a.png "A title")\n\ntext\n')
+    const img = view.contentDOM.querySelector<HTMLImageElement>('.cm-md-image-frame img')
+    img?.dispatchEvent(new Event('error'))
+    const hinted = view.contentDOM.querySelectorAll<HTMLElement>('[data-hint]')
+    expect([...hinted].map((el) => el.dataset.hint)).toEqual(['This image could not be loaded.'])
+    expect(view.contentDOM.querySelector('[title]')).toBeNull()
+  })
+
     expect(block?.block).toBe(true)
     expect(doc.slice(inline?.from, inline?.to)).toBe('![small](s.png)')
     expect(doc.slice(block?.from, block?.to)).toBe('![big](b.png)')

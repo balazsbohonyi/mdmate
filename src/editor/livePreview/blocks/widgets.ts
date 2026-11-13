@@ -376,6 +376,8 @@ export class ImageWidget extends BlockWidget {
       label.className = 'cm-md-image-label'
       label.textContent = this.alt === '' ? 'image' : this.alt
       frame.append(label)
+      // The reason is the more useful hint on a picture that did not load; the title waits.
+      delete frame.dataset.hint
       wrap.dataset.hint = reason
       view.requestMeasure()
     }
@@ -388,7 +390,9 @@ export class ImageWidget extends BlockWidget {
       const src = this.src
       const img = document.createElement('img')
       img.alt = this.alt
-      if (this.title !== null) img.title = this.title
+      // The picture's own title is a hint drawn by the editor like the shadcn tooltip, never a
+      // native `title` attribute (ISC-226). It sits on the frame, which is as wide as the picture.
+      if (this.title !== null) frame.dataset.hint = this.title
       img.decoding = 'async'
       img.draggable = false
       // A tag with both sizes is that box exactly, as a browser draws it; the frame's own rule
