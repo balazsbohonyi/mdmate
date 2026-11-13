@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 290/321
+progress: 290/333
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-13T16:00:00Z
+updated: 2026-11-13T18:00:00Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -246,6 +246,18 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-158 | bash | resize command test | img tag written | pnpm test:web tests/editor/imageResize.test.ts | derived: image-authoring | | |
 | ISC-159 | bash | property test: byte diff after resize | that image only | pnpm test:web tests/editor/imageResize.test.ts | derived: byte-exact | | |
 | ISC-160 | bash | paste test source check | standard syntax | pnpm test:web tests/editor/imagePaste.test.ts | derived: byte-exact | | |
+| ISC-322 | screenshot | click an image, then Escape, click elsewhere, press Enter | outline and handle show with the source hidden; each exit works | Interceptor on pnpm dev, real window | derived: image-authoring | | |
+| ISC-323 | bash | render `<img>` with every allowed attribute and with extras and other HTML | image drawn; extras ignored; other HTML source | pnpm test:web tests/editor/imageHtml.test.ts | derived: image-authoring | | |
+| ISC-324 | bash | `<img>` with `http`, `file`, absolute, `style`, `onerror` | no load, no handler, no style applied | pnpm test:web tests/editor/imageHtml.test.ts | derived: security | | |
+| ISC-325 | bash | select an image, Delete, undo | source removed; undo restores it in one step | pnpm test:web tests/editor/imageResize.test.ts | derived: image-authoring | | |
+| ISC-326 | bash | resize an `<img>` with width and height | `height` gone, rest of the tag byte-equal | pnpm test:web tests/editor/imageResize.test.ts | derived: byte-exact | | |
+| ISC-327 | bash | paste and drop-copy into an untitled document (before P9-T5: the refusal) | file under that document's draft folder, relative link inserted, image draws (before P9-T5: notice, nothing written) | pnpm test:rust draft_images and pnpm test:web tests/editor/imagePaste.test.ts | derived: image-authoring | | |
+| ISC-328 | manual | drop an image from inside the workspace and one from outside | link in place; copy plus link | Real app run | derived: image-authoring | | |
+| ISC-329 | bash | save pasted bytes where the name is taken | `-2`, then `-3`, original untouched | pnpm test:rust paste_image_saved | derived: byte-exact | | |
+| ISC-330 | bash | save `images.pasteFolder`, paste | file lands in the new folder, no restart | pnpm test:web tests/documents/settings.test.ts | derived: image-authoring | | |
+| ISC-331 | bash | first Save As of an untitled document with two draft images, one name already taken at the target | both copied, the taken one renamed with its link updated, draft folder gone | pnpm test:rust draft_images | derived: byte-exact | | |
+| ISC-332 | bash | close an untitled tab with Don't Save, with Cancel, with no changes, and through Close Others and Close All; quit and restart; start with a draft folder no tab owns | removed only after a final close; Cancel and quit keep it; the unowned one is swept | pnpm test:rust draft_images | derived: reliable | | |
+| ISC-333 | bash | load an untitled tab's image, a link that leaves its draft folder, another tab's draft folder | first loads, the others refused | pnpm test:rust draft_images and tests/editor/imageAddress.test.ts | derived: security | | |
 | ISC-161 | manual | launch twice with a file | one window, new tab | Real app run | derived: os-integration | | |
 | ISC-162 | manual | second launch with a relative path from another folder | right file | Real app run | derived: os-integration | | |
 | ISC-163 | manual | run mdmate file.md while closed | file opens | Real app run | derived: os-integration | | |
@@ -613,13 +625,25 @@ Why: the look must be yours to change without rebuilding, which is why everythin
 ### F10 · Image authoring
 Why: screenshots are the most common thing dropped into documentation, and adding one should take a single paste.
 
-- [ ] ISC-154: A pasted image saves to the configured subfolder.
+- [ ] ISC-154: A pasted image saves to an images folder next to the document (`assets`, created on the first paste), as `image-YYYYMMDD-HHMMSS.png`.
 - [ ] ISC-155: A pasted image inserts a relative link.
 - [ ] ISC-156: A dropped image inserts a link at the drop point.
-- [ ] ISC-157: Drag handles resize an inline image.
-- [ ] ISC-158: A resized image is written as `<img src width>`.
-- [ ] ISC-159: Anti: a resize changes bytes only inside that image's source.
+- [ ] ISC-157: A drag handle on a selected, loaded image (block or inline, local or `https`) resizes it: width only, aspect ratio kept, from 24 px up to the editor content width.
+- [ ] ISC-158: A resized Markdown image `![alt](src)` is written as `<img src alt width>`; a resized `<img>` has its `width` set.
+- [ ] ISC-159: Anti: a resize changes bytes only inside that image's source (and, for an `<img>` with a `height`, only that attribute besides `width`).
 - [ ] ISC-160: Unresized images stay standard `![]()` syntax.
+- [ ] ISC-322: A click on an image selects it (outline and resize handle) and its source stays hidden; Escape or a click elsewhere deselects, and Enter or an arrow key into it shows its source.
+- [ ] ISC-323: An `<img>` tag with `src`, `alt`, `title`, `width` and `height` draws as an image through the same address allowlist as `![]()` (ISC-180); a tag with any other attribute shows its allowed ones only, and other HTML stays source.
+- [ ] ISC-324: Anti: an `<img>` with a refused address, a `style`, or an `on*` attribute loads nothing from that address and runs no script.
+- [ ] ISC-325: Delete or Backspace on a selected image removes its whole source, as one undo step.
+- [ ] ISC-326: Resizing an `<img>` that has a `height` removes that `height` and changes nothing else in the tag.
+- [ ] ISC-327: A paste or a drop-copy into an untitled document saves the image in that document's own draft folder (`assets/image-….png` under it) and inserts the normal relative link, which draws the image; until P9-T5 builds this, such a paste is refused with a notice and writes nothing.
+- [ ] ISC-328: An image dropped on document text links in place when the file is inside the document's workspace folder, and is copied into the images folder and linked there when it is outside.
+- [ ] ISC-329: Anti: a pasted or copied image never overwrites an existing file; a taken name gets `-2`, `-3`.
+- [ ] ISC-330: `settings.json` holds `images.pasteFolder` (default `assets`) and a saved change applies to the next paste with no restart.
+- [ ] ISC-331: The first Save As of an untitled document copies its draft images into the images folder beside the saved file and then removes the draft folder; the links already resolve there, and a name that is taken there gets `-2`, `-3` with its link updated.
+- [ ] ISC-332: Closing an untitled tab removes its draft folder once the close is final (after "Don't Save", or at once for a tab with no changes), by every route that closes a tab; quitting the app keeps it, since the session restores the tab. Anti: a draft folder an open or restorable tab holds is never removed, and a folder whose tab is gone (a failed removal, a crash) is removed at the next start-up.
+- [ ] ISC-333: Anti: the asset protocol is granted a draft folder only for the untitled tab that owns it, and an image link in an untitled document that leaves its draft folder never loads.
 
 ### F11 · Release
 Why: it only becomes your everyday Markdown app once it opens from a double-click and strangers can install it.
@@ -890,6 +914,8 @@ Why: a large workspace stays quick to search only when mdmate keeps a list of it
 - 2026-11-13: refined: added ISC-321 (P7.1-T5) after the owner asked whether a link scan reads every workspace root: it did, and should read only the root that holds the file. Settled with the owner; the same rule applies to Find File References so the list shows what a rename would update. The exclusions needed no change: ISC-282, ISC-294 and ISC-253 already keep the built-in folders and non-Markdown files out of every scan. A link from a different root into the file is no longer updated; the owner chose that. See `ai-docs/phases/phase-07.1/decisions.md`.
 - 2026-11-13: refined: ISC-316 now names the buttons Yes, No and Cancel, with Yes first and focused (it was Don't update first), after the owner reasoned that a user who turned link scanning on in settings wants the links updated; the note under the question is shorter. Behaviour of each answer is unchanged. Phase 7.1, task P7.1-T5.
 - 2026-11-13: refined: ISC-318 report lists are folded behind a chevron and drawn one line per file, name coloured, after the owner saw them wrapping over four lines (P7.1-T5).
+- 2026-11-13: refined: Phase 9 settled with the owner in a design session: it runs before Phase 8; a click selects an image and shows a width-only handle; a resize writes `<img src alt width>`, so mdmate now also draws `<img>` (new ISC-322 to ISC-330; ISC-154, 157, 158, 159 reworded). The paste folder is `assets` next to the document until P8-T1 makes it the `images.pasteFolder` setting (ISC-330). See `ai-docs/phases/phase-09/decisions.md`.
+- 2026-11-13: refined: untitled documents get a draft folder per document for pasted and copied images (new P9-T5; ISC-327 reworded, ISC-331 to ISC-333 added), chosen by the owner over base64 in the text (a bigger session snapshot, a CSP `data:` exception) and over asking to Save As on the first paste. Until P9-T5 an untitled paste refuses with a notice.
 
 ## Verification
 

@@ -94,16 +94,20 @@ Mark `[x]` only when the task's "Done when" in its phase plan holds. Each task l
 
 ## Phase 8: Configuration ([plan](phases/phase-08/plan.md))
 
-- [ ] P8-T1: Settings and palette toggles — closes ISC-147, ISC-148, ISC-153, ISC-249, ISC-320
+Phase 9 runs before this phase (owner's decision, 2026-11-13): image paste ships with a built-in `assets` folder and P8-T1 makes it a setting.
+
+- [ ] P8-T1: Settings and palette toggles — closes ISC-147, ISC-148, ISC-153, ISC-249, ISC-320, ISC-330
 - [ ] P8-T2: Keybindings — closes ISC-149
 - [ ] P8-T3: Theme switching and user themes — closes ISC-145, ISC-146, ISC-150, ISC-151, ISC-173
 - [ ] P8-T4: Portable mode — closes ISC-152
 
 ## Phase 9: Image authoring ([plan](phases/phase-09/plan.md))
 
-- [ ] P9-T1: Paste images — closes ISC-154, ISC-155, ISC-160
-- [ ] P9-T2: Drop images — closes ISC-156
-- [ ] P9-T3: Resize images — closes ISC-157, ISC-158, ISC-159
+- [ ] P9-T1: Paste images — closes ISC-154, ISC-155, ISC-160, ISC-329
+- [ ] P9-T2: Drop images — closes ISC-156, ISC-328
+- [ ] P9-T3: Draw `<img>` tags — closes ISC-323, ISC-324
+- [ ] P9-T4: Select, resize and delete images — closes ISC-157, ISC-158, ISC-159, ISC-322, ISC-325, ISC-326
+- [ ] P9-T5: Images in untitled documents (a draft folder per document) — closes ISC-327, ISC-331, ISC-332, ISC-333
 
 ## Phase 10: Ship ([plan](phases/phase-10/plan.md))
 
