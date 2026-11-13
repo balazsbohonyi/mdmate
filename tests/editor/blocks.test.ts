@@ -356,5 +356,6 @@ describe('what an edit leaves drawn is what a fresh scan draws', () => {
         }
       }
     }
-  })
+    // 1,600 rounds take about 3 s alone; the default 5 s is too close when the suite runs in parallel.
+  }, 30_000)
 })
