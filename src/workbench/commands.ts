@@ -20,6 +20,11 @@ export interface Command {
   readonly keybinding?: string
   /** Disabled commands show greyed out in menus and do nothing when run. Default: always enabled. */
   readonly enabled?: () => boolean
+  /**
+   * For a command that flips something: whether it is on right now. The palette and the menu show
+   * it as On or Off beside the title. Reads reactive state, like `enabled`.
+   */
+  readonly state?: () => boolean
   readonly run: () => void | Promise<void>
 }
 
@@ -82,6 +87,11 @@ export function listCommands(): readonly Command[] {
 export function isCommandEnabled(id: string): boolean {
   const command = getCommand(id)
   return command !== undefined && (command.enabled?.() ?? true)
+}
+
+/** Whether a toggle command is on, or undefined when the command has no state or is unknown. */
+export function commandState(id: string): boolean | undefined {
+  return getCommand(id)?.state?.()
 }
 
 /**

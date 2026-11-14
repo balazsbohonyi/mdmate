@@ -215,6 +215,8 @@ The screen is `features/settings/SettingsView.vue`, with one `SettingRow.vue` sh
 
 The document fonts (`fonts.*`) are applied by `editor/documentFonts.ts`: the store calls `updateDocumentFonts` after every applied file, which sets `--doc-*` custom properties on the root (the code size as a ratio of the text size) and asks each open editor view to measure again, and only when a value changed. The editor's theme (`create.ts`, `livePreview/theme.ts`, `blocks/theme.ts`, `box.ts`) is the only reader, with the defaults as `var()` fallbacks. A family field is turned into quoted names plus the built-in stack by `cssFamilyList`.
 
+A command may carry a `state()`, which the palette rows and the menu show as On or Off. Toggle Word Wrap and Toggle Developer Tools flip their setting through `features/settings/quick.ts`, which uses the Settings screen's change path and shows the Settings tab when unsaved settings.json edits hold the change. Switch Theme opens the palette in its `themes` mode, a pick list of `lib/themes.ts`.
+
 ## Security
 
 Markdown content is untrusted, and people will open files they did not write.

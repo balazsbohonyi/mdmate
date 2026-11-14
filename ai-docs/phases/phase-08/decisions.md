@@ -59,3 +59,15 @@ Choices made while building, in the order they were made. The settled design is 
 - **Open editors measure again, once.** A font change asks each open view to measure its text again (`requestMeasure`); a change of another setting asks nobody.
 - **The scale is one value.** Six boxes, checked together when one is left, written as one list; a reset takes the whole key out. The validator already refused any list that was not six numbers from 0.5 to 4.
 - **Open:** the Theme row's list still holds only Dark, and the `..` excluded-folder name is still accepted (both from T1d).
+
+## P8-T1f: toggles and Switch Theme
+
+- **A command can have a state.** `Command.state()` is true for On. The palette row and the menu item show On or Off at the right edge, read from the live setting (the same reactive read as `enabled`), so both follow a change made anywhere, including a hand edit of the file.
+- **Toggles use the screen's change path.** `flipSetting` calls `requestSettingChange`, so a default takes the key out and unsaved edits in the settings.json tab hold the change. The question lives on the Settings screen, so a held change shows that tab (`changeSettingFromCommand`); without that the command would do nothing and say nothing.
+- **Toggle Developer Tools is not Open Developer Tools.** The toggle flips the `devtools` setting; Open (F12) opens the window and is enabled only while the setting is on.
+- **Switch Theme is a third palette mode.** `themes` lists `THEME_CHOICES`, marks the one in use, and a choice goes through the same change path. `THEME_CHOICES` moved to `lib/themes.ts`, so the palette does not import the screen's row table. With one theme the list has one row; it is built for several.
+- **Focus returns to where the user was.** Switch Theme opens its list in the same tick the command palette closes, while focus is still in the palette's own box. `togglePalette` takes the origin the closing palette released (`justClosedFrom`) when the active element is inside a picker, so Escape or Enter on the list gives focus back to the editor and not to the page body.
+- **ISC-371 and ISC-358 are P8-T3's.** Five entries and user theme files, and three themes to read the screen in, do not exist yet. ISC-395 holds what can be shown now.
+- **ISC-249 stays open.** F12 in a release build needs a release build; I have not made one and it needs the owner's permission (it also builds with the `devtools` Cargo feature that T1b added).
+- **The menu.** Toggle Word Wrap sits with the view items, Switch Theme and Toggle Developer Tools with the settings items. The state and a key share the right edge.
+- **Open:** the menu's state rendering has no mounted test; a long menu scrolls in a small window, as it did.

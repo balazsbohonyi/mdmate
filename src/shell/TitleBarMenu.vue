@@ -89,7 +89,18 @@ function opened(open: boolean): void {
           @select="emit('select', entry.id)"
         >
           {{ entry.label }}
-          <DropdownMenuShortcut v-if="entry.shortcut">{{ entry.shortcut }}</DropdownMenuShortcut>
+          <DropdownMenuShortcut v-if="entry.shortcut || entry.state !== undefined">
+            <span
+              v-if="entry.state !== undefined"
+              data-menu-state
+              :class="entry.state ? 'font-medium text-foreground' : ''"
+              >{{ entry.state ? 'On' : 'Off' }}</span
+            >
+            <template v-if="entry.shortcut"
+              ><template v-if="entry.state !== undefined">&nbsp;&nbsp;</template
+              >{{ entry.shortcut }}</template
+            >
+          </DropdownMenuShortcut>
         </DropdownMenuItem>
       </template>
     </DropdownMenuContent>

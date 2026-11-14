@@ -168,6 +168,13 @@ describe('the app menu', () => {
         shortcut: 'Ctrl+E',
         disabled: false,
       },
+      {
+        kind: 'item',
+        id: COMMAND_IDS.toggleWordWrap,
+        label: 'Toggle Word Wrap',
+        state: true,
+        disabled: false,
+      },
       { kind: 'separator' },
       {
         kind: 'item',
@@ -180,6 +187,14 @@ describe('the app menu', () => {
         kind: 'item',
         id: COMMAND_IDS.openSettingsFile,
         label: 'Open settings.json',
+        disabled: false,
+      },
+      { kind: 'item', id: COMMAND_IDS.switchTheme, label: 'Switch Theme', disabled: false },
+      {
+        kind: 'item',
+        id: COMMAND_IDS.toggleDevtools,
+        label: 'Toggle Developer Tools',
+        state: false,
         disabled: false,
       },
       { kind: 'separator' },

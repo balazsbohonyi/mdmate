@@ -1,4 +1,5 @@
 import type { FontKind } from '@/editor/documentFonts'
+import { THEME_CHOICES } from '@/lib/themes'
 import type { SettingKey } from '@/lib/settingsFile'
 import type { SettingsCategory } from '@/lib/settingsCategories'
 
@@ -31,9 +32,6 @@ export interface SettingRowSpec {
 
 /** The environment variable that sets what a rename does about links for one run. */
 export const LINKS_ENV_VAR = 'MDMATE_LINKS_ON_RENAME'
-
-/** The themes that exist. Light, Sepia and System arrive with the themes (P8-T3). */
-export const THEME_CHOICES = [{ value: 'dark', label: 'Dark' }] as const
 
 export const SETTING_ROWS: readonly SettingRowSpec[] = [
   {

@@ -26,7 +26,8 @@ import {
 } from '@/documents/store'
 import { newUntitledTab } from '@/documents/untitled'
 import { canGoBack, canGoForward, goBack, goForward } from '@/documents/history'
-import { togglePalette } from '@/features/palette/state'
+import { openPicker, togglePalette } from '@/features/palette/state'
+import { flipSetting, isToggleOn } from '@/features/settings/quick'
 import { showOutline } from '@/features/outline/store'
 import { showSearch } from '@/features/search/store'
 import { focusTree, openFolderDialog } from '@/features/tree/store'
@@ -66,6 +67,8 @@ export const COMMAND_IDS = {
   toggleSidebar: 'view.toggleSidebar',
   focusSidebar: 'view.focusSidebar',
   toggleRawSource: 'view.toggleRawSource',
+  toggleWordWrap: 'view.toggleWordWrap',
+  switchTheme: 'view.switchTheme',
   back: 'navigate.back',
   forward: 'navigate.forward',
   bold: 'format.bold',
@@ -76,6 +79,7 @@ export const COMMAND_IDS = {
   headingUp: 'format.headingUp',
   headingDown: 'format.headingDown',
   openDevtools: 'tools.openDevtools',
+  toggleDevtools: 'tools.toggleDevtools',
   openSettings: 'tools.openSettings',
   openSettingsFile: 'tools.openSettingsFile',
   exit: 'app.exit',
@@ -252,6 +256,31 @@ export function registerDefaultCommands(): () => void {
       enabled: () => settings.devtools,
       run: async () => {
         await (await getHost()).devtoolsOpen()
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.toggleDevtools,
+      title: 'Toggle Developer Tools',
+      // The setting that lets F12 open the tools; the command that opens them is above.
+      state: () => isToggleOn('devtools'),
+      run: async () => {
+        await flipSetting('devtools')
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.toggleWordWrap,
+      title: 'Toggle Word Wrap',
+      state: () => isToggleOn('editor.wordWrap'),
+      run: async () => {
+        await flipSetting('editor.wordWrap')
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.switchTheme,
+      title: 'Switch Theme',
+      // A pick list of the themes there are; choosing one writes `theme` (features/palette).
+      run: () => {
+        openPicker('themes')
       },
     }),
     registerCommand({
