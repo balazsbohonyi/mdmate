@@ -96,9 +96,14 @@ Mark `[x]` only when the task's "Done when" in its phase plan holds. Each task l
 
 Phase 9 runs before this phase (owner's decision, 2026-11-13): image paste ships with a built-in `assets` folder and P8-T1 makes it a setting.
 
-- [ ] P8-T1: Settings and palette toggles — closes ISC-147, ISC-148, ISC-153, ISC-249, ISC-320, ISC-330
-- [ ] P8-T2: Keybindings — closes ISC-149
-- [ ] P8-T3: Theme switching and user themes — closes ISC-145, ISC-146, ISC-150, ISC-151, ISC-173
+- [ ] P8-T1: Settings core: the file, its validation, live apply, the typed settings object — closes ISC-147, ISC-148, ISC-320, ISC-349, ISC-350, ISC-351, ISC-352, ISC-353, ISC-384
+- [ ] P8-T1b: The behaviour behind each key (paste folder, word wrap, large-file size, recent caps, excluded folders, devtools and F12) — closes ISC-330, ISC-249, ISC-359, ISC-364, ISC-365, ISC-366, ISC-368
+- [ ] P8-T1c: The Settings tab: new tab kind, singleton, session restore, Ctrl+, , menu, palette, gear — closes ISC-343, ISC-344, ISC-345, ISC-346, ISC-347, ISC-348
+- [ ] P8-T1d: The screen: one row component, five categories, search, banner, dirty-tab prompt, locked row — closes ISC-354, ISC-355, ISC-356, ISC-357, ISC-358, ISC-367, ISC-369
+- [ ] P8-T1e: Fonts: three families, base size, code size, heading scale, applied live — closes ISC-360, ISC-361, ISC-362, ISC-363
+- [ ] P8-T1f: Palette toggles that show their state, and Switch Theme — closes ISC-153, ISC-370, ISC-371
+- [ ] P8-T2: Keybindings: the file, the rebind API, the on-screen recorder — closes ISC-149, ISC-372, ISC-373, ISC-374, ISC-375, ISC-376
+- [ ] P8-T3: Themes: Dark, Light, Sepia and System, user theme files, Customize, the colour editor — closes ISC-145, ISC-146, ISC-150, ISC-151, ISC-173, ISC-377, ISC-378, ISC-379, ISC-380, ISC-381, ISC-382, ISC-383, ISC-385
 - [ ] P8-T4: Portable mode — closes ISC-152
 
 ## Phase 9: Image authoring ([plan](phases/phase-09/plan.md))

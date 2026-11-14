@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 317/342
+progress: 317/385
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-13T18:30:00Z
+updated: 2026-11-14T20:00:00Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -267,6 +267,49 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-340 | bash | with toasts showing, change the active tab (switch, close, other pane focused) and leave it unchanged | all toasts close on a change; none close when the tab stays | pnpm test:web tests/shell/toasts.test.ts | derived: reported-by-owner | high | |
 | ISC-341 | bash | drop an SVG, a text file, a file too large and one that fails on disk, together | one toast per file starting with its name; the first three warnings, the last an error | pnpm test:web tests/features/dropImage.test.ts | derived: reported-by-owner | high | |
 | ISC-342 | screenshot | the same situations in the real window | toasts bottom right, stacked, close button top right, readable in the theme; gone on a tab switch | Real app run | derived: reported-by-owner | high | |
+| ISC-343 | bash | run Open Settings twice, also from another pane | one Settings tab, the second run focuses it | pnpm test:web tests/workbench/store.test.ts | derived: owner request | | |
+| ISC-344 | bash | snapshot and restore a session holding a Settings tab | tab restored, category kept, no "could not be opened" notice | pnpm test:web tests/documents/session.test.ts | derived: owner request | | |
+| ISC-345 | bash | split right and down from the Settings tab | still one Settings tab | pnpm test:web tests/workbench/store.test.ts | derived: owner request | | |
+| ISC-346 | bash | run the keybinding through the keyboard handler | the Settings tab is active | pnpm test:web tests/workbench/defaultCommands.test.ts | derived: owner request | | |
+| ISC-347 | bash | build the menu entries and the palette rows | both commands in both lists | pnpm test:web tests/shell/menuEntries.test.ts | derived: owner request | | |
+| ISC-348 | screenshot | click the gear in the real window | the Settings tab opens | Real app run | derived: owner request | | |
+| ISC-349 | bash | change one row in a file holding other and unknown keys | only that key differs in the file | pnpm test:web tests/features/settingsView.test.ts | derived: configurable | | |
+| ISC-350 | bash | change a row, then set it to the default | the key is gone from the file | pnpm test:web tests/features/settingsView.test.ts | derived: configurable | | |
+| ISC-351 | bash | write the file while the screen shows | the row shows the new value | pnpm test:web tests/features/settingsView.test.ts | derived: configurable | | |
+| ISC-352 | bash | save a file with a missing comma | values unchanged, banner with the line number | pnpm test:web tests/features/settings.test.ts | derived: configurable | | |
+| ISC-353 | bash | save `fonts.size` as "big" and as 400 | the previous size stays, the row shows why | pnpm test:web tests/features/settings.test.ts | derived: configurable | | |
+| ISC-354 | bash | dirty the tab, change a control | the prompt shows, the file is untouched until an answer | pnpm test:web tests/features/settingsView.test.ts | derived: configurable | | |
+| ISC-355 | bash | mount the screen and read every row | all rows complete, marks only on changed rows | pnpm test:web tests/features/settingsView.test.ts | derived: consistent-ui | | |
+| ISC-356 | bash | change a row, press its reset | the key is gone and the default applies | pnpm test:web tests/features/settingsView.test.ts | derived: consistent-ui | | |
+| ISC-357 | bash | type "wrap" and "pasteFolder" | only matching rows, from any category | pnpm test:web tests/features/settingsView.test.ts | derived: consistent-ui | | |
+| ISC-358 | screenshot | every category in each theme | no clipped text, controls and marks visible | Real app run | derived: consistent-ui | | |
+| ISC-359 | bash | save the key while a long line shows | line no longer wraps | pnpm test:web tests/features/settings.test.ts | derived: configurable | | |
+| ISC-360 | bash | save each key with a distinct family | headings, body and code each carry their own family | pnpm test:web tests/features/settings.test.ts | derived: configurable | | |
+| ISC-361 | bash | save the keys empty | the built-in families are in use | pnpm test:web tests/features/settings.test.ts | derived: configurable | | |
+| ISC-362 | bash | save size 20 and a scale | body 20 px, H1 to H6 at size times their multiplier | pnpm test:web tests/features/settings.test.ts | derived: configurable | | |
+| ISC-363 | bash | save codeSize 18 | code text is 18 px, body unchanged | pnpm test:web tests/features/settings.test.ts | derived: configurable | | |
+| ISC-364 | bash | save 1, open a 2 MB file | plain-text mode | pnpm test:web tests/features/settings.test.ts | derived: configurable | | |
+| ISC-365 | bash | save 3 and 2, open more than that | the lists hold 3 and 2 | pnpm test:rust recent | derived: configurable | | |
+| ISC-366 | bash | add a folder name, search for text inside it | no hits, index rebuilt once | pnpm test:web tests/features/settings.test.ts | derived: configurable | | |
+| ISC-367 | bash | edit the list, press reset | the key is gone, the 20 names show | pnpm test:web tests/features/settingsView.test.ts | derived: configurable | | |
+| ISC-368 | bash | save `C:/x` and `../x` | row error, paste lands in the previous folder | pnpm test:web tests/features/settings.test.ts | derived: configurable | | |
+| ISC-369 | bash | mount the screen with the override set | control disabled, note names the variable | pnpm test:web tests/features/settingsView.test.ts | derived: configurable | | |
+| ISC-370 | bash | build the rows and the menu entries, flip each setting | the state follows the setting | pnpm test:web tests/workbench/commands.test.ts | derived: configurable | | |
+| ISC-371 | bash | open the pick list with one user theme present | five entries, choice applies | pnpm test:web tests/features/themes.test.ts | derived: themeable | | |
+| ISC-372 | bash | mount the category | one row per registered command, shortcut shown | pnpm test:web tests/features/keybindings.test.ts | derived: configurable | | |
+| ISC-373 | bash | record a combination, press it | the command runs on it, the file holds it | pnpm test:web tests/features/keybindings.test.ts | derived: configurable | | |
+| ISC-374 | bash | record `Mod+B` on another command | conflict names Toggle Sidebar, Replace unbinds it | pnpm test:web tests/features/keybindings.test.ts | derived: configurable | | |
+| ISC-375 | bash | rebind, then reset | default shortcut works, key gone from the file | pnpm test:web tests/features/keybindings.test.ts | derived: configurable | | |
+| ISC-376 | bash | save an unknown command id and a bad shortcut | defaults kept, notice names the entry | pnpm test:web tests/features/keybindings.test.ts | derived: configurable | | |
+| ISC-377 | bash | select Sepia | the theme attribute and tokens change with no reload | pnpm test:web tests/features/themes.test.ts | derived: themeable | | |
+| ISC-378 | bash | run the theme contract over three themes | no missing token, no pair under its floor | pnpm test:web tests/styles/themes.test.ts | derived: themeable | | |
+| ISC-379 | bash | flip the prefers-color-scheme media query | Dark or Light follows | pnpm test:web tests/features/themes.test.ts | derived: themeable | | |
+| ISC-380 | bash | press Customize on Dark | a theme file exists and is selected, Dark is unchanged | pnpm test:web tests/features/themes.test.ts | derived: themeable | | |
+| ISC-381 | bash | mount the editor on a user theme | all 54 tokens under their groups | pnpm test:web tests/features/themes.test.ts | derived: themeable | | |
+| ISC-382 | bash | change `background` | file holds the value, the page uses it | pnpm test:web tests/features/themes.test.ts | derived: themeable | | |
+| ISC-383 | bash | set `foreground` near `background` | warning shown with the ratio | pnpm test:web tests/features/themes.test.ts | derived: themeable | | |
+| ISC-384 | bash | open a workspace holding both files | their values are not applied | pnpm test:web tests/features/settings.test.ts | derived: security | | |
+| ISC-385 | bash | customize and edit a colour | dark.css, light.css and sepia.css unchanged | pnpm test:web tests/features/themes.test.ts | derived: themeable | | |
 | ISC-161 | manual | launch twice with a file | one window, new tab | Real app run | derived: os-integration | | |
 | ISC-162 | manual | second launch with a relative path from another folder | right file | Real app run | derived: os-integration | | |
 | ISC-163 | manual | run mdmate file.md while closed | file opens | Real app run | derived: os-integration | | |
@@ -630,6 +673,49 @@ Why: the look must be yours to change without rebuilding, which is why everythin
 - [ ] ISC-151: Saving a theme file updates the app live.
 - [ ] ISC-152: The portable marker keeps data beside the exe.
 - [ ] ISC-153: Common toggles run from the command palette.
+- [ ] ISC-343: A second Open Settings focuses the one Settings tab and opens no second.
+- [ ] ISC-344: A Settings tab comes back after a restart in the same pane, at the same category.
+- [ ] ISC-345: Splitting the pane of the Settings tab opens no second Settings tab.
+- [ ] ISC-346: `Mod+,` opens Settings.
+- [ ] ISC-347: The title bar menu and the command palette each list Open Settings and Open settings.json.
+- [ ] ISC-348: A gear button opens Settings.
+- [ ] ISC-349: Changing a control writes only that key to `settings.json` and keeps every other key, unknown ones included.
+- [ ] ISC-350: A control set back to its default removes its key from `settings.json`.
+- [ ] ISC-351: Saving `settings.json` by hand updates the open Settings screen with no reload.
+- [ ] ISC-352: A `settings.json` that is not valid JSON keeps the last good values and the screen shows a banner naming the line.
+- [ ] ISC-353: A value of the wrong type or outside its range is ignored, flagged on its row, and the last good value stays in use.
+- [ ] ISC-354: With unsaved edits in the `settings.json` tab, changing a control asks Save, Discard or Cancel before anything is written.
+- [ ] ISC-355: Every setting row shows its label, a one-line description and its JSON key, and the modified dot and reset icon only while the value differs from the default.
+- [ ] ISC-356: Reset on a row removes its key and applies the default.
+- [ ] ISC-357: The search box shows only the rows whose label, description or key match, across all categories.
+- [ ] ISC-358: The Settings screen reads well in Dark, Light and Sepia.
+- [ ] ISC-359: `editor.wordWrap` set to false stops the editor wrapping long lines, with no restart.
+- [ ] ISC-360: A font family set in `fonts.heading`, `fonts.body` or `fonts.code` is used for that kind of text only.
+- [ ] ISC-361: An empty `fonts.*` family uses the built-in stack.
+- [ ] ISC-362: `fonts.size` sets the body size and each heading level follows `fonts.headingScale`.
+- [ ] ISC-363: `fonts.codeSize` sets the size of code blocks and inline code.
+- [ ] ISC-364: `files.largeFileMB` sets the size above which the next opened file uses plain-text mode.
+- [ ] ISC-365: `recent.files` and `recent.folders` cap the two recent lists.
+- [ ] ISC-366: A changed `workspace.excludedFolders` re-indexes the open folders and search skips a newly added name.
+- [ ] ISC-367: Reset to built-in list restores the 20 built-in excluded folders.
+- [ ] ISC-368: An absolute or escaping `images.pasteFolder` is refused on its row and the last good folder stays in use for the next paste.
+- [ ] ISC-369: While `MDMATE_LINKS_ON_RENAME` is set, the Links row is read-only and names the variable.
+- [ ] ISC-370: Toggle Word Wrap and Toggle Developer Tools show their current on or off state in the palette and the menu.
+- [ ] ISC-371: Switch Theme lists Dark, Light, Sepia, System and every user theme file, and choosing one applies it.
+- [ ] ISC-372: The Keyboard category lists every command with its current shortcut.
+- [ ] ISC-373: Pressing a new combination on a Keyboard row rebinds that command at once and writes `keybindings.json`.
+- [ ] ISC-374: A combination already used names the other command, and Replace moves it to this one.
+- [ ] ISC-375: Reset on a Keyboard row removes its override.
+- [ ] ISC-376: A `keybindings.json` with an invalid entry keeps the default for that command and shows a notice.
+- [ ] ISC-377: The Sepia built-in theme switches live.
+- [ ] ISC-378: Sepia declares the same tokens as Dark and passes every contrast pair of the theme test.
+- [ ] ISC-379: The System theme follows the operating system and switches live when it changes.
+- [ ] ISC-380: Customize copies the selected theme into the themes folder and selects the copy.
+- [ ] ISC-381: The colour editor lists every token of the theme in groups.
+- [ ] ISC-382: Changing a colour in the editor writes the theme file and updates the app at once.
+- [ ] ISC-383: A colour that brings a required pair under its contrast floor shows a warning beside it.
+- [ ] ISC-384: Anti: `settings.json` and `keybindings.json` are read only from the app data folder, never from an opened folder.
+- [ ] ISC-385: Anti: Customize and the colour editor never write to a built-in theme.
 
 ### F10 · Image authoring
 Why: screenshots are the most common thing dropped into documentation, and adding one should take a single paste.
@@ -944,6 +1030,7 @@ Why: a large workspace stays quick to search only when mdmate keeps a list of it
 - 2026-11-13: P9-T2 build choices, in `ai-docs/phases/phase-09/decisions.md`: Rust decides link-in-place or copy from its own drop record and the real (canonical) path, using the same innermost workspace folder the page uses as the allowlist boundary; the link goes in at the drop point; ISC-156 and ISC-328 stay open for the real OLE drop at the end of the phase.
 - 2026-11-14: refined: one picture is one file, and a dropped file keeps its name (owner, after trying Phase 9: "if I drop the same image 10 times, that could mean the same image is added 10 times with different names"). New ISC-335 to ISC-337; ISC-154 and ISC-329 reworded. A picture whose bytes are already in the destination images folder is linked there, not written again (paste, drop and the Save As copy of draft images); the copy of a dropped file keeps its own name, cleaned (see ISC-336), where a paste keeps the stamp name. Reversed from the P9-T1 choice "the file keeps the stamp name": that choice avoided cleaning names, and the owner preferred readable names plus no duplicates. See `ai-docs/phases/phase-09/decisions.md`.
 - 2026-11-13: refined: ISC-154 now says a copied JPEG, GIF or WebP keeps the extension of its own type (a screenshot is `.png`). The P9-T1 check in the real window showed that an Explorer file copy arrives as a `File` with its real name, type and bytes in `clipboardData.files`, like a screenshot, so one path handles both; saving JPEG bytes as `.png` would give a file that lies about its type. The check and the other P9-T1 choices are in `ai-docs/phases/phase-09/decisions.md`.
+- 2026-11-14: refined: Phase 8 gains a settings screen beside the files (new ISC-343 to ISC-385), after the owner asked for logically grouped settings and a consistent UI that edit the same JSON as hand editing. Settled in a design session: one singleton Settings tab (Ctrl+, , menu, palette, gear); controls apply instantly and write only the key they touch, a default value removes the key; `settings.json`, `keybindings.json` and `themes/` live in the app data folder and are never read from a workspace; an invalid file keeps the last good values with a banner; a dirty `settings.json` tab gets a Save/Discard/Cancel prompt before the screen writes; categories are Appearance, Editor, Files & Workspace, Keyboard, Advanced; every row shows label, description, JSON key, modified dot and reset. New settings beyond the three planned: three font families, `fonts.size`, `fonts.codeSize` and a per-level `fonts.headingScale` (defaults equal today's look), `editor.wordWrap`, `files.largeFileMB`, `recent.files`/`recent.folders`, `workspace.excludedFolders`. Themes grow a Sepia built-in (MarkdownWeave's palette, darkened where it fails the contrast floors, syntax colours designed here) and System, plus a Customize copy and an on-screen editor for all 54 tokens; keybindings get an on-screen recorder with conflict Replace. `MDMATE_LINKS_ON_RENAME` stays as a launch-time override and locks its row. Departs from the P8-T1 plan, which was files only.
 
 ## Verification
 
