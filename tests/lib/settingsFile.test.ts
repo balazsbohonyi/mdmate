@@ -197,6 +197,9 @@ describe('the value rules', () => {
       [''],
       ['a/b'],
       ['a\\b'],
+      ['.'],
+      ['..'],
+      [' .. '],
       [1],
       Array.from({ length: 201 }, (_, i) => `f${String(i)}`),
     ]) {

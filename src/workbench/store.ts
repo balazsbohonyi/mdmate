@@ -73,10 +73,15 @@ export function imageTabs(): [TabId, ImageTab][] {
   return [...records].filter((entry): entry is [TabId, ImageTab] => entry[1].kind === 'image')
 }
 
-/** Points an image tab at its file's new path after a rename or move in the tree. */
+/**
+ * Points an image tab at its file's new path after a rename or move in the tree. The layout does
+ * not change, so this counts the change for the session journal (see `tabRecordsVersion`).
+ */
 export function setImagePath(id: TabId, path: string): void {
   const record = records.get(id)
-  if (record?.kind === 'image') records.set(id, { ...record, path })
+  if (record?.kind !== 'image') return
+  records.set(id, { ...record, path })
+  tabRecordsVersion.value++
 }
 
 /**

@@ -142,6 +142,8 @@ export function checkFolderName(value: unknown): Checked<string> {
     return bad(`Use at most ${String(MAX_FOLDER_NAME)} characters.`)
   // eslint-disable-next-line no-control-regex -- control characters are exactly what is refused
   if (/[/\\\u0000-\u001f\u007f]/u.test(text)) return bad('Use a folder name, not a path.')
+  // These two name a place, not a folder: no directory entry is called either, so they exclude nothing.
+  if (text === '.' || text === '..') return bad('Use a folder name, not a path.')
   return good(text)
 }
 

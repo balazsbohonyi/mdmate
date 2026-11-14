@@ -38,6 +38,7 @@ import {
   resetWorkbench,
   resizeSplit,
   selectTab,
+  setImagePath,
   setSettingsCategory,
   settingsTabId,
   splitActivePane,
@@ -935,6 +936,24 @@ describe('the Settings tab (P8-T1c)', () => {
     expect(journalStats.writes).toBe(writes + 1)
     expect(JSON.parse(host.session ?? '{}')).toMatchObject({
       tabs: [{ id: settings, category: 'advanced' }],
+    })
+  })
+
+  it('is written again when an image tab follows a rename, with no change to the layout', async () => {
+    vi.useFakeTimers()
+    host.files.write('C:/notes/pic.png', 'png')
+    await startJournal({ intervalMs: 1000 })
+    const pic = await openPath('C:/notes/pic.png')
+    await vi.advanceTimersByTimeAsync(1100)
+    const writes = journalStats.writes
+    expect(JSON.parse(host.session ?? '{}')).toMatchObject({
+      tabs: [{ id: pic, path: 'C:/notes/pic.png', kind: 'image' }],
+    })
+    setImagePath(pic, 'C:/notes/renamed.png')
+    await vi.advanceTimersByTimeAsync(1100)
+    expect(journalStats.writes).toBe(writes + 1)
+    expect(JSON.parse(host.session ?? '{}')).toMatchObject({
+      tabs: [{ id: pic, path: 'C:/notes/renamed.png', kind: 'image' }],
     })
   })
 

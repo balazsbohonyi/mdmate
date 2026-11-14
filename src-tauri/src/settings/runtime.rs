@@ -93,7 +93,10 @@ pub(crate) fn clean_paste_folder(raw: &str) -> Result<String, &'static str> {
 /// One name for the exclusion list: a name, not a path.
 fn clean_excluded_name(raw: &str) -> Option<String> {
     let text = raw.trim();
+    // "." and ".." name a place, not a folder: no directory entry is called either.
     let ok = !text.is_empty()
+        && text != "."
+        && text != ".."
         && text.chars().count() <= MAX_NAME
         && !text
             .chars()
@@ -223,6 +226,8 @@ mod tests {
             |a: &mut Applied| a.recent_files = MAX_RECENT + 1,
             |a: &mut Applied| a.recent_folders = 500,
             |a: &mut Applied| a.excluded_folders = vec!["a/b".into()],
+            |a: &mut Applied| a.excluded_folders = vec![".".into()],
+            |a: &mut Applied| a.excluded_folders = vec!["..".into()],
             |a: &mut Applied| a.excluded_folders = vec![String::new()],
             |a: &mut Applied| a.excluded_folders = vec!["x".into(); MAX_EXCLUDED + 1],
         ] {
