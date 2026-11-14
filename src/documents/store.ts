@@ -733,17 +733,28 @@ export async function resolvePendingRevert(choice: 'revert' | 'cancel'): Promise
   if (pending === null) return
   pendingRevert.value = null
   if (choice === 'cancel') return
-  const doc = documents.get(pending.docId)
-  if (doc === undefined) return
+  await revertDocument(pending.docId)
+}
+
+/**
+ * Reloads a document from its file and drops its edits, with no question: the caller has asked.
+ * Resolves to false, with a notice, when the file cannot be read. A document that is not open
+ * counts as done.
+ */
+export async function revertDocument(docId: number): Promise<boolean> {
+  const doc = documents.get(docId)
+  if (doc === undefined) return true
   try {
     const host = await getHost()
     const opened = await host.reloadDocument(doc.id)
-    if (documents.get(doc.id) !== doc) return
+    if (documents.get(doc.id) !== doc) return true
     doc.reload(opened)
     patchDocMeta(doc.id, { conflict: null, saveError: null, missing: false })
+    return true
   } catch (error) {
     if (errorKind(error) === 'not-found') patchDocMeta(doc.id, { missing: true })
     reportError(`Could not revert ${doc.name}: ${describe(error)}`)
+    return false
   }
 }
 

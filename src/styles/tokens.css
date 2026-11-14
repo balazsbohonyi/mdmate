@@ -18,6 +18,14 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * The generated Switch styles itself with data-checked: and data-unchecked:, which a Base UI
+ * switch sets. Reka UI, which this app uses, sets data-state instead, so without these two the
+ * switch is drawn with no track and no thumb. Only the switch uses them.
+ */
+@custom-variant data-checked (&:is([data-state='checked']));
+@custom-variant data-unchecked (&:is([data-state='unchecked']));
+
 /* Fonts, type scale and chrome sizes. Utilities: font-sans, text-chrome, h-titlebar, w-sidebar. */
 @theme {
   --font-sans: 'Inter Variable', system-ui, 'Segoe UI', sans-serif;

@@ -211,6 +211,8 @@ Keys that Rust has to act on reach it through one command, `settings_apply` (`se
 
 The Settings screen is a tab (`kind: 'settings'`, `workbench/tabs.ts`) that holds the group it shows. `openSettingsTab` in `workbench/store.ts` shows the one that exists, in whichever pane, or opens it in the active pane; a split never copies it, and a session that names two keeps the first. The tab is written to `session.json` with its group (`kind: "settings"`); a saved kind this version does not know is left out, never opened as a file. `SettingsView.vue` loads lazily from `PaneView.vue` (`settings-lazy`). Open Settings (Ctrl+,), Open settings.json, the menu and palette entries and the title bar gear are in `workbench/defaultCommands.ts`, `shell/menuEntries.ts` and `shell/TitleBar.vue`.
 
+The screen is `features/settings/SettingsView.vue`, with one `SettingRow.vue` shell for every row and the wording and grouping in `features/settings/rows.ts`; values, defaults and checking stay in `lib/settingsFile.ts`. Controls hold no value: a change goes through `requestSettingChange` in `features/settings/store.ts`, which writes one key (or asks first, through `pendingSettingChange`, when the `settings.json` tab has unsaved edits) and then shows what the file says. The screen's banner reads `settingsFileState.broken`, the row errors read `settingsFileState.problems`, and `MDMATE_LINKS_ON_RENAME` locks the Links row through `host.linksOnRenameOverride`.
+
 ## Security
 
 Markdown content is untrusted, and people will open files they did not write.

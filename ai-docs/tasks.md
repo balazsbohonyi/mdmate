@@ -99,7 +99,7 @@ Phase 9 runs before this phase (owner's decision, 2026-11-13): image paste ships
 - [x] P8-T1: Settings core: the file, its validation, live apply, the typed settings object — closes ISC-147, ISC-148, ISC-320, ISC-384, ISC-386
 - [ ] P8-T1b: The behaviour behind each key (paste folder, word wrap, large-file size, recent caps, excluded folders, devtools and F12) — closes ISC-330, ISC-359, ISC-364, ISC-365, ISC-366. ISC-368 moved to P8-T1d (it names the row) and ISC-249 stays open for the P8-T1f palette toggle and a release build, which waits for the owner's permission
 - [x] P8-T1c: The Settings tab: new tab kind, singleton, session restore, Ctrl+, , menu, palette, gear — closes ISC-343, ISC-344, ISC-345, ISC-346, ISC-347, ISC-348, ISC-387, ISC-388, ISC-389
-- [ ] P8-T1d: The screen: one row component, five categories, search, banner, dirty-tab prompt, locked row — closes ISC-349, ISC-350, ISC-351, ISC-352, ISC-353, ISC-354, ISC-355, ISC-356, ISC-357, ISC-358, ISC-367, ISC-368, ISC-369
+- [x] P8-T1d: The screen: one row component, five categories, search, banner, dirty-tab prompt, locked row — closes ISC-349 to ISC-357, ISC-367, ISC-368, ISC-369 and the new ISC-390, ISC-391; ISC-358 stays open (only Dark exists) and moves to P8-T3 with the P8-T1f commit
 - [ ] P8-T1e: Fonts: three families, base size, code size, heading scale, applied live — closes ISC-360, ISC-361, ISC-362, ISC-363
 - [ ] P8-T1f: Palette toggles that show their state, and Switch Theme — closes ISC-153, ISC-370, ISC-371; ISC-249 with the Toggle Developer Tools command (the release build waits for the owner's permission)
 - [ ] P8-T2: Keybindings: the file, the rebind API, the on-screen recorder — closes ISC-149, ISC-372, ISC-373, ISC-374, ISC-375, ISC-376

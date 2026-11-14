@@ -1,5 +1,12 @@
-import { reactive } from 'vue'
-import { describe } from '@/documents/store'
+import { reactive, shallowRef } from 'vue'
+import {
+  allDocuments,
+  describe,
+  documentById,
+  refreshFromDisk,
+  revertDocument,
+  saveDocument,
+} from '@/documents/store'
 import { refreshWordWrap } from '@/editor/wordWrap'
 import { editSettingsText } from '@/lib/settingsEdit'
 import {
@@ -208,10 +215,11 @@ export function changeSetting<K extends SettingKey>(
         return false
       }
       // A file with no change in it is not written again, so its time stamp and the watcher rest.
-      if (edited.text !== current && !(current === null && edited.text === '{}\n')) {
-        await host.settingsWrite(edited.text)
-      }
+      const write = edited.text !== current && !(current === null && edited.text === '{}\n')
+      if (write) await host.settingsWrite(edited.text)
+      // The file is written, so the change is made whatever happens to an open tab below.
       applySettingsText(edited.text)
+      if (write) await refreshOpenSettingsTab()
       return true
     } catch (error) {
       reportError(`Could not save settings.json: ${describe(error)}`)
@@ -224,6 +232,100 @@ export function changeSetting<K extends SettingKey>(
 export function resetSetting(key: SettingKey): Promise<boolean> {
   const def = SETTING_DEFS[key]
   return changeSetting(key, def.default as never)
+}
+
+/** A change the screen asked for while the `settings.json` tab holds unsaved edits. */
+export interface PendingSettingChange {
+  readonly key: SettingKey
+  readonly value: unknown
+  /** The document of the tab that holds the edits. */
+  readonly docId: number
+}
+
+/** Set while the screen waits for Save, Don't save or Cancel before it writes anything. */
+export const pendingSettingChange = shallowRef<PendingSettingChange | null>(null)
+
+const pathKey = (path: string): string => path.replaceAll('\\', '/').toLowerCase()
+
+/** The document of `settings.json` when it is open in a tab, with unsaved edits or not. */
+async function openSettingsDocument(): Promise<number | undefined> {
+  // Only a document named like the file can be it, so the file is not looked up (and made) for nothing.
+  const candidates = allDocuments().filter((doc) => doc.name === 'settings.json')
+  if (candidates.length === 0) return undefined
+  const path = await (await getHost()).settingsFile()
+  return candidates.find((doc) => pathKey(doc.path) === pathKey(path))?.id
+}
+
+/**
+ * Shows the new text in an open `settings.json` tab at once, without waiting for the file watcher.
+ * A tab that cannot be refreshed is a notice, not a failed change: the file was written.
+ */
+async function refreshOpenSettingsTab(): Promise<void> {
+  try {
+    const open = await openSettingsDocument()
+    if (open !== undefined) await refreshFromDisk(open)
+  } catch (error) {
+    reportWarning(`The settings.json tab could not be refreshed: ${describe(error)}`)
+  }
+}
+
+/** The document of `settings.json` when it is open with edits that are not saved. */
+async function unsavedSettingsDocument(): Promise<number | undefined> {
+  const id = await openSettingsDocument()
+  return id !== undefined && documentById(id)?.dirty === true ? id : undefined
+}
+
+/**
+ * What a control on the screen calls. With unsaved edits in the `settings.json` tab nothing is
+ * written: the change waits in `pendingSettingChange`, since writing the file under those edits
+ * would either lose them or lose the change. Resolves to whether the change was written now.
+ */
+export async function requestSettingChange<K extends SettingKey>(
+  key: K,
+  value: SettingValueMap[K],
+): Promise<boolean> {
+  try {
+    const docId = await unsavedSettingsDocument()
+    if (docId !== undefined) {
+      pendingSettingChange.value = { key, value, docId }
+      return false
+    }
+  } catch (error) {
+    reportError(`Could not check settings.json: ${describe(error)}`)
+    return false
+  }
+  return changeSetting(key, value)
+}
+
+/** The same, for a row's reset: the default goes through the same question. */
+export function requestResetSetting(key: SettingKey): Promise<boolean> {
+  return requestSettingChange(key, SETTING_DEFS[key].default as never)
+}
+
+/**
+ * Answers the question: Save writes the tab's edits to the file first, Don't save reloads the tab
+ * from the file and drops them, Cancel leaves everything as it was. Save and Don't save then make
+ * the change on top of what the file holds. A save that fails keeps the question open.
+ */
+export async function resolvePendingSettingChange(
+  choice: 'save' | 'discard' | 'cancel',
+): Promise<void> {
+  const pending = pendingSettingChange.value
+  if (pending === null) return
+  if (choice === 'cancel') {
+    pendingSettingChange.value = null
+    return
+  }
+  // A tab that was closed since the question was asked has no edits left to save or drop.
+  const stillOpen = documentById(pending.docId) !== undefined
+  const ready = !stillOpen
+    ? true
+    : choice === 'save'
+      ? await saveDocument(pending.docId)
+      : await revertDocument(pending.docId)
+  if (!ready) return
+  pendingSettingChange.value = null
+  await changeSetting(pending.key, pending.value as never)
 }
 
 /** Whether a key currently differs from its default. */
@@ -261,6 +363,7 @@ export function resetSettingsState(): void {
   settingsFileState.problems = {}
   settingsFileState.loaded = false
   lastNotice = ''
+  pendingSettingChange.value = null
   lastPushed = ''
   pushing = Promise.resolve()
   queue = Promise.resolve()
