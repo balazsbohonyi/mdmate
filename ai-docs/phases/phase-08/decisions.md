@@ -48,3 +48,14 @@ Choices made while building, in the order they were made. The settled design is 
 - **The Links row under the override.** `MDMATE_LINKS_ON_RENAME` makes the row show the value in force, disabled, with a note naming the variable and no reset icon. The dot still follows the file, which may differ.
 - **Open, not fixed:** `checkFolderName` accepts `..` as an excluded-folder name. It can never match a directory entry, so it does nothing. `setImagePath` and the session journal (from P8-T1c) are unchanged.
 - **ISC-358 stays open.** Only Dark exists to look at. The line in tasks.md says it moves to P8-T3 with the P8-T1f commit.
+
+## P8-T1e: the fonts
+
+- **Custom properties, read only by the editor.** `editor/documentFonts.ts` sets `--doc-*` properties on the root from the live settings; only the editor's theme names them. The title bar, menus, tabs, sidebar and the Settings screen keep their tokens (a test scans `src` for any other reader).
+- **Names are quoted.** A family field takes one name or a list. Each name is quoted (the generic keywords are not) and the list ends in the built-in stack, so an empty field, a name that is not installed and a name that is not valid CSS bare (`3270 Font`) all fall back and none drops the declaration. Headings fall back to the body family.
+- **The default look is bigger.** The editor drew 13 px (inherited from the window); the plan's defaults are 15 px text and 14 px code (it was about 12 px). The heading multiples are the same, so the headings grow with the body. This is the settled default, but it is a visible change for anyone who never opens Settings.
+- **Code size is a ratio.** The property holds `codeSize / size` and code is drawn at `calc(ratio * 1em)`. Body code and block code are exactly `fonts.codeSize`; inline code in a heading grows with the heading; code in a table is 0.95 x `fonts.codeSize` because table text is 0.95em. A fixed px size would have drawn code in an H1 smaller than the heading around it.
+- **Fallbacks equal the defaults.** If `settings.json` cannot be read at start, nothing sets the properties, so the rules carry the defaults as `var()` fallbacks. A test keeps them equal to `DEFAULT_SETTINGS`.
+- **Open editors measure again, once.** A font change asks each open view to measure its text again (`requestMeasure`); a change of another setting asks nobody.
+- **The scale is one value.** Six boxes, checked together when one is left, written as one list; a reset takes the whole key out. The validator already refused any list that was not six numbers from 0.5 to 4.
+- **Open:** the Theme row's list still holds only Dark, and the `..` excluded-folder name is still accepted (both from T1d).

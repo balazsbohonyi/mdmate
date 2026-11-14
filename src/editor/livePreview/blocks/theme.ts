@@ -96,8 +96,8 @@ export const blockTheme = EditorView.baseTheme({
   '&.cm-image-selected .cm-content': { caretColor: 'transparent' },
   '&.cm-image-selected .cm-cursorLayer': { visibility: 'hidden' },
   '.cm-md-table code': {
-    fontFamily: 'var(--font-mono)',
-    fontSize: '0.92em',
+    fontFamily: 'var(--doc-font-code, var(--font-mono))',
+    fontSize: 'calc(var(--doc-code-ratio, calc(14 / 15)) * 1em)',
     color: 'var(--syntax-code)',
     backgroundColor: 'var(--syntax-code-background)',
     borderRadius: 'var(--radius)',

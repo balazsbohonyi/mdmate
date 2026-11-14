@@ -2,6 +2,7 @@
 import { X } from '@lucide/vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { docMeta } from '@/documents/meta'
+import { familyStack } from '@/editor/documentFonts'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -123,6 +124,44 @@ function reset(key: SettingKey): void {
   delete drafts[key]
   delete refused[key]
   void requestResetSetting(key)
+}
+
+/** The font stack the sample line under a family field is drawn in: what is typed, then the fallbacks. */
+function sampleStack(spec: SettingRowSpec): string {
+  if (spec.control.kind !== 'font') return ''
+  return familyStack(spec.control.family, shownText(spec.key), settings.fonts.body)
+}
+
+const HEADING_SCALE = 'fonts.headingScale' as const
+/** Heading sizes typed and not yet accepted, by level index. */
+const scaleDrafts = reactive<Record<number, string>>({})
+
+function scaleText(index: number): string {
+  return scaleDrafts[index] ?? String(settings.fonts.headingScale[index] ?? '')
+}
+
+function onScaleType(index: number, text: string | number): void {
+  scaleDrafts[index] = String(text)
+}
+
+function revertScale(): void {
+  for (const index of Object.keys(scaleDrafts)) delete scaleDrafts[Number(index)]
+  delete refused[HEADING_SCALE]
+}
+
+/** Accepts the six sizes together when one is left: the list is checked and written as one value. */
+function acceptScale(): void {
+  const numbers = settings.fonts.headingScale.map((_, index) => {
+    const text = scaleText(index).trim()
+    return text === '' ? undefined : Number(text)
+  })
+  const checked = SETTING_DEFS[HEADING_SCALE].check(numbers)
+  if (!checked.ok) {
+    refused[HEADING_SCALE] = checked.why
+    return
+  }
+  revertScale()
+  set(HEADING_SCALE, checked.value)
 }
 
 function onType(key: SettingKey, text: string | number): void {
@@ -356,6 +395,52 @@ function openFile(): void {
               @keydown.enter="accept(spec)"
               @keydown.esc="revert(spec.key)"
             />
+            <div
+              v-else-if="spec.control.kind === 'font'"
+              class="flex flex-col gap-1"
+            >
+              <Input
+                :model-value="shownText(spec.key)"
+                placeholder="Built-in"
+                :aria-label="spec.label"
+                :aria-invalid="refused[spec.key] !== undefined ? true : undefined"
+                @update:model-value="(text: string | number) => onType(spec.key, text)"
+                @change="accept(spec)"
+                @keydown.enter="accept(spec)"
+                @keydown.esc="revert(spec.key)"
+              />
+              <p
+                class="truncate text-sm text-foreground"
+                :style="{ fontFamily: sampleStack(spec) }"
+                data-font-sample
+              >
+                The quick brown fox jumps over the lazy dog
+              </p>
+            </div>
+            <div
+              v-else-if="spec.control.kind === 'scale'"
+              class="grid grid-cols-6 gap-1"
+              data-heading-scale
+            >
+              <label
+                v-for="(_, index) in settings.fonts.headingScale"
+                :key="index"
+                class="flex flex-col items-center gap-0.5 text-xs text-muted-foreground"
+              >
+                H{{ index + 1 }}
+                <Input
+                  :model-value="scaleText(index)"
+                  inputmode="decimal"
+                  :aria-label="`Heading ${index + 1} size`"
+                  :aria-invalid="refused[spec.key] !== undefined ? true : undefined"
+                  class="px-1 text-center"
+                  @update:model-value="(text: string | number) => onScaleType(index, text)"
+                  @change="acceptScale"
+                  @keydown.enter="acceptScale"
+                  @keydown.esc="revertScale"
+                />
+              </label>
+            </div>
             <Select
               v-else-if="spec.control.kind === 'choice'"
               :model-value="choiceValue(spec)"

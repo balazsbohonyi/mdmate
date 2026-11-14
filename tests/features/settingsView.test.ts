@@ -17,6 +17,7 @@ import {
   resolvePendingClose,
   watchDisk,
 } from '@/documents/store'
+import { resetDocumentFonts } from '@/editor/documentFonts'
 import { SETTING_ROWS } from '@/features/settings/rows'
 import SettingsView from '@/features/settings/SettingsView.vue'
 import {
@@ -314,17 +315,10 @@ describe('ISC-355: every row is the same row', () => {
     }
   })
 
-  it('has a row for every key the validator knows, except the fonts that P8-T1e shows', () => {
+  it('has a row for every key the validator knows, and no key twice', () => {
     const covered = new Set(SETTING_ROWS.map((row) => row.key))
     expect(SETTING_ROWS).toHaveLength(covered.size)
-    expect([...SETTING_KEYS].filter((key) => !covered.has(key))).toEqual([
-      'fonts.heading',
-      'fonts.body',
-      'fonts.code',
-      'fonts.size',
-      'fonts.codeSize',
-      'fonts.headingScale',
-    ])
+    expect([...SETTING_KEYS].filter((key) => !covered.has(key))).toEqual([])
   })
 
   it('puts the dot and the reset icon on a changed row and on no other', async () => {
@@ -503,6 +497,132 @@ describe('ISC-368: an absolute or escaping image folder is refused on its row', 
     await flush()
     expect(errorOf('images.pasteFolder')).not.toBeNull()
     expect(settings.images.pasteFolder).toBe('pics')
+  })
+})
+
+describe('ISC-360 to ISC-363, ISC-393: the font rows', () => {
+  const FONT_KEYS = [
+    'fonts.body',
+    'fonts.heading',
+    'fonts.code',
+    'fonts.size',
+    'fonts.codeSize',
+    'fonts.headingScale',
+  ]
+  const scaleBoxes = (): HTMLInputElement[] => [
+    ...rowOf('fonts.headingScale').querySelectorAll<HTMLInputElement>('[data-heading-scale] input'),
+  ]
+  const sampleOf = (key: string): HTMLElement => {
+    const sample = rowOf(key).querySelector<HTMLElement>('[data-font-sample]')
+    if (sample === null) throw new Error(`no sample in ${key}`)
+    return sample
+  }
+  const rootVar = (name: string): string => document.documentElement.style.getPropertyValue(name)
+
+  beforeEach(() => {
+    resetDocumentFonts()
+  })
+
+  it('shows all six on Appearance', async () => {
+    await mountScreen('appearance')
+    expect(rowKeys()).toEqual(expect.arrayContaining(FONT_KEYS))
+  })
+
+  it('ISC-393: draws the sample in the family being typed before it is accepted', async () => {
+    await mountScreen('appearance')
+    const before = host.files.read(MOCK_SETTINGS_FILE)
+    const input = inputOf('fonts.body')
+    input.value = 'Georgia'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    await flush()
+    expect(sampleOf('fonts.body').style.fontFamily).toContain('Georgia')
+    expect(host.files.read(MOCK_SETTINGS_FILE)).toBe(before)
+    expect(settings.fonts.body).toBe('')
+  })
+
+  it('ISC-393: a heading sample falls back to the body family, and code to the code font', async () => {
+    await mountScreen('appearance', '{"fonts": {"body": "Segoe UI"}}')
+    expect(sampleOf('fonts.heading').style.fontFamily).toContain('Segoe UI')
+    expect(sampleOf('fonts.code').style.fontFamily).toContain('--font-mono')
+  })
+
+  it('ISC-360: accepting a family writes that key only and reaches the document at once', async () => {
+    await mountScreen('appearance', '{"note": "mine"}')
+    await typeAndLeave(inputOf('fonts.heading'), 'Georgia')
+    expect(fileObject()).toEqual({ note: 'mine', fonts: { heading: 'Georgia' } })
+    expect(rootVar('--doc-font-heading')).toBe('"Georgia", monospace')
+    expect(rootVar('--doc-font-body')).toBe('monospace')
+    expect(rootVar('--doc-font-code')).toBe('var(--font-mono)')
+  })
+
+  it('ISC-361: emptying a family takes its key out and the built-in stack is back', async () => {
+    await mountScreen('appearance', '{"fonts": {"code": "Consolas"}}')
+    expect(rootVar('--doc-font-code')).toBe('"Consolas", var(--font-mono)')
+    await typeAndLeave(inputOf('fonts.code'), '')
+    expect(fileObject()).toEqual({})
+    expect(rootVar('--doc-font-code')).toBe('var(--font-mono)')
+  })
+
+  it('ISC-362: the text size is checked, written, and sets the body size', async () => {
+    await mountScreen('appearance')
+    await typeAndLeave(inputOf('fonts.size'), 'big')
+    expect(errorOf('fonts.size')).toBe('Use a number.')
+    await typeAndLeave(inputOf('fonts.size'), '4')
+    expect(errorOf('fonts.size')).toContain('8 to 40')
+    expect(host.files.read(MOCK_SETTINGS_FILE)).toBeUndefined()
+    await typeAndLeave(inputOf('fonts.size'), '20')
+    expect(errorOf('fonts.size')).toBeNull()
+    expect(fileObject()).toEqual({ fonts: { size: 20 } })
+    expect(rootVar('--doc-size')).toBe('20px')
+    // The code stays 14 px: the ratio follows the text size.
+    expect(Number(rootVar('--doc-code-ratio')) * 20).toBeCloseTo(14, 10)
+  })
+
+  it('ISC-363: the code size sets code only', async () => {
+    await mountScreen('appearance')
+    await typeAndLeave(inputOf('fonts.codeSize'), '18')
+    expect(fileObject()).toEqual({ fonts: { codeSize: 18 } })
+    expect(Number(rootVar('--doc-code-ratio')) * 15).toBeCloseTo(18, 10)
+    expect(rootVar('--doc-size')).toBe('15px')
+  })
+
+  it('ISC-362: six boxes write the heading scale as one value, and reset takes it out', async () => {
+    await mountScreen('appearance')
+    expect(scaleBoxes().map((box) => box.value)).toEqual([
+      '1.7',
+      '1.45',
+      '1.25',
+      '1.1',
+      '1',
+      '0.95',
+    ])
+    await typeAndLeave(scaleBoxes()[0]!, '2')
+    expect(fileObject()).toEqual({ fonts: { headingScale: [2, 1.45, 1.25, 1.1, 1, 0.95] } })
+    expect(rootVar('--doc-heading-1')).toBe('2')
+    expect(rootVar('--doc-heading-2')).toBe('1.45')
+    await click(rowOf('fonts.headingScale').querySelector('[data-setting-reset]'))
+    expect(fileObject()).toEqual({})
+    expect(rootVar('--doc-heading-1')).toBe('1.7')
+  })
+
+  it('ISC-362: a heading size out of range is refused on the row and the file is untouched', async () => {
+    await mountScreen('appearance')
+    await typeAndLeave(scaleBoxes()[2]!, '9')
+    expect(errorOf('fonts.headingScale')).toBe('Each number must be from 0.5 to 4.')
+    await typeAndLeave(scaleBoxes()[2]!, 'x')
+    expect(errorOf('fonts.headingScale')).toBe('Each number must be from 0.5 to 4.')
+    expect(host.files.read(MOCK_SETTINGS_FILE)).toBeUndefined()
+    scaleBoxes()[2]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await flush()
+    expect(errorOf('fonts.headingScale')).toBeNull()
+    expect(scaleBoxes()[2]!.value).toBe('1.25')
+  })
+
+  it('shows a hand edit of the heading scale in the six boxes', async () => {
+    await mountScreen('appearance')
+    host.files.write(MOCK_SETTINGS_FILE, '{"fonts": {"headingScale": [3, 2, 1.5, 1.2, 1, 0.8]}}')
+    await flush()
+    expect(scaleBoxes().map((box) => box.value)).toEqual(['3', '2', '1.5', '1.2', '1', '0.8'])
   })
 })
 

@@ -13,6 +13,7 @@ import { smartPaste } from './paste'
 import { livePreview } from './livePreview'
 import { previewSlot } from './previewMode'
 import { markdownSupport } from './markdownSupport'
+import { documentFonts } from './documentFonts'
 import { wordWrap } from './wordWrap'
 
 /** Fills its parent and scrolls inside itself, in the app's own colors. */
@@ -25,7 +26,15 @@ const frame = EditorView.theme({
   '.cm-scroller': { overflow: 'auto' },
   // Room between the text and the edges of the pane. Padding on the content, not margin: the
   // scrollbar stays at the pane's edge, and CodeMirror counts content padding in its heights.
-  '.cm-content': { caretColor: 'var(--foreground)', padding: '1.25rem 1.5rem' },
+  '.cm-content': {
+    caretColor: 'var(--foreground)',
+    padding: '1.25rem 1.5rem',
+    // The document's body font and size, from settings.json (documentFonts.ts). The fallbacks are
+    // the defaults, for the moment before the file is read or when it cannot be (a test keeps them
+    // equal to DEFAULT_SETTINGS).
+    fontFamily: 'var(--doc-font-body, monospace)',
+    fontSize: 'var(--doc-size, 15px)',
+  },
 })
 
 /**
@@ -62,6 +71,7 @@ const common: Extension = [
   history(),
   keymap.of([...editorKeymap, ...historyKeymap]),
   wordWrap,
+  documentFonts,
   frame,
   tabKeys,
   textDrag(),
@@ -113,6 +123,7 @@ export function createMasterState(doc: string, extensions: Extension = []): Edit
 const followerBase: Extension = [
   keymap.of(editorKeymap),
   wordWrap,
+  documentFonts,
   frame,
   tabKeys,
   // Drag-to-move for selected text, on pointer events (P5-T7).

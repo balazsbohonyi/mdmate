@@ -7,6 +7,7 @@ import {
   revertDocument,
   saveDocument,
 } from '@/documents/store'
+import { updateDocumentFonts } from '@/editor/documentFonts'
 import { refreshWordWrap } from '@/editor/wordWrap'
 import { editSettingsText } from '@/lib/settingsEdit'
 import {
@@ -142,6 +143,7 @@ export function applySettingsText(text: string | null): void {
   const wrapped = settings.editor.wordWrap
   assignSettings(settingsAfter(settings, parsed))
   if (settings.editor.wordWrap !== wrapped) refreshWordWrap()
+  updateDocumentFonts()
   pushRuntime()
   const first = Object.entries(problems)[0]
   notify(

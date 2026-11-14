@@ -1,3 +1,4 @@
+import type { FontKind } from '@/editor/documentFonts'
 import type { SettingKey } from '@/lib/settingsFile'
 import type { SettingsCategory } from '@/lib/settingsCategories'
 
@@ -12,6 +13,10 @@ export type RowControl =
   | { readonly kind: 'switch' }
   | { readonly kind: 'number' }
   | { readonly kind: 'text'; readonly placeholder: string }
+  /** A font family, with a sample line in the family typed. */
+  | { readonly kind: 'font'; readonly family: FontKind }
+  /** Six numbers, one for each heading level. */
+  | { readonly kind: 'scale' }
   | { readonly kind: 'choice'; readonly options: readonly { value: string; label: string }[] }
   | { readonly kind: 'folders' }
 
@@ -37,6 +42,48 @@ export const SETTING_ROWS: readonly SettingRowSpec[] = [
     label: 'Theme',
     description: 'The colours of the whole window.',
     control: { kind: 'choice', options: THEME_CHOICES },
+  },
+  {
+    key: 'fonts.body',
+    category: 'appearance',
+    label: 'Body font',
+    description: 'The font of the document text. Empty uses the built-in font.',
+    control: { kind: 'font', family: 'body' },
+  },
+  {
+    key: 'fonts.heading',
+    category: 'appearance',
+    label: 'Heading font',
+    description: 'The font of headings. Empty uses the body font.',
+    control: { kind: 'font', family: 'heading' },
+  },
+  {
+    key: 'fonts.code',
+    category: 'appearance',
+    label: 'Code font',
+    description: 'The font of code, inline and in blocks. Empty uses the built-in code font.',
+    control: { kind: 'font', family: 'code' },
+  },
+  {
+    key: 'fonts.size',
+    category: 'appearance',
+    label: 'Text size',
+    description: 'The size of the document text, in pixels.',
+    control: { kind: 'number' },
+  },
+  {
+    key: 'fonts.codeSize',
+    category: 'appearance',
+    label: 'Code size',
+    description: 'The size of code, inline and in blocks, in pixels.',
+    control: { kind: 'number' },
+  },
+  {
+    key: 'fonts.headingScale',
+    category: 'appearance',
+    label: 'Heading sizes',
+    description: 'How big each heading level is, as a multiple of the text size, H1 to H6.',
+    control: { kind: 'scale' },
   },
   {
     key: 'editor.wordWrap',

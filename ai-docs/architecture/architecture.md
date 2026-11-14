@@ -213,6 +213,8 @@ The Settings screen is a tab (`kind: 'settings'`, `workbench/tabs.ts`) that hold
 
 The screen is `features/settings/SettingsView.vue`, with one `SettingRow.vue` shell for every row and the wording and grouping in `features/settings/rows.ts`; values, defaults and checking stay in `lib/settingsFile.ts`. Controls hold no value: a change goes through `requestSettingChange` in `features/settings/store.ts`, which writes one key (or asks first, through `pendingSettingChange`, when the `settings.json` tab has unsaved edits) and then shows what the file says. The screen's banner reads `settingsFileState.broken`, the row errors read `settingsFileState.problems`, and `MDMATE_LINKS_ON_RENAME` locks the Links row through `host.linksOnRenameOverride`.
 
+The document fonts (`fonts.*`) are applied by `editor/documentFonts.ts`: the store calls `updateDocumentFonts` after every applied file, which sets `--doc-*` custom properties on the root (the code size as a ratio of the text size) and asks each open editor view to measure again, and only when a value changed. The editor's theme (`create.ts`, `livePreview/theme.ts`, `blocks/theme.ts`, `box.ts`) is the only reader, with the defaults as `var()` fallbacks. A family field is turned into quoted names plus the built-in stack by `cssFamilyList`.
+
 ## Security
 
 Markdown content is untrusted, and people will open files they did not write.

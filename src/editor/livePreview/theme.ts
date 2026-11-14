@@ -8,20 +8,41 @@ import { EditorView } from '@codemirror/view'
 export const previewTheme = EditorView.baseTheme({
   // The default highlight style underlines headings; a rendered heading is not underlined.
   '.cm-md-h, .cm-md-h span': { textDecoration: 'none' },
-  '.cm-md-h': { fontWeight: '650', color: 'var(--syntax-heading)' },
-  '.cm-md-h1': { fontSize: '1.7em', lineHeight: '1.35', paddingTop: '0.3em' },
-  '.cm-md-h2': { fontSize: '1.45em', lineHeight: '1.4', paddingTop: '0.25em' },
-  '.cm-md-h3': { fontSize: '1.25em', lineHeight: '1.45', paddingTop: '0.2em' },
-  '.cm-md-h4': { fontSize: '1.1em' },
-  '.cm-md-h5': { fontSize: '1em' },
-  '.cm-md-h6': { fontSize: '0.95em', color: 'var(--syntax-marker)' },
+  // The family and the size multiples come from settings.json (documentFonts.ts); the fallbacks
+  // are the values the headings had before they were settings.
+  '.cm-md-h': {
+    fontWeight: '650',
+    color: 'var(--syntax-heading)',
+    fontFamily: 'var(--doc-font-heading, monospace)',
+  },
+  '.cm-md-h1': {
+    fontSize: 'calc(var(--doc-heading-1, 1.7) * 1em)',
+    lineHeight: '1.35',
+    paddingTop: '0.3em',
+  },
+  '.cm-md-h2': {
+    fontSize: 'calc(var(--doc-heading-2, 1.45) * 1em)',
+    lineHeight: '1.4',
+    paddingTop: '0.25em',
+  },
+  '.cm-md-h3': {
+    fontSize: 'calc(var(--doc-heading-3, 1.25) * 1em)',
+    lineHeight: '1.45',
+    paddingTop: '0.2em',
+  },
+  '.cm-md-h4': { fontSize: 'calc(var(--doc-heading-4, 1.1) * 1em)' },
+  '.cm-md-h5': { fontSize: 'calc(var(--doc-heading-5, 1) * 1em)' },
+  '.cm-md-h6': {
+    fontSize: 'calc(var(--doc-heading-6, 0.95) * 1em)',
+    color: 'var(--syntax-marker)',
+  },
   '.cm-md-setext-mark': { color: 'var(--syntax-marker)' },
   '.cm-md-strong': { fontWeight: '700' },
   '.cm-md-em': { fontStyle: 'italic' },
   '.cm-md-strike': { textDecoration: 'line-through' },
   '.cm-md-code': {
-    fontFamily: 'var(--font-mono)',
-    fontSize: '0.92em',
+    fontFamily: 'var(--doc-font-code, var(--font-mono))',
+    fontSize: 'calc(var(--doc-code-ratio, calc(14 / 15)) * 1em)',
     color: 'var(--syntax-code)',
     backgroundColor: 'var(--syntax-code-background)',
     borderRadius: 'var(--radius)',
