@@ -53,7 +53,7 @@ mdmate/
 │  ├─ links/          Link guard (guard.rs), scanner (scan.rs), file walker (walk.rs), rewrite engine (rewrite.rs)
 │  ├─ session/        Hot-exit store
 │  ├─ settings/       Settings and keybinding files
-│  ├─ paths.rs        Installed or portable data folder
+│  ├─ paths.rs        Data folder: `MDMATE_DATA_DIR`, else `<exe dir>/data` beside an `mdmate.portable` file, else the app-data folder
 │  └─ platform/       Traits, windows/, macos/ and linux/ stubs
 ├─ scripts/           check-arch.mjs, check-isa.mjs, fixtures, perf
 └─ tests/             Vitest suites and fixtures

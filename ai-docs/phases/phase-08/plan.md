@@ -59,7 +59,7 @@ User theme files in `themes/` override any token, are read as data, and reload o
 
 ## P8-T4: Portable mode
 
-A `mdmate.portable` file beside the exe moves all data there, following Riftle's `paths.rs` approach, so settings, keybindings and themes move too.
+A `mdmate.portable` file beside the exe moves all data to `<exe dir>/data`, following Riftle's `paths.rs` approach, so settings, keybindings and themes move too. `MDMATE_DATA_DIR` still works and wins over the marker; the marker must be a file; an exe path that cannot be read means "not portable" (ISC-459 to ISC-461).
 
 **Done when:** path tests pass with and without the marker (ISC-152).
 
