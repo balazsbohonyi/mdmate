@@ -18,6 +18,7 @@ import { parseReferencesFound } from './references'
 import { parseLinksOnRename, parseRewriteDone, parseRewritePlanned } from './rewrite'
 import { parseOutlineAnswer } from './outline'
 import { parseSearchBatch, parseSearchSummary } from './search'
+import { parseThemeEntries } from './themes'
 import {
   parseCopyReport,
   parseDroppedItems,
@@ -279,6 +280,27 @@ export const tauriHost: Host = {
   },
   async keybindingsFile() {
     return invoke<string>('keybindings_file')
+  },
+  async themesRead() {
+    return parseThemeEntries(await invoke<unknown>('themes_read'))
+  },
+  async themeRead(name) {
+    const text = await invoke<unknown>('theme_read', { name })
+    return typeof text === 'string' ? text : null
+  },
+  async themeWrite(name, text, create) {
+    await invoke('theme_write', { name, text, create })
+  },
+  async watchThemes(onChange) {
+    const channel = new Channel<null>()
+    channel.onmessage = onChange
+    await invoke('watch_themes', { onChange: channel })
+    return () => {
+      channel.onmessage = () => undefined
+    }
+  },
+  async themesFolderOpen() {
+    await invoke('themes_folder_open')
   },
   async devtoolsOpen() {
     await invoke('devtools_open')

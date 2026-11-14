@@ -167,7 +167,8 @@ describe('a fenced block (ISC-70)', () => {
 })
 
 describe('the colors', () => {
-  const themes = ['light', 'dark'].map((name) =>
+  const names = ['light', 'dark', 'sepia']
+  const themes = names.map((name) =>
     readFileSync(join(process.cwd(), 'src', 'styles', 'themes', `${name}.css`), 'utf8'),
   )
   const rules = tokenHighlight.module?.getRules() ?? ''
@@ -178,14 +179,12 @@ describe('the colors', () => {
     expect(rules).toContain('var(--syntax-keyword)')
   })
 
-  it('all exist in both themes', () => {
+  it('all exist in every theme', () => {
     const used = new Set(rules.match(/--syntax-[a-z-]+/g))
     expect(used.size).toBeGreaterThanOrEqual(8)
     for (const [i, theme] of themes.entries()) {
       for (const token of used) {
-        expect(theme, `${['light', 'dark'][i] ?? ''} theme: ${token}`).toMatch(
-          new RegExp(`${token}\\s*:`),
-        )
+        expect(theme, `${names[i] ?? ''} theme: ${token}`).toMatch(new RegExp(`${token}\\s*:`))
       }
     }
   })

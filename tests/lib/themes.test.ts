@@ -1,26 +1,158 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
-import { applyTheme, THEME_CHOICES, themeClass } from '@/lib/themes'
+import { BUILT_IN_THEMES } from '@/lib/builtinThemes'
+import {
+  applyTheme,
+  BUILT_IN_CHOICES,
+  effectiveTokens,
+  resolveTheme,
+  slotKey,
+  type UserThemeSlot,
+} from '@/lib/themes'
+
+const NOTHING: ReadonlyMap<string, UserThemeSlot> = new Map()
+const LOADED = { systemDark: false, loaded: true }
+
+function userSlot(
+  id: string,
+  base: 'dark' | 'light' | 'sepia',
+  colors: Record<string, string> = {},
+  problems: string[] = [],
+): Map<string, UserThemeSlot> {
+  return new Map([
+    [
+      slotKey(id),
+      {
+        ok: true,
+        theme: { id, label: id, base, colors: new Map(Object.entries(colors)), problems },
+      },
+    ],
+  ])
+}
 
 describe('the themes a person can choose', () => {
-  it('are Dark and Light', () => {
-    expect(THEME_CHOICES.map((theme) => theme.value)).toEqual(['dark', 'light'])
+  it('are Dark, Light, Sepia and System, in that order', () => {
+    expect(BUILT_IN_CHOICES.map((theme) => theme.value)).toEqual([
+      'dark',
+      'light',
+      'sepia',
+      'system',
+    ])
   })
 
-  it('put exactly one theme class on the root', () => {
-    const root = document.createElement('html')
-    root.className = 'dark other'
-    applyTheme('light', root)
-    expect(root.classList.contains('light')).toBe(true)
-    expect(root.classList.contains('dark')).toBe(false)
-    expect(root.classList.contains('other')).toBe(true)
-    applyTheme('dark', root)
-    expect(root.classList.contains('dark')).toBe(true)
-    expect(root.classList.contains('light')).toBe(false)
+  it('show the palette a built-in names, with no notice', () => {
+    for (const id of ['dark', 'light', 'sepia'] as const) {
+      const shown = resolveTheme(id, NOTHING, LOADED)
+      expect(shown.palette).toBe(id)
+      expect(shown.scheme).toBe(BUILT_IN_THEMES[id].scheme)
+      expect(shown.notice).toBeNull()
+    }
   })
 
-  it('show Dark for a name this build does not know', () => {
-    expect(themeClass('sepia')).toBe('dark')
-    expect(themeClass('my-own-theme')).toBe('dark')
+  it('follow the system for System, in either direction', () => {
+    expect(resolveTheme('system', NOTHING, { systemDark: true, loaded: true }).palette).toBe('dark')
+    expect(resolveTheme('system', NOTHING, { systemDark: false, loaded: true }).palette).toBe(
+      'light',
+    )
+  })
+
+  it('take a built-in name in any case', () => {
+    expect(resolveTheme('SEPIA', NOTHING, LOADED).palette).toBe('sepia')
+    expect(resolveTheme(' System ', NOTHING, { systemDark: true, loaded: true }).palette).toBe(
+      'dark',
+    )
+  })
+
+  it('show a user theme as its base with its colors on top', () => {
+    const shown = resolveTheme('mine', userSlot('mine', 'sepia', { background: '#123456' }), LOADED)
+    expect(shown.palette).toBe('sepia')
+    expect(shown.scheme).toBe('light')
+    expect(shown.user?.id).toBe('mine')
+    expect(effectiveTokens(shown).get('background')).toBe('#123456')
+    expect(effectiveTokens(shown).get('foreground')).toBe(
+      effectiveTokens({ palette: 'sepia', overrides: new Map() }).get('foreground'),
+    )
+  })
+
+  it('find a user theme whatever the case of the name', () => {
+    expect(resolveTheme('MINE', userSlot('mine', 'dark'), LOADED).user?.id).toBe('mine')
+  })
+
+  it('say what was ignored in a user theme file', () => {
+    const shown = resolveTheme(
+      'mine',
+      userSlot('mine', 'dark', {}, ['colors.background: That is not a color.']),
+      LOADED,
+    )
+    expect(shown.notice).toContain('colors.background')
+    expect(shown.notice).toContain('ignored')
+  })
+
+  it('show Dark and say why for a theme file that cannot be used', () => {
+    const broken = new Map<string, UserThemeSlot>([
+      ['mine', { ok: false, id: 'mine', message: 'it is not valid JSON.' }],
+    ])
+    const shown = resolveTheme('mine', broken, LOADED)
+    expect(shown.palette).toBe('dark')
+    expect(shown.user).toBeNull()
+    expect(shown.notice).toContain('not valid JSON')
+    expect(shown.notice).toContain('Showing Dark')
+  })
+
+  it('show Dark and say so for a name with no file, but only once the folder was read', () => {
+    const before = resolveTheme('gone', NOTHING, { systemDark: false, loaded: false })
+    expect(before.palette).toBe('dark')
+    expect(before.notice).toBeNull()
+    const after = resolveTheme('gone', NOTHING, LOADED)
+    expect(after.palette).toBe('dark')
+    expect(after.notice).toContain('gone')
+  })
+})
+
+describe('putting a theme on the page', () => {
+  const root = (): HTMLElement => document.createElement('html')
+
+  it('sets the palette, and the dark class only for a dark palette', () => {
+    const el = root()
+    el.className = 'other'
+    applyTheme(resolveTheme('dark', NOTHING, LOADED), el)
+    expect(el.dataset.theme).toBe('dark')
+    expect(el.classList.contains('dark')).toBe(true)
+    applyTheme(resolveTheme('sepia', NOTHING, LOADED), el)
+    expect(el.dataset.theme).toBe('sepia')
+    expect(el.classList.contains('dark')).toBe(false)
+    applyTheme(resolveTheme('light', NOTHING, LOADED), el)
+    expect(el.classList.contains('dark')).toBe(false)
+    expect(el.classList.contains('other')).toBe(true)
+  })
+
+  it('sets each override as a property and takes it off when the next theme has none', () => {
+    const el = root()
+    const mine = resolveTheme('mine', userSlot('mine', 'dark', { background: '#123456' }), LOADED)
+    applyTheme(mine, el)
+    expect(el.style.getPropertyValue('--background')).toBe('#123456')
+    applyTheme(resolveTheme('dark', NOTHING, LOADED), el)
+    expect(el.style.getPropertyValue('--background')).toBe('')
+  })
+
+  it('refuses a value that is not a color and a token that does not exist, even from a caller', () => {
+    const el = root()
+    applyTheme(
+      {
+        palette: 'dark',
+        scheme: 'dark',
+        overrides: new Map([
+          ['background', 'url(https://example.com/x)'],
+          ['foreground', 'red'],
+          ['not-a-token', '#ffffff'],
+          ['primary', '#abcdef'],
+        ]),
+      },
+      el,
+    )
+    expect(el.style.getPropertyValue('--background')).toBe('')
+    expect(el.style.getPropertyValue('--foreground')).toBe('')
+    expect(el.style.getPropertyValue('--not-a-token')).toBe('')
+    expect(el.style.getPropertyValue('--primary')).toBe('#abcdef')
   })
 })

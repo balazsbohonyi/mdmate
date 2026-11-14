@@ -164,6 +164,13 @@ export interface AppliedSettings {
   readonly devtools: boolean
 }
 
+/** One file of the themes folder: its name without `.json`, and its text or why it has none. */
+export interface ThemeFileEntry {
+  readonly name: string
+  readonly text: string | null
+  readonly error: string | null
+}
+
 /** What the page suggests the save dialog shows. */
 export interface SaveAsHint {
   /** The file name to suggest. */
@@ -441,6 +448,23 @@ export interface Host {
   keybindingsWrite(text: string): Promise<void>
   watchKeybindings(onChange: () => void): Promise<() => void>
   keybindingsFile(): Promise<string>
+  /**
+   * The user theme files, `themes/<name>.json` in the app's data folder, by name: each with its
+   * text, or the reason it has none (too big, not UTF-8, a name that is not allowed). The page names
+   * no folder, so a workspace cannot supply a theme. A missing folder is an empty list.
+   */
+  themesRead(): Promise<ThemeFileEntry[]>
+  /** The text of one theme file, or null when it is not there. Rejects with `invalid` for a name that is not allowed. */
+  themeRead(name: string): Promise<string | null>
+  /**
+   * Writes one theme file, atomically. With `create` it makes a new file and rejects with `exists`
+   * rather than replace one; without it, it replaces a file that is there and never makes one.
+   */
+  themeWrite(name: string, text: string, create: boolean): Promise<void>
+  /** Calls `onChange` each time a theme file is added, changed or removed, whoever did it. */
+  watchThemes(onChange: () => void): Promise<() => void>
+  /** Makes the themes folder when it is missing and shows it in the file manager. */
+  themesFolderOpen(): Promise<void>
   /** Opens the developer tools. Rejects with `not-allowed` while the `devtools` setting is off. */
   devtoolsOpen(): Promise<void>
   /**

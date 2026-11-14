@@ -5,7 +5,7 @@
  * contrast on a light page, and syntax colors at lower lightness. Nothing is taken from another
  * editor's theme. tests/styles/themes.test.ts pins the token names and checks contrast.
  */
-:root.light {
+:root[data-theme='light'] {
   color-scheme: light;
 
   --background: oklch(0.985 0.004 85);

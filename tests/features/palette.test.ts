@@ -9,10 +9,16 @@ import { indexStatus } from '@/features/index/status'
 import { commandRows, fileRow, segments } from '@/features/palette/rows'
 import { closePalette, paletteMode } from '@/features/palette/state'
 import { resetSettingsState } from '@/features/settings/store'
+import { loadThemes, resetThemesState } from '@/features/themes/store'
 import { resetSettings, settings } from '@/lib/settings'
 import { setHost } from '@/platform'
 import { IDLE_INDEX } from '@/platform/indexStatus'
-import { createMockHost, MOCK_SETTINGS_FILE, type MockHost } from '@/platform/mock'
+import {
+  createMockHost,
+  MOCK_SETTINGS_FILE,
+  MOCK_THEMES_FOLDER,
+  type MockHost,
+} from '@/platform/mock'
 import { clearCommands, registerCommand } from '@/workbench/commands'
 import { COMMAND_IDS, registerDefaultCommands } from '@/workbench/defaultCommands'
 import { installKeybindings } from '@/workbench/keyboard'
@@ -655,6 +661,7 @@ describe('Switch Theme opens a list of the themes there are (ISC-395)', () => {
   beforeEach(() => {
     resetSettings()
     resetSettingsState()
+    resetThemesState()
   })
 
   async function openThemes(): Promise<void> {
@@ -669,13 +676,34 @@ describe('Switch Theme opens a list of the themes there are (ISC-395)', () => {
     await start()
     await openThemes()
     expect(paletteMode.value).toBe('themes')
-    expect(rowsText()).toEqual(['Dark In use', 'Light'])
+    expect(rowsText()).toEqual(['Dark In use', 'Light', 'Sepia', 'System'])
     expect(selectedText()).toBe('Dark In use')
     expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe(
       'Switch theme',
     )
     expect(input()?.placeholder).toBe('Pick a theme')
     expect(document.activeElement).toBe(input())
+  })
+
+  it('ISC-371: lists a user theme file after the built-ins, and choosing it applies it', async () => {
+    await start({
+      ...FILES,
+      [`${MOCK_THEMES_FOLDER}/mine.json`]:
+        '{ "name": "Mine", "base": "light", "colors": { "background": "#123456" } }',
+    })
+    await loadThemes()
+    await openThemes()
+    expect(rowsText()).toEqual(['Dark In use', 'Light', 'Sepia', 'System', 'Mine'])
+    for (let step = 0; step < 4; step++) press({ key: 'ArrowDown' })
+    await flush()
+    expect(selectedText()).toBe('Mine')
+    press({ key: 'Enter' })
+    await flush()
+    expect(paletteMode.value).toBeNull()
+    expect(settings.theme).toBe('mine')
+    expect(parseJsonc(fileText() ?? '{}')).toEqual({ theme: 'mine' })
+    expect(document.documentElement.dataset.theme).toBe('light')
+    expect(document.documentElement.style.getPropertyValue('--background')).toBe('#123456')
   })
 
   it('choosing a theme closes the list; Dark is already the setting, so the file stays', async () => {
@@ -694,9 +722,10 @@ describe('Switch Theme opens a list of the themes there are (ISC-395)', () => {
     await changeSettingFromCommand('theme', 'light')
     expect(parseJsonc(fileText() ?? '{}')).toEqual({ theme: 'light' })
     expect(settings.theme).toBe('light')
-    expect(document.documentElement.classList.contains('light')).toBe(true)
+    expect(document.documentElement.dataset.theme).toBe('light')
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
     await openThemes()
-    expect(rowsText()).toEqual(['Dark', 'Light In use'])
+    expect(rowsText()).toEqual(['Dark', 'Light In use', 'Sepia', 'System'])
     expect(selectedText()).toBe('Light In use')
     press({ key: 'ArrowUp' })
     await flush()

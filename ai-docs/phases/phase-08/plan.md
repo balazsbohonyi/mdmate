@@ -53,7 +53,7 @@ The Keyboard category lists every command with its shortcut (ISC-372). Clicking 
 
 Built-ins: **Dark** (the default), **Light**, **Sepia** and **System** (follows the operating system, live). Sepia ports MarkdownWeave's palette (cream `#fdf6e3` background, brown `#3b2f1e` text, brown links), darkens the greys that fail the contrast floors, and designs the syntax colours, which MarkdownWeave never had. The theme contract test covers three themes (ISC-377 to ISC-379).
 
-User theme files in `themes/` override any token, are read as data, and reload on save (ISC-150, ISC-151). **Customize** copies the selected theme into `themes/` and selects the copy; built-ins are never written (ISC-380, ISC-385). The colour editor shows all 56 tokens in groups (Core, Sidebar, Chrome, Editor, Syntax), writes the theme file as you change a colour, and warns when a required pair drops under its contrast floor (ISC-381 to ISC-383).
+User theme files in `themes/` override any token, are read as data, and reload on save (ISC-150, ISC-151). **Customize** copies the selected theme into `themes/` and selects the copy; built-ins are never written (ISC-380, ISC-385). The colour editor shows every token in groups (Core, Sidebar, Chrome, Editor, Syntax), writes the theme file as you change a colour, and warns when a required pair drops under its contrast floor (ISC-381 to ISC-383).
 
 **Done when:** saving a theme updates the running app, and the built-ins are reviewed as original (ISC-146).
 

@@ -42,6 +42,9 @@ import {
 import { getHost } from '@/platform'
 import { runCommand } from '@/workbench/commands'
 import { COMMAND_IDS } from '@/workbench/defaultCommands'
+import ThemeColors from '@/features/themes/ThemeColors.vue'
+import { openThemesFolder } from '@/features/themes/customize'
+import { themeChoices, themeProblem } from '@/features/themes/store'
 import { setSettingsCategory, settingsCategoryOf } from '@/workbench/store'
 import {
   keybindingsHaveEntries,
@@ -84,6 +87,8 @@ const shown = computed<readonly SettingRowSpec[]>(() =>
 )
 const heading = computed(() => (searching.value ? 'Search results' : label.value))
 const showsActions = computed(() => !searching.value && category.value === 'advanced')
+/** The colour editor sits under the Appearance rows, not in search results. */
+const showsColors = computed(() => !searching.value && category.value === 'appearance')
 /** The Keyboard category is a list of commands, not of settings, so it has its own panel. */
 const showsKeyboard = computed(() => !searching.value && category.value === 'keyboard')
 
@@ -127,7 +132,8 @@ function lockOf(key: SettingKey): string | null {
 }
 
 function errorOf(key: SettingKey): string | null {
-  return refused[key] ?? settingsFileState.problems[key] ?? null
+  const own = refused[key] ?? settingsFileState.problems[key] ?? null
+  return key === 'theme' ? (own ?? themeProblem.value) : own
 }
 
 function shownText(key: SettingKey): string {
@@ -143,7 +149,7 @@ function choiceValue(spec: SettingRowSpec): string {
 function optionsOf(spec: SettingRowSpec): readonly { value: string; label: string }[] {
   if (spec.control.kind !== 'choice') return []
   const current = choiceValue(spec)
-  const known = spec.control.options
+  const known = spec.key === 'theme' ? themeChoices.value : spec.control.options
   return known.some((option) => option.value === current)
     ? known
     : [...known, { value: current, label: current }]
@@ -894,6 +900,26 @@ function openFile(): void {
               </Button>
             </div>
           </SettingRow>
+          <SettingRow
+            v-if="showsActions"
+            :setting-key="null"
+            label="themes folder"
+            description="Your own themes, one .json file each. Add or edit one and this screen follows."
+            :modified="false"
+            :error="null"
+            :locked="null"
+          >
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              class="w-[10.25rem]"
+              data-open-themes-folder
+              @click="openThemesFolder"
+            >
+              Open themes folder
+            </Button>
+          </SettingRow>
           <p
             v-if="shown.length === 0 && !showsActions"
             class="mt-2 text-sm text-muted-foreground"
@@ -902,6 +928,7 @@ function openFile(): void {
             {{ searching ? 'No setting matches that.' : 'This group has no settings yet.' }}
           </p>
         </div>
+        <ThemeColors v-if="showsColors" />
       </section>
     </div>
     <ResetAllDialog

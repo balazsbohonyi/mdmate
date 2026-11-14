@@ -15,6 +15,7 @@ use crate::recent::{self, RecentStore};
 use crate::save_as::{self, SaveRequest, SavedAs};
 use crate::search;
 use crate::session::{self, CloseHook, SessionStore};
+use crate::settings::themes::{ThemeEntry, ThemeStore};
 use crate::settings::{KeybindingsStore, SettingsStore};
 use crate::workspace::ops::{self, ClashAnswer, CopyReport, Moved};
 use crate::workspace::roots::{self, RootStore};
@@ -1014,6 +1015,71 @@ pub(crate) async fn keybindings_file(
         let file = store.ensure_file()?;
         let resolved = state.access().grant_file(&file)?;
         Ok::<_, AppError>(display_path(&resolved.path))
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Every user theme file in the data folder's `themes` folder, by name, with its text or the reason
+/// it has none. The page names no path and decides what each file means.
+#[tauri::command]
+pub(crate) async fn themes_read(
+    store: State<'_, Arc<ThemeStore>>,
+) -> Result<Vec<ThemeEntry>, AppError> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || store.list())
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// The text of one theme file, or nothing when it is not there. The name is a plain name, checked
+/// again here.
+#[tauri::command]
+pub(crate) async fn theme_read(
+    store: State<'_, Arc<ThemeStore>>,
+    name: String,
+) -> Result<Option<String>, AppError> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || store.read(&name))
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Writes one theme file atomically. With `create` it makes a new file and refuses to replace one;
+/// without it, it replaces a file that is there and never makes one.
+#[tauri::command]
+pub(crate) async fn theme_write(
+    store: State<'_, Arc<ThemeStore>>,
+    name: String,
+    text: String,
+    create: bool,
+) -> Result<(), AppError> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || store.write(&name, &text, create))
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Tells the page each time a theme file is added, changed or removed, whoever did it.
+#[tauri::command]
+pub(crate) fn watch_themes(
+    store: State<'_, Arc<ThemeStore>>,
+    on_change: Channel<()>,
+) -> Result<(), AppError> {
+    store.watch(Box::new(move || {
+        let _ = on_change.send(());
+    }))
+}
+
+/// Makes the themes folder if it is missing and shows it in the system's file manager. The folder
+/// is always the one in the data folder; the page names no path.
+#[tauri::command]
+pub(crate) async fn themes_folder_open(store: State<'_, Arc<ThemeStore>>) -> Result<(), AppError> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let folder = store.ensure_folder()?;
+        platform::current().show_folder(&folder)?;
+        Ok::<_, AppError>(())
     })
     .await
     .map_err(|error| AppError::Task(error.to_string()))?

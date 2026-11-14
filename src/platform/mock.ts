@@ -2,6 +2,7 @@ import type { Endings } from '@/lib/endings'
 import { freeName, nameProblem } from '@/lib/fileNames'
 import type { LinksOnRename } from '@/lib/settings'
 import { checkFolderName, checkPasteFolder } from '@/lib/settingsFile'
+import { checkThemeName } from '@/lib/themeNames'
 import type {
   AppliedSettings,
   DiskChange,
@@ -77,6 +78,18 @@ class MockHostError extends Error {
 
 function hostError(kind: string, message: string): MockHostError {
   return new MockHostError(kind, message)
+}
+
+/** A theme file is not read, and not written, above this many characters (Rust: 256 KB). */
+const THEME_MAX_BYTES = 256 * 1024
+
+const themePath = (name: string): string => `${MOCK_THEMES_FOLDER}/${name}.json`
+
+/** The name when Rust would take it, or the error Rust gives for a name that is not a plain one. */
+function requireThemeName(name: string): string {
+  const checked = checkThemeName(name)
+  if (!checked.ok) throw hostError('invalid', `invalid request: theme name: ${checked.why}`)
+  return checked.value
 }
 
 /** Runs `run` and hands back what it returns, or what it throws, as a promise. */
@@ -159,6 +172,8 @@ export const DRAFT_ROOT = '/mock-data/drafts'
 /** Where the mock keeps `settings.json`, in the same files the app can open as a tab. */
 export const MOCK_SETTINGS_FILE = '/mock-data/settings.json'
 export const MOCK_KEYBINDINGS_FILE = '/mock-data/keybindings.json'
+/** Where the mock keeps the user theme files, as Rust keeps them in the data folder. */
+export const MOCK_THEMES_FOLDER = '/mock-data/themes'
 
 /** The files of a draft's `assets` that can be copied: a name and one of the four extensions. */
 const DRAFT_IMAGE = /^[^/\\]+\.(?:png|jpg|gif|webp)$/i
@@ -1082,6 +1097,55 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
       return attempt(() => {
         if (!files.has(MOCK_KEYBINDINGS_FILE)) files.write(MOCK_KEYBINDINGS_FILE, '{}\n')
         return MOCK_KEYBINDINGS_FILE
+      })
+    },
+    themesRead() {
+      return attempt(() => {
+        const listed = files.listDir(MOCK_THEMES_FOLDER) ?? []
+        return listed
+          .filter((entry) => entry.kind === 'file' && entry.name.endsWith('.json'))
+          .map((entry) => entry.name.slice(0, -'.json'.length))
+          .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+          .slice(0, 200)
+          .map((name) => {
+            const named = checkThemeName(name)
+            if (!named.ok) return { name, text: null, error: named.why }
+            const text = files.read(themePath(name)) ?? ''
+            return text.length > THEME_MAX_BYTES
+              ? { name, text: null, error: 'it is larger than 256 KB' }
+              : { name, text, error: null }
+          })
+      })
+    },
+    themeRead(name) {
+      return attempt(() => {
+        const path = themePath(requireThemeName(name))
+        return files.read(path) ?? null
+      })
+    },
+    themeWrite(name, text, create) {
+      return attempt(() => {
+        const path = themePath(requireThemeName(name))
+        if (text.length > THEME_MAX_BYTES)
+          throw hostError('invalid', `${name}.json would be larger than 256 KB`)
+        const exists = files.has(path)
+        if (create && exists) throw hostError('exists', `${name}.json already exists`)
+        if (!create && !exists) throw hostError('not-found', `${name}.json was not found`)
+        files.write(path, text)
+      })
+    },
+    watchThemes(onChange) {
+      const prefix = `${pathKey(MOCK_THEMES_FOLDER)}/`
+      return Promise.resolve(
+        files.onChange((path) => {
+          if (pathKey(path).startsWith(prefix)) onChange()
+        }),
+      )
+    },
+    themesFolderOpen() {
+      return attempt(() => {
+        files.mkdir(MOCK_THEMES_FOLDER)
+        openedFolders.push(MOCK_THEMES_FOLDER)
       })
     },
     settingsApply(values) {

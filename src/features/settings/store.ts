@@ -20,7 +20,6 @@ import {
   readRoot,
   type EditResult,
 } from '@/lib/settingsEdit'
-import { applyTheme } from '@/lib/themes'
 import {
   describeSyntax,
   getSettingFrom,
@@ -31,6 +30,7 @@ import {
   type SettingValueMap,
 } from '@/lib/settingsFile'
 import { cloneSettings, DEFAULT_SETTINGS, settings } from '@/lib/settings'
+import { applyCurrentTheme } from '@/features/themes/store'
 import { getHost } from '@/platform'
 import type { AppliedSettings } from '@/platform/host'
 import { reportError, reportWarning } from '@/shell/toasts'
@@ -158,7 +158,7 @@ export function applySettingsText(text: string | null): void {
   updateDocumentFonts()
   updateContentWidth()
   refreshSourceLanguages()
-  applyTheme(settings.theme)
+  applyCurrentTheme()
   pushRuntime()
   const first = Object.entries(problems)[0]
   notify(

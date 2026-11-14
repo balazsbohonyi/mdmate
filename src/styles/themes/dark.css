@@ -7,7 +7,7 @@
  * tests/styles/themes.test.ts pins that and checks contrast.
  */
 :root,
-:root.dark {
+:root[data-theme='dark'] {
   color-scheme: dark;
 
   /* Matches backgroundColor in src-tauri/tauri.conf.json, so launch has no color jump. A test pins the pair. */

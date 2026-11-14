@@ -53,6 +53,7 @@ pub fn run() {
             app.manage(Arc::new(workspace::roots::RootStore::new(dir.clone())));
             app.manage(Arc::new(settings::SettingsStore::new(dir.clone())));
             app.manage(Arc::new(settings::KeybindingsStore::new(dir.clone())));
+            app.manage(Arc::new(settings::themes::ThemeStore::new(dir.clone())));
             app.manage(Arc::new(session::SessionStore::new(dir)));
             Ok(())
         })
@@ -136,6 +137,11 @@ pub fn run() {
         commands::keybindings_write,
         commands::watch_keybindings,
         commands::keybindings_file,
+        commands::themes_read,
+        commands::theme_read,
+        commands::theme_write,
+        commands::watch_themes,
+        commands::themes_folder_open,
         commands::devtools_open,
         commands::rewrite_plan,
         commands::find_references,
@@ -220,6 +226,11 @@ pub fn run() {
         commands::keybindings_write,
         commands::watch_keybindings,
         commands::keybindings_file,
+        commands::themes_read,
+        commands::theme_read,
+        commands::theme_write,
+        commands::watch_themes,
+        commands::themes_folder_open,
         commands::devtools_open,
         commands::rewrite_plan,
         commands::find_references,

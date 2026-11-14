@@ -1,5 +1,5 @@
 import type { FontKind } from '@/editor/documentFonts'
-import { THEME_CHOICES } from '@/lib/themes'
+import { BUILT_IN_CHOICES } from '@/lib/themes'
 import type { SettingKey } from '@/lib/settingsFile'
 import type { SettingsCategory } from '@/lib/settingsCategories'
 
@@ -40,8 +40,8 @@ export const SETTING_ROWS: readonly SettingRowSpec[] = [
     key: 'theme',
     category: 'appearance',
     label: 'Theme',
-    description: 'The colours of the whole window.',
-    control: { kind: 'choice', options: THEME_CHOICES },
+    description: 'The colours of the whole window. System follows the operating system.',
+    control: { kind: 'choice', options: BUILT_IN_CHOICES },
   },
   {
     key: 'fonts.heading',

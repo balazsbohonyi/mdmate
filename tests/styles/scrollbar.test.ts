@@ -29,8 +29,8 @@ describe('thin scrollbars everywhere (ISC-248)', () => {
     expect(css).toMatch(/::-webkit-scrollbar-track[^{]*\{\s*background:\s*transparent/)
   })
 
-  it('has the thumb colors in both themes', () => {
-    for (const theme of ['dark', 'light']) {
+  it('has the thumb colors in every theme', () => {
+    for (const theme of ['dark', 'light', 'sepia']) {
       const file = read(`src/styles/themes/${theme}.css`)
       expect(file, theme).toMatch(/--scrollbar-thumb:/)
       expect(file, theme).toMatch(/--scrollbar-thumb-hover:/)

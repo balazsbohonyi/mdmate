@@ -1,0 +1,75 @@
+/*
+ * mdmate Sepia ("Parchment"). Same token names as dark.css.
+ *
+ * The page, the text and the brown accents come from the Sepia theme of MarkdownWeave (cream
+ * #fdf6e3, brown #3b2f1e, links #8b5e3c, selection #e8c99a). That palette has no syntax colors and
+ * its grey notes (#8a7060 is 4.3:1 on the page, #b8a090 is 2.3:1) fall under the contrast floors, so
+ * the greys here are darker and the syntax colors are designed for this page: warm hues around the
+ * wheel at one lightness. tests/styles/themes.test.ts pins the token names and checks contrast.
+ */
+:root[data-theme='sepia'] {
+  color-scheme: light;
+
+  --background: #fdf6e3;
+  --foreground: #3b2f1e;
+  --card: #fffaf0;
+  --card-foreground: var(--foreground);
+  --popover: #fffaf0;
+  --popover-foreground: var(--foreground);
+  --primary: #8b5e3c;
+  --primary-foreground: #fdf6e3;
+  --secondary: #f5ead2;
+  --secondary-foreground: var(--foreground);
+  --muted: #f0e6ce;
+  --muted-foreground: #6f5a44;
+  --accent: #ede0c4;
+  --accent-foreground: var(--foreground);
+  --destructive: #a83232;
+  /* A hint that needs a second look but is not an error: a dark amber, readable on the page. */
+  --warning: oklch(0.52 0.1 70);
+  --border: #ddd0b8;
+  --input: #cfbf9f;
+  --ring: var(--primary);
+  /* The tooltip surface: as in light, the popover color. */
+  --tooltip: var(--popover);
+  --tooltip-foreground: var(--foreground);
+
+  --sidebar: #f7eed7;
+  --sidebar-foreground: #4a3c2a;
+  --sidebar-accent: #ede0c4;
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: #e6dac2;
+
+  --titlebar: #f0e6ce;
+  --titlebar-foreground: #4f4030;
+  --tabstrip: #f3e9d2;
+  --tab-foreground: #6f5a44;
+  --tab-active: var(--background);
+  --tab-active-foreground: #2c1a0e;
+  --statusbar: #f0e6ce;
+  --statusbar-foreground: #6f5a44;
+  --handle: #e6dac2;
+  --handle-active: var(--primary);
+  --scrollbar-thumb: oklch(0.5 0.04 70 / 32%);
+  --scrollbar-thumb-hover: oklch(0.4 0.04 70 / 55%);
+  --drop-preview: oklch(0.55 0.08 60 / 18%);
+
+  --selection: #e8c99a;
+  --find-match: oklch(0.85 0.12 88 / 80%);
+  --find-match-active: oklch(0.73 0.13 62 / 92%);
+  --caret: #3b2f1e;
+  --syntax-heading: oklch(0.4 0.09 55);
+  --syntax-link: #8b5e3c;
+  --syntax-code: oklch(0.44 0.09 135);
+  --syntax-code-background: #f0e6ce;
+  --syntax-quote: #6b4f38;
+  --syntax-marker: #9a8264;
+  --syntax-keyword: oklch(0.46 0.13 335);
+  --syntax-string: oklch(0.45 0.1 135);
+  --syntax-number: oklch(0.49 0.12 44);
+  --syntax-comment: #8c7760;
+  --syntax-function: oklch(0.45 0.09 235);
+  --syntax-type: oklch(0.45 0.055 195);
+  --syntax-punctuation: #6f5a44;
+  --syntax-invalid: #a83232;
+}

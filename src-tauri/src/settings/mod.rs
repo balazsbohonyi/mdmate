@@ -11,6 +11,7 @@
 //! can also come from `MDMATE_LINKS_ON_RENAME`, which wins over the file for that run.
 
 pub(crate) mod runtime;
+pub(crate) mod themes;
 
 use crate::error::AppError;
 use crate::fs::atomic;
@@ -59,7 +60,7 @@ pub(crate) fn links_on_rename_from_env() -> Option<&'static str> {
     links_on_rename(std::env::var_os(LINKS_ON_RENAME_ENV))
 }
 
-type Sink = Box<dyn Fn() + Send + Sync>;
+pub(super) type Sink = Box<dyn Fn() + Send + Sync>;
 
 /// The settings file in the data folder, and who hears about changes to it.
 pub(crate) struct SettingsStore {
@@ -77,7 +78,7 @@ impl std::fmt::Debug for SettingsStore {
     }
 }
 
-fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+pub(super) fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
@@ -192,7 +193,7 @@ impl SettingsStore {
         let (sink, name) = (Arc::clone(&self.sink), self.name);
         std::thread::Builder::new()
             .name("mdmate-settings-watch".into())
-            .spawn(move || run(&rx, &sink, name))
+            .spawn(move || run(&rx, &sink, |event| about_event(event, name)))
             .map_err(|error| AppError::Watch(error.to_string()))?;
         *watcher = Some(made);
         Ok(())
@@ -204,8 +205,20 @@ fn about(path: &Path, name: &str) -> bool {
     path.file_name().is_some_and(|found| found == name)
 }
 
-/// The watcher thread: waits for the file to go quiet, then tells the sink once.
-fn run(rx: &mpsc::Receiver<notify::Result<notify::Event>>, sink: &Mutex<Option<Sink>>, name: &str) {
+/// Whether an event concerns the named file, or says events were lost. A read does not count.
+fn about_event(event: &notify::Event, name: &str) -> bool {
+    event.need_rescan()
+        || (!matches!(event.kind, EventKind::Access(_))
+            && event.paths.iter().any(|path| about(path, name)))
+}
+
+/// The watcher thread: waits for the files to go quiet, then tells the sink once. `relevant` says
+/// whether an event is about a file this watch is for. Shared with the theme files' watcher.
+pub(super) fn run(
+    rx: &mpsc::Receiver<notify::Result<notify::Event>>,
+    sink: &Mutex<Option<Sink>>,
+    relevant: impl Fn(&notify::Event) -> bool,
+) {
     let mut due: Option<Instant> = None;
     loop {
         let message = match due {
@@ -214,10 +227,7 @@ fn run(rx: &mpsc::Receiver<notify::Result<notify::Event>>, sink: &Mutex<Option<S
         };
         match message {
             Ok(Ok(event)) => {
-                let touches = event.need_rescan()
-                    || (!matches!(event.kind, EventKind::Access(_))
-                        && event.paths.iter().any(|path| about(path, name)));
-                if touches {
+                if relevant(&event) {
                     due = Some(Instant::now() + QUIET);
                 }
             }

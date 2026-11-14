@@ -816,8 +816,9 @@ describe('ISC-357: the search box filters the rows of every group', () => {
 
   it('does not search the settings.json button row, which is not a setting', async () => {
     await mountScreen('advanced')
-    // One button row for each file behind the screen: settings.json and keybindings.json.
-    expect(document.querySelectorAll('[data-setting-action]')).toHaveLength(2)
+    // One button row for each file or folder behind the screen: settings.json, keybindings.json
+    // and the themes folder.
+    expect(document.querySelectorAll('[data-setting-action]')).toHaveLength(3)
     await find('settings')
     expect(document.querySelectorAll('[data-setting-action]')).toHaveLength(0)
   })

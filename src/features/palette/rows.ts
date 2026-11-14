@@ -1,6 +1,6 @@
 import { commandState, listCommands, isCommandEnabled, shortcutLabel } from '@/workbench/commands'
 import { settings } from '@/lib/settings'
-import { THEME_CHOICES } from '@/lib/themes'
+import { themeChoices } from '@/features/themes/store'
 import { detectPlatform } from '@/workbench/keybinding'
 import { rankByFuzzy } from '@/lib/fuzzy'
 import type { QuickOpenItem } from '@/platform/quickOpen'
@@ -68,8 +68,9 @@ export function themeRows(query: string): PickRow[] {
     disabled: false,
     state: null,
   })
-  if (query.trim() === '') return THEME_CHOICES.map((theme) => row(theme.value, theme.label, []))
-  return rankByFuzzy([...THEME_CHOICES], query, (theme) => theme.label).map(({ item, hit }) =>
+  const choices = themeChoices.value
+  if (query.trim() === '') return choices.map((theme) => row(theme.value, theme.label, []))
+  return rankByFuzzy([...choices], query, (theme) => theme.label).map(({ item, hit }) =>
     row(item.value, item.label, hit.matches),
   )
 }

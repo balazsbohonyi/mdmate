@@ -103,7 +103,7 @@ Phase 9 runs before this phase (owner's decision, 2026-11-13): image paste ships
 - [x] P8-T1e: Fonts: three families, base size, code size, heading scale, applied live — closes ISC-360, ISC-361, ISC-362, ISC-363 and the new ISC-392, ISC-393
 - [x] P8-T1f: Palette toggles that show their state, and Switch Theme — closes ISC-153, ISC-370 and the new ISC-394, ISC-395; ISC-249 has its Toggle Developer Tools command and was closed afterwards by F12 on a release build the owner allowed; ISC-358 and ISC-371 moved to P8-T3, they need the themes
 - [x] P8-T2: Keybindings: the file, the rebind API, the on-screen recorder — closes ISC-149, ISC-372, ISC-373, ISC-374, ISC-375, ISC-376 and the new ISC-402 to ISC-411
-- [ ] P8-T3: Themes: Dark, Light, Sepia and System, user theme files, Customize, the colour editor — closes ISC-145, ISC-146, ISC-150, ISC-151, ISC-173, ISC-377, ISC-378, ISC-379, ISC-380, ISC-381, ISC-382, ISC-383, ISC-385, ISC-358, ISC-371
+- [x] P8-T3: Themes: Dark, Light, Sepia and System, user theme files, Customize, the colour editor — closes ISC-145, ISC-150, ISC-151, ISC-173, ISC-377, ISC-378, ISC-379, ISC-380, ISC-381, ISC-382, ISC-383, ISC-385, ISC-358, ISC-371 and the new ISC-445 to ISC-458; ISC-146 (no SublimeText assets) stays open for the owner to review
 - [ ] P8-T4: Portable mode — closes ISC-152
 
 ## Phase 9: Image authoring ([plan](phases/phase-09/plan.md))

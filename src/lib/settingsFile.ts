@@ -84,7 +84,7 @@ function checkFamily(value: unknown): Checked<string> {
 }
 
 /** Names Windows keeps for devices, with or without an extension. */
-function reservedName(part: string): boolean {
+export function reservedName(part: string): boolean {
   const base = (part.split('.')[0] ?? '').trimEnd().toUpperCase()
   return ['CON', 'PRN', 'AUX', 'NUL'].includes(base) || /^(?:COM|LPT)[1-9]$/.test(base)
 }

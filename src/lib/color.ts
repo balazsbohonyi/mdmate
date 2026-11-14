@@ -1,4 +1,8 @@
-/** Just enough CSS color parsing to check contrast: `#rrggbb` and `oklch()` with optional alpha. */
+/**
+ * Just enough CSS color parsing to check contrast and to show a swatch: `#rgb`, `#rgba`, `#rrggbb`,
+ * `#rrggbbaa` and OKLCH colors with optional alpha. Those are the only colors a theme holds, so this is
+ * also the check that a theme file's value is a color at all (`themeFile.ts` builds on it).
+ */
 
 export interface Rgb {
   /** Linear-light sRGB, before any clamping. A channel outside 0 to 1 is outside the sRGB gamut. */
@@ -15,6 +19,11 @@ function toNumber(text: string, percentScale: number): number {
 
 function srgbToLinear(channel: number): number {
   return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
+}
+
+function linearToSrgb(channel: number): number {
+  const clamped = Math.min(1, Math.max(0, channel))
+  return clamped <= 0.0031308 ? clamped * 12.92 : 1.055 * clamped ** (1 / 2.4) - 0.055
 }
 
 function parseHex(value: string): Rgb {
@@ -36,7 +45,7 @@ function parseHex(value: string): Rgb {
 
 function parseOklch(value: string): Rgb {
   const match = /^oklch\(\s*([^\s/]+)\s+([^\s/]+)\s+([^\s/]+)\s*(?:\/\s*([^)]+))?\)$/i.exec(value)
-  if (!match) throw new Error(`Not an oklch() color: ${value}`)
+  if (!match) throw new Error(`Not an OKLCH color: ${value}`)
   const lightness = toNumber(match[1] ?? '0', 1)
   const chroma = toNumber(match[2] ?? '0', 0.4)
   const hue = (Number.parseFloat(match[3] ?? '0') * Math.PI) / 180
@@ -63,12 +72,22 @@ export function parseColor(value: string): Rgb {
   throw new Error(`Unsupported color: ${value}`)
 }
 
+/** `parseColor`, or null for a value it cannot read. */
+export function tryParseColor(value: string): Rgb | null {
+  try {
+    const color = parseColor(value)
+    return color.linear.every(Number.isFinite) && Number.isFinite(color.alpha) ? color : null
+  } catch {
+    return null
+  }
+}
+
 /** True when every channel is inside sRGB, with a little slack for rounding. */
 export function inGamut(color: Rgb): boolean {
   return color.linear.every((channel) => channel >= -0.002 && channel <= 1.002)
 }
 
-function luminance(color: Rgb): number {
+export function luminance(color: Rgb): number {
   const [r, g, b] = color.linear.map((channel) => Math.min(1, Math.max(0, channel))) as [
     number,
     number,
@@ -82,4 +101,15 @@ export function contrast(first: Rgb, second: Rgb): number {
   const high = Math.max(luminance(first), luminance(second))
   const low = Math.min(luminance(first), luminance(second))
   return (high + 0.05) / (low + 0.05)
+}
+
+/** The color as `#rrggbb`, clamped into sRGB and without its alpha; what a color picker holds. */
+export function toHex(color: Rgb): string {
+  return `#${color.linear
+    .map((channel) =>
+      Math.round(linearToSrgb(channel) * 255)
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('')}`
 }
