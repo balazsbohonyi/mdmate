@@ -45,9 +45,9 @@ Toggle Word Wrap and Toggle Developer Tools show their current state in the pale
 
 ## P8-T2: Keybindings
 
-`keybindings.json` maps a command id to a `Mod+...` shortcut, one binding per command, using `Mod` so bindings carry across OSes. A saved rebinding works immediately (ISC-149). An invalid entry keeps that command's default and shows a notice (ISC-376).
+`keybindings.json` maps a command id to a `Mod+...` shortcut, one binding per command, using `Mod` so bindings carry across OSes. A saved rebinding works immediately (ISC-149). An invalid entry keeps that command's default and shows a notice (ISC-376). `null` means no shortcut. The file is resolved as a whole: a swap works, and a shortcut two commands want goes to neither override (ISC-403, ISC-404). A rebinding also wins inside the editor over a key CodeMirror uses (ISC-402).
 
-The Keyboard category lists every command with its shortcut (ISC-372). Clicking a row records the next key combination and rebinds at once (ISC-373). A combination already in use names the other command and offers Replace, which unbinds it (ISC-374). Each row can be reset, and Reset all clears the file (ISC-375).
+The Keyboard category lists every command with its shortcut (ISC-372). Clicking a row records the next key combination and rebinds at once (ISC-373). A combination already in use names the other command and offers Replace, which unbinds it (ISC-374). Each row can be reset, and Reset all clears the file (ISC-375, ISC-408). A change made while the `keybindings.json` tab holds unsaved edits asks first (ISC-405). Advanced opens the file (ISC-409).
 
 ## P8-T3: Themes
 

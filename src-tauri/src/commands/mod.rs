@@ -15,7 +15,7 @@ use crate::recent::{self, RecentStore};
 use crate::save_as::{self, SaveRequest, SavedAs};
 use crate::search;
 use crate::session::{self, CloseHook, SessionStore};
-use crate::settings::SettingsStore;
+use crate::settings::{KeybindingsStore, SettingsStore};
 use crate::workspace::ops::{self, ClashAnswer, CopyReport, Moved};
 use crate::workspace::roots::{self, RootStore};
 use crate::workspace::tree::{self, TreeEntry};
@@ -957,6 +957,57 @@ pub(crate) fn devtools_open(
 pub(crate) async fn settings_file(
     state: State<'_, Arc<AppState>>,
     store: State<'_, Arc<SettingsStore>>,
+) -> Result<String, AppError> {
+    let (state, store) = (state.inner().clone(), store.inner().clone());
+    tauri::async_runtime::spawn_blocking(move || {
+        let file = store.ensure_file()?;
+        let resolved = state.access().grant_file(&file)?;
+        Ok::<_, AppError>(display_path(&resolved.path))
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// The text of `keybindings.json` in the data folder, or nothing when there is no file yet. Like
+/// `settings.json`: the page names no path, and the page decides what the text means.
+#[tauri::command]
+pub(crate) async fn keybindings_read(
+    store: State<'_, Arc<KeybindingsStore>>,
+) -> Result<Option<String>, AppError> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || store.read())
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Replaces `keybindings.json` with the text, atomically.
+#[tauri::command]
+pub(crate) async fn keybindings_write(
+    store: State<'_, Arc<KeybindingsStore>>,
+    text: String,
+) -> Result<(), AppError> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || store.write(&text))
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Tells the page each time `keybindings.json` changes, whoever changed it.
+#[tauri::command]
+pub(crate) fn watch_keybindings(
+    store: State<'_, Arc<KeybindingsStore>>,
+    on_change: Channel<()>,
+) -> Result<(), AppError> {
+    store.watch(Box::new(move || {
+        let _ = on_change.send(());
+    }))
+}
+
+/// Makes `keybindings.json` if it is missing and lets the page open it as a tab. Returns its path.
+#[tauri::command]
+pub(crate) async fn keybindings_file(
+    state: State<'_, Arc<AppState>>,
+    store: State<'_, Arc<KeybindingsStore>>,
 ) -> Result<String, AppError> {
     let (state, store) = (state.inner().clone(), store.inner().clone());
     tauri::async_runtime::spawn_blocking(move || {

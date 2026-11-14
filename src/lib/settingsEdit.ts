@@ -24,6 +24,7 @@ export function settingsText(root: Json): string {
 /** Reads the text as the object it holds. Empty text is an empty object. */
 export function readRoot(
   text: string,
+  fileName = 'settings.json',
 ): { ok: true; root: Json } | Extract<EditResult, { ok: false }> {
   const source = stripBom(text)
   if (source.trim() === '') return { ok: true, root: {} }
@@ -33,15 +34,14 @@ export function readRoot(
   } catch (error) {
     return {
       ok: false,
-      message: 'settings.json is not valid JSON, so nothing was written. Fix the file first.',
+      message: `${fileName} is not valid JSON, so nothing was written. Fix the file first.`,
       spot: syntaxSpot(error, source),
     }
   }
   if (!isObject(value)) {
     return {
       ok: false,
-      message:
-        'settings.json must hold one JSON object, so nothing was written. Fix the file first.',
+      message: `${fileName} must hold one JSON object, so nothing was written. Fix the file first.`,
       spot: { line: null, column: null },
     }
   }
@@ -57,8 +57,9 @@ export function editSettingsText(
   text: string,
   path: readonly string[],
   value: unknown,
+  fileName = 'settings.json',
 ): EditResult {
-  const read = readRoot(text)
+  const read = readRoot(text, fileName)
   if (!read.ok) return read
   const { root } = read
   const last = path[path.length - 1]

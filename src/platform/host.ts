@@ -432,6 +432,15 @@ export interface Host {
    * makes the open folders' indexes walk again.
    */
   settingsApply(values: AppliedSettings): Promise<void>
+  /**
+   * `keybindings.json`, the way `settings.json` is kept: its text in the app's data folder (null
+   * when there is no file yet), replaced atomically, heard when it changes, and made and granted so
+   * it can open as a tab. The page names no path for any of them.
+   */
+  keybindingsRead(): Promise<string | null>
+  keybindingsWrite(text: string): Promise<void>
+  watchKeybindings(onChange: () => void): Promise<() => void>
+  keybindingsFile(): Promise<string>
   /** Opens the developer tools. Rejects with `not-allowed` while the `devtools` setting is off. */
   devtoolsOpen(): Promise<void>
   /**

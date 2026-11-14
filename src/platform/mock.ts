@@ -158,6 +158,7 @@ export const DRAFT_ROOT = '/mock-data/drafts'
 
 /** Where the mock keeps `settings.json`, in the same files the app can open as a tab. */
 export const MOCK_SETTINGS_FILE = '/mock-data/settings.json'
+export const MOCK_KEYBINDINGS_FILE = '/mock-data/keybindings.json'
 
 /** The files of a draft's `assets` that can be copied: a name and one of the four extensions. */
 const DRAFT_IMAGE = /^[^/\\]+\.(?:png|jpg|gif|webp)$/i
@@ -1060,6 +1061,27 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
       return attempt(() => {
         if (!files.has(MOCK_SETTINGS_FILE)) files.write(MOCK_SETTINGS_FILE, '{}\n')
         return MOCK_SETTINGS_FILE
+      })
+    },
+    keybindingsRead() {
+      return attempt(() => files.read(MOCK_KEYBINDINGS_FILE) ?? null)
+    },
+    keybindingsWrite(text) {
+      return attempt(() => {
+        files.write(MOCK_KEYBINDINGS_FILE, text)
+      })
+    },
+    watchKeybindings(onChange) {
+      return Promise.resolve(
+        files.onChange((path) => {
+          if (pathKey(path) === pathKey(MOCK_KEYBINDINGS_FILE)) onChange()
+        }),
+      )
+    },
+    keybindingsFile() {
+      return attempt(() => {
+        if (!files.has(MOCK_KEYBINDINGS_FILE)) files.write(MOCK_KEYBINDINGS_FILE, '{}\n')
+        return MOCK_KEYBINDINGS_FILE
       })
     },
     settingsApply(values) {

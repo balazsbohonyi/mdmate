@@ -52,6 +52,7 @@ import {
   settingsFileState,
 } from './store'
 import { LINKS_ENV_VAR, rowsMatching, rowsOf, SETTING_ROWS, type SettingRowSpec } from './rows'
+import KeyboardPanel from './KeyboardPanel.vue'
 import SettingRow from './SettingRow.vue'
 
 /**
@@ -72,6 +73,8 @@ const shown = computed<readonly SettingRowSpec[]>(() =>
 )
 const heading = computed(() => (searching.value ? 'Search results' : label.value))
 const showsActions = computed(() => !searching.value && category.value === 'advanced')
+/** The Keyboard category is a list of commands, not of settings, so it has its own panel. */
+const showsKeyboard = computed(() => !searching.value && category.value === 'keyboard')
 
 function choose(id: SettingsCategory): void {
   query.value = ''
@@ -383,6 +386,12 @@ function answer(choice: 'save' | 'discard' | 'cancel'): void {
   })
 }
 
+function openKeybindingsFile(): void {
+  runCommand(COMMAND_IDS.openKeybindingsFile).catch((error: unknown) => {
+    console.error('Could not open keybindings.json', error)
+  })
+}
+
 function openFile(): void {
   runCommand(COMMAND_IDS.openSettingsFile).catch((error: unknown) => {
     console.error('Could not open settings.json', error)
@@ -501,7 +510,11 @@ function openFile(): void {
         >
           {{ heading }}
         </h1>
-        <div class="mt-2">
+        <KeyboardPanel v-if="showsKeyboard" />
+        <div
+          v-else
+          class="mt-2"
+        >
           <SettingRow
             v-for="spec in shown"
             :key="spec.key"
@@ -781,6 +794,25 @@ function openFile(): void {
               @click="openFile"
             >
               Open settings.json
+            </Button>
+          </SettingRow>
+          <SettingRow
+            v-if="showsActions"
+            :setting-key="null"
+            label="keybindings.json"
+            description="The file behind the shortcuts. Edit it by hand and the Keyboard group follows."
+            :modified="false"
+            :error="null"
+            :locked="null"
+          >
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              data-open-keybindings-file
+              @click="openKeybindingsFile"
+            >
+              Open keybindings.json
             </Button>
           </SettingRow>
           <p

@@ -82,6 +82,7 @@ export const COMMAND_IDS = {
   toggleDevtools: 'tools.toggleDevtools',
   openSettings: 'tools.openSettings',
   openSettingsFile: 'tools.openSettingsFile',
+  openKeybindingsFile: 'tools.openKeybindingsFile',
   exit: 'app.exit',
 } as const
 
@@ -245,6 +246,18 @@ export function registerDefaultCommands(): () => void {
           await openInActivePane(await (await getHost()).settingsFile())
         } catch (error) {
           reportError(`Could not open settings.json: ${describe(error)}`)
+        }
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.openKeybindingsFile,
+      title: 'Open keybindings.json',
+      run: async () => {
+        try {
+          // Rust makes the file if it is missing and grants that one path.
+          await openInActivePane(await (await getHost()).keybindingsFile())
+        } catch (error) {
+          reportError(`Could not open keybindings.json: ${describe(error)}`)
         }
       },
     }),

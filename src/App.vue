@@ -3,6 +3,7 @@ import { onMounted } from 'vue'
 import { beginJournal, restoreOnStart } from '@/documents/session'
 import { watchDisk } from '@/documents/store'
 import { installFileDrop } from '@/features/drop'
+import { loadKeybindings, watchKeybindingsFile } from '@/features/keybindings/store'
 import { loadSettings, watchSettingsFile } from '@/features/settings/store'
 import { reportWindowShown } from '@/lib/lifecycle'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -25,6 +26,8 @@ onMounted(async () => {
   // First, so what the settings change (fonts, wrapping, the large-file size) is in force when the
   // first document is made. A file that cannot be used costs the settings, never the start.
   await loadSettings()
+  // Also before the first paint: a saved shortcut works from the first key press.
+  await loadKeybindings()
   // Before the first paint, so the window opens with the tabs the last run left.
   const restored = await restoreOnStart()
   await afterPaint()
@@ -34,6 +37,9 @@ onMounted(async () => {
   void watchDisk()
   void watchSettingsFile().catch((error: unknown) => {
     console.error('Could not watch settings.json', error)
+  })
+  void watchKeybindingsFile().catch((error: unknown) => {
+    console.error('Could not watch keybindings.json', error)
   })
   void installFileDrop().catch((error: unknown) => {
     console.error('Could not listen for dropped files', error)

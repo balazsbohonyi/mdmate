@@ -809,7 +809,8 @@ describe('ISC-357: the search box filters the rows of every group', () => {
 
   it('does not search the settings.json button row, which is not a setting', async () => {
     await mountScreen('advanced')
-    expect(document.querySelectorAll('[data-setting-action]')).toHaveLength(1)
+    // One button row for each file behind the screen: settings.json and keybindings.json.
+    expect(document.querySelectorAll('[data-setting-action]')).toHaveLength(2)
     await find('settings')
     expect(document.querySelectorAll('[data-setting-action]')).toHaveLength(0)
   })
@@ -902,12 +903,10 @@ describe('the Advanced and Keyboard groups', () => {
     )
   })
 
-  it('says a group with no settings has none', async () => {
+  it('shows the shortcuts panel, not a list of settings, in the Keyboard group', async () => {
     await mountScreen('keyboard')
-    expect(rowKeys()).toEqual([])
-    expect(document.querySelector('[data-settings-empty]')?.textContent).toContain(
-      'no settings yet',
-    )
+    expect(document.querySelector('[data-keyboard-panel]')).not.toBeNull()
+    expect(document.querySelector('[data-settings-empty]')).toBeNull()
   })
 })
 

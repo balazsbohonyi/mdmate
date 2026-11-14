@@ -24,6 +24,10 @@ use std::time::{Duration, Instant};
 /// The file's name inside the data folder.
 pub(crate) const FILE: &str = "settings.json";
 
+/// The shortcuts file's name inside the data folder. It is kept by the same code as the settings
+/// file, under a name fixed here, so the page names no path for either.
+pub(crate) const KEYBINDINGS_FILE: &str = "keybindings.json";
+
 /// What a new file holds, so an opened `settings.json` is a valid object to type into.
 const EMPTY: &str = "{}\n";
 
@@ -60,6 +64,8 @@ type Sink = Box<dyn Fn() + Send + Sync>;
 /// The settings file in the data folder, and who hears about changes to it.
 pub(crate) struct SettingsStore {
     dir: PathBuf,
+    /// The file's name inside `dir`: one of the two constants above, never from the page.
+    name: &'static str,
     sink: Arc<Mutex<Option<Sink>>>,
     /// Kept alive so the watch lasts as long as the app.
     watcher: Mutex<Option<RecommendedWatcher>>,
@@ -75,10 +81,38 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
+/// The shortcuts file: the same store as the settings file, a second managed value so each
+/// command asks for its own.
+pub(crate) struct KeybindingsStore(SettingsStore);
+
+impl KeybindingsStore {
+    pub(crate) fn new(dir: PathBuf) -> Self {
+        Self(SettingsStore::named(dir, KEYBINDINGS_FILE))
+    }
+}
+
+impl std::ops::Deref for KeybindingsStore {
+    type Target = SettingsStore;
+    fn deref(&self) -> &SettingsStore {
+        &self.0
+    }
+}
+
+impl std::fmt::Debug for KeybindingsStore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("KeybindingsStore")
+    }
+}
+
 impl SettingsStore {
     pub(crate) fn new(dir: PathBuf) -> Self {
+        Self::named(dir, FILE)
+    }
+
+    fn named(dir: PathBuf, name: &'static str) -> Self {
         Self {
             dir,
+            name,
             sink: Arc::new(Mutex::new(None)),
             watcher: Mutex::new(None),
         }
@@ -86,7 +120,7 @@ impl SettingsStore {
 
     /// Where the file is, whether or not it exists yet.
     pub(crate) fn file(&self) -> PathBuf {
-        self.dir.join(FILE)
+        self.dir.join(self.name)
     }
 
     /// The file's text, or None when there is no file yet. Text that is not UTF-8 is an error the
@@ -98,22 +132,24 @@ impl SettingsStore {
             Err(error) => return Err(error.into()),
         };
         if bytes.len() > MAX_BYTES {
-            return Err(AppError::Invalid(
-                "settings.json is larger than 1 MB".into(),
-            ));
+            return Err(AppError::Invalid(format!(
+                "{} is larger than 1 MB",
+                self.name
+            )));
         }
         String::from_utf8(bytes)
             .map(Some)
-            .map_err(|_| AppError::Invalid("settings.json is not UTF-8 text".into()))
+            .map_err(|_| AppError::Invalid(format!("{} is not UTF-8 text", self.name)))
     }
 
     /// Replaces the file with `text`, atomically: the old file stays whole until the new one is
     /// completely written. Makes the data folder first when this is the first write.
     pub(crate) fn write(&self, text: &str) -> Result<(), AppError> {
         if text.len() > MAX_BYTES {
-            return Err(AppError::Invalid(
-                "settings.json would be larger than 1 MB".into(),
-            ));
+            return Err(AppError::Invalid(format!(
+                "{} would be larger than 1 MB",
+                self.name
+            )));
         }
         std::fs::create_dir_all(&self.dir)?;
         atomic::write_atomic_with(&self.file(), text.as_bytes(), |_| Ok(())).map_err(|error| {
@@ -153,7 +189,7 @@ impl SettingsStore {
         // the watch on some systems (the same reason `workspace/watch.rs` watches folders).
         made.watch(&self.dir, RecursiveMode::NonRecursive)
             .map_err(|error| AppError::Watch(error.to_string()))?;
-        let (sink, name) = (Arc::clone(&self.sink), FILE);
+        let (sink, name) = (Arc::clone(&self.sink), self.name);
         std::thread::Builder::new()
             .name("mdmate-settings-watch".into())
             .spawn(move || run(&rx, &sink, name))
@@ -358,5 +394,78 @@ mod tests {
         store.write("{\"a\": 1}\n").expect("written");
         std::thread::sleep(Duration::from_millis(600));
         assert_eq!(heard.load(Ordering::SeqCst), 1, "one save is one report");
+    }
+
+    #[test]
+    fn the_shortcuts_file_is_its_own_file_and_each_store_hears_only_its_own() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let data = dir.path().join("data");
+        let settings = SettingsStore::new(data.clone());
+        let keys = KeybindingsStore::new(data.clone());
+        assert_eq!(keys.file(), data.join("keybindings.json"));
+        assert_eq!(settings.file(), data.join("settings.json"));
+
+        settings
+            .write(
+                "{\"theme\": \"light\"}
+",
+            )
+            .expect("settings written");
+        keys.write(
+            "{\"file.new\": null}
+",
+        )
+        .expect("keys written");
+        assert_eq!(
+            settings.read().expect("read"),
+            Some(
+                "{\"theme\": \"light\"}
+"
+                .to_string()
+            )
+        );
+        assert_eq!(
+            keys.read().expect("read"),
+            Some(
+                "{\"file.new\": null}
+"
+                .to_string()
+            )
+        );
+
+        let heard = Arc::new(AtomicUsize::new(0));
+        let counter = Arc::clone(&heard);
+        keys.watch(Box::new(move || {
+            counter.fetch_add(1, Ordering::SeqCst);
+        }))
+        .expect("watching");
+        settings
+            .write(
+                "{}
+",
+            )
+            .expect("settings again");
+        std::thread::sleep(Duration::from_millis(600));
+        assert_eq!(
+            heard.load(Ordering::SeqCst),
+            0,
+            "the settings file is not the shortcuts file"
+        );
+        keys.write(
+            "{}
+",
+        )
+        .expect("keys again");
+        std::thread::sleep(Duration::from_millis(600));
+        assert_eq!(heard.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn a_too_big_shortcuts_file_is_refused_by_its_own_name() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let keys = KeybindingsStore::new(dir.path().join("data"));
+        let big = "x".repeat(MAX_BYTES + 1);
+        let message = keys.write(&big).expect_err("too big").to_string();
+        assert!(message.contains("keybindings.json"), "{message}");
     }
 }

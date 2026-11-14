@@ -2,6 +2,7 @@ import { defaultKeymap, history, historyKeymap, indentLess, insertTab } from '@c
 import { indentUnit, syntaxHighlighting } from '@codemirror/language'
 import { EditorState, type EditorSelection, type Extension, type Text } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
+import { appKeys } from './appKeys'
 import { findSupport } from './find'
 import { matchTicks } from './matchTicks'
 import { revealMark } from './revealMark'
@@ -71,6 +72,7 @@ const tabKeys: Extension = [
 
 /** What every document gets, with or without the Markdown parser. */
 const common: Extension = [
+  appKeys,
   history(),
   keymap.of([...editorKeymap, ...historyKeymap]),
   wordWrap,
@@ -124,6 +126,8 @@ export function createMasterState(doc: string, extensions: Extension = []): Edit
 
 /** What every follower gets: the default keys without history, which lives on the master. */
 const followerBase: Extension = [
+  // The app's own shortcuts first, so a rebinding wins over a key of the editor's own (ISC-402).
+  appKeys,
   keymap.of(editorKeymap),
   wordWrap,
   documentFonts,

@@ -84,6 +84,30 @@ function eventKey(event: KeyInput): string {
   return event.key
 }
 
+const MODIFIER_KEYS = new Set(['Control', 'Shift', 'Alt', 'Meta', 'AltGraph', 'OS'])
+
+/** True for the press of a modifier on its own (Ctrl, Shift, Alt, Meta), which is never a shortcut. */
+export function isModifierKey(event: KeyInput): boolean {
+  return MODIFIER_KEYS.has(event.key)
+}
+
+/**
+ * The shortcut a key press stands for, as the recorder takes it: the same key and `Mod` mapping that
+ * `matchesKey` reads, so `matchesKey(bindingFromEvent(e), e)` holds. Null when the press cannot be
+ * a shortcut: a modifier on its own, a key this module has no name for, or the other platform's
+ * modifier held (Ctrl on a Mac, the Windows key elsewhere), which `Mod` cannot say. It does not check
+ * that the result is a usable shortcut: `parseKeybinding` on its text does that.
+ */
+export function bindingFromEvent(event: KeyInput, platform: Platform): Keybinding | null {
+  const mac = platform === 'mac'
+  if (mac ? event.ctrlKey : event.metaKey) return null
+  const raw = eventKey(event)
+  if (MODIFIER_KEYS.has(raw)) return null
+  const key = normalizeKeyName(raw)
+  if (key === null) return null
+  return { mod: mac ? event.metaKey : event.ctrlKey, alt: event.altKey, shift: event.shiftKey, key }
+}
+
 /** True when the event is exactly this shortcut: the same key, and no other modifier held. */
 export function matchesKey(binding: Keybinding, event: KeyInput, platform: Platform): boolean {
   const mac = platform === 'mac'
@@ -102,6 +126,13 @@ export function matchesKey(binding: Keybinding, event: KeyInput, platform: Platf
 export function canonicalKeybinding(binding: Keybinding): string {
   const parts = [binding.mod ? 'Mod' : '', binding.alt ? 'Alt' : '', binding.shift ? 'Shift' : '']
   return [...parts.filter(Boolean), binding.key].join('+')
+}
+
+/** A shortcut as the file keeps it: `Mod+Shift+B`, which `parseKeybinding` reads back. */
+export function bindingText(binding: Keybinding): string {
+  const parts = [binding.mod ? 'Mod' : '', binding.alt ? 'Alt' : '', binding.shift ? 'Shift' : '']
+  const key = binding.key.length === 1 ? binding.key.toUpperCase() : binding.key
+  return [...parts.filter(Boolean), key].join('+')
 }
 
 /** How a shortcut reads in a menu: `Ctrl+Shift+B`, or `⇧⌘B` on a Mac. */

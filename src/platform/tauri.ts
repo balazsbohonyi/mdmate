@@ -262,6 +262,24 @@ export const tauriHost: Host = {
   async settingsApply(values) {
     await invoke('settings_apply', { applied: values })
   },
+  async keybindingsRead() {
+    const text = await invoke<unknown>('keybindings_read')
+    return typeof text === 'string' ? text : null
+  },
+  async keybindingsWrite(text) {
+    await invoke('keybindings_write', { text })
+  },
+  async watchKeybindings(onChange) {
+    const channel = new Channel<null>()
+    channel.onmessage = onChange
+    await invoke('watch_keybindings', { onChange: channel })
+    return () => {
+      channel.onmessage = () => undefined
+    }
+  },
+  async keybindingsFile() {
+    return invoke<string>('keybindings_file')
+  },
   async devtoolsOpen() {
     await invoke('devtools_open')
   },
