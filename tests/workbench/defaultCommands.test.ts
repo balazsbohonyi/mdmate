@@ -17,7 +17,14 @@ import { installKeybindings } from '@/workbench/keyboard'
 import { isRaw, resetRawModes } from '@/workbench/rawMode'
 import { sidebarVisible } from '@/workbench/sidebar'
 import { findPane, panesOf, type Layout } from '@/workbench/splitTree'
-import { resetWorkbench, selectTab, tabTitle, workbenchLayout } from '@/workbench/store'
+import {
+  resetWorkbench,
+  selectTab,
+  settingsTabId,
+  tabRecord,
+  tabTitle,
+  workbenchLayout,
+} from '@/workbench/store'
 import { openNewTab } from '../helpers/tabs'
 
 let target: EventTarget
@@ -45,6 +52,7 @@ const keys = {
   closeTab: { key: 'w', code: 'KeyW', ctrlKey: true },
   toggleSidebar: { key: 'B', code: 'KeyB', ctrlKey: true, shiftKey: true },
   toggleRawSource: { key: 'e', code: 'KeyE', ctrlKey: true },
+  openSettings: { key: ',', code: 'Comma', ctrlKey: true },
 }
 
 const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
@@ -91,6 +99,8 @@ describe('the default commands', () => {
       [COMMAND_IDS.rename]: 'F2',
       [COMMAND_IDS.findReferences]: 'Shift+F12',
       [COMMAND_IDS.openDevtools]: 'F12',
+      [COMMAND_IDS.openSettings]: 'Ctrl+,',
+      [COMMAND_IDS.openSettingsFile]: undefined,
       [COMMAND_IDS.clearRecent]: undefined,
       [COMMAND_IDS.splitRight]: 'Alt+Shift+2',
       [COMMAND_IDS.splitDown]: 'Alt+Shift+8',
@@ -121,10 +131,10 @@ describe('the default commands', () => {
   it('can be registered a second time before the first is removed, as hot reload does', () => {
     const removeOld = removeCommands
     removeCommands = registerDefaultCommands()
-    expect(listCommands()).toHaveLength(35)
+    expect(listCommands()).toHaveLength(37)
     // The old shell unmounts after the new one has mounted, and removes what it registered.
     removeOld()
-    expect(listCommands()).toHaveLength(35)
+    expect(listCommands()).toHaveLength(37)
     expect(shortcutLabel(COMMAND_IDS.toggleSidebar, 'other')).toBe('Ctrl+Shift+B')
   })
 
@@ -132,7 +142,43 @@ describe('the default commands', () => {
     removeCommands()
     expect(listCommands()).toEqual([])
     removeCommands = registerDefaultCommands()
-    expect(listCommands()).toHaveLength(35)
+    expect(listCommands()).toHaveLength(37)
+  })
+})
+
+describe('open settings', () => {
+  it('makes the Settings tab the active one from its shortcut, Ctrl+, (ISC-346)', async () => {
+    openNewTab('a.md')
+    expect(settingsTabId()).toBeUndefined()
+    const event = keydown(keys.openSettings)
+    await settle()
+    expect(event.defaultPrevented).toBe(true)
+    const tab = settingsTabId()
+    expect(tab).toBeDefined()
+    expect(findPane(workbenchLayout.value, workbenchLayout.value.activePane)?.activeTab).toBe(tab)
+    expect(tabRecord(tab ?? '')).toEqual({ kind: 'settings', category: 'appearance' })
+  })
+
+  it('shows the same tab when the shortcut is pressed again, from the command too', async () => {
+    keydown(keys.openSettings)
+    await settle()
+    const tab = settingsTabId()
+    openNewTab('a.md')
+    await runCommand(COMMAND_IDS.openSettings)
+    expect(settingsTabId()).toBe(tab)
+    expect(shape(workbenchLayout.value)).toBe('[Settings,a.md]')
+  })
+
+  it('ignores a comma without Ctrl, and Ctrl with another key', async () => {
+    for (const init of [
+      { key: ',', code: 'Comma' },
+      { key: '.', code: 'Period', ctrlKey: true },
+    ]) {
+      const event = keydown(init)
+      await settle()
+      expect(event.defaultPrevented).toBe(false)
+      expect(settingsTabId()).toBeUndefined()
+    }
   })
 })
 

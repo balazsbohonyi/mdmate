@@ -1,6 +1,7 @@
-import { computed, shallowReactive, shallowRef } from 'vue'
+import { computed, ref, shallowReactive, shallowRef } from 'vue'
 import { docMeta } from '@/documents/meta'
 import { baseName } from '@/features/tree/model'
+import { DEFAULT_SETTINGS_CATEGORY, type SettingsCategory } from '@/lib/settingsCategories'
 import {
   activatePane,
   activateTab,
@@ -21,7 +22,7 @@ import {
   type SplitId,
   type TabId,
 } from './splitTree'
-import { docIdOf, type ImageTab, type TabInfo, type TabRecord } from './tabs'
+import { docIdOf, type ImageTab, type SettingsTab, type TabInfo, type TabRecord } from './tabs'
 
 /**
  * The live workbench: the current layout and what each tab shows. A module-level store, shared by
@@ -38,10 +39,14 @@ export function tabRecord(id: TabId): TabRecord | undefined {
   return records.get(id)
 }
 
+/** The name on the Settings tab. */
+export const SETTINGS_TAB_TITLE = 'Settings'
+
 /** The name on a tab: its file's name. */
 export function tabTitle(id: TabId): string {
   const record = records.get(id)
   if (record === undefined) return id
+  if (record.kind === 'settings') return SETTINGS_TAB_TITLE
   if (record.kind === 'image') return baseName(record.path)
   return docMeta(record.docId)?.name ?? id
 }
@@ -72,6 +77,49 @@ export function imageTabs(): [TabId, ImageTab][] {
 export function setImagePath(id: TabId, path: string): void {
   const record = records.get(id)
   if (record?.kind === 'image') records.set(id, { ...record, path })
+}
+
+/**
+ * Counts the changes to a tab's record that the layout does not show, so the session knows to write
+ * them: today the category the Settings tab is on.
+ */
+export const tabRecordsVersion = ref(0)
+
+/** The Settings tab, wherever it is, or undefined while none is open. */
+export function settingsTabId(): TabId | undefined {
+  return [...records].find(([, record]) => record.kind === 'settings')?.[0]
+}
+
+/** The group of settings a Settings tab is showing. */
+export function settingsCategoryOf(id: TabId): SettingsCategory {
+  const record = records.get(id)
+  return record?.kind === 'settings' ? record.category : DEFAULT_SETTINGS_CATEGORY
+}
+
+/** Shows another group of settings in a Settings tab. */
+export function setSettingsCategory(id: TabId, category: SettingsCategory): void {
+  const record = records.get(id)
+  if (record?.kind !== 'settings' || record.category === category) return
+  records.set(id, { ...record, category })
+  tabRecordsVersion.value++
+}
+
+/**
+ * Shows the Settings tab: the one that is open, in whichever pane it is, or a new one in the active
+ * pane. There is never a second (ISC-343). A category, when given, is the one shown.
+ */
+export function openSettingsTab(category?: SettingsCategory): TabId {
+  const open = settingsTabId()
+  if (open === undefined) {
+    const record: SettingsTab = {
+      kind: 'settings',
+      category: category ?? DEFAULT_SETTINGS_CATEGORY,
+    }
+    return openTabFor(record)
+  }
+  if (category !== undefined) setSettingsCategory(open, category)
+  selectTab(open)
+  return open
 }
 
 type ClosedListener = (tabId: TabId, record: TabRecord) => void
@@ -140,12 +188,14 @@ export function resizeSplit(splitId: SplitId, sizes: readonly number[]): void {
 /**
  * Splits the active pane. The new pane opens a tab on `shown`, or by default on the same document
  * as the active tab, so an edit in either pane shows in both. With neither, the new pane is empty.
+ * The Settings tab is never copied: there is one, so splitting its pane leaves the new one empty
+ * (ISC-345).
  */
 export function splitActivePane(direction: Direction, shown?: TabRecord): void {
   const current = layout.value
   const active = findPane(current, current.activePane)
   const record = shown ?? (active?.activeTab ? records.get(active.activeTab) : undefined)
-  const tabs = record === undefined ? [] : [newTabId(record)]
+  const tabs = record === undefined || record.kind === 'settings' ? [] : [newTabId(record)]
   change((state) => splitPane(state, state.activePane, direction, 'after', tabs))
 }
 
@@ -172,4 +222,5 @@ export function resetWorkbench(): void {
   layout.value = createLayout()
   records.clear()
   tabCounter = 0
+  tabRecordsVersion.value = 0
 }

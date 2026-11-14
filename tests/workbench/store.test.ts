@@ -4,10 +4,15 @@ import {
   closeTabById,
   dropTabOnEdge,
   moveTabTo,
+  openSettingsTab,
   resetWorkbench,
   resizeSplit,
   selectTab,
+  setSettingsCategory,
+  settingsCategoryOf,
+  settingsTabId,
   splitActivePane,
+  tabRecord,
   tabTitle,
   workbenchLayout,
 } from '@/workbench/store'
@@ -88,5 +93,93 @@ describe('the workbench store', () => {
     resizeSplit(root.id, [30, 70])
     const resized = workbenchLayout.value.root
     expect(resized.kind === 'split' ? resized.sizes : []).toEqual([30, 70])
+  })
+})
+
+describe('the Settings tab', () => {
+  const settingsTabs = (): string[] =>
+    panesOf(workbenchLayout.value).flatMap((pane) =>
+      pane.tabs.filter((id) => tabRecord(id)?.kind === 'settings'),
+    )
+
+  it('opens one tab, named Settings, on the first group (ISC-343)', () => {
+    const tab = openSettingsTab()
+    expect(settingsTabs()).toEqual([tab])
+    expect(tabTitle(tab)).toBe('Settings')
+    expect(tabRecord(tab)).toEqual({ kind: 'settings', category: 'appearance' })
+    expect(findPane(workbenchLayout.value, 'p1')?.activeTab).toBe(tab)
+  })
+
+  it('shows that tab again on a second run, and opens no second (ISC-343)', () => {
+    const first = openSettingsTab()
+    const a = openNewTab('a.md')
+    expect(findPane(workbenchLayout.value, 'p1')?.activeTab).toBe(a)
+    const second = openSettingsTab()
+    expect(second).toBe(first)
+    expect(settingsTabs()).toEqual([first])
+    expect(findPane(workbenchLayout.value, 'p1')?.activeTab).toBe(first)
+  })
+
+  it('focuses the tab in its own pane when it is run from another pane (ISC-343)', () => {
+    openNewTab('a.md')
+    const settings = openSettingsTab()
+    splitActivePane('row')
+    const panes = panesOf(workbenchLayout.value)
+    const [left, right] = panes
+    expect(left?.tabs).toContain(settings)
+    // The new pane is the active one and holds a copy of what was shown, which is not the Settings tab.
+    expect(workbenchLayout.value.activePane).toBe(right?.id)
+    expect(right?.tabs.map((id) => tabRecord(id)?.kind)).toEqual([])
+    openSettingsTab()
+    expect(settingsTabs()).toEqual([settings])
+    expect(workbenchLayout.value.activePane).toBe(left?.id)
+  })
+
+  it('opens a new one after the tab was closed', () => {
+    const first = openSettingsTab('keyboard')
+    closeTabById(first)
+    expect(settingsTabId()).toBeUndefined()
+    const again = openSettingsTab()
+    expect(settingsTabs()).toEqual([again])
+    expect(settingsCategoryOf(again)).toBe('appearance')
+  })
+
+  it('shows the group it is asked for, and keeps the one a click chose', () => {
+    const tab = openSettingsTab('editor')
+    expect(settingsCategoryOf(tab)).toBe('editor')
+    setSettingsCategory(tab, 'advanced')
+    expect(openSettingsTab()).toBe(tab)
+    expect(settingsCategoryOf(tab)).toBe('advanced')
+    openSettingsTab('files')
+    expect(settingsCategoryOf(tab)).toBe('files')
+    expect(settingsTabs()).toEqual([tab])
+  })
+
+  it('is not copied by a split, right or down: the new pane is empty (ISC-345)', () => {
+    const tab = openSettingsTab('editor')
+    splitActivePane('row')
+    splitActivePane('column')
+    const panes = panesOf(workbenchLayout.value)
+    expect(panes).toHaveLength(3)
+    expect(settingsTabs()).toEqual([tab])
+    expect(panes.map((pane) => pane.tabs.length)).toEqual([1, 0, 0])
+    expect(tabRecord(tab)).toEqual({ kind: 'settings', category: 'editor' })
+  })
+
+  it('is not copied by a split that names it either', () => {
+    openNewTab('a.md')
+    splitActivePane('row', { kind: 'settings', category: 'files' })
+    expect(settingsTabs()).toEqual([])
+  })
+
+  it('moves to another pane like any tab, and is still the only one', () => {
+    openNewTab('a.md')
+    const tab = openSettingsTab()
+    splitActivePane('row')
+    const [, right] = panesOf(workbenchLayout.value)
+    if (right === undefined) throw new Error('no second pane')
+    moveTabTo(tab, right.id)
+    expect(settingsTabs()).toEqual([tab])
+    expect(findPane(workbenchLayout.value, right.id)?.tabs).toContain(tab)
   })
 })

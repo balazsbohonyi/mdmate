@@ -716,6 +716,30 @@ rule(
   },
 )
 
+// P8-T1c: the Settings screen loads on first use
+rule(
+  'settings-lazy',
+  'the Settings screen (SettingsView.vue, SettingRow.vue) is loaded with import() on first use, never statically',
+  ({ root }) => {
+    const violations = []
+    const lazy = /(?:^|\/)features\/settings\/(?:SettingsView|SettingRow)\.vue$/
+    for (const file of walk(root, 'src', SOURCE_EXTS)) {
+      if (file.startsWith('src/features/settings/')) continue
+      const text = readText(root, file)
+      for (const { spec, index, kind } of importSpecifiers(text)) {
+        if (kind === 'static' && lazy.test(spec)) {
+          violations.push({
+            file,
+            line: lineAt(text, index),
+            message: `static import of "${spec}"; Settings loads with import() the first time its tab is shown`,
+          })
+        }
+      }
+    }
+    return violations
+  },
+)
+
 // ISC-73
 rule(
   'no-math-mermaid',

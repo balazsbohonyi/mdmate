@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, defineAsyncComponent } from 'vue'
 import { requestCloseTab } from '@/documents/store'
 import { newUntitledTab } from '@/documents/untitled'
 import EditorHost from './EditorHost.vue'
@@ -15,6 +15,10 @@ import { docIdOf } from './tabs'
 import { beginTabDrag, tabDrag } from './tabDrag'
 import TabStrip from './TabStrip.vue'
 
+// The Settings screen loads the first time its tab is shown (check-arch: settings-lazy), so a
+// window that never opens it never pays for it.
+const SettingsView = defineAsyncComponent(() => import('@/features/settings/SettingsView.vue'))
+
 const { pane, active } = defineProps<{ pane: PaneNode; active: boolean }>()
 
 const tabs = computed(() => pane.tabs.map(tabInfo))
@@ -28,6 +32,9 @@ const activeImage = computed(() => {
   const record = activeRecord.value
   return record?.kind === 'image' ? record : null
 })
+
+/** True while the pane's active tab is the Settings tab. */
+const activeSettings = computed(() => activeRecord.value?.kind === 'settings')
 
 /** A click on a tab puts the caret in its editor, also when that tab was already the one shown (ISC-255). */
 function onSelect(id: string): void {
@@ -91,6 +98,11 @@ function startDrag(id: string, event: PointerEvent): void {
         :tab-id="pane.activeTab ?? ''"
         :path="activeImage.path"
         :size="activeImage.size"
+      />
+      <SettingsView
+        v-else-if="activeSettings"
+        :key="pane.activeTab ?? ''"
+        :tab-id="pane.activeTab ?? ''"
       />
       <div
         v-else

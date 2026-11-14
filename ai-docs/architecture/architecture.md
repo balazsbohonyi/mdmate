@@ -209,6 +209,8 @@ The page holds one validator, a table of every key with its file path, default a
 
 Keys that Rust has to act on reach it through one command, `settings_apply` (`settings/runtime.rs`): the paste folder, the recent caps, the excluded folder names and `devtools`. The page validates and pushes only when the values changed; Rust checks them again and refuses the lot if one is wrong. `AppState.runtime` holds the paste folder and `devtools`, `RecentStore` holds its two caps, and `fs/exclude.rs` holds the excluded list that the walker, the watcher and the index read (a changed list rescans every root). A draft keeps the fixed `assets` folder; `images.pasteFolder` applies at Save As. The developer tools are a `tauri` feature plus a command that refuses while the setting is off.
 
+The Settings screen is a tab (`kind: 'settings'`, `workbench/tabs.ts`) that holds the group it shows. `openSettingsTab` in `workbench/store.ts` shows the one that exists, in whichever pane, or opens it in the active pane; a split never copies it, and a session that names two keeps the first. The tab is written to `session.json` with its group (`kind: "settings"`); a saved kind this version does not know is left out, never opened as a file. `SettingsView.vue` loads lazily from `PaneView.vue` (`settings-lazy`). Open Settings (Ctrl+,), Open settings.json, the menu and palette entries and the title bar gear are in `workbench/defaultCommands.ts`, `shell/menuEntries.ts` and `shell/TitleBar.vue`.
+
 ## Security
 
 Markdown content is untrusted, and people will open files they did not write.

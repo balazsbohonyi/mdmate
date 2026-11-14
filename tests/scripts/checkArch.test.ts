@@ -318,6 +318,29 @@ const cases: RuleCase[] = [
     },
   },
   {
+    rule: 'settings-lazy',
+    clean: {
+      'src/workbench/PaneView.vue':
+        '<script setup lang="ts">\nconst Settings = () => import(\'@/features/settings/SettingsView.vue\')\n</script>\n',
+      'src/features/settings/SettingsView.vue':
+        '<script setup lang="ts">\nimport Row from \'./SettingRow.vue\'\nvoid Row\n</script>\n',
+      'src/features/settings/SettingRow.vue': '<script setup lang="ts"></script>\n',
+      'src/features/settings/store.ts': 'export const loadSettings = 1\n',
+    },
+    planted: {
+      'a static import of the screen': {
+        'src/workbench/PaneView.vue':
+          '<script setup lang="ts">\nimport SettingsView from \'@/features/settings/SettingsView.vue\'\nvoid SettingsView\n</script>\n',
+      },
+      'a static import of the row': {
+        'src/shell/a.ts': "import Row from '@/features/settings/SettingRow.vue'\nvoid Row\n",
+      },
+      'a relative static import of the screen': {
+        'src/shell/b.ts': "import S from '../features/settings/SettingsView.vue'\nvoid S\n",
+      },
+    },
+  },
+  {
     rule: 'no-plugin-fs',
     clean: {
       'src-tauri/Cargo.toml': '[dependencies]\ntauri = "2"\n# tauri-plugin-fs stays out\n',

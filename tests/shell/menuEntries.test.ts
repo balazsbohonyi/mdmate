@@ -5,6 +5,7 @@ vi.mock('@/platform', () => ({
   getHost: () => Promise.resolve({ windowControls: { close } }),
 }))
 
+import { commandRows } from '@/features/palette/rows'
 import { buildMenuEntries } from '@/shell/menuEntries'
 import { clearCommands, runCommand } from '@/workbench/commands'
 import { COMMAND_IDS, registerDefaultCommands } from '@/workbench/defaultCommands'
@@ -168,6 +169,20 @@ describe('the app menu', () => {
         disabled: false,
       },
       { kind: 'separator' },
+      {
+        kind: 'item',
+        id: COMMAND_IDS.openSettings,
+        label: 'Open Settings',
+        shortcut: 'Ctrl+,',
+        disabled: false,
+      },
+      {
+        kind: 'item',
+        id: COMMAND_IDS.openSettingsFile,
+        label: 'Open settings.json',
+        disabled: false,
+      },
+      { kind: 'separator' },
       { kind: 'item', id: COMMAND_IDS.exit, label: 'Exit', disabled: false },
     ])
   })
@@ -194,7 +209,31 @@ describe('the app menu', () => {
       '⇧⌘B',
       '⇧⌘L',
       '⌘E',
+      '⌘,',
     ])
+  })
+
+  it('lists Open Settings and Open settings.json in the menu and in the palette rows (ISC-347)', () => {
+    const inMenu = buildMenuEntries('other').flatMap((entry) =>
+      entry.kind === 'item' ? [[entry.id, entry.label]] : [],
+    )
+    expect(inMenu).toEqual(
+      expect.arrayContaining([
+        [COMMAND_IDS.openSettings, 'Open Settings'],
+        [COMMAND_IDS.openSettingsFile, 'Open settings.json'],
+      ]),
+    )
+    const inPalette = commandRows('').map((row) => [row.key, row.label, row.disabled])
+    expect(inPalette).toEqual(
+      expect.arrayContaining([
+        [COMMAND_IDS.openSettings, 'Open Settings', false],
+        [COMMAND_IDS.openSettingsFile, 'Open settings.json', false],
+      ]),
+    )
+    // Typing finds them too.
+    expect(commandRows('settings').map((row) => row.key)).toEqual(
+      expect.arrayContaining([COMMAND_IDS.openSettings, COMMAND_IDS.openSettingsFile]),
+    )
   })
 
   it('greys out Close Tab while there is no tab, and Save while nothing is edited', () => {

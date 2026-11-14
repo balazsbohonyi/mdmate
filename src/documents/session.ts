@@ -4,6 +4,11 @@ import { endingsOf } from '@/editor/lineEndings'
 import { expandedFolderPaths, expandedPlaces, restoreWorkspace } from '@/features/tree/store'
 import { currentWindowWidth, setSidebarWidth, sidebarWidth } from '@/workbench/sidebar'
 import { endingsEqual, joinWithEndings, readEndings, type Endings } from '@/lib/endings'
+import {
+  DEFAULT_SETTINGS_CATEGORY,
+  readSettingsCategory,
+  type SettingsCategory,
+} from '@/lib/settingsCategories'
 import { getHost, type ImageInfo, type OpenedFile } from '@/platform'
 import {
   allTabs,
@@ -18,6 +23,7 @@ import {
   openTabFor,
   restoreWorkbench,
   tabRecord,
+  tabRecordsVersion,
   tabsOfDocument,
   workbenchLayout,
 } from '@/workbench/store'
@@ -63,10 +69,15 @@ interface SnapshotTab {
   readonly id: TabId
   readonly path: string
   readonly caret: Caret
-  /** Present for a tab that is not a file: an image, which has no document and no caret, or a new file. */
-  readonly kind?: 'image' | 'untitled'
+  /**
+   * Present for a tab that is not a file: an image, which has no document and no caret, a new file,
+   * or the Settings screen. A tab with no kind is a file.
+   */
+  readonly kind?: 'image' | 'untitled' | 'settings'
   /** For a new file's tab: the number in its name. */
   readonly untitled?: number
+  /** For the Settings tab: the group of settings it shows. */
+  readonly category?: SettingsCategory
 }
 
 /** Unsaved text, with the disk hash it was typed on top of. */
@@ -124,6 +135,16 @@ export function buildSnapshot(): string {
       tabs.push({ id, path: record.path, caret: { anchor: 0, head: 0 }, kind: 'image' })
       continue
     }
+    if (record?.kind === 'settings') {
+      tabs.push({
+        id,
+        path: '',
+        caret: { anchor: 0, head: 0 },
+        kind: 'settings',
+        category: record.category,
+      })
+      continue
+    }
     const docId = docIdOf(record)
     const doc = docId === undefined ? undefined : documentById(docId)
     if (doc === undefined) continue
@@ -172,6 +193,7 @@ let lastWritten: string | null = null
 let stopLayoutWatch: (() => void) | undefined
 let stopTreeWatch: (() => void) | undefined
 let stopSidebarWatch: (() => void) | undefined
+let stopRecordsWatch: (() => void) | undefined
 
 async function writeOnce(): Promise<void> {
   const began = performance.now()
@@ -266,6 +288,7 @@ export async function startJournal(options: JournalOptions = {}): Promise<void> 
   stopLayoutWatch = watch(workbenchLayout, touch)
   stopTreeWatch = watch(expandedPlaces, touch)
   stopSidebarWatch = watch(sidebarWidth, touch)
+  stopRecordsWatch = watch(tabRecordsVersion, touch)
   try {
     const host = await getHost()
     await host.watchClose(() => {
@@ -294,6 +317,8 @@ export function stopJournal(): void {
   stopTreeWatch = undefined
   stopSidebarWatch?.()
   stopSidebarWatch = undefined
+  stopRecordsWatch?.()
+  stopRecordsWatch = undefined
 }
 
 /** True when the session on disk is the one the workbench would write right now. */
@@ -378,9 +403,19 @@ function readSnapshot(text: string): Snapshot | null {
       const number = readNumber(tab.untitled)
       if (number !== null)
         tabs.push({ id: tab.id, path: '', caret, kind: 'untitled', untitled: number })
-    } else {
+    } else if (tab.kind === 'settings') {
+      tabs.push({
+        id: tab.id,
+        path: '',
+        caret,
+        kind: 'settings',
+        category: readSettingsCategory(tab.category),
+      })
+    } else if (tab.kind === undefined) {
       tabs.push({ id: tab.id, path: tab.path, caret })
     }
+    // Any other kind was written by a version that knows more than this one. Its path is not a file
+    // to open, so the tab is left out; the layout loop below then closes its place (ISC-387).
   }
   const buffers: RawBuffer[] = []
   for (const buffer of Array.isArray(value.buffers) ? (value.buffers as unknown[]) : []) {
@@ -621,6 +656,12 @@ function restoreTabs(
       if (doc !== undefined) records.set(tab.id, { kind: doc.kind, docId: doc.id })
       continue
     }
+    if (tab.kind === 'settings') {
+      // There is one Settings tab: a session that names two keeps the first in the layout's order,
+      // and the code below leaves the other out (ISC-388).
+      records.set(tab.id, { kind: 'settings', category: tab.category ?? DEFAULT_SETTINGS_CATEGORY })
+      continue
+    }
     const entry = opened.get(tab.path)
     if (entry === undefined) {
       notices.push(`${fileName(tab.path)} could not be opened.`)
@@ -632,9 +673,16 @@ function restoreTabs(
   const parsed = deserialize(snapshot.layout)
   let layout: Layout | null = parsed.ok ? parsed.layout : null
   if (layout !== null) {
-    // Tabs the layout holds but that cannot come back leave it; tabs it forgot stay out.
+    // Tabs the layout holds but that cannot come back leave it; tabs it forgot stay out. So does a
+    // second Settings tab.
+    let settingsSeen = false
     for (const id of allTabs(layout)) {
-      if (!records.has(id) || !byId.has(id)) layout = closeTab(layout, id)
+      const isSettings = records.get(id)?.kind === 'settings'
+      if (!records.has(id) || !byId.has(id) || (isSettings && settingsSeen)) {
+        layout = closeTab(layout, id)
+      } else if (isSettings) {
+        settingsSeen = true
+      }
     }
     const kept = new Set(allTabs(layout))
     for (const id of [...records.keys()]) if (!kept.has(id)) records.delete(id)
@@ -651,7 +699,12 @@ function restoreTabs(
   // A layout that cannot be read still leaves the tabs: put them side by side in one pane.
   notices.push('The saved window layout could not be read, so the tabs are in one pane.')
   restoreWorkbench(createLayout(), new Map())
+  let settingsOpened = false
   for (const [oldId, record] of records) {
+    if (record.kind === 'settings') {
+      if (settingsOpened) continue
+      settingsOpened = true
+    }
     const id = openTabFor(record)
     const docId = docIdOf(record)
     if (docId !== undefined) {

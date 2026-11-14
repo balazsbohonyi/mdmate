@@ -4,14 +4,17 @@
  * tab's name for a new file (Untitled-N), or "No file open".
  */
 import { afterEach, describe, expect, it } from 'vitest'
-import { createApp, nextTick, type App } from 'vue'
+import { nextTick, type App } from 'vue'
 import { openPath, resetDocuments } from '@/documents/store'
 import { newUntitledTab } from '@/documents/untitled'
 import { setHost } from '@/platform'
 import { createMockHost } from '@/platform/mock'
 import { activeFileLabel } from '@/shell/activeFile'
 import TitleBar from '@/shell/TitleBar.vue'
-import { resetWorkbench } from '@/workbench/store'
+import { clearCommands } from '@/workbench/commands'
+import { registerDefaultCommands } from '@/workbench/defaultCommands'
+import { resetWorkbench, settingsTabId, tabRecord } from '@/workbench/store'
+import { tooltipApp } from '../helpers/tooltips'
 
 let mounted: { app: App; root: HTMLElement } | undefined
 
@@ -28,7 +31,7 @@ async function mountBar(): Promise<HTMLElement> {
   setHost(createMockHost({ files: { '/w/a.md': 'a' } }))
   const root = document.createElement('div')
   document.body.append(root)
-  const app = createApp(TitleBar, { entries: [] })
+  const app = tooltipApp(TitleBar, { entries: [] })
   app.mount(root)
   mounted = { app, root }
   await nextTick()
@@ -62,5 +65,30 @@ describe('the title bar file name', () => {
     await nextTick()
     expect(title(root)).toBe(activeFileLabel.value)
     expect(title(root)).toMatch(/^Untitled-\d+$/)
+  })
+})
+
+describe('the Settings gear (ISC-348)', () => {
+  it('opens the Settings tab, and a second click shows that one', async () => {
+    const removeCommands = registerDefaultCommands()
+    try {
+      const root = await mountBar()
+      const gear = root.querySelector<HTMLButtonElement>('[data-settings-gear]')
+      expect(gear?.getAttribute('aria-label')).toBe('Settings')
+      expect(settingsTabId()).toBeUndefined()
+      gear?.click()
+      await nextTick()
+      const tab = settingsTabId()
+      expect(tab).toBeDefined()
+      expect(tabRecord(tab ?? '')).toEqual({ kind: 'settings', category: 'appearance' })
+      // The title bar names the open tab, since it holds no file.
+      expect(title(root)).toBe('Settings')
+      gear?.click()
+      await nextTick()
+      expect(settingsTabId()).toBe(tab)
+    } finally {
+      removeCommands()
+      clearCommands()
+    }
   })
 })

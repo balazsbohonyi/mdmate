@@ -34,9 +34,12 @@ import {
 import { allTabs } from '@/workbench/splitTree'
 import {
   moveTabTo,
+  openSettingsTab,
   resetWorkbench,
   resizeSplit,
   selectTab,
+  setSettingsCategory,
+  settingsTabId,
   splitActivePane,
   tabRecord,
   workbenchLayout,
@@ -860,5 +863,166 @@ describe('the sidebar width (ISC-231)', () => {
     await vi.advanceTimersByTimeAsync(1100)
     expect(journalStats.writes).toBe(before + 1)
     expect(JSON.parse(host.session ?? '{}')).toMatchObject({ workspace: { sidebarWidth: 280 } })
+  })
+})
+
+describe('the Settings tab (P8-T1c)', () => {
+  interface WrittenTab {
+    id: string
+    path: string
+    kind?: string
+    category?: string
+    caret?: unknown
+  }
+  interface Written {
+    layout: string
+    tabs: WrittenTab[]
+  }
+  /** The part of a saved layout the tests reach into: a split of panes. */
+  interface WrittenLayout {
+    root: { children: { tabs: string[] }[] }
+  }
+
+  /** Changes the session text the last run left, as a different version or a damaged file would. */
+  function editWritten(change: (written: Written, layout: WrittenLayout) => void): void {
+    const written = JSON.parse(host.session ?? '{}') as Written
+    const layout = JSON.parse(written.layout) as WrittenLayout
+    change(written, layout)
+    written.layout = JSON.stringify(layout)
+    host.session = JSON.stringify(written)
+  }
+
+  const settingsRecords = (): [string, unknown][] =>
+    allTabs(workbenchLayout.value).flatMap((id) =>
+      tabRecord(id)?.kind === 'settings' ? [[id, tabRecord(id)] as [string, unknown]] : [],
+    )
+
+  it('comes back in the same pane, at the same group, with no notice (ISC-344)', async () => {
+    await openPath(A)
+    splitActivePane('row')
+    const settings = openSettingsTab('keyboard')
+    const before = workbenchLayout.value
+    await flushSession()
+    const written = JSON.parse(host.session ?? '{}') as Written
+    expect(written.tabs.find((tab) => tab.id === settings)).toMatchObject({
+      kind: 'settings',
+      category: 'keyboard',
+      path: '',
+    })
+
+    newRun(host)
+    const report = await restoreSession()
+
+    expect(workbenchLayout.value).toEqual(before)
+    expect(report).toMatchObject({ notices: [] })
+    expect(tabRecord(settings)).toEqual({ kind: 'settings', category: 'keyboard' })
+    expect(settingsTabId()).toBe(settings)
+    // Nothing was opened as a file for it.
+    expect(allDocuments().map((doc) => doc.path)).toEqual([A])
+  })
+
+  it('is written again when the group changes, with no change to the layout', async () => {
+    vi.useFakeTimers()
+    await startJournal({ intervalMs: 1000 })
+    const settings = openSettingsTab('appearance')
+    await vi.advanceTimersByTimeAsync(1100)
+    const writes = journalStats.writes
+    expect(JSON.parse(host.session ?? '{}')).toMatchObject({
+      tabs: [{ id: settings, category: 'appearance' }],
+    })
+    setSettingsCategory(settings, 'advanced')
+    await vi.advanceTimersByTimeAsync(1100)
+    expect(journalStats.writes).toBe(writes + 1)
+    expect(JSON.parse(host.session ?? '{}')).toMatchObject({
+      tabs: [{ id: settings, category: 'advanced' }],
+    })
+  })
+
+  it('takes the first group for a saved name this version does not know, with no notice', async () => {
+    const settings = openSettingsTab('editor')
+    await flushSession()
+    editWritten((written) => {
+      const tab = written.tabs.find((candidate) => candidate.id === settings)
+      if (tab !== undefined) tab.category = 'from-the-future'
+    })
+    newRun(host)
+    const report = await restoreSession()
+    expect(report).toMatchObject({ tabs: 1, notices: [] })
+    expect(tabRecord(settings)).toEqual({ kind: 'settings', category: 'appearance' })
+  })
+
+  it('leaves out a tab of a kind this version does not know, and opens no file for it (ISC-387)', async () => {
+    const a = await openPath(A)
+    const b = await openPath(B)
+    await flushSession()
+    editWritten((written) => {
+      const tab = written.tabs.find((candidate) => candidate.id === b)
+      if (tab !== undefined) tab.kind = 'timeline'
+    })
+    newRun(host)
+    const report = await restoreSession()
+
+    expect(report).toMatchObject({ tabs: 1, notices: [] })
+    expect(allTabs(workbenchLayout.value)).toEqual([a])
+    // B is a path the saved tab named, and it is not opened as a document for the odd kind.
+    expect(allDocuments().map((doc) => doc.path)).toEqual([A])
+    expect(tabRecord(b)).toBeUndefined()
+  })
+
+  it('restores the first of two Settings tabs and drops the other (ISC-388)', async () => {
+    const a = await openPath(A)
+    splitActivePane('row')
+    const settings = openSettingsTab('files')
+    await flushSession()
+    // Another version, or a damaged file, names a second one, in the first pane.
+    editWritten((written, layout) => {
+      written.tabs.push({
+        id: 'tab-99',
+        path: '',
+        kind: 'settings',
+        category: 'editor',
+        caret: { anchor: 0, head: 0 },
+      })
+      layout.root.children[0]?.tabs.push('tab-99')
+    })
+    newRun(host)
+    const report = await restoreSession()
+
+    expect(report).toMatchObject({ notices: [] })
+    expect(settingsRecords()).toEqual([['tab-99', { kind: 'settings', category: 'editor' }]])
+    expect(tabRecord(settings)).toBeUndefined()
+    const [left, right] =
+      workbenchLayout.value.root.kind === 'split' ? workbenchLayout.value.root.children : []
+    expect(left?.kind === 'pane' && left.tabs).toContain('tab-99')
+    expect(right?.kind === 'pane' && right.tabs).not.toContain(settings)
+    expect(tabRecord(a)?.kind).toBe('markdown')
+  })
+
+  it('restores one Settings tab when the layout cannot be read and the tabs go in one pane', async () => {
+    await openPath(A)
+    openSettingsTab('editor')
+    await flushSession()
+    editWritten((written) => {
+      written.layout = 'not json'
+      written.tabs.push({
+        id: 'tab-99',
+        path: '',
+        kind: 'settings',
+        category: 'files',
+        caret: { anchor: 0, head: 0 },
+      })
+    })
+    // editWritten re-stringifies the layout, so put the damage back in place.
+    const damaged = JSON.parse(host.session ?? '{}') as Written
+    damaged.layout = 'not json'
+    host.session = JSON.stringify(damaged)
+    newRun(host)
+    const report = await restoreSession()
+
+    expect(report?.notices).toContain(
+      'The saved window layout could not be read, so the tabs are in one pane.',
+    )
+    expect(settingsRecords()).toHaveLength(1)
+    expect(settingsTabId()).toBeDefined()
   })
 })

@@ -14,9 +14,11 @@ import {
   canSaveActive,
   canSaveActiveAs,
   closeAllTabs,
+  describe,
   followerOfTab,
   activePaneHasTabs,
   openFromDialog,
+  openInActivePane,
   requestCloseTab,
   requestRevert,
   saveActiveDocument,
@@ -30,10 +32,11 @@ import { showSearch } from '@/features/search/store'
 import { focusTree, openFolderDialog } from '@/features/tree/store'
 import { settings } from '@/lib/settings'
 import { getHost } from '@/platform'
+import { reportError } from '@/shell/toasts'
 import { registerCommand, removeCommand } from './commands'
 import { canFind, openFind, stepFind } from './find'
 import { findPane } from './splitTree'
-import { splitActivePane, workbenchLayout } from './store'
+import { openSettingsTab, splitActivePane, workbenchLayout } from './store'
 import { toggleRaw } from './rawMode'
 import { showSidebar, toggleSidebar } from './sidebar'
 import { activeTabId, findTabReferences, renameTab, tabMenuState, tabPath } from './tabMenu'
@@ -73,6 +76,8 @@ export const COMMAND_IDS = {
   headingUp: 'format.headingUp',
   headingDown: 'format.headingDown',
   openDevtools: 'tools.openDevtools',
+  openSettings: 'tools.openSettings',
+  openSettingsFile: 'tools.openSettingsFile',
   exit: 'app.exit',
 } as const
 
@@ -216,6 +221,27 @@ export function registerDefaultCommands(): () => void {
       run: () => {
         const tab = activeTabId()
         return tab === null ? undefined : renameTab(tab)
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.openSettings,
+      title: 'Open Settings',
+      keybinding: 'Mod+,',
+      // There is one Settings tab; a second run shows that one (ISC-343).
+      run: () => {
+        openSettingsTab()
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.openSettingsFile,
+      title: 'Open settings.json',
+      run: async () => {
+        try {
+          // Rust makes the file if it is missing and grants that one path.
+          await openInActivePane(await (await getHost()).settingsFile())
+        } catch (error) {
+          reportError(`Could not open settings.json: ${describe(error)}`)
+        }
       },
     }),
     registerCommand({

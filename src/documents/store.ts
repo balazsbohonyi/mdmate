@@ -778,6 +778,8 @@ onTabClosed((tabId, record) => {
       })
     return
   }
+  // The Settings tab holds no document and nothing in Rust.
+  if (record.kind === 'settings') return
   documents.get(record.docId)?.closeFollower(tabId)
   release(record.docId)
 })

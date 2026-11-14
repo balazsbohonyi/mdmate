@@ -62,6 +62,9 @@ const MENU_LAYOUT: readonly string[] = [
   COMMAND_IDS.showOutline,
   COMMAND_IDS.toggleRawSource,
   '-',
+  COMMAND_IDS.openSettings,
+  COMMAND_IDS.openSettingsFile,
+  '-',
   COMMAND_IDS.exit,
 ]
 
