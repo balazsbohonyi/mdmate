@@ -23,6 +23,9 @@ const frame = EditorView.theme({
     color: 'var(--foreground)',
     backgroundColor: 'var(--background)',
   },
+  // CodeMirror draws a dotted outline round a focused editor by default. The caret already shows
+  // where focus is, and the outline cuts across the top of the pane under the tab strip.
+  '&.cm-focused': { outline: 'none' },
   '.cm-scroller': { overflow: 'auto' },
   // Room between the text and the edges of the pane. Padding on the content, not margin: the
   // scrollbar stays at the pane's edge, and CodeMirror counts content padding in its heights.

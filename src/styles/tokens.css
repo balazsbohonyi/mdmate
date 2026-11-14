@@ -64,6 +64,8 @@
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
+  --color-tooltip: var(--tooltip);
+  --color-tooltip-foreground: var(--tooltip-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
@@ -128,13 +130,13 @@
 
 /* A hint drawn inside the editor (ISC-226): the shadcn tooltip's look, from the same tokens. */
 .editor-hint {
-  @apply fixed z-50 w-max max-w-xs rounded-md bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md ring-1 ring-foreground/10;
+  @apply fixed z-50 w-max max-w-xs rounded-md bg-tooltip px-3 py-1.5 text-xs text-tooltip-foreground shadow-md ring-1 ring-foreground/10;
   overflow-wrap: break-word;
   white-space: pre-line;
   pointer-events: none;
 }
 .editor-hint-arrow {
-  @apply absolute -ml-[5px] size-2.5 rotate-45 rounded-br-xs bg-popover;
+  @apply absolute -ml-[5px] size-2.5 rotate-45 rounded-br-xs bg-tooltip;
 }
 /* Only the two outer edges are outlined, as on the shadcn tooltip's arrow (ISC-225). */
 .editor-hint-arrow[data-side='above'] {

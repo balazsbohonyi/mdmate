@@ -86,6 +86,7 @@ const PAIRS: [string, string, number][] = [
   ['--muted-foreground', '--muted', 4.5],
   ['--card-foreground', '--card', 4.5],
   ['--popover-foreground', '--popover', 4.5],
+  ['--tooltip-foreground', '--tooltip', 4.5],
   ['--primary-foreground', '--primary', 4.5],
   ['--secondary-foreground', '--secondary', 4.5],
   ['--accent-foreground', '--accent', 4.5],
@@ -144,5 +145,18 @@ describe.each(Object.entries(themes))('%s theme colors', (_name, theme) => {
     const editor = parseColor(resolveToken(theme, '--background'))
     expect(contrast(idle, active)).toBeGreaterThan(1.03)
     expect(contrast(sidebar, editor)).toBeGreaterThan(1.03)
+  })
+
+  it('give a tooltip its own surface: lighter than the page in dark, the popover color in light', () => {
+    if (_name === 'light') {
+      expect(resolveToken(theme, '--tooltip')).toBe(resolveToken(theme, '--popover'))
+      return
+    }
+    const white = parseColor('#ffffff')
+    const tooltip = parseColor(resolveToken(theme, '--tooltip'))
+    const page = parseColor(resolveToken(theme, '--background'))
+    expect(contrast(tooltip, page)).toBeGreaterThan(1.15)
+    // Contrast against white falls as a color gets lighter.
+    expect(contrast(tooltip, white)).toBeLessThan(contrast(page, white))
   })
 })

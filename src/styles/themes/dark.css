@@ -29,6 +29,9 @@
   --border: oklch(0.33 0.014 262);
   --input: oklch(0.37 0.015 262);
   --ring: var(--primary);
+  /* The tooltip surface: lighter than the page in dark, darker in light, so a hint stands out from what is under it. */
+  --tooltip: oklch(0.37 0.016 262);
+  --tooltip-foreground: var(--foreground);
 
   --sidebar: oklch(0.21 0.012 262);
   --sidebar-foreground: oklch(0.86 0.01 262);

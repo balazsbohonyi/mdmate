@@ -26,6 +26,9 @@
   --border: oklch(0.88 0.008 85);
   --input: oklch(0.84 0.01 85);
   --ring: var(--primary);
+  /* The tooltip surface: in light it is the popover color, as before (dark's is lighter than its page). */
+  --tooltip: var(--popover);
+  --tooltip-foreground: var(--foreground);
 
   --sidebar: oklch(0.965 0.005 85);
   --sidebar-foreground: oklch(0.3 0.012 262);
