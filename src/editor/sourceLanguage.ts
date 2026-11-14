@@ -3,6 +3,7 @@ import { Compartment, type Extension } from '@codemirror/state'
 import { ViewPlugin, type EditorView } from '@codemirror/view'
 import { settings } from '@/lib/settings'
 import { languageForFile } from './codeLanguages'
+import { jsonComments } from './jsonComments'
 import { tokenHighlight } from './highlight'
 
 /**
@@ -25,6 +26,9 @@ export function hasSourceLanguage(name: string): boolean {
   const extension = extensionOf(name)
   return extension !== '' && settings.editor.highlightExtensions.includes(extension)
 }
+
+/** JSON files may hold comments, which the JSON grammar does not know (`jsonComments.ts`). */
+const isJson = (name: string): boolean => ['json', 'jsonc'].includes(extensionOf(name))
 
 /** What each view asks again when the setting changes. */
 const syncs = new Set<() => void>()
@@ -54,7 +58,13 @@ export function sourceLanguage(name: string | (() => string)): Extension {
         if (gone || shown !== key) return
         view.dispatch({
           effects: slot.reconfigure(
-            support === null ? [] : [support, syntaxHighlighting(tokenHighlight)],
+            support === null
+              ? []
+              : [
+                  support,
+                  syntaxHighlighting(tokenHighlight),
+                  ...(isJson(current) ? [jsonComments] : []),
+                ],
           ),
         })
       })
