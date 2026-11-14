@@ -25,6 +25,7 @@ import {
   resetKeybindingsState,
   watchKeybindingsFile,
 } from '@/features/keybindings/store'
+import { keybindingsTemplate } from '@/features/keybindings/template'
 import { commandRows } from '@/features/palette/rows'
 import SettingsView from '@/features/settings/SettingsView.vue'
 import { resetSettingsState } from '@/features/settings/store'
@@ -47,6 +48,7 @@ import { installKeybindings } from '@/workbench/keyboard'
 import { openSettingsTab, resetWorkbench, setSettingsCategory } from '@/workbench/store'
 import { toasts } from '../helpers/toasts'
 import { tooltipApp } from '../helpers/tooltips'
+import { parseJsonc } from '../helpers/jsonc'
 
 const DOC = 'one\ntwo\nthree'
 
@@ -109,7 +111,7 @@ async function start(file?: string): Promise<void> {
 
 const fileObject = (): unknown => {
   const text = host.files.read(MOCK_KEYBINDINGS_FILE)
-  return text === undefined ? undefined : JSON.parse(text)
+  return text === undefined ? undefined : parseJsonc(text)
 }
 
 beforeEach(() => {
@@ -586,14 +588,14 @@ describe('ISC-406: recording a shortcut', () => {
 })
 
 describe('ISC-408: Reset all', () => {
-  it('writes {} and puts every command on its default shortcut', async () => {
+  it('gives back the commented template and puts every command on its default shortcut', async () => {
     await mountKeyboard()
     await rebind(COMMAND_IDS.newFile, 'Mod+Shift+U')
     await rebind(COMMAND_IDS.open, 'Mod+Shift+J')
     await rebind(COMMAND_IDS.save, 'F6')
     expect(idOf('Mod+N')).toBeUndefined()
     await click(document.querySelector('[data-keyboard-reset-all]'))
-    expect(host.files.read(MOCK_KEYBINDINGS_FILE)).toBe('{}\n')
+    expect(host.files.read(MOCK_KEYBINDINGS_FILE)).toBe(keybindingsTemplate().text)
     expect(idOf('Mod+N')).toBe(COMMAND_IDS.newFile)
     expect(idOf('Mod+O')).toBe(COMMAND_IDS.open)
     expect(idOf('Mod+S')).toBe(COMMAND_IDS.save)
@@ -729,7 +731,7 @@ describe('ISC-405: unsaved edits in the keybindings.json tab are asked about fir
     expect(prompt()).toBeNull()
     expect(fileObject()).toEqual({ note: 'mine', 'file.new': 'Mod+Shift+U' })
     expect(idOf('Mod+Shift+U')).toBe(COMMAND_IDS.newFile)
-    expect(JSON.parse(tab.text)).toEqual({ note: 'mine', 'file.new': 'Mod+Shift+U' })
+    expect(parseJsonc(tab.text)).toEqual({ note: 'mine', 'file.new': 'Mod+Shift+U' })
   })
 
   it("Don't save drops the tab's edits and makes the change on the file as it was", async () => {
@@ -738,7 +740,7 @@ describe('ISC-405: unsaved edits in the keybindings.json tab are asked about fir
     await rebind(COMMAND_IDS.newFile, 'Mod+Shift+U')
     await answerWith("Don't save")
     expect(fileObject()).toEqual({ 'file.new': 'Mod+Shift+U' })
-    expect(JSON.parse(tab.text)).toEqual({ 'file.new': 'Mod+Shift+U' })
+    expect(parseJsonc(tab.text)).toEqual({ 'file.new': 'Mod+Shift+U' })
   })
 
   it('shows a change in an open tab that holds no unsaved edits', async () => {
@@ -746,7 +748,7 @@ describe('ISC-405: unsaved edits in the keybindings.json tab are asked about fir
     const tab = await openPath(MOCK_KEYBINDINGS_FILE)
     await rebind(COMMAND_IDS.newFile, 'Mod+Shift+U')
     expect(prompt()).toBeNull()
-    expect(JSON.parse(documentOfTab(tab)?.master.doc.toString() ?? '{}')).toEqual({
+    expect(parseJsonc(documentOfTab(tab)?.master.doc.toString() ?? '{}')).toEqual({
       'file.new': 'Mod+Shift+U',
     })
   })
@@ -760,14 +762,15 @@ describe('ISC-409: Open keybindings.json', () => {
     expect(idOf('Mod+Shift+K')).toBe(COMMAND_IDS.openKeybindingsFile)
     expect(shortcutLabel(COMMAND_IDS.openKeybindingsFile, 'other')).toBe('Ctrl+Shift+K')
     await pressOnWindow('Mod+Shift+K')
-    expect(host.files.read(MOCK_KEYBINDINGS_FILE)).toBe('{}\n')
+    // A file that holds nothing becomes the commented template (ISC-424).
+    expect(host.files.read(MOCK_KEYBINDINGS_FILE)).toBe(keybindingsTemplate().text)
     expect([...host.openDocuments().values()]).toContain(MOCK_KEYBINDINGS_FILE)
     setCategory('advanced')
     await flush()
     const button = document.querySelector('[data-open-keybindings-file]')
     expect(button).not.toBeNull()
     await click(button)
-    expect(host.files.read(MOCK_KEYBINDINGS_FILE)).toBe('{}\n')
+    expect(host.files.read(MOCK_KEYBINDINGS_FILE)).toBe(keybindingsTemplate().text)
     const opened = [...host.openDocuments().values()]
     expect(opened).toContain(MOCK_KEYBINDINGS_FILE)
 

@@ -7,11 +7,20 @@ import {
   revertDocument,
   saveDocument,
 } from '@/documents/store'
-import { editSettingsText, readRoot, settingsText, type EditResult } from '@/lib/settingsEdit'
+import {
+  clearSettingsText,
+  editSettingsText,
+  isBlankFile,
+  isUnchanged,
+  readRoot,
+  type EditResult,
+} from '@/lib/settingsEdit'
 import { getHost } from '@/platform'
 import { reportError, reportWarning } from '@/shell/toasts'
 import { defaultBindingOf, keybindingProblems, setKeybindingOverrides } from '@/workbench/commands'
 import { canonicalKeybinding, parseKeybinding } from '@/workbench/keybinding'
+import { keybindingsTemplate } from './template'
+import type { FileTemplate } from '@/lib/fileTemplate'
 
 /**
  * `keybindings.json` as the page lives with it, the way `settings.json` is: the file is the source
@@ -127,22 +136,19 @@ function sameAsDefault(id: string, value: string | null): boolean {
   }
 }
 
-function textAfter(current: string, change: KeybindingChange): EditResult {
-  if (change === 'all') {
-    const read = readRoot(current, FILE)
-    return read.ok ? { ok: true, text: settingsText({}) } : read
-  }
+function textAfter(current: string, change: KeybindingChange, template: FileTemplate): EditResult {
+  if (change === 'all') return clearSettingsText(current, FILE, template)
   let text = current
   for (const [id, value] of Object.entries(change)) {
     const entry = value === undefined || sameAsDefault(id, value) ? undefined : value
-    const edited = editSettingsText(text, [id], entry, FILE)
+    const edited = editSettingsText(text, [id], entry, FILE, template)
     if (!edited.ok) return edited
     text = edited.text
   }
   // An empty change still reads the file, so a file that is not JSON is said so.
   if (Object.keys(change).length === 0) {
     const read = readRoot(current, FILE)
-    return read.ok ? { ok: true, text: settingsText(read.root) } : read
+    return read.ok ? { ok: true, text: current } : read
   }
   return { ok: true, text }
 }
@@ -158,13 +164,14 @@ export function changeKeybindings(change: KeybindingChange): Promise<boolean> {
     try {
       const host = await getHost()
       const current = await host.keybindingsRead()
-      const edited = textAfter(current ?? '', change)
+      const template = keybindingsTemplate()
+      const edited = textAfter(current ?? '', change, template)
       if (!edited.ok) {
         reportError(edited.message)
         applyKeybindingsText(current)
         return false
       }
-      const write = edited.text !== current && !(current === null && edited.text === '{}\n')
+      const write = !isUnchanged(current, edited.text, template)
       if (write) await host.keybindingsWrite(edited.text)
       applyKeybindingsText(edited.text)
       if (write) await refreshOpenFile()
@@ -172,6 +179,30 @@ export function changeKeybindings(change: KeybindingChange): Promise<boolean> {
     } catch (error) {
       reportError(`Could not save ${FILE}: ${describe(error)}`)
       return false
+    }
+  })
+}
+
+/**
+ * Makes a `keybindings.json` that holds nothing (no entries, or `{}`) the commented template, so
+ * the file shows every command and its shortcut when it is opened. A file with anything in it, or a
+ * tab with edits that are not saved, is left alone. A failure is a notice: the file still opens.
+ */
+export function ensureKeybindingsTemplate(): Promise<void> {
+  return enqueue(async () => {
+    try {
+      const host = await getHost()
+      const current = await host.keybindingsRead()
+      if (!isBlankFile(current)) return
+      const template = keybindingsTemplate()
+      if (current === template.text) return
+      const open = await openDocument()
+      if (open !== undefined && documentById(open)?.dirty === true) return
+      await host.keybindingsWrite(template.text)
+      applyKeybindingsText(template.text)
+      await refreshOpenFile()
+    } catch (error) {
+      reportWarning(`Could not add the comments to ${FILE}: ${describe(error)}`)
     }
   })
 }

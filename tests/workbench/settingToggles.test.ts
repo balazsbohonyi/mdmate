@@ -28,6 +28,7 @@ import { clearCommands, commandState, isCommandEnabled, runCommand } from '@/wor
 import { COMMAND_IDS, registerDefaultCommands } from '@/workbench/defaultCommands'
 import { resetWorkbench, settingsTabId } from '@/workbench/store'
 import { activeTabId } from '@/workbench/tabMenu'
+import { parseJsonc } from '../helpers/jsonc'
 
 let host: MockHost
 let removeCommands: (() => void) | undefined
@@ -42,7 +43,7 @@ async function start(file?: string): Promise<void> {
 
 const fileObject = (): unknown => {
   const text = host.files.read(MOCK_SETTINGS_FILE)
-  return text === undefined ? undefined : JSON.parse(text)
+  return text === undefined ? undefined : parseJsonc(text)
 }
 const menuState = (id: string): boolean | undefined =>
   findMenuItem(buildMenuEntries('other'), id)?.state

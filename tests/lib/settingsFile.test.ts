@@ -58,13 +58,28 @@ describe('parseSettingsText', () => {
     if (parsed.ok) return
     expect(parsed.spot.line).toBe(5)
     expect(describeSyntax(parsed)).toContain('line 5')
-    expect(describeSyntax(parsed)).toContain('comments and trailing commas')
+    expect(describeSyntax(parsed)).toContain('column')
   })
 
-  it('refuses a file that is JSON but not one object, and a comment', () => {
-    for (const text of ['[]', '"x"', '5', 'null', '// hi\n{}', '{"a": 1,}']) {
+  it('refuses a file that is JSON but not one object', () => {
+    for (const text of ['[]', '"x"', '5', 'null']) {
       expect(parseSettingsText(text).ok, text).toBe(false)
     }
+  })
+
+  it('ISC-423: reads comments and trailing commas, and a file of only comments as empty', () => {
+    const text = '// hi\n{\n  /* why */ "devtools": true, // note\n  "fonts": { "size": 18, },\n}\n'
+    const parsed = parseSettingsText(text)
+    expect(parsed.ok).toBe(true)
+    if (parsed.ok) expect([...parsed.present.keys()].sort()).toEqual(['devtools', 'fonts.size'])
+    for (const only of ['// only a comment', '{\n  // nothing\n}', '/* a */\n// b\n{}']) {
+      const read = parseSettingsText(only)
+      expect(read.ok && read.present.size, only).toBe(0)
+    }
+    // A real mistake is still one, and says where.
+    const bad = parseSettingsText('{\n  // c\n  "devtools": true\n  "x": 1\n}')
+    expect(bad.ok).toBe(false)
+    if (!bad.ok) expect(bad.spot).toEqual({ line: 4, column: 3 })
   })
 
   it('checks each known key on its own: one bad value leaves the others alone', () => {

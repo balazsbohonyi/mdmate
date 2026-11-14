@@ -42,6 +42,7 @@ import { setHost } from '@/platform'
 import { createMockHost, MOCK_SETTINGS_FILE, type MockHost } from '@/platform/mock'
 import { openSettingsTab, resetWorkbench, setSettingsCategory } from '@/workbench/store'
 import { tooltipApp } from '../helpers/tooltips'
+import { parseJsonc } from '../helpers/jsonc'
 
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
@@ -51,7 +52,7 @@ let stop: (() => void) | undefined
 /** The file as an object, so a test compares keys and not spacing. */
 function fileObject(): unknown {
   const text = host.files.read(MOCK_SETTINGS_FILE)
-  return text === undefined ? undefined : JSON.parse(text)
+  return text === undefined ? undefined : parseJsonc(text)
 }
 
 async function start(file?: string, linksOnRename?: LinksOnRename): Promise<void> {
@@ -107,13 +108,14 @@ describe('ISC-349: a change writes only its key', () => {
     expect(settings.fonts.size).toBe(22)
   })
 
-  it('writes a first change into a missing file as the only key, two-space indented', async () => {
+  it('writes a first change into a missing file as the only key, in the commented template (ISC-429)', async () => {
     await start()
     expect(host.files.has(MOCK_SETTINGS_FILE)).toBe(false)
     await changeSetting('fonts.codeSize', 16)
-    expect(host.files.read(MOCK_SETTINGS_FILE)).toBe(
-      '{\n  "fonts": {\n    "codeSize": 16\n  }\n}\n',
-    )
+    expect(fileObject()).toEqual({ fonts: { codeSize: 16 } })
+    const text = host.files.read(MOCK_SETTINGS_FILE) ?? ''
+    expect(text).toContain('// mdmate settings.')
+    expect(text).toContain('  "fonts": {\n    "codeSize": 16\n  },')
   })
 
   it('writes a list value as it is', async () => {

@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { Button } from '@/components/ui/button'
 import { docMeta } from '@/documents/meta'
+import { readRoot } from '@/lib/settingsEdit'
 import { interpretKey } from '@/features/keybindings/recorder'
 import { commandSections, type SearchableCommand } from '@/features/keybindings/shortcutSearch'
 import {
@@ -66,9 +67,12 @@ const conflict = ref<{
 
 const problems = computed(() => keybindingProblems())
 const broken = computed(() => keybindingsFileState.broken)
+/** Whether the file holds any entry. Comments are not entries; a file that cannot be read is. */
 const hasEntries = computed(() => {
   const text = keybindingsFileState.text
-  return text !== null && text.replace(/\s/g, '') !== '' && text.replace(/\s/g, '') !== '{}'
+  if (text === null) return false
+  const read = readRoot(text, 'keybindings.json')
+  return !read.ok || Object.keys(read.root).length > 0
 })
 const asking = computed(() => pendingKeybindingChange.value)
 const askingError = computed(() => {

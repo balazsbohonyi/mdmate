@@ -1,3 +1,4 @@
+import { parse, printParseErrorCode, type ParseError } from 'jsonc-parser'
 import {
   BUILT_IN_EXCLUDED_FOLDERS,
   cloneSettings,
@@ -382,18 +383,46 @@ export type ParsedSettings =
     }
   | { readonly ok: false; readonly message: string; readonly spot: SyntaxSpot }
 
-/** Takes the line out of a JSON syntax error, from its message or its character position. */
-export function syntaxSpot(error: unknown, text: string): SyntaxSpot {
-  const message = error instanceof Error ? error.message : ''
-  const direct = /line (\d+) column (\d+)/i.exec(message)
-  if (direct?.[1] !== undefined && direct[2] !== undefined) {
-    return { line: Number(direct[1]), column: Number(direct[2]) }
-  }
-  const at = /position (\d+)/i.exec(message)?.[1]
-  if (at === undefined) return { line: null, column: null }
-  const before = text.slice(0, Number(at))
+/** The line and column of a character position in the text, 1-based. */
+export function spotAt(offset: number, text: string): SyntaxSpot {
+  const before = text.slice(0, offset)
   const line = before.split('\n').length
-  return { line, column: Number(at) - (before.lastIndexOf('\n') + 1) + 1 }
+  return { line, column: offset - (before.lastIndexOf('\n') + 1) + 1 }
+}
+
+/** What reading the text of one of the JSON files gave. */
+export type ParsedObject =
+  | {
+      readonly kind: 'ok'
+      readonly root: Record<string, unknown>
+      /** False for text of only comments: no object at all, which counts as an empty one. */
+      readonly hasValue: boolean
+    }
+  | { readonly kind: 'syntax'; readonly spot: SyntaxSpot }
+  | { readonly kind: 'not-object' }
+
+/**
+ * Reads the text of `settings.json` or `keybindings.json`: JSON with comments (`//` and block
+ * comments) and trailing commas. Text of only comments is an empty object. Anything that is not one
+ * object, or that has a syntax error, says where it stopped making sense.
+ */
+export function parseObject(source: string): ParsedObject {
+  const errors: ParseError[] = []
+  const value: unknown = parse(source, errors, { allowTrailingComma: true })
+  const first = errors[0]
+  if (first !== undefined) {
+    const onlyComments =
+      value === undefined &&
+      errors.length === 1 &&
+      printParseErrorCode(first.error) === 'ValueExpected' &&
+      source.replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, '').trim() === ''
+    if (onlyComments) return { kind: 'ok', root: {}, hasValue: false }
+    return { kind: 'syntax', spot: spotAt(first.offset, source) }
+  }
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return { kind: 'not-object' }
+  }
+  return { kind: 'ok', root: value as Record<string, unknown>, hasValue: true }
 }
 
 /** The text without a leading byte order mark, which Notepad adds. */
@@ -403,30 +432,25 @@ export function stripBom(text: string): string {
 
 /**
  * Parses the text of `settings.json` and checks every key it holds. A file that is not one JSON
- * object is `ok: false` and nothing in it is used. Otherwise each known key is checked on its own:
- * a bad one is a problem for its row and the rest still count. Empty text is an empty object.
+ * object is `ok: false` and nothing in it is used; comments and trailing commas are fine. Otherwise
+ * each known key is checked on its own: a bad one is a problem for its row and the rest still count.
+ * Empty text is an empty object.
  */
 export function parseSettingsText(text: string): ParsedSettings {
   const source = stripBom(text)
   if (source.trim() === '') return { ok: true, present: new Map(), problems: [] }
-  let value: unknown
-  try {
-    value = JSON.parse(source)
-  } catch (error) {
-    return {
-      ok: false,
-      message: 'settings.json is not valid JSON (comments and trailing commas are not allowed).',
-      spot: syntaxSpot(error, source),
-    }
+  const parsed = parseObject(source)
+  if (parsed.kind === 'syntax') {
+    return { ok: false, message: 'settings.json is not valid JSON.', spot: parsed.spot }
   }
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+  if (parsed.kind === 'not-object') {
     return {
       ok: false,
       message: 'settings.json must hold one JSON object, { ... }.',
       spot: { line: null, column: null },
     }
   }
-  return checkObject(value as Record<string, unknown>)
+  return checkObject(parsed.root)
 }
 
 /** The checking half of `parseSettingsText`, for an object that is already parsed. */

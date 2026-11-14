@@ -10,7 +10,7 @@ import {
 import { updateDocumentFonts } from '@/editor/documentFonts'
 import { refreshSourceLanguages } from '@/editor/sourceLanguage'
 import { refreshWordWrap } from '@/editor/wordWrap'
-import { editSettingsText } from '@/lib/settingsEdit'
+import { editSettingsText, isBlankFile, isUnchanged } from '@/lib/settingsEdit'
 import { applyTheme } from '@/lib/themes'
 import {
   describeSyntax,
@@ -25,6 +25,7 @@ import { cloneSettings, DEFAULT_SETTINGS, settings } from '@/lib/settings'
 import { getHost } from '@/platform'
 import type { AppliedSettings } from '@/platform/host'
 import { reportError, reportWarning } from '@/shell/toasts'
+import { settingsTemplate } from './templates'
 
 /**
  * `settings.json` as the page lives with it. The file is the source of truth: this module reads it
@@ -210,10 +211,13 @@ export function changeSetting<K extends SettingKey>(
     try {
       const host = await getHost()
       const current = await host.settingsRead()
+      const template = settingsTemplate()
       const edited = editSettingsText(
         current ?? '',
         def.path,
         def.equals(checked.value, def.default) ? undefined : checked.value,
+        'settings.json',
+        template,
       )
       if (!edited.ok) {
         reportError(edited.message)
@@ -221,7 +225,7 @@ export function changeSetting<K extends SettingKey>(
         return false
       }
       // A file with no change in it is not written again, so its time stamp and the watcher rest.
-      const write = edited.text !== current && !(current === null && edited.text === '{}\n')
+      const write = !isUnchanged(current, edited.text, template)
       if (write) await host.settingsWrite(edited.text)
       // The file is written, so the change is made whatever happens to an open tab below.
       applySettingsText(edited.text)
@@ -273,6 +277,30 @@ async function refreshOpenSettingsTab(): Promise<void> {
   } catch (error) {
     reportWarning(`The settings.json tab could not be refreshed: ${describe(error)}`)
   }
+}
+
+/**
+ * Makes a `settings.json` that holds nothing (no entries, or `{}`) the commented template, so the
+ * file shows what can be added when it is opened. A file with anything in it, or a tab with edits
+ * that are not saved, is left alone. A failure is a notice: the file still opens.
+ */
+export function ensureSettingsTemplate(): Promise<void> {
+  return enqueue(async () => {
+    try {
+      const host = await getHost()
+      const current = await host.settingsRead()
+      if (!isBlankFile(current)) return
+      const template = settingsTemplate()
+      if (current === template.text) return
+      const unsaved = await unsavedSettingsDocument()
+      if (unsaved !== undefined) return
+      await host.settingsWrite(template.text)
+      applySettingsText(template.text)
+      await refreshOpenSettingsTab()
+    } catch (error) {
+      reportWarning(`Could not add the comments to settings.json: ${describe(error)}`)
+    }
+  })
 }
 
 /** The document of `settings.json` when it is open with edits that are not saved. */

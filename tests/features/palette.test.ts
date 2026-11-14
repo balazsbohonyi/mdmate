@@ -17,6 +17,7 @@ import { clearCommands, registerCommand } from '@/workbench/commands'
 import { COMMAND_IDS, registerDefaultCommands } from '@/workbench/defaultCommands'
 import { installKeybindings } from '@/workbench/keyboard'
 import { resetWorkbench } from '@/workbench/store'
+import { parseJsonc } from '../helpers/jsonc'
 
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
@@ -594,7 +595,7 @@ describe('toggles run from the palette and show their state (ISC-153, ISC-370)',
       ?.textContent
   const fileObject = (): unknown => {
     const text = host.files.read(MOCK_SETTINGS_FILE)
-    return text === undefined ? undefined : JSON.parse(text)
+    return text === undefined ? undefined : parseJsonc(text)
   }
 
   beforeEach(() => {
@@ -691,7 +692,7 @@ describe('Switch Theme opens a list of the themes there are (ISC-395)', () => {
     await start()
     const { changeSettingFromCommand } = await import('@/features/settings/quick')
     await changeSettingFromCommand('theme', 'light')
-    expect(JSON.parse(fileText() ?? '{}')).toEqual({ theme: 'light' })
+    expect(parseJsonc(fileText() ?? '{}')).toEqual({ theme: 'light' })
     expect(settings.theme).toBe('light')
     expect(document.documentElement.classList.contains('light')).toBe(true)
     await openThemes()
@@ -704,7 +705,7 @@ describe('Switch Theme opens a list of the themes there are (ISC-395)', () => {
     await flush()
     expect(paletteMode.value).toBeNull()
     expect(settings.theme).toBe('dark')
-    expect(JSON.parse(fileText() ?? '{}')).toEqual({})
+    expect(parseJsonc(fileText() ?? '{}')).toEqual({})
   })
 
   it('gives focus back to where it was when the list closes, as the command palette does', async () => {

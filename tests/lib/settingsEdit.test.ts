@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { editSettingsText, readRoot } from '@/lib/settingsEdit'
+import { parseJsonc } from '../helpers/jsonc'
 
 /** A small seeded generator, so a failure names the seed that reproduces it. */
 function random(seed: number): () => number {
@@ -74,17 +75,18 @@ describe('editSettingsText', () => {
   })
 
   it('takes out a key that is not there, and a group that was already empty, without a change', () => {
+    // The text is kept as written: only the key asked about is ever touched.
     expect(editSettingsText('{"a": 1}', ['fonts', 'size'], undefined)).toEqual({
       ok: true,
-      text: '{\n  "a": 1\n}\n',
+      text: '{"a": 1}\n',
     })
     expect(editSettingsText('{"fonts": {}}', ['fonts', 'size'], undefined)).toEqual({
       ok: true,
-      text: '{\n  "fonts": {}\n}\n',
+      text: '{"fonts": {}}\n',
     })
     expect(editSettingsText('{"fonts": 5}', ['fonts', 'size'], undefined)).toEqual({
       ok: true,
-      text: '{\n  "fonts": 5\n}\n',
+      text: '{"fonts": 5}\n',
     })
   })
 
@@ -105,7 +107,7 @@ describe('editSettingsText', () => {
 
   it('reads a file that starts with a byte order mark', () => {
     const result = readRoot('﻿{"devtools": true}')
-    expect(result).toEqual({ ok: true, root: { devtools: true } })
+    expect(result).toMatchObject({ ok: true, root: { devtools: true } })
   })
 
   it('holds for random edits: unknown keys survive and a default takes its key out', () => {
@@ -174,9 +176,9 @@ describe('editSettingsText', () => {
         expect((parsed.fonts as Record<string, unknown> | undefined)?.surprise ?? 'kept').toBe(
           'kept',
         )
-        // Strict JSON in the file's own layout.
+        // The text still reads, ends in a newline, and holds what the model says it holds.
         expect(text.endsWith('}\n')).toBe(true)
-        expect(text).toBe(`${JSON.stringify(parsed, null, 2)}\n`)
+        expect(parseJsonc(text)).toEqual(parsed)
         // Writing the same value again changes nothing.
         const again = editSettingsText(text, path, removing ? undefined : value)
         expect(again).toEqual({ ok: true, text })

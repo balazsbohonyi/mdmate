@@ -27,7 +27,9 @@ import {
 import { newUntitledTab } from '@/documents/untitled'
 import { canGoBack, canGoForward, goBack, goForward } from '@/documents/history'
 import { openPicker, togglePalette } from '@/features/palette/state'
+import { ensureKeybindingsTemplate } from '@/features/keybindings/store'
 import { flipSetting, isToggleOn } from '@/features/settings/quick'
+import { ensureSettingsTemplate } from '@/features/settings/store'
 import { showOutline } from '@/features/outline/store'
 import { showSearch } from '@/features/search/store'
 import { focusTree, openFolderDialog } from '@/features/tree/store'
@@ -253,8 +255,11 @@ export function registerDefaultCommands(): () => void {
       title: 'Open settings.json',
       run: async () => {
         try {
-          // Rust makes the file if it is missing and grants that one path.
-          await openInActivePane(await (await getHost()).settingsFile())
+          // Rust makes the file if it is missing and grants that one path; a file that holds
+          // nothing becomes the commented template first, so it shows what can be added.
+          const path = await (await getHost()).settingsFile()
+          await ensureSettingsTemplate()
+          await openInActivePane(path)
         } catch (error) {
           reportError(`Could not open settings.json: ${describe(error)}`)
         }
@@ -267,8 +272,11 @@ export function registerDefaultCommands(): () => void {
       keybinding: 'Mod+Shift+K',
       run: async () => {
         try {
-          // Rust makes the file if it is missing and grants that one path.
-          await openInActivePane(await (await getHost()).keybindingsFile())
+          // Rust makes the file if it is missing and grants that one path; a file that holds
+          // nothing becomes the commented template first, so it shows every command.
+          const path = await (await getHost()).keybindingsFile()
+          await ensureKeybindingsTemplate()
+          await openInActivePane(path)
         } catch (error) {
           reportError(`Could not open keybindings.json: ${describe(error)}`)
         }
