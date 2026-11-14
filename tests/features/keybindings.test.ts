@@ -89,6 +89,7 @@ function spyCommand(id: string, keybinding?: string): ReturnType<typeof vi.fn> {
   registerCommand({
     id,
     title: `Spy ${id}`,
+    group: 'App',
     ...(keybinding === undefined ? {} : { keybinding }),
     run,
   })

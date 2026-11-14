@@ -348,6 +348,7 @@ describe('Ctrl+Shift+P runs a command by name (ISC-131)', () => {
     registerCommand({
       id: 'test.probe',
       title: 'Probe Order',
+      group: 'App',
       run: () => {
         openWhenRun = paletteMode.value
       },
@@ -390,6 +391,7 @@ describe('Ctrl+Shift+P runs a command by name (ISC-131)', () => {
     registerCommand({
       id: 'test.boom',
       title: 'Boom',
+      group: 'App',
       run: () => {
         throw new Error('nope')
       },
@@ -437,7 +439,7 @@ describe('using both from the keyboard alone', () => {
   it('keeps every other shortcut from acting on the page behind it', async () => {
     await start()
     const ran = vi.fn()
-    registerCommand({ id: 'test.spy', title: 'Spy', keybinding: 'Mod+J', run: ran })
+    registerCommand({ id: 'test.spy', title: 'Spy', group: 'App', keybinding: 'Mod+J', run: ran })
     // Control: on the page the shortcut runs.
     press({ key: 'j', code: 'KeyJ', ctrlKey: true }, document.body)
     await flush()
@@ -503,7 +505,12 @@ describe('using both from the keyboard alone', () => {
     const before = document.createElement('button')
     const taken = document.createElement('textarea')
     document.body.append(before, taken)
-    registerCommand({ id: 'test.focus', title: 'Take Focus', run: () => taken.focus() })
+    registerCommand({
+      id: 'test.focus',
+      title: 'Take Focus',
+      group: 'App',
+      run: () => taken.focus(),
+    })
     before.focus()
     press(ctrlShiftP, before)
     await flush()

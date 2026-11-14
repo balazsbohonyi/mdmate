@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import { Button } from '@/components/ui/button'
 import { docMeta } from '@/documents/meta'
 import { interpretKey } from '@/features/keybindings/recorder'
+import { commandSections, type SearchableCommand } from '@/features/keybindings/shortcutSearch'
 import {
   keybindingsFileState,
   pendingKeybindingChange,
@@ -36,9 +37,21 @@ import SettingRow from './SettingRow.vue'
  */
 const platform = detectPlatform()
 
-const commands = computed<readonly Command[]>(() =>
-  [...listCommands()].sort((a, b) => a.title.localeCompare(b.title)),
-)
+/** What the search box above the list holds; the Settings screen owns the box. */
+const { query = '' } = defineProps<{ query?: string }>()
+
+/** A command as the search sees it: its words and the shortcuts it shows, now and by default. */
+function searchable(command: Command): SearchableCommand {
+  const shortcuts = [
+    shortcutLabel(command.id, platform),
+    defaultShortcutLabel(command.id, platform),
+  ].filter((label): label is string => label !== undefined)
+  return { title: command.title, id: command.id, group: command.group, shortcuts }
+}
+
+const commands = computed<readonly Command[]>(() => listCommands())
+/** The commands the search finds, under their group's heading, in the fixed order. */
+const sections = computed(() => commandSections(commands.value, query, searchable))
 
 /** The row that is waiting for a combination. */
 const recordingId = ref<string | null>(null)
@@ -252,66 +265,86 @@ function buttonText(command: Command): string {
       </Button>
     </div>
     <div class="mt-2">
-      <SettingRow
-        v-for="command in commands"
-        :key="command.id"
-        :setting-key="command.id"
-        :label="command.title"
-        :description="describeDefault(command)"
-        :modified="isRebound(command.id)"
-        :error="refusal?.id === command.id ? refusal.message : null"
-        :locked="null"
-        @reset="reset(command)"
+      <section
+        v-for="section in sections"
+        :key="section.group"
+        :aria-label="section.group"
+        data-keyboard-group
       >
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          class="justify-between font-normal"
-          :aria-label="`Shortcut for ${command.title}`"
-          data-shortcut-button
-          @click="startRecording(command.id)"
-          @blur="recordingId === command.id && stopRecording()"
+        <h2
+          class="mt-5 mb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase"
+          data-keyboard-group-heading
         >
-          {{ buttonText(command) }}
-        </Button>
-        <p
-          v-if="recordingId === command.id"
-          class="text-xs text-muted-foreground"
+          {{ section.group }}
+        </h2>
+        <SettingRow
+          v-for="command in section.commands"
+          :key="command.id"
+          :setting-key="command.id"
+          :label="command.title"
+          :description="describeDefault(command)"
+          :modified="isRebound(command.id)"
+          :error="refusal?.id === command.id ? refusal.message : null"
+          :locked="null"
+          @reset="reset(command)"
         >
-          Esc cancels. Backspace removes the shortcut.
-        </p>
-        <div
-          v-if="conflict?.id === command.id"
-          role="alert"
-          class="flex flex-col gap-1 text-xs"
-          data-shortcut-conflict
-        >
-          <span>
-            {{ formatKeybinding(conflict.binding, platform) }} is used by
-            {{ conflict.other.title }}.
-          </span>
-          <span class="flex gap-1">
-            <Button
-              type="button"
-              variant="outline"
-              size="xs"
-              data-shortcut-replace
-              @click="replace(command)"
-            >
-              Replace
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              @click="conflict = null"
-            >
-              Cancel
-            </Button>
-          </span>
-        </div>
-      </SettingRow>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            class="justify-between font-normal"
+            :aria-label="`Shortcut for ${command.title}`"
+            data-shortcut-button
+            @click="startRecording(command.id)"
+            @blur="recordingId === command.id && stopRecording()"
+          >
+            {{ buttonText(command) }}
+          </Button>
+          <p
+            v-if="recordingId === command.id"
+            class="text-xs text-muted-foreground"
+          >
+            Esc cancels. Backspace removes the shortcut.
+          </p>
+          <div
+            v-if="conflict?.id === command.id"
+            role="alert"
+            class="flex flex-col gap-1 text-xs"
+            data-shortcut-conflict
+          >
+            <span>
+              {{ formatKeybinding(conflict.binding, platform) }} is used by
+              {{ conflict.other.title }}.
+            </span>
+            <span class="flex gap-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                data-shortcut-replace
+                @click="replace(command)"
+              >
+                Replace
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                @click="conflict = null"
+              >
+                Cancel
+              </Button>
+            </span>
+          </div>
+        </SettingRow>
+      </section>
+      <p
+        v-if="sections.length === 0"
+        class="mt-4 text-chrome text-muted-foreground"
+        data-keyboard-empty
+      >
+        No shortcut matches that.
+      </p>
     </div>
   </div>
 </template>

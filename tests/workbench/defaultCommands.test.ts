@@ -324,3 +324,72 @@ describe('keys that are not shortcuts', () => {
     expect(shape(workbenchLayout.value)).toBe(before)
   })
 })
+
+describe('ISC-412: every command is in one of the six groups', () => {
+  it('splits the built-in commands as the owner agreed, by id', () => {
+    const byGroup: Record<string, string[]> = {}
+    for (const command of listCommands()) (byGroup[command.group] ??= []).push(command.id)
+    const ids = (...keys: (keyof typeof COMMAND_IDS)[]): string[] =>
+      keys.map((key) => COMMAND_IDS[key]).sort()
+    const sorted = Object.fromEntries(
+      Object.entries(byGroup).map(([group, list]) => [group, [...list].sort()]),
+    )
+    expect(sorted).toEqual({
+      File: ids(
+        'newFile',
+        'open',
+        'openFolder',
+        'quickOpen',
+        'save',
+        'saveAs',
+        'revert',
+        'rename',
+        'findReferences',
+        'clearRecent',
+      ),
+      Find: ids('find', 'replace', 'findNext', 'findPrevious', 'findInFolders'),
+      Formatting: ids(
+        'bold',
+        'italic',
+        'link',
+        'inlineCode',
+        'strikethrough',
+        'headingUp',
+        'headingDown',
+      ),
+      View: ids(
+        'toggleSidebar',
+        'focusSidebar',
+        'showOutline',
+        'toggleRawSource',
+        'toggleWordWrap',
+        'switchTheme',
+        'commandPalette',
+      ),
+      'Tabs & Navigation': ids(
+        'splitRight',
+        'splitDown',
+        'closeTab',
+        'closeAll',
+        'back',
+        'forward',
+      ),
+      App: ids(
+        'openSettings',
+        'openSettingsFile',
+        'openKeybindingsFile',
+        'openDevtools',
+        'toggleDevtools',
+        'exit',
+      ),
+    })
+    expect(Object.values(byGroup).map((list) => list.length)).toEqual(
+      expect.arrayContaining([10, 5, 7, 7, 6, 6]),
+    )
+    expect(listCommands()).toHaveLength(41)
+  })
+
+  it('has a group for every id the table names, so none is left out of the page', () => {
+    for (const id of Object.values(COMMAND_IDS)) expect(getCommand(id)?.group).toBeDefined()
+  })
+})

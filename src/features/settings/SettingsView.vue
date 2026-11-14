@@ -76,8 +76,12 @@ const showsActions = computed(() => !searching.value && category.value === 'adva
 /** The Keyboard category is a list of commands, not of settings, so it has its own panel. */
 const showsKeyboard = computed(() => !searching.value && category.value === 'keyboard')
 
+/** The box on the Keyboard title row; it filters the list of shortcuts, not the settings. */
+const keyboardQuery = ref('')
+
 function choose(id: SettingsCategory): void {
   query.value = ''
+  keyboardQuery.value = ''
   setSettingsCategory(tabId, id)
 }
 
@@ -504,13 +508,36 @@ function openFile(): void {
         class="min-w-0 flex-1 overflow-y-auto p-6"
         data-settings-panel
       >
-        <h1
-          class="min-w-0 text-lg font-medium"
-          data-settings-heading
-        >
-          {{ heading }}
-        </h1>
-        <KeyboardPanel v-if="showsKeyboard" />
+        <div class="flex items-center justify-between gap-3">
+          <h1
+            class="min-w-0 text-lg font-medium"
+            data-settings-heading
+          >
+            {{ heading }}
+          </h1>
+          <div
+            v-if="showsKeyboard"
+            class="relative w-64 max-w-[50%] shrink-0"
+          >
+            <Search
+              class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <Input
+              v-model="keyboardQuery"
+              type="search"
+              placeholder="Search shortcuts"
+              aria-label="Search shortcuts"
+              class="pl-8"
+              data-keyboard-search
+              @keydown.escape="keyboardQuery = ''"
+            />
+          </div>
+        </div>
+        <KeyboardPanel
+          v-if="showsKeyboard"
+          :query="keyboardQuery"
+        />
         <div
           v-else
           class="mt-2"

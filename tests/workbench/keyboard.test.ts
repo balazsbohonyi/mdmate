@@ -29,6 +29,7 @@ function registerSidebar(run: () => void, enabled?: () => boolean) {
   registerCommand({
     id: 'a.one',
     title: 'One',
+    group: 'App',
     keybinding: 'Mod+Shift+B',
     ...(enabled === undefined ? {} : { enabled }),
     run,

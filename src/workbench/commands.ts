@@ -11,6 +11,20 @@ import {
 } from './keybinding'
 
 /**
+ * The concerns commands are grouped by, in the order the Keyboard page shows them. A command names
+ * exactly one, so a new command cannot be left out of the list.
+ */
+export const COMMAND_GROUPS = [
+  'File',
+  'Find',
+  'Formatting',
+  'View',
+  'Tabs & Navigation',
+  'App',
+] as const
+export type CommandGroup = (typeof COMMAND_GROUPS)[number]
+
+/**
  * The command registry. A command is a named action with an optional default shortcut. Shortcuts,
  * the app menu and, later, the palette all find commands here and run them with `runCommand`, so
  * there is one way for a command to run and one place that says whether it can.
@@ -21,6 +35,8 @@ import {
 export interface Command {
   readonly id: string
   readonly title: string
+  /** The concern it belongs to; the Keyboard page lists commands under these headings. */
+  readonly group: CommandGroup
   /** The default shortcut, as `Mod+Shift+B`. `keybindings.json` can replace it. */
   readonly keybinding?: string
   /** Disabled commands show greyed out in menus and do nothing when run. Default: always enabled. */
@@ -146,10 +162,14 @@ function resolve(): void {
 }
 
 /**
- * Adds a command and returns a function that removes it again. Throws when the id is taken, the
- * shortcut does not parse, or another command already holds the same default shortcut.
+ * Adds a command and returns a function that removes it again. Throws when the group is not one of
+ * `COMMAND_GROUPS`, the id is taken, the shortcut does not parse, or another command already holds
+ * the same default shortcut.
  */
 export function registerCommand(command: Command): () => void {
+  if (!COMMAND_GROUPS.includes(command.group)) {
+    throw new Error(`Command "${command.id}" names an unknown group "${String(command.group)}"`)
+  }
   if (entries.has(command.id)) throw new Error(`Command "${command.id}" is already registered`)
   const defaultBinding =
     command.keybinding === undefined ? null : parseKeybinding(command.keybinding)
