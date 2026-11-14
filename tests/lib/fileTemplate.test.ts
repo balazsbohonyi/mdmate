@@ -55,6 +55,8 @@ function siblings(path: readonly string[]): (readonly string[])[] {
   return path.length === 1 ? [path] : paths.filter((one) => one[0] === path[0])
 }
 
+const resetFonts = (text: string): string => resetKey(text, ['fonts', 'size'])
+
 describe('buildTemplate', () => {
   it('writes the header, a heading per section, flat keys as lines and groups as one block', () => {
     const built = buildTemplate(
@@ -287,6 +289,27 @@ describe('ISC-428: the restore adds nothing it should not', () => {
     const result = editSettingsText(own, ['theme'], undefined, FILE, template)
     expect(result.ok && readRoot(result.text, FILE).ok).toBe(true)
     expect(result.ok && result.text).not.toContain('//')
+  })
+
+  it('ISC-431: writes no example in a file that does not carry the template', () => {
+    // A file from before the template existed: its entry goes and nothing is put in its place.
+    const old = '{\n  "fonts": {\n    "size": 14\n  }\n}\n'
+    const reset = resetFonts(old)
+    expect(reset).toBe('{}\n')
+    // Left holding nothing, the file takes the whole template with the next change (ISC-429).
+    const next = edit(reset, ['fonts', 'size'], 13)
+    expect(next).toContain('// mdmate settings.')
+    expect(next).toContain('  "fonts": {\n    "size": 13\n  },')
+    // A hand-written file with comments of its own keeps them and gains none.
+    expect(edit('{\n  // mine\n  "theme": "light"\n}\n', ['theme'], undefined)).toBe(
+      '{\n  // mine\n}\n',
+    )
+    // The template with its header deleted is a hand-written file now.
+    const headless = template.text.replace(/^ {2}\/\/ mdmate settings\..*\n/m, '')
+    expect(headless).not.toBe(template.text)
+    const live = headless.replace(`  ${template.example(['theme']) ?? ''}`, '  "theme": "light",')
+    expect(live).toContain('  "theme": "light",')
+    expect(resetKey(live, ['theme'])).not.toContain('"theme"')
   })
 
   it('takes the plain way out when there is no template at all', () => {

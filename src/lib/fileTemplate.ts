@@ -31,6 +31,11 @@ export interface FileTemplate {
   example(path: readonly string[]): string | undefined
   /** The comment lines of the group at `path` (its braces and every key), or undefined. */
   block(path: readonly string[]): readonly string[] | undefined
+  /**
+   * Whether the text carries this template: its first header comment is in it. A file written by
+   * hand, or before the template existed, does not, and gets no commented examples put back.
+   */
+  carriedBy(text: string): boolean
 }
 
 const name = (part: string): string => JSON.stringify(part)
@@ -66,6 +71,7 @@ export function buildTemplate(
 ): FileTemplate {
   const examples = new Map<string, string>()
   const blocks = new Map<string, readonly string[]>()
+  const marker = header[0]
   const lines: string[] = ['{']
   for (const line of header) lines.push(`  // ${line}`.trimEnd())
 
@@ -115,5 +121,6 @@ export function buildTemplate(
     text: `${lines.join('\n')}\n`,
     example: (path) => examples.get(pathKey(path)),
     block: (path) => blocks.get(pathKey(path)),
+    carriedBy: (text) => marker === undefined || hasComment(text, `// ${marker}`),
   }
 }

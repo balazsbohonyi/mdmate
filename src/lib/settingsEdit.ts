@@ -151,7 +151,9 @@ function restoreExample(
   isGroup: boolean,
   template: FileTemplate | undefined,
 ): string | undefined {
-  if (template === undefined) return undefined
+  // Only a file that carries the template gets its examples back: elsewhere one would be a lone
+  // commented fragment that reads like a second copy of the entry.
+  if (template?.carriedBy(text) !== true) return undefined
   const one = isGroup ? undefined : template.example(target)
   const lines = one !== undefined ? [one] : template.block(target)
   const first = lines?.[0]
