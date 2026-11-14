@@ -252,6 +252,7 @@ export function registerDefaultCommands(): () => void {
     registerCommand({
       id: COMMAND_IDS.openKeybindingsFile,
       title: 'Open keybindings.json',
+      keybinding: 'Mod+Shift+K',
       run: async () => {
         try {
           // Rust makes the file if it is missing and grants that one path.

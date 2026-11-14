@@ -101,7 +101,7 @@ describe('the default commands', () => {
       [COMMAND_IDS.openDevtools]: 'F12',
       [COMMAND_IDS.openSettings]: 'Ctrl+,',
       [COMMAND_IDS.openSettingsFile]: undefined,
-      [COMMAND_IDS.openKeybindingsFile]: undefined,
+      [COMMAND_IDS.openKeybindingsFile]: 'Ctrl+Shift+K',
       [COMMAND_IDS.clearRecent]: undefined,
       [COMMAND_IDS.splitRight]: 'Alt+Shift+2',
       [COMMAND_IDS.splitDown]: 'Alt+Shift+8',

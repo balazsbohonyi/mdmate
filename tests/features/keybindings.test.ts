@@ -144,24 +144,24 @@ describe('ISC-149: saving keybindings.json changes a shortcut', () => {
     removeKeys = installKeybindings(window, 'other')
     const spy = spyCommand('t.spy')
 
-    host.files.write(MOCK_KEYBINDINGS_FILE, '{"t.spy": "Mod+Shift+K"}\n')
+    host.files.write(MOCK_KEYBINDINGS_FILE, '{"t.spy": "Mod+Shift+U"}\n')
     await flush()
-    document.body.dispatchEvent(keydown('Mod+Shift+K'))
+    document.body.dispatchEvent(keydown('Mod+Shift+U'))
     await flush()
     expect(spy).toHaveBeenCalledTimes(1)
 
     host.files.write(MOCK_KEYBINDINGS_FILE, '{}\n')
     await flush()
-    document.body.dispatchEvent(keydown('Mod+Shift+K'))
+    document.body.dispatchEvent(keydown('Mod+Shift+U'))
     await flush()
     expect(spy).toHaveBeenCalledTimes(1)
   })
 
   it('frees the old shortcut and takes effect before the window is shown', async () => {
-    await start('{"file.new": "Mod+Shift+K"}')
-    expect(idOf('Mod+Shift+K')).toBe(COMMAND_IDS.newFile)
+    await start('{"file.new": "Mod+Shift+U"}')
+    expect(idOf('Mod+Shift+U')).toBe(COMMAND_IDS.newFile)
     expect(idOf('Mod+N')).toBeUndefined()
-    expect(shortcutLabel(COMMAND_IDS.newFile, 'other')).toBe('Ctrl+Shift+K')
+    expect(shortcutLabel(COMMAND_IDS.newFile, 'other')).toBe('Ctrl+Shift+U')
   })
 })
 
@@ -185,11 +185,11 @@ describe('ISC-376: an invalid entry keeps the default and shows a notice', () =>
 
   it('keeps the entries it cannot use in the file when another command is changed', async () => {
     await start('{"no.such": "Mod+K", "file.new": "banana"}')
-    expect(await changeKeybindings({ [COMMAND_IDS.open]: 'Mod+Shift+K' })).toBe(true)
+    expect(await changeKeybindings({ [COMMAND_IDS.open]: 'Mod+Shift+U' })).toBe(true)
     expect(fileObject()).toEqual({
       'no.such': 'Mod+K',
       'file.new': 'banana',
-      'file.open': 'Mod+Shift+K',
+      'file.open': 'Mod+Shift+U',
     })
   })
 })
@@ -208,14 +208,14 @@ describe('ISC-403: overrides are resolved against the final set', () => {
   })
 
   it('sends two overrides on one shortcut back to their defaults, naming both', () => {
-    applyKeybindingsText('{"file.new": "Mod+Shift+K", "file.open": "Mod+Shift+K"}')
+    applyKeybindingsText('{"file.new": "Mod+Shift+U", "file.open": "Mod+Shift+U"}')
     expect(idOf('Mod+N')).toBe(COMMAND_IDS.newFile)
     expect(idOf('Mod+O')).toBe(COMMAND_IDS.open)
-    expect(idOf('Mod+Shift+K')).toBeUndefined()
+    expect(idOf('Mod+Shift+U')).toBeUndefined()
     const [problem] = keybindingProblems()
     expect(problem?.message).toContain(titleOf(COMMAND_IDS.newFile))
     expect(problem?.message).toContain(titleOf(COMMAND_IDS.open))
-    expect(problem?.message).toContain('Mod+Shift+K')
+    expect(problem?.message).toContain('Mod+Shift+U')
   })
 
   it('sends an override onto an untouched default back, and keeps the other command as it was', () => {
@@ -229,12 +229,12 @@ describe('ISC-403: overrides are resolved against the final set', () => {
     // File Open and Quick Open both ask for one key, so both go home; New File asked for File Open's
     // default, which is now taken again, so it goes home too.
     applyKeybindingsText(
-      '{"file.new": "Mod+O", "file.open": "Mod+Shift+K", "file.quickOpen": "Mod+Shift+K"}',
+      '{"file.new": "Mod+O", "file.open": "Mod+Shift+U", "file.quickOpen": "Mod+Shift+U"}',
     )
     expect(idOf('Mod+N')).toBe(COMMAND_IDS.newFile)
     expect(idOf('Mod+O')).toBe(COMMAND_IDS.open)
     expect(idOf('Mod+P')).toBe(COMMAND_IDS.quickOpen)
-    expect(idOf('Mod+Shift+K')).toBeUndefined()
+    expect(idOf('Mod+Shift+U')).toBeUndefined()
   })
 
   it('never throws for bad user data, however odd', () => {
@@ -286,8 +286,9 @@ describe.each([
     runScopeHandlers(view, keydown(text), 'editor')
   }
 
-  it("control: with no command on the key, CodeMirror's own Mod+Shift+K deletes the line", () => {
+  it("control: with no command on the key, CodeMirror's own Mod+Shift+K deletes the line", async () => {
     removeKeys = installKeybindings(window, 'other')
+    await start('{"tools.openKeybindingsFile": null}')
     const view = editor()
     press(view, 'Mod+Shift+K')
     expect(view.state.doc.toString()).toBe('one\nthree')
@@ -297,7 +298,7 @@ describe.each([
   it('runs the command and leaves the line when a command is bound to that key', async () => {
     removeKeys = installKeybindings(window, 'other')
     const run = spyCommand('t.spy')
-    await start('{"t.spy": "Mod+Shift+K"}')
+    await start('{"t.spy": "Mod+Shift+K", "tools.openKeybindingsFile": null}')
     const view = editor()
     press(view, 'Mod+Shift+K')
     await flush()
@@ -385,9 +386,9 @@ describe('ISC-372: the Keyboard category lists every command with its shortcut',
 
   it('shows a shortcut written by hand in the file at once', async () => {
     await mountKeyboard()
-    host.files.write(MOCK_KEYBINDINGS_FILE, '{"file.new": "Mod+Shift+K"}')
+    host.files.write(MOCK_KEYBINDINGS_FILE, '{"file.new": "Mod+Shift+U"}')
     await flush()
-    expect(buttonOf(COMMAND_IDS.newFile).textContent.trim()).toBe('Ctrl+Shift+K')
+    expect(buttonOf(COMMAND_IDS.newFile).textContent.trim()).toBe('Ctrl+Shift+U')
     expect(rowOf(COMMAND_IDS.newFile).querySelector('[data-setting-modified]')).not.toBeNull()
   })
 })
@@ -397,14 +398,14 @@ describe('ISC-373: pressing a new combination rebinds at once and writes the fil
     await mountKeyboard()
     const spy = spyCommand('t.spy')
     await flush()
-    await rebind('t.spy', 'Mod+Shift+K')
-    expect(fileObject()).toEqual({ 't.spy': 'Mod+Shift+K' })
-    expect(idOf('Mod+Shift+K')).toBe('t.spy')
-    await pressOnWindow('Mod+Shift+K')
+    await rebind('t.spy', 'Mod+Shift+U')
+    expect(fileObject()).toEqual({ 't.spy': 'Mod+Shift+U' })
+    expect(idOf('Mod+Shift+U')).toBe('t.spy')
+    await pressOnWindow('Mod+Shift+U')
     expect(spy).toHaveBeenCalledTimes(1)
 
     await rebind(COMMAND_IDS.newFile, 'Mod+Shift+J')
-    expect(fileObject()).toEqual({ 't.spy': 'Mod+Shift+K', 'file.new': 'Mod+Shift+J' })
+    expect(fileObject()).toEqual({ 't.spy': 'Mod+Shift+U', 'file.new': 'Mod+Shift+J' })
     expect(idOf('Mod+N')).toBeUndefined()
     expect(buttonOf(COMMAND_IDS.newFile).textContent.trim()).toBe('Ctrl+Shift+J')
     expect(rowOf(COMMAND_IDS.newFile).querySelector('[data-setting-modified]')).not.toBeNull()
@@ -458,18 +459,18 @@ describe('ISC-374: a combination already used names its owner, and Replace takes
 describe('ISC-375: reset removes the override', () => {
   it('puts the default back and takes the key out of the file', async () => {
     await mountKeyboard()
-    await rebind(COMMAND_IDS.newFile, 'Mod+Shift+K')
+    await rebind(COMMAND_IDS.newFile, 'Mod+Shift+U')
     expect(idOf('Mod+N')).toBeUndefined()
     await click(rowOf(COMMAND_IDS.newFile).querySelector('[data-setting-reset]'))
     expect(fileObject()).toEqual({})
     expect(idOf('Mod+N')).toBe(COMMAND_IDS.newFile)
-    expect(idOf('Mod+Shift+K')).toBeUndefined()
+    expect(idOf('Mod+Shift+U')).toBeUndefined()
     expect(rowOf(COMMAND_IDS.newFile).querySelector('[data-setting-reset]')).toBeNull()
   })
 
   it('takes the key out when a shortcut is recorded that is the default again', async () => {
     await mountKeyboard()
-    await rebind(COMMAND_IDS.newFile, 'Mod+Shift+K')
+    await rebind(COMMAND_IDS.newFile, 'Mod+Shift+U')
     await rebind(COMMAND_IDS.newFile, 'Mod+N')
     expect(fileObject()).toEqual({})
   })
@@ -533,8 +534,8 @@ describe('ISC-406: recording a shortcut', () => {
     await flush()
     expect(errorOf(COMMAND_IDS.newFile)).toContain('needs Mod or Alt')
     expect(host.files.read(MOCK_KEYBINDINGS_FILE)).toBeUndefined()
-    await pressOnWindow('Mod+Shift+K')
-    expect(fileObject()).toEqual({ 'file.new': 'Mod+Shift+K' })
+    await pressOnWindow('Mod+Shift+U')
+    expect(fileObject()).toEqual({ 'file.new': 'Mod+Shift+U' })
     expect(errorOf(COMMAND_IDS.newFile)).toBeNull()
   })
 
@@ -586,7 +587,7 @@ describe('ISC-406: recording a shortcut', () => {
 describe('ISC-408: Reset all', () => {
   it('writes {} and puts every command on its default shortcut', async () => {
     await mountKeyboard()
-    await rebind(COMMAND_IDS.newFile, 'Mod+Shift+K')
+    await rebind(COMMAND_IDS.newFile, 'Mod+Shift+U')
     await rebind(COMMAND_IDS.open, 'Mod+Shift+J')
     await rebind(COMMAND_IDS.save, 'F6')
     expect(idOf('Mod+N')).toBeUndefined()
@@ -614,11 +615,11 @@ describe('ISC-408: Reset all', () => {
 
 describe('ISC-410: a file that is not one JSON object', () => {
   it('keeps the last good shortcuts and shows a banner naming the line', async () => {
-    await mountKeyboard('{"file.new": "Mod+Shift+K"}')
+    await mountKeyboard('{"file.new": "Mod+Shift+U"}')
     expect(document.querySelector('[data-keyboard-banner]')).toBeNull()
     host.files.write(MOCK_KEYBINDINGS_FILE, '{\n  "file.new": "Mod+Shift+J",\n  oops\n}')
     await flush()
-    expect(idOf('Mod+Shift+K')).toBe(COMMAND_IDS.newFile)
+    expect(idOf('Mod+Shift+U')).toBe(COMMAND_IDS.newFile)
     expect(idOf('Mod+Shift+J')).toBeUndefined()
     const banner = document.querySelector('[data-keyboard-banner]')
     expect(banner?.textContent).toContain('last good shortcuts')
@@ -627,7 +628,7 @@ describe('ISC-410: a file that is not one JSON object', () => {
 
     host.files.write(MOCK_KEYBINDINGS_FILE, '["file.new"]')
     await flush()
-    expect(idOf('Mod+Shift+K')).toBe(COMMAND_IDS.newFile)
+    expect(idOf('Mod+Shift+U')).toBe(COMMAND_IDS.newFile)
     expect(document.querySelector('[data-keyboard-banner]')).not.toBeNull()
 
     host.files.write(MOCK_KEYBINDINGS_FILE, '{"file.new": "Mod+Shift+J"}')
@@ -639,7 +640,7 @@ describe('ISC-410: a file that is not one JSON object', () => {
   it('writes nothing over a file it cannot read, and says why', async () => {
     await mountKeyboard('not json at all')
     const before = host.files.read(MOCK_KEYBINDINGS_FILE)
-    await rebind(COMMAND_IDS.newFile, 'Mod+Shift+K')
+    await rebind(COMMAND_IDS.newFile, 'Mod+Shift+U')
     expect(host.files.read(MOCK_KEYBINDINGS_FILE)).toBe(before)
     expect(idOf('Mod+N')).toBe(COMMAND_IDS.newFile)
     expect(toasts.messagesOf('error').join(' ')).toContain('keybindings.json is not valid JSON')
@@ -662,10 +663,10 @@ describe('ISC-411: a rebinding shows everywhere with no reload', () => {
     expect(paletteDetail()).toBe('Ctrl+N')
     expect(menuShortcut()).toBe('Ctrl+N')
 
-    await rebind(COMMAND_IDS.newFile, 'Mod+Shift+K')
-    expect(buttonOf(COMMAND_IDS.newFile).textContent.trim()).toBe('Ctrl+Shift+K')
-    expect(paletteDetail()).toBe('Ctrl+Shift+K')
-    expect(menuShortcut()).toBe('Ctrl+Shift+K')
+    await rebind(COMMAND_IDS.newFile, 'Mod+Shift+U')
+    expect(buttonOf(COMMAND_IDS.newFile).textContent.trim()).toBe('Ctrl+Shift+U')
+    expect(paletteDetail()).toBe('Ctrl+Shift+U')
+    expect(menuShortcut()).toBe('Ctrl+Shift+U')
   })
 })
 
@@ -701,7 +702,7 @@ describe('ISC-405: unsaved edits in the keybindings.json tab are asked about fir
     await mountKeyboard('{}')
     await dirtyTab()
     const before = host.files.read(MOCK_KEYBINDINGS_FILE)
-    await rebind(COMMAND_IDS.newFile, 'Mod+Shift+K')
+    await rebind(COMMAND_IDS.newFile, 'Mod+Shift+U')
     expect(prompt()?.textContent).toContain('New File')
     expect(host.files.read(MOCK_KEYBINDINGS_FILE)).toBe(before)
     expect(idOf('Mod+N')).toBe(COMMAND_IDS.newFile)
@@ -711,7 +712,7 @@ describe('ISC-405: unsaved edits in the keybindings.json tab are asked about fir
     await mountKeyboard('{}')
     const tab = await dirtyTab()
     const before = host.files.read(MOCK_KEYBINDINGS_FILE)
-    await rebind(COMMAND_IDS.newFile, 'Mod+Shift+K')
+    await rebind(COMMAND_IDS.newFile, 'Mod+Shift+U')
     await answerWith('Cancel')
     expect(prompt()).toBeNull()
     expect(host.files.read(MOCK_KEYBINDINGS_FILE)).toBe(before)
@@ -722,30 +723,30 @@ describe('ISC-405: unsaved edits in the keybindings.json tab are asked about fir
   it('Save writes the tab first, then the change on top of it', async () => {
     await mountKeyboard('{}')
     const tab = await dirtyTab()
-    await rebind(COMMAND_IDS.newFile, 'Mod+Shift+K')
+    await rebind(COMMAND_IDS.newFile, 'Mod+Shift+U')
     await answerWith('Save')
     expect(prompt()).toBeNull()
-    expect(fileObject()).toEqual({ note: 'mine', 'file.new': 'Mod+Shift+K' })
-    expect(idOf('Mod+Shift+K')).toBe(COMMAND_IDS.newFile)
-    expect(JSON.parse(tab.text)).toEqual({ note: 'mine', 'file.new': 'Mod+Shift+K' })
+    expect(fileObject()).toEqual({ note: 'mine', 'file.new': 'Mod+Shift+U' })
+    expect(idOf('Mod+Shift+U')).toBe(COMMAND_IDS.newFile)
+    expect(JSON.parse(tab.text)).toEqual({ note: 'mine', 'file.new': 'Mod+Shift+U' })
   })
 
   it("Don't save drops the tab's edits and makes the change on the file as it was", async () => {
     await mountKeyboard('{}')
     const tab = await dirtyTab()
-    await rebind(COMMAND_IDS.newFile, 'Mod+Shift+K')
+    await rebind(COMMAND_IDS.newFile, 'Mod+Shift+U')
     await answerWith("Don't save")
-    expect(fileObject()).toEqual({ 'file.new': 'Mod+Shift+K' })
-    expect(JSON.parse(tab.text)).toEqual({ 'file.new': 'Mod+Shift+K' })
+    expect(fileObject()).toEqual({ 'file.new': 'Mod+Shift+U' })
+    expect(JSON.parse(tab.text)).toEqual({ 'file.new': 'Mod+Shift+U' })
   })
 
   it('shows a change in an open tab that holds no unsaved edits', async () => {
     await mountKeyboard('{}')
     const tab = await openPath(MOCK_KEYBINDINGS_FILE)
-    await rebind(COMMAND_IDS.newFile, 'Mod+Shift+K')
+    await rebind(COMMAND_IDS.newFile, 'Mod+Shift+U')
     expect(prompt()).toBeNull()
     expect(JSON.parse(documentOfTab(tab)?.master.doc.toString() ?? '{}')).toEqual({
-      'file.new': 'Mod+Shift+K',
+      'file.new': 'Mod+Shift+U',
     })
   })
 })
@@ -754,6 +755,12 @@ describe('ISC-409: Open keybindings.json', () => {
   it('has a row in Advanced and a palette command, and either makes the file and opens it', async () => {
     await mountKeyboard()
     expect(host.files.read(MOCK_KEYBINDINGS_FILE)).toBeUndefined()
+    // Ctrl+Shift+K is its default shortcut, and pressing it does the same.
+    expect(idOf('Mod+Shift+K')).toBe(COMMAND_IDS.openKeybindingsFile)
+    expect(shortcutLabel(COMMAND_IDS.openKeybindingsFile, 'other')).toBe('Ctrl+Shift+K')
+    await pressOnWindow('Mod+Shift+K')
+    expect(host.files.read(MOCK_KEYBINDINGS_FILE)).toBe('{}\n')
+    expect([...host.openDocuments().values()]).toContain(MOCK_KEYBINDINGS_FILE)
     setCategory('advanced')
     await flush()
     const button = document.querySelector('[data-open-keybindings-file]')
@@ -787,8 +794,8 @@ describe('ISC-384: keybindings.json is read only from the app data folder', () =
     await settle()
     expect(idOf('Mod+N')).toBe(COMMAND_IDS.newFile)
     expect(idOf('Mod+J')).toBeUndefined()
-    expect(await changeKeybindings({ [COMMAND_IDS.open]: 'Mod+Shift+K' })).toBe(true)
-    expect(host.files.read(MOCK_KEYBINDINGS_FILE)).toContain('Mod+Shift+K')
+    expect(await changeKeybindings({ [COMMAND_IDS.open]: 'Mod+Shift+U' })).toBe(true)
+    expect(host.files.read(MOCK_KEYBINDINGS_FILE)).toContain('Mod+Shift+U')
     expect(host.files.read('/work/keybindings.json')).toBe('{"file.new": "Mod+J"}')
   })
 })
