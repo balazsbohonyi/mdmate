@@ -8,7 +8,7 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp, h, nextTick, type App } from 'vue'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { followerOfTab, openPath, problem, resetDocuments } from '@/documents/store'
+import { followerOfTab, openPath, resetDocuments } from '@/documents/store'
 import {
   filtersOpen,
   findInFolder,
@@ -175,7 +175,6 @@ beforeEach(() => {
   resetFind()
   clearCommands()
   removeCommands = registerDefaultCommands()
-  problem.value = null
 })
 
 afterEach(() => {

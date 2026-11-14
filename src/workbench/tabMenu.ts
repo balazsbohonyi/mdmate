@@ -3,7 +3,6 @@ import {
   closeTabs,
   describe,
   documentOfTab,
-  problem,
   requestCloseTab,
   saveDocumentAs,
 } from '@/documents/store'
@@ -15,6 +14,7 @@ import { getHost } from '@/platform'
 import { showSidebar } from './sidebar'
 import { findPane, paneOfTab, type TabId } from './splitTree'
 import { tabRecord, workbenchLayout } from './store'
+import { reportError, reportWarning } from '@/shell/toasts'
 
 /**
  * What the tab context menu does. Every function takes the tab that was right-clicked, never the
@@ -120,12 +120,11 @@ export function relativePathOf(path: string): string {
 }
 
 async function copy(text: string): Promise<void> {
-  problem.value = null
   try {
     const host = await getHost()
     await host.writeClipboard(text)
   } catch (error) {
-    problem.value = `Could not copy to the clipboard: ${describe(error)}`
+    reportError(`Could not copy to the clipboard: ${describe(error)}`)
   }
 }
 
@@ -178,7 +177,7 @@ export async function renameTab(tabId: TabId): Promise<void> {
   }
   const path = tabPath(tabId)
   if (path === null || rootOf(path) === undefined) {
-    problem.value = RENAME_OUTSIDE_FOLDER
+    reportWarning(RENAME_OUTSIDE_FOLDER)
     return
   }
   showSidebar('folders')

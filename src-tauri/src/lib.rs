@@ -1,9 +1,11 @@
 mod access;
 mod commands;
 mod documents;
+mod drafts;
 mod drops;
 mod error;
 mod fs;
+mod images;
 mod links;
 mod outline;
 mod paths;
@@ -41,6 +43,9 @@ pub fn run() {
             app.state::<Arc<AppState>>()
                 .index()
                 .set_cache_dir(dir.join("index"));
+            app.state::<Arc<AppState>>()
+                .drafts()
+                .set_root(dir.join("drafts"));
             app.manage(Arc::new(recent::RecentStore::new(
                 dir.clone(),
                 platform::current().paths_ignore_case(),
@@ -81,6 +86,7 @@ pub fn run() {
         commands::open_file,
         commands::save_file,
         commands::document_new_untitled,
+        commands::drafts_sweep,
         commands::document_save_as,
         commands::document_exists,
         commands::recent_list,
@@ -110,6 +116,8 @@ pub fn run() {
         commands::file_kind,
         commands::image_info,
         commands::image_closed,
+        commands::image_paste,
+        commands::image_drop,
         commands::add_dropped_root,
         commands::create_file,
         commands::create_folder,
@@ -152,6 +160,7 @@ pub fn run() {
         commands::open_file,
         commands::save_file,
         commands::document_new_untitled,
+        commands::drafts_sweep,
         commands::document_save_as,
         commands::document_exists,
         commands::recent_list,
@@ -181,6 +190,8 @@ pub fn run() {
         commands::file_kind,
         commands::image_info,
         commands::image_closed,
+        commands::image_paste,
+        commands::image_drop,
         commands::add_dropped_root,
         commands::create_file,
         commands::create_folder,

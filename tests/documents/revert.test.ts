@@ -6,7 +6,6 @@ import {
   followerOfTab,
   openPath,
   pendingRevert,
-  problem,
   refreshMissing,
   requestRevert,
   resetDocuments,
@@ -19,6 +18,7 @@ import { createMockHost, type MockHost } from '@/platform/mock'
 import { clearCommands, isCommandEnabled, runCommand } from '@/workbench/commands'
 import { COMMAND_IDS, registerDefaultCommands } from '@/workbench/defaultCommands'
 import { resetWorkbench, selectTab } from '@/workbench/store'
+import { toasts } from '../helpers/toasts'
 
 const A = 'C:/notes/a.md'
 
@@ -138,7 +138,7 @@ describe('Revert File', () => {
     host.withoutEvents(() => host.files.delete(A))
     await requestRevert()
     expect(pendingRevert.value).toBeNull()
-    expect(problem.value).toMatch(/no longer on disk/)
+    expect(toasts.last).toMatch(/no longer on disk/)
     expect(textOf(tab)).toBe('on disk\nmy edit\n')
   })
 
@@ -172,7 +172,7 @@ describe('Revert File', () => {
     await requestRevert()
     host.withoutEvents(() => host.files.delete(A))
     await resolvePendingRevert('revert')
-    expect(problem.value).toMatch(/Could not revert/)
+    expect(toasts.last).toMatch(/Could not revert/)
     expect(textOf(tab)).toBe('on disk\nmy edit\n')
     expect(docMeta(documentOfTab(tab)!.id)?.missing).toBe(true)
   })

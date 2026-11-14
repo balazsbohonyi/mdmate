@@ -1,0 +1,57 @@
+/*
+ * Toasts (vue-sonner, through components/ui/sonner). The library reads its colours from its own
+ * variables; they are pointed at the app's tokens here, so a toast follows the theme and no colour
+ * literal lives outside src/styles/. An error and a warning differ by the colour of their icon.
+ */
+[data-sonner-toaster] {
+  --normal-bg: var(--popover);
+  --normal-bg-hover: var(--accent);
+  --normal-text: var(--popover-foreground);
+  --normal-border: var(--border);
+  --normal-border-hover: var(--border);
+  --gray1: var(--popover);
+  --gray2: var(--accent);
+  --gray3: var(--border);
+  --gray4: var(--border);
+  --gray5: var(--border);
+  --gray6: var(--border);
+  --gray7: var(--muted-foreground);
+  --gray8: var(--muted-foreground);
+  --gray9: var(--muted-foreground);
+  --gray10: var(--popover-foreground);
+  --gray11: var(--popover-foreground);
+  --gray12: var(--popover-foreground);
+}
+
+[data-sonner-toast][data-type='warning'] [data-icon] {
+  color: var(--syntax-heading);
+}
+
+[data-sonner-toast][data-type='error'] [data-icon] {
+  color: var(--destructive);
+}
+
+/* Room on the right so a long message does not run under the close icon. */
+[data-sonner-toast][data-styled='true'] {
+  padding-right: 40px;
+}
+
+/* The close button is the icon alone, inside the toast at its top right corner: no circle, no
+   border, no fill, also while the pointer is on it. */
+[data-sonner-toast][data-styled='true'] [data-close-button],
+[data-sonner-toast][data-styled='true']:hover [data-close-button]:hover {
+  top: 8px;
+  right: 8px;
+  left: auto;
+  bottom: auto;
+  transform: none;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted-foreground);
+}
+
+[data-sonner-toast][data-styled='true']:hover [data-close-button]:hover {
+  color: var(--popover-foreground);
+}

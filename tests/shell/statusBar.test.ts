@@ -6,8 +6,9 @@
  */
 import { afterEach, describe, expect, it } from 'vitest'
 import { createApp, nextTick, type App } from 'vue'
-import { problem, resetDocuments } from '@/documents/store'
+import { resetDocuments } from '@/documents/store'
 import StatusBar from '@/shell/StatusBar.vue'
+import { reportError } from '@/shell/toasts'
 import { findCounts } from '@/workbench/find'
 import { resetWorkbench, workbenchLayout } from '@/workbench/store'
 
@@ -19,7 +20,6 @@ afterEach(() => {
   mounted = undefined
   resetDocuments()
   resetWorkbench()
-  problem.value = null
   findCounts.clear()
 })
 
@@ -45,17 +45,17 @@ describe('the status bar (UAT round 2)', () => {
     expect(root.textContent.trim()).toBe('')
   })
 
-  it('shows the match count of the focused pane, and a message instead when there is one', async () => {
+  it('shows the match count of the focused pane, and does not show a reported problem', async () => {
     const root = await mountBar()
     const pane = workbenchLayout.value.activePane
     findCounts.set(pane, '3 of 12')
     findCounts.set('another-pane', '9 results')
     await nextTick()
     expect(root.textContent.trim()).toBe('3 of 12')
-    problem.value = 'Could not open x.md'
+    // A thing that went wrong is a toast now; the bar does not show it.
+    reportError('Could not open x.md')
     await nextTick()
-    expect(root.textContent.trim()).toBe('Could not open x.md')
-    problem.value = null
+    expect(root.textContent.trim()).toBe('3 of 12')
     findCounts.clear()
     await nextTick()
     expect(root.textContent.trim()).toBe('')

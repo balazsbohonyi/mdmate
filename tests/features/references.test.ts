@@ -13,7 +13,6 @@ import {
   documentOfTab,
   followerOfTab,
   openPath,
-  problem,
   resetDocuments,
 } from '@/documents/store'
 import ReferencesPanel from '@/features/references/ReferencesPanel.vue'
@@ -30,6 +29,7 @@ import { createMockHost, type MockHost } from '@/platform/mock'
 import { resetSidebar, sidebarPanel } from '@/workbench/sidebar'
 import { allTabs } from '@/workbench/splitTree'
 import { resetWorkbench, workbenchLayout } from '@/workbench/store'
+import { toasts } from '../helpers/toasts'
 
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
@@ -104,7 +104,6 @@ beforeEach(() => {
   resetDocuments()
   resetSidebar()
   resetReferences()
-  problem.value = null
 })
 
 afterEach(() => {
@@ -271,7 +270,7 @@ describe('opening a reference', () => {
   it('says so when the file cannot be opened', async () => {
     await start()
     await openReference({ path: '/work/gone.md', line: 1, column: 0, text: 'x' })
-    expect(problem.value).toContain('Could not open /work/gone.md')
+    expect(toasts.last).toContain('Could not open /work/gone.md')
   })
 })
 

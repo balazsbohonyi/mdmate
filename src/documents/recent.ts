@@ -1,7 +1,8 @@
 import { shallowRef } from 'vue'
 import { openRecentFolder as addRecentFolder } from '@/features/tree/store'
 import { getHost, type RecentLists } from '@/platform'
-import { describe, openPath, problem } from './store'
+import { describe, openPath } from './store'
+import { reportError } from '@/shell/toasts'
 
 /**
  * Open Recent. Rust keeps the lists (the last 10 files and 5 folders, newest first) and is the only
@@ -15,29 +16,27 @@ export async function refreshRecent(): Promise<void> {
   try {
     recentLists.value = await (await getHost()).recentList()
   } catch (error) {
-    problem.value = `Could not read the recent files: ${describe(error)}`
+    reportError(`Could not read the recent files: ${describe(error)}`)
   }
 }
 
 /** Opens a file from the list in a tab. */
 export async function openRecentFile(path: string): Promise<void> {
-  problem.value = null
   try {
     const granted = await (await getHost()).recentOpenFile(path)
     await openPath(granted)
   } catch (error) {
-    problem.value = `Could not open ${path}: ${describe(error)}`
+    reportError(`Could not open ${path}: ${describe(error)}`)
   }
   await refreshRecent()
 }
 
 /** Makes a folder from the list a workspace folder again. */
 export async function openRecentFolder(path: string): Promise<void> {
-  problem.value = null
   try {
     await addRecentFolder(path)
   } catch (error) {
-    problem.value = `Could not open ${path}: ${describe(error)}`
+    reportError(`Could not open ${path}: ${describe(error)}`)
   }
   await refreshRecent()
 }
@@ -48,6 +47,6 @@ export async function clearRecent(): Promise<void> {
     await (await getHost()).recentClear()
     recentLists.value = { files: [], folders: [] }
   } catch (error) {
-    problem.value = `Could not clear the recent files: ${describe(error)}`
+    reportError(`Could not clear the recent files: ${describe(error)}`)
   }
 }

@@ -9,9 +9,9 @@ import {
   errorKind,
   followerOfTab,
   openPath,
-  problem,
   setLinkFollower,
 } from './store'
+import { reportError, reportWarning } from '@/shell/toasts'
 
 /**
  * Following links. What a target may do is decided by the link guard in Rust; this module only
@@ -37,7 +37,7 @@ export function jumpToFragment(tabId: TabId, fragment: string): boolean {
   if (follower === undefined) return false
   const pos = findAnchor(follower.state.doc, fragment)
   if (pos === null) {
-    problem.value = `No heading #${fragment} in ${documentOfTab(tabId)?.name ?? 'this file'}`
+    reportWarning(`No heading #${fragment} in ${documentOfTab(tabId)?.name ?? 'this file'}`)
     return false
   }
   follower.reveal(pos)
@@ -51,7 +51,6 @@ export function jumpToFragment(tabId: TabId, fragment: string): boolean {
 export async function followLinkFrom(tabId: TabId, href: string, confirmed = false): Promise<void> {
   const doc = documentOfTab(tabId)
   if (doc === undefined) return
-  problem.value = null
   const host = await getHost()
   let followed
   try {
@@ -65,14 +64,14 @@ export async function followLinkFrom(tabId: TabId, href: string, confirmed = fal
         return
       }
       case 'link-refused':
-        problem.value = `This link cannot be followed: ${href}`
+        reportWarning(`This link cannot be followed: ${href}`)
         return
       case 'not-found':
-        problem.value = `Link target not found: ${href}`
+        reportWarning(`Link target not found: ${href}`)
         return
       case undefined:
       default:
-        problem.value = `Could not follow the link: ${describe(error)}`
+        reportError(`Could not follow the link: ${describe(error)}`)
         return
     }
   }
@@ -90,7 +89,7 @@ export async function followLinkFrom(tabId: TabId, href: string, confirmed = fal
       return
     case 'document': {
       const opened = await openPath(followed.path).catch((error: unknown) => {
-        problem.value = `Could not open ${followed.path}: ${describe(error)}`
+        reportError(`Could not open ${followed.path}: ${describe(error)}`)
         return null
       })
       if (opened === null) return
@@ -116,6 +115,6 @@ export async function resolvePendingLink(choice: 'open' | 'cancel'): Promise<voi
 
 setLinkFollower((tabId, href) => {
   followLinkFrom(tabId, href).catch((error: unknown) => {
-    problem.value = `Could not follow the link: ${describe(error)}`
+    reportError(`Could not follow the link: ${describe(error)}`)
   })
 })

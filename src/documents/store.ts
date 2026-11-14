@@ -1,5 +1,6 @@
 import { computed, shallowRef, watch } from 'vue'
 import { uniformEndings, type Endings } from '@/lib/endings'
+import { bumpImageEpoch, refreshPictures } from '@/editor/livePreview/blocks'
 import { getHost, type OpenedFile, type SaveAsHint } from '@/platform'
 import { isMarkdownName } from '@/features/tree/model'
 import { focusActiveEditor } from '@/workbench/focus'
@@ -20,6 +21,7 @@ import { Document } from './document'
 import type { Follower } from './follower'
 import { clearDocMeta, docMeta, patchDocMeta, removeDocMeta, setDocMeta } from './meta'
 import { suggestedFileName } from './suggest'
+import { reportError, reportWarning } from '@/shell/toasts'
 
 /**
  * The open documents. Several tabs can show one document; the document lives until its last tab
@@ -58,6 +60,7 @@ export function documentMoved(id: number, path: string): void {
   if (doc === undefined) return
   doc.path = path
   doc.name = path.split(/[\\/]/).pop() ?? path
+  doc.imagesMoved()
   publish(doc)
   touched()
 }
@@ -109,9 +112,6 @@ export function activeDocument(): Document | undefined {
   const tab = findPane(layout, layout.activePane)?.activeTab
   return tab === null || tab === undefined ? undefined : documentOfTab(tab)
 }
-
-/** A message about the last thing the user tried that did not work, for the status bar. */
-export const problem = shallowRef<string | null>(null)
 
 let linkFollower: ((tabId: TabId, href: string) => void) | undefined
 
@@ -175,6 +175,8 @@ export async function openDocument(
   const opened = await host.openFile(path, remember)
   const existing = documents.get(opened.id)
   if (existing !== undefined) return { doc: existing, opened, isNew: false }
+  // The pictures this document draws are read from disk, not remembered from an earlier open.
+  bumpImageEpoch()
   const doc = adopt(new Document(opened, publish, documentOptions(opened.id, host)))
   return { doc, opened, isNew: true }
 }
@@ -193,6 +195,7 @@ function documentOptions(
   id: number,
   host: Awaited<ReturnType<typeof getHost>>,
   untitledNumber?: number,
+  draftFolder?: string,
 ): ConstructorParameters<typeof Document>[2] {
   return {
     touched,
@@ -200,7 +203,14 @@ function documentOptions(
     imageBoundary: (path) => imageBoundaryOf(path),
     followLink: (tabId, href) => linkFollower?.(tabId, href),
     checkLinks: (hrefs) => host.checkLinks(id, hrefs),
+    saveImage: async (bytes, stamp) => (await host.savePastedImage(id, bytes, stamp)).link,
+    dropImage: async (path, stamp) => (await host.dropImage(id, path, stamp)).link,
+    notify: (message, level) => {
+      if (level === 'warning') reportWarning(message)
+      else reportError(message)
+    },
     ...(untitledNumber === undefined ? {} : { untitledNumber }),
+    ...(draftFolder === undefined ? {} : { draftFolder }),
   }
 }
 
@@ -233,7 +243,7 @@ export async function createUntitled(
   buffer?: { text: string; endings: Endings },
 ): Promise<Document> {
   const host = await getHost()
-  const id = await host.newUntitled()
+  const { id, draftFolder } = await host.newUntitled(number)
   const empty: OpenedFile = {
     id,
     path: '',
@@ -247,7 +257,7 @@ export async function createUntitled(
     endings: uniformEndings(),
     kind: 'markdown',
   }
-  const doc = adopt(new Document(empty, publish, documentOptions(id, host, number)))
+  const doc = adopt(new Document(empty, publish, documentOptions(id, host, number, draftFolder)))
   if (buffer !== undefined) doc.restoreBuffer(empty, buffer)
   return doc
 }
@@ -287,6 +297,7 @@ export async function openImage(path: string, paneId?: PaneId): Promise<TabId> {
     selectTab(existing)
     return existing
   }
+  bumpImageEpoch()
   return openTabFor({ kind: 'image', path: info.path, size: info.size }, paneId)
 }
 
@@ -330,9 +341,8 @@ export function openInActivePane(path: string): Promise<TabId> {
   return openPath(path, workbenchLayout.value.activePane)
 }
 
-/** Shows the open dialog and opens what the user chose. Failures go to `problem`. */
+/** Shows the open dialog and opens what the user chose. Failures show as a toast. */
 export async function openFromDialog(): Promise<void> {
-  problem.value = null
   try {
     const host = await getHost()
     for (const path of await host.pickFiles()) {
@@ -340,11 +350,11 @@ export async function openFromDialog(): Promise<void> {
         await openInActivePane(path)
         focusActiveEditor()
       } catch (error) {
-        problem.value = `Could not open ${path}: ${describe(error)}`
+        reportError(`Could not open ${path}: ${describe(error)}`)
       }
     }
   } catch (error) {
-    problem.value = `Could not show the open dialog: ${describe(error)}`
+    reportError(`Could not show the open dialog: ${describe(error)}`)
   }
 }
 
@@ -489,7 +499,7 @@ function raiseConflict(doc: Document): void {
 }
 
 function reportSyncFailure(doc: Document, error: unknown): void {
-  problem.value = `Could not read ${doc.name} after it changed on disk: ${describe(error)}`
+  reportError(`Could not read ${doc.name} after it changed on disk: ${describe(error)}`)
 }
 
 async function syncFromDisk(doc: Document): Promise<void> {
@@ -555,7 +565,7 @@ export async function watchDisk(): Promise<void> {
     watchMissing()
   } catch (error) {
     // Saving still refuses to overwrite a changed file, so this costs the live reload, not data.
-    problem.value = `Could not watch open files for changes: ${describe(error)}`
+    reportError(`Could not watch open files for changes: ${describe(error)}`)
   }
 }
 
@@ -573,9 +583,12 @@ function watchMissing(): void {
   const stopWatch = watch(() => activeDocument()?.id, check, { immediate: true })
   const target = typeof window === 'undefined' ? undefined : window
   target?.addEventListener('focus', check)
+  // Picture files are usually deleted or replaced while the user is elsewhere too.
+  target?.addEventListener('focus', refreshPictures)
   stopMissingCheck = () => {
     stopWatch()
     target?.removeEventListener('focus', check)
+    target?.removeEventListener('focus', refreshPictures)
   }
 }
 
@@ -708,7 +721,7 @@ export async function requestRevert(): Promise<void> {
   // The file may have gone since the last look; Revert has nothing to reload then.
   await refreshMissing(doc.id)
   if (docMeta(doc.id)?.missing === true) {
-    problem.value = `${doc.name} is no longer on disk, so there is nothing to revert to.`
+    reportWarning(`${doc.name} is no longer on disk, so there is nothing to revert to.`)
     return
   }
   pendingRevert.value = { tabId, docId: doc.id }
@@ -730,7 +743,7 @@ export async function resolvePendingRevert(choice: 'revert' | 'cancel'): Promise
     patchDocMeta(doc.id, { conflict: null, saveError: null, missing: false })
   } catch (error) {
     if (errorKind(error) === 'not-found') patchDocMeta(doc.id, { missing: true })
-    problem.value = `Could not revert ${doc.name}: ${describe(error)}`
+    reportError(`Could not revert ${doc.name}: ${describe(error)}`)
   }
 }
 
@@ -787,5 +800,4 @@ export function resetDocuments(): void {
   closeWaiter = undefined
   pendingRevert.value = null
   lastFolder = null
-  problem.value = null
 }

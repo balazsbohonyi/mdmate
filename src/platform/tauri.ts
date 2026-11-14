@@ -2,7 +2,15 @@ import { Channel, convertFileSrc, invoke } from '@tauri-apps/api/core'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { decodeFrame, encodeFrame, openedFromFrame } from './frame'
-import type { DiskChange, Host, PerfConfig, PerfHost, SavedAs, SavedFile } from './host'
+import type {
+  DiskChange,
+  Host,
+  NewUntitled,
+  PerfConfig,
+  PerfHost,
+  SavedAs,
+  SavedFile,
+} from './host'
 import { parseFollowedLink, parseLinkInfo } from './links'
 import { parseIndexStatus } from './indexStatus'
 import { parseQuickOpenAnswer } from './quickOpen'
@@ -17,6 +25,8 @@ import {
   parseImageInfo,
   parseMoved,
   parsePaths,
+  parseDroppedImage,
+  parseSavedImage,
   parseTreeEntries,
   toCssPosition,
   type FileDragEvent,
@@ -198,6 +208,17 @@ export const tauriHost: Host = {
   async imageClosed(path) {
     await invoke('image_closed', { path })
   },
+  async dropImage(id, path, stamp) {
+    return parseDroppedImage(await invoke<unknown>('image_drop', { id, path, stamp }))
+  },
+  async savePastedImage(id, bytes, stamp) {
+    // The body is the picture's bytes; the id and the stamp are plain ASCII in headers.
+    return parseSavedImage(
+      await invoke<unknown>('image_paste', new Uint8Array(bytes), {
+        headers: { 'x-document-id': String(id), 'x-image-stamp': stamp },
+      }),
+    )
+  },
   async addDroppedRoot(path) {
     return invoke<string>('add_dropped_root', { path })
   },
@@ -285,8 +306,11 @@ export const tauriHost: Host = {
       decodeFrame(await invoke<ArrayBuffer>('open_file', { path, remember: remember === true })),
     )
   },
-  async newUntitled() {
-    return invoke<number>('document_new_untitled')
+  async newUntitled(number) {
+    return invoke<NewUntitled>('document_new_untitled', { number })
+  },
+  async sweepDrafts(keep) {
+    return invoke<number>('drafts_sweep', { keep })
   },
   async saveAs(id, text, endings, hint) {
     // The name and folder travel in the frame's header, which is UTF-8 JSON, so a name with
@@ -331,8 +355,8 @@ export const tauriHost: Host = {
   async writeSession(json) {
     await invoke('session_write', new TextEncoder().encode(json))
   },
-  async recoverBuffer(name, text) {
-    return invoke<string>('session_recover', { name, text })
+  async recoverBuffer(name, text, untitled) {
+    return invoke<string>('session_recover', { name, text, untitled })
   },
   async watchClose(onClose) {
     const channel = new Channel<null>()

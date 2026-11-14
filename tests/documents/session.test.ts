@@ -5,6 +5,7 @@ import {
   flushSession,
   journalStats,
   resetSession,
+  restoreOnStart,
   restoreSession,
   startJournal,
 } from '@/documents/session'
@@ -13,7 +14,6 @@ import {
   documentOfTab,
   followerOfTab,
   openPath,
-  problem,
   requestCloseTab,
   resetDocuments,
   resolvePendingClose,
@@ -23,7 +23,7 @@ import { newUntitledTab, resetUntitled } from '@/documents/untitled'
 import { endingsOf } from '@/editor/lineEndings'
 import { CRLF, LF } from '@/lib/endings'
 import { setHost } from '@/platform'
-import { createMockHost, type MockHost } from '@/platform/mock'
+import { createMockHost, DRAFT_ROOT, type MockHost } from '@/platform/mock'
 import { joinRaw } from '@/platform/mockFiles'
 import {
   currentWindowWidth,
@@ -41,6 +41,7 @@ import {
   tabRecord,
   workbenchLayout,
 } from '@/workbench/store'
+import { toasts } from '../helpers/toasts'
 
 const A = 'C:/notes/a.md'
 const B = 'C:/notes/b.md'
@@ -534,7 +535,7 @@ describe('closing the app', () => {
     expect(JSON.parse(host.session ?? '{}')).toMatchObject({
       buffers: [{ path: A, text: 'typed a moment ago# A\n\nfirst\n' }],
     })
-    expect(problem.value).toBeNull()
+    expect(toasts.last).toBeNull()
   })
 
   it('ends even when the write fails', async () => {
@@ -682,6 +683,73 @@ describe('untitled tabs (P6-T8)', () => {
     expect(snapshot.tabs).toEqual([expect.objectContaining({ path: picked })])
     expect(snapshot.tabs[0]?.kind).toBeUndefined()
     expect(snapshot.buffers).toEqual([])
+  })
+
+  describe('draft folders (ISC-332)', () => {
+    const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4])
+
+    async function pasteInto(tab: string): Promise<string> {
+      const id = documentOfTab(tab)?.id ?? 0
+      return (await host.savePastedImage(id, PNG.buffer.slice(0), '20261113-153000')).name
+    }
+
+    it('keeps the images of a restored tab and sweeps the draft nothing holds', async () => {
+      const tab = await untitledTab('![](assets/image-20261113-153000.png)')
+      const name = await pasteInto(tab)
+      await flushSession()
+      // A draft a crash left behind: no tab of the session has number 9.
+      host.files.write(`${DRAFT_ROOT}/9/assets/image-20261113-153000.png`, 'orphan')
+
+      newRun(host)
+      const report = await restoreOnStart()
+      expect(report?.notices).toEqual([])
+      // The restored tab got its number back, so its folder is the one its images are in.
+      expect(metaOf(tab)).toMatchObject({ name: 'Untitled-1' })
+      expect(host.files.has(`${DRAFT_ROOT}/1/assets/${name}`)).toBe(true)
+      expect(host.files.isFolder(`${DRAFT_ROOT}/9`)).toBe(false)
+      expect(host.sweeps).toHaveLength(1)
+      // And a new image of the restored tab lands in the same folder (another picture: the same
+      // bytes would be the file that is there).
+      const other = PNG.slice()
+      other[other.length - 1] = 0x7f
+      const next = await host.savePastedImage(
+        documentOfTab(tab)?.id ?? 0,
+        other.buffer,
+        '20261113-153001',
+      )
+      expect(next.link).toBe('assets/image-20261113-153001.png')
+      expect(host.files.has(`${DRAFT_ROOT}/1/assets/image-20261113-153001.png`)).toBe(true)
+    })
+
+    it('keeps the images with the recovered text when the tab cannot come back, and sweeps nothing', async () => {
+      const tab = await untitledTab('rescue me')
+      const name = await pasteInto(tab)
+      typeInto(tab, 0, `![](assets/${name})`)
+      await flushSession()
+      const written = JSON.parse(host.session ?? '{}') as { tabs: unknown[] }
+      written.tabs = []
+      newRun(host)
+      host.session = JSON.stringify(written)
+      // A draft nothing lists, which a start with a clean session would remove.
+      host.files.write(`${DRAFT_ROOT}/9/assets/image-20261113-153000.png`, 'unlisted')
+      const report = await restoreOnStart()
+      expect(report?.notices.length).toBeGreaterThan(0)
+      // The document is closed after its text is kept, which removes its draft folder; the images
+      // its text links to are beside the recovered file by then, and the link still reads the same.
+      expect(host.recovered).toHaveLength(1)
+      expect(host.recovered[0]?.text).toContain(`![](assets/${name})`)
+      expect(host.files.has(`/recovered/assets/${name}`)).toBe(true)
+      // And nothing else is swept after a restore that had a problem.
+      expect(host.sweeps).toEqual([])
+      expect(host.files.isFolder(`${DRAFT_ROOT}/9`)).toBe(true)
+    })
+
+    it('sweeps nothing on a first start, which has no session to read', async () => {
+      host.files.write(`${DRAFT_ROOT}/5/assets/image-20261113-153000.png`, 'old')
+      expect(await restoreOnStart()).toBeNull()
+      expect(host.sweeps).toEqual([])
+      expect(host.files.isFolder(`${DRAFT_ROOT}/5`)).toBe(true)
+    })
   })
 
   it('keeps its text in a file, and says so, when the tab cannot come back', async () => {

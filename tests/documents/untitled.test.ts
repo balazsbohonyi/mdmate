@@ -7,7 +7,6 @@ import {
   followerOfTab,
   openPath,
   pendingClose,
-  problem,
   requestCloseTab,
   resetDocuments,
   resolvePendingClose,
@@ -22,6 +21,7 @@ import { clearCommands, isCommandEnabled, runCommand } from '@/workbench/command
 import { COMMAND_IDS, registerDefaultCommands } from '@/workbench/defaultCommands'
 import { allTabs, panesOf } from '@/workbench/splitTree'
 import { resetWorkbench, splitActivePane, tabTitle, workbenchLayout } from '@/workbench/store'
+import { toasts } from '../helpers/toasts'
 
 const A = 'C:/notes/a.md'
 const OTHER = 'D:/elsewhere/x.md'
@@ -283,6 +283,6 @@ describe('Open Recent', () => {
     picked = 'C:/notes/saved.md'
     await runCommand(COMMAND_IDS.save)
     expect(host.recent.files).toEqual([picked])
-    expect(problem.value).toBeNull()
+    expect(toasts.last).toBeNull()
   })
 })

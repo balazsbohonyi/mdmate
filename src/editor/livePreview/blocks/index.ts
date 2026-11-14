@@ -1,8 +1,12 @@
-export { blockLayer, blockScans, blocksOf, type BlockInfo } from './field'
+export { blockLayer, blockScans, blocksOf, imagesMoved, type BlockInfo } from './field'
 export {
+  bumpImageEpoch,
+  freshImageSrc,
   imageContext,
   imageSizeOf,
+  refreshPictures,
   rememberImageSize,
+  resetImageEpoch,
   resetImageSizes,
   resolveImageAddress,
   type ImageAddress,
@@ -19,3 +23,11 @@ export {
   type TableItem,
   type TableModel,
 } from './scan'
+export {
+  commitResize,
+  selectedImage,
+  selectedImageOf,
+  selectImage,
+  type SelectedImage,
+} from './imageSelect'
+export { MIN_IMAGE_WIDTH, resizeEdits, type ResizeTarget } from './imageEdit'

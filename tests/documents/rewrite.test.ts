@@ -6,7 +6,7 @@
  */
 import { Transaction } from '@codemirror/state'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { documentOfTab, followerOfTab, openPath, problem, resetDocuments } from '@/documents/store'
+import { documentOfTab, followerOfTab, openPath, resetDocuments } from '@/documents/store'
 import { moveWithLinks, rewriteState } from '@/features/links/rewrite'
 import { commitNaming, renameRow } from '@/features/tree/ops'
 import { resetTree, restoreWorkspace } from '@/features/tree/store'
@@ -42,7 +42,6 @@ beforeEach(() => {
   resetDocuments()
   resetWorkbench()
   resetSettings()
-  problem.value = null
   rewriteState.value = null
 })
 

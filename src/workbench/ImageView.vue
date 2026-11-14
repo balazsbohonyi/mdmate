@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { formatBytes } from '@/lib/bytes'
+import { freshImageSrc } from '@/editor/livePreview/blocks'
 import { getHost } from '@/platform'
 import {
   actualView,
@@ -109,7 +110,7 @@ async function load(): Promise<void> {
   url.value = null
   natural.value = null
   failed.value = false
-  url.value = (await getHost()).assetUrl(path)
+  url.value = freshImageSrc((await getHost()).assetUrl(path))
 }
 
 onMounted(() => {

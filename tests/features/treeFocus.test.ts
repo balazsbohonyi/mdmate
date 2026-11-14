@@ -9,7 +9,7 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp, h, nextTick, type App } from 'vue'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { openPath, problem, resetDocuments } from '@/documents/store'
+import { openPath, resetDocuments } from '@/documents/store'
 import FileTree from '@/features/tree/FileTree.vue'
 import { commitNaming, deleteRow, moveRow, renameRow } from '@/features/tree/ops'
 import {
@@ -133,7 +133,6 @@ beforeEach(() => {
   resetSidebar()
   clearCommands()
   removeCommands = registerDefaultCommands()
-  problem.value = null
 })
 
 afterEach(() => {

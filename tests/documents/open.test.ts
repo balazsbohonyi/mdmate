@@ -8,7 +8,6 @@ import {
   openInActivePane,
   openPath,
   pendingClose,
-  problem,
   requestCloseTab,
   resetDocuments,
   resolvePendingClose,
@@ -28,6 +27,7 @@ import {
   tabInfo,
   workbenchLayout,
 } from '@/workbench/store'
+import { toasts } from '../helpers/toasts'
 
 let host: MockHost
 let removeCommands: () => void
@@ -96,7 +96,7 @@ describe('opening a file', () => {
     await openFromDialog()
     const panes = panesOf(workbenchLayout.value)
     expect(panes[0]?.tabs.map((id) => tabInfo(id).title)).toEqual(['a.md', 'b.md'])
-    expect(problem.value).toBeNull()
+    expect(toasts.last).toBeNull()
   })
 
   it('opens nothing when the dialog is cancelled', async () => {
@@ -107,7 +107,7 @@ describe('opening a file', () => {
   it('says which file would not open and goes on with the others', async () => {
     picks.push(['C:/notes/missing.md', 'C:/notes/b.md'])
     await openFromDialog()
-    expect(problem.value).toMatch(/missing\.md/)
+    expect(toasts.last).toMatch(/missing\.md/)
     expect(panesOf(workbenchLayout.value)[0]?.tabs.map((id) => tabInfo(id).title)).toEqual(['b.md'])
   })
 

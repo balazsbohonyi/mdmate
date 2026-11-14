@@ -51,6 +51,18 @@ export function parseImageInfo(value: unknown): ImageInfo {
   return { path: textField(entry, 'path'), size }
 }
 
+/** What Rust answers for a dropped image. Mirrors `images::DroppedImage`. */
+export function parseDroppedImage(value: unknown): { link: string; copied: boolean } {
+  const entry = record(value)
+  return { link: textField(entry, 'link'), copied: entry.copied === true }
+}
+
+/** What Rust answers for a saved image. Mirrors `images::SavedImage`. */
+export function parseSavedImage(value: unknown): { name: string; link: string } {
+  const entry = record(value)
+  return { name: textField(entry, 'name'), link: textField(entry, 'link') }
+}
+
 /** An open document whose file moved. Mirrors `workspace::ops::MovedDocument`. */
 export interface MovedDocument {
   readonly id: number

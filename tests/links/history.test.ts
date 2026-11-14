@@ -10,7 +10,7 @@ import {
   resetHistory,
 } from '@/documents/history'
 import { followLinkFrom } from '@/documents/links'
-import { documentOfTab, followerOfTab, openPath, problem, resetDocuments } from '@/documents/store'
+import { documentOfTab, followerOfTab, openPath, resetDocuments } from '@/documents/store'
 import { APP_KEYS, editorKeymap } from '@/editor/create'
 import { setHost } from '@/platform'
 import { createMockHost } from '@/platform/mock'
@@ -51,7 +51,6 @@ beforeEach(() => {
   resetWorkbench()
   resetDocuments()
   resetHistory()
-  problem.value = null
 })
 afterEach(() => {
   setHost(undefined)

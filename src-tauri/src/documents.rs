@@ -4,6 +4,7 @@
 //! that id, so a save can only reach a file Rust has already checked. Ids come from Rust.
 
 use crate::access::{Access, Resolved, display_path};
+use crate::drafts::Drafts;
 use crate::drops::DropRegistry;
 use crate::error::AppError;
 use crate::fs::document::{Opened, ReadOnlyReason, content_hash};
@@ -36,9 +37,11 @@ pub(crate) struct Documents {
     next_id: u32,
     by_id: HashMap<u32, DocEntry>,
     by_key: HashMap<String, u32>,
-    /// Documents with no file yet (an untitled tab). They have an id and nothing else, so they are
-    /// in no listing of open files, are never watched, and are never granted at the next start.
-    untitled: HashSet<u32>,
+    /// Documents with no file yet (an untitled tab), by id, with the number in their name
+    /// (`Untitled-3`) that keys their draft folder. They have an id and a number and nothing else,
+    /// so they are in no listing of open files, are never watched, and are never granted at the
+    /// next start.
+    untitled: HashMap<u32, u32>,
 }
 
 impl Documents {
@@ -71,15 +74,44 @@ impl Documents {
     }
 
     /// Gives an untitled document an id. It has no path, so a save by id refuses it; only Save As
-    /// (see `save_as`) can give it one.
-    pub(crate) fn register_untitled(&mut self) -> u32 {
+    /// (see `save_as`) can give it one. `number` is the one in its name; two open documents never
+    /// share one, since it names the folder their images go to.
+    pub(crate) fn register_untitled_numbered(&mut self, number: u32) -> Result<u32, AppError> {
+        if number == 0 {
+            return Err(AppError::Invalid("an untitled number starts at 1".into()));
+        }
+        if self.untitled.values().any(|&other| other == number) {
+            return Err(AppError::Invalid(format!(
+                "Untitled-{number} is already open"
+            )));
+        }
         self.next_id += 1;
-        self.untitled.insert(self.next_id);
-        self.next_id
+        self.untitled.insert(self.next_id, number);
+        Ok(self.next_id)
+    }
+
+    /// An untitled document with the first number that is free, for the tests.
+    #[cfg(test)]
+    pub(crate) fn register_untitled(&mut self) -> u32 {
+        let number = (1..)
+            .find(|number| !self.untitled.values().any(|other| other == number))
+            .unwrap_or(1);
+        self.register_untitled_numbered(number)
+            .expect("a free number is accepted")
     }
 
     pub(crate) fn is_untitled(&self, id: u32) -> bool {
-        self.untitled.contains(&id)
+        self.untitled.contains_key(&id)
+    }
+
+    /// The number in the name of the untitled document `id`.
+    pub(crate) fn untitled_number(&self, id: u32) -> Option<u32> {
+        self.untitled.get(&id).copied()
+    }
+
+    /// The numbers of every untitled document that is open.
+    pub(crate) fn untitled_numbers(&self) -> HashSet<u32> {
+        self.untitled.values().copied().collect()
     }
 
     /// Whether this path is the file of another open document than `id`.
@@ -96,7 +128,7 @@ impl Documents {
         format: Option<Format>,
         hash: u128,
     ) -> bool {
-        if !self.untitled.contains(&id) || self.path_is_open_elsewhere(&resolved.key, id) {
+        if !self.untitled.contains_key(&id) || self.path_is_open_elsewhere(&resolved.key, id) {
             return false;
         }
         self.untitled.remove(&id);
@@ -171,6 +203,8 @@ pub(crate) struct AppState {
     folder_watcher: OnceLock<FolderWatcher>,
     /// The paths native drops delivered.
     drops: DropRegistry,
+    /// The folders of the images of untitled documents.
+    drafts: Drafts,
     /// Images the page shows in tabs, by key. They are not documents, so the session learns of
     /// them here and grants them again at the next start.
     images: Mutex<std::collections::BTreeMap<String, PathBuf>>,
@@ -195,6 +229,7 @@ impl AppState {
             watcher: OnceLock::new(),
             folder_watcher: OnceLock::new(),
             drops: DropRegistry::new(ignore_case),
+            drafts: Drafts::default(),
             images: Mutex::new(std::collections::BTreeMap::new()),
             rewrite: Mutex::new(None),
             rewrite_stop: std::sync::atomic::AtomicBool::new(false),
@@ -383,6 +418,11 @@ impl AppState {
         &self.drops
     }
 
+    /// The folders of the images of untitled documents.
+    pub(crate) fn drafts(&self) -> &Drafts {
+        &self.drafts
+    }
+
     // A thread that panicked while holding a lock must not take the whole app down with it, so a
     // poisoned lock is used as it is.
     pub(crate) fn access(&self) -> MutexGuard<'_, Access> {
@@ -535,12 +575,17 @@ pub(crate) fn save_document_with(
     saved
 }
 
-/// Forgets a document. Its tab is gone, so it no longer needs watching or saving.
-pub(crate) fn close_document(state: &AppState, id: u32) {
+/// Forgets a document. Its tab is gone, so it no longer needs watching or saving. Returns the
+/// number of an untitled document, whose draft folder the caller removes (off the command's thread,
+/// since a folder of images can take a while and may be held by the system for a moment).
+pub(crate) fn close_document(state: &AppState, id: u32) -> Option<u32> {
     if let Some(watcher) = state.watcher() {
         watcher.unwatch(id);
     }
-    state.documents().remove(id);
+    let mut documents = state.documents();
+    let number = documents.untitled_number(id);
+    documents.remove(id);
+    number
 }
 
 #[cfg(test)]

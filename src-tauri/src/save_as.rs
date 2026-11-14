@@ -8,6 +8,7 @@
 
 use crate::access::{Resolved, display_path};
 use crate::documents::{self, AppState};
+use crate::drafts::{self, take_back};
 use crate::error::AppError;
 use crate::fs::encoding::{Encoding, Format};
 use crate::fs::kind::kind_of;
@@ -40,6 +41,18 @@ pub(crate) struct SavedAs {
     pub(crate) kind: &'static str,
     pub(crate) encoding: &'static str,
     pub(crate) bom: bool,
+    /// Draft images that were copied beside the file under another name because theirs was taken
+    /// there. The text was written with their links already updated; the page makes the same change
+    /// to what it holds.
+    pub(crate) renamed_images: Vec<RenamedImage>,
+}
+
+/// An image whose file name changed on its way from the draft folder to the saved file's folder.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RenamedImage {
+    pub(crate) from: String,
+    pub(crate) to: String,
 }
 
 /// The format of a file mdmate creates.
@@ -166,6 +179,14 @@ pub(crate) fn save_as(
         target = with_extension;
     }
     let key = key_of(state, &target);
+    // A file saved in a draft folder would go with the draft: when its tab closes, or at the next
+    // start-up.
+    if state.drafts().holds(&target, state.ignore_case()) {
+        return Err(AppError::Invalid(
+            "choose a folder of your own; the app's draft folder is emptied when a tab closes"
+                .into(),
+        ));
+    }
 
     // Saving over the document's own file is an ordinary save, with its guard against a change made
     // behind the app's back. A file mdmate cannot write back is never replaced: that would change
@@ -190,11 +211,33 @@ pub(crate) fn save_as(
         )));
     }
 
-    let joined = eol::join(frame.text, &frame.endings)?;
+    // An untitled document's pictures are in its draft folder. The ones its text uses are copied
+    // beside the new file first, so the links resolve the moment it is on disk; a name that is taken
+    // there is not overwritten, and its link in the text is updated.
+    let number = state.documents().untitled_number(id);
+    let adopted = match (number, target.parent()) {
+        (Some(number), Some(folder)) => Some(drafts::adopt(
+            state.drafts(),
+            number,
+            frame.text,
+            folder,
+            state.ignore_case(),
+        )?),
+        _ => None,
+    };
+    let text = adopted
+        .as_ref()
+        .map_or(frame.text, |adopted| adopted.text.as_str());
+    let joined = eol::join(text, &frame.endings)?;
     let bytes = crate::fs::encoding::encode(&joined, format);
     let hash = fs::document::content_hash(&bytes);
     let size = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
-    atomic::write_atomic_with(&target, &bytes, |_| Ok(()))?;
+    if let Err(error) = atomic::write_atomic_with(&target, &bytes, |_| Ok(())) {
+        if let Some(adopted) = &adopted {
+            take_back(&adopted.created);
+        }
+        return Err(error);
+    }
 
     // The file is on disk: grant it, and point the document at it.
     let resolved: Resolved = state.access().grant_file(&target)?;
@@ -222,7 +265,20 @@ pub(crate) fn save_as(
         watcher.unwatch(id);
         watcher.watch(id, &resolved.path);
     }
-    Ok(Some(described(&resolved.path, hash, size, format)))
+    let mut saved = described(&resolved.path, hash, size, format);
+    if let Some(number) = number {
+        // The pictures are beside the file now; the draft has done its job. A folder that will not
+        // go is left for the sweep at the next start.
+        state.drafts().remove(number);
+    }
+    if let Some(adopted) = adopted {
+        saved.renamed_images = adopted
+            .renames
+            .into_iter()
+            .map(|(from, to)| RenamedImage { from, to })
+            .collect();
+    }
+    Ok(Some(saved))
 }
 
 fn described(path: &Path, hash: u128, size: u64, format: Format) -> SavedAs {
@@ -237,6 +293,7 @@ fn described(path: &Path, hash: u128, size: u64, format: Format) -> SavedAs {
         kind: kind_of(path).name(),
         encoding: format.encoding.name(),
         bom: format.bom,
+        renamed_images: Vec::new(),
     }
 }
 
@@ -261,8 +318,17 @@ mod tests {
         }
     }
 
+    /// A state with no draft folder, for tests that never save an untitled document.
     fn state() -> AppState {
         AppState::new(false)
+    }
+
+    /// A state whose drafts live in `dir`, so no two tests share a folder. The root is set once per
+    /// state (it is a OnceLock), so set it here and nowhere else.
+    fn state_in(dir: &Path) -> AppState {
+        let state = AppState::new(false);
+        state.drafts().set_root(dir.join("drafts"));
+        state
     }
 
     /// A frame as the page sends it, with the name and folder the dialog is asked to show.
@@ -290,7 +356,7 @@ mod tests {
     #[test]
     fn save_new_file_writes_utf8_with_lf_and_no_byte_order_mark() {
         let dir = temp();
-        let state = state();
+        let state = state_in(&dir.path);
         let id = state.documents().register_untitled();
         let target = dir.path.join("notes.md");
         let asked = RefCell::new(None);
@@ -343,7 +409,7 @@ mod tests {
     #[test]
     fn save_new_file_cleans_the_suggested_name_before_the_dialog_sees_it() {
         let dir = temp();
-        let state = state();
+        let state = state_in(&dir.path);
         let id = state.documents().register_untitled();
         let asked = RefCell::new(String::new());
         // A page that sends a name with folders and characters Windows forbids.
@@ -364,7 +430,7 @@ mod tests {
     #[test]
     fn save_new_file_writes_the_endings_it_is_given_and_never_a_stray_return() {
         let dir = temp();
-        let state = state();
+        let state = state_in(&dir.path);
         let id = state.documents().register_untitled();
         let target = dir.path.join("crlf.md");
         let endings = Endings {
@@ -381,7 +447,7 @@ mod tests {
     #[test]
     fn save_new_file_cancelled_changes_nothing() {
         let dir = temp();
-        let state = state();
+        let state = state_in(&dir.path);
         let id = state.documents().register_untitled();
         let answer = save_as(&state, id, &frame_for("text", &lf(), "x.md"), &|_| None)
             .expect("cancelling is not an error");
@@ -393,7 +459,7 @@ mod tests {
     #[test]
     fn save_new_file_adds_md_to_a_name_with_no_extension_and_never_replaces_a_file_for_it() {
         let dir = temp();
-        let state = state();
+        let state = state_in(&dir.path);
         let id = state.documents().register_untitled();
         let bare = dir.path.join("plain");
         save_as(&state, id, &frame_for("hello\n", &lf(), "x.md"), &|_| {
@@ -424,7 +490,7 @@ mod tests {
     #[test]
     fn save_new_file_refuses_a_file_that_is_open_in_another_tab() {
         let dir = temp();
-        let state = state();
+        let state = state_in(&dir.path);
         let taken = dir.path.join("taken.md");
         std::fs::write(&taken, b"mine\n").expect("written");
         let open_id = open(&state, &taken);
@@ -455,7 +521,7 @@ mod tests {
     #[test]
     fn save_as_original_stays_byte_for_byte_the_same() {
         let dir = temp();
-        let state = state();
+        let state = state_in(&dir.path);
         let original = dir.path.join("original.md");
         let bytes: &[u8] = b"\xEF\xBB\xBF# One\r\ntwo\nthree\r\n";
         std::fs::write(&original, bytes).expect("written");
@@ -489,7 +555,7 @@ mod tests {
     #[test]
     fn save_as_original_is_not_opened_again_when_the_copy_is_made_over_another_file() {
         let dir = temp();
-        let state = state();
+        let state = state_in(&dir.path);
         let original = dir.path.join("original.md");
         std::fs::write(&original, b"keep me\n").expect("written");
         let id = open(&state, &original);
@@ -507,7 +573,7 @@ mod tests {
     #[test]
     fn save_as_to_the_same_file_is_a_plain_save_and_guards_a_change_made_elsewhere() {
         let dir = temp();
-        let state = state();
+        let state = state_in(&dir.path);
         let file = dir.path.join("same.md");
         std::fs::write(&file, b"one\n").expect("written");
         let id = open(&state, &file);
@@ -534,7 +600,7 @@ mod tests {
     #[test]
     fn save_as_read_only_writes_utf8_and_makes_the_document_editable() {
         let dir = temp();
-        let state = state();
+        let state = state_in(&dir.path);
         // "café" in Latin-1: the é is one byte, 0xE9.
         let latin1 = dir.path.join("latin1.md");
         let bytes: &[u8] = b"caf\xE9\r\nna\xEFve\r\n";
@@ -576,7 +642,7 @@ mod tests {
     #[test]
     fn save_as_read_only_never_replaces_its_own_original() {
         let dir = temp();
-        let state = state();
+        let state = state_in(&dir.path);
         let latin1 = dir.path.join("latin1.md");
         let bytes: &[u8] = b"caf\xE9\n";
         std::fs::write(&latin1, bytes).expect("written");
@@ -595,7 +661,7 @@ mod tests {
     #[test]
     fn save_as_moves_the_watch_to_the_new_file() {
         let dir = temp();
-        let state = state();
+        let state = state_in(&dir.path);
         let original = dir.path.join("a.md");
         std::fs::write(&original, b"x\n").expect("written");
         let id = open(&state, &original);
@@ -641,6 +707,239 @@ mod tests {
                 .chars()
                 .count()
                 <= MAX_NAME + 3
+        );
+    }
+
+    // ---- draft images (P9-T5) ----
+
+    const PNG: &[u8] = b"\x89PNG\r\n\x1a\n-pretend-pixels-";
+
+    /// A state whose drafts live in `dir`, with an untitled document numbered `number`.
+    fn with_draft(dir: &Path, number: u32) -> (AppState, u32) {
+        let state = state_in(dir);
+        let id = state
+            .documents()
+            .register_untitled_numbered(number)
+            .expect("a free number");
+        (state, id)
+    }
+
+    fn draft_image(state: &AppState, number: u32, name: &str, bytes: &[u8]) {
+        let folder = state.drafts().ensure(number).expect("draft folder");
+        std::fs::create_dir_all(folder.join("assets")).expect("assets");
+        std::fs::write(folder.join("assets").join(name), bytes).expect("image");
+    }
+
+    #[test]
+    fn draft_images_first_save_as_copies_the_used_images_renames_a_taken_one_and_removes_the_draft()
+    {
+        let dir = temp();
+        let (state, id) = with_draft(&dir.path, 1);
+        draft_image(&state, 1, "image-20261113-153000.png", PNG);
+        // Pictures with bytes of their own: the same bytes would be one file.
+        draft_image(
+            &state,
+            1,
+            "image-20261113-153001.png",
+            b"\x89PNG\r\n\x1a\n-second-picture",
+        );
+        draft_image(
+            &state,
+            1,
+            "image-20261113-153002.png",
+            b"\x89PNG\r\n\x1a\n-third-picture",
+        );
+        let target_folder = dir.path.join("notes");
+        std::fs::create_dir_all(target_folder.join("assets")).expect("target assets");
+        let theirs: &[u8] = b"\x89PNG\r\n\x1a\nthe-owners-picture";
+        std::fs::write(
+            target_folder
+                .join("assets")
+                .join("image-20261113-153000.png"),
+            theirs,
+        )
+        .expect("taken");
+        let target = target_folder.join("doc.md");
+        let text =
+            "![a](assets/image-20261113-153000.png)\n![b](assets/image-20261113-153001.png)\n";
+        let saved = save_as(
+            &state,
+            id,
+            &frame_for(text, &lf(), "doc.md"),
+            &|_: &SaveRequest| Some(target.clone()),
+        )
+        .expect("saves")
+        .expect("not cancelled");
+
+        // Both used pictures are beside the file; the taken name was renamed, and the file on disk
+        // already links to the new name.
+        let assets = target_folder.join("assets");
+        assert_eq!(
+            std::fs::read(assets.join("image-20261113-153000.png")).expect("theirs"),
+            theirs
+        );
+        assert_eq!(
+            std::fs::read(assets.join("image-20261113-153000-2.png")).expect("ours"),
+            PNG
+        );
+        assert!(assets.join("image-20261113-153001.png").is_file());
+        // The one the text does not use stayed behind with the draft.
+        assert!(!assets.join("image-20261113-153002.png").exists());
+        assert_eq!(
+            std::fs::read_to_string(&target).expect("the file"),
+            "![a](assets/image-20261113-153000-2.png)\n![b](assets/image-20261113-153001.png)\n"
+        );
+        assert_eq!(saved.renamed_images.len(), 1);
+        assert_eq!(saved.renamed_images[0].from, "image-20261113-153000.png");
+        assert_eq!(saved.renamed_images[0].to, "image-20261113-153000-2.png");
+        // The draft folder is gone, and the document is an ordinary one now.
+        assert!(!state.drafts().exists(1));
+        assert!(!state.documents().is_untitled(id));
+    }
+
+    #[test]
+    fn draft_images_save_as_links_to_the_same_picture_already_beside_the_file() {
+        let dir = temp();
+        let (state, id) = with_draft(&dir.path, 1);
+        draft_image(&state, 1, "cat.png", PNG);
+        let target_folder = dir.path.join("notes");
+        std::fs::create_dir_all(target_folder.join("assets")).expect("target assets");
+        std::fs::write(target_folder.join("assets").join("holiday.png"), PNG).expect("same");
+        let target = target_folder.join("doc.md");
+        let saved = save_as(
+            &state,
+            id,
+            &frame_for("![a](assets/cat.png)\n", &lf(), "doc.md"),
+            &|_: &SaveRequest| Some(target.clone()),
+        )
+        .expect("saves")
+        .expect("not cancelled");
+
+        // Nothing new was copied; the file links to the picture that was there.
+        assert_eq!(
+            std::fs::read_dir(target_folder.join("assets"))
+                .expect("lists")
+                .count(),
+            1
+        );
+        assert_eq!(
+            std::fs::read_to_string(&target).expect("the file"),
+            "![a](assets/holiday.png)\n"
+        );
+        assert_eq!(saved.renamed_images.len(), 1);
+        assert_eq!(saved.renamed_images[0].to, "holiday.png");
+    }
+
+    #[test]
+    fn draft_images_a_failed_save_as_after_a_reuse_leaves_the_file_that_was_there() {
+        let dir = temp();
+        let (state, id) = with_draft(&dir.path, 1);
+        draft_image(&state, 1, "cat.png", PNG);
+        let target_folder = dir.path.join("notes");
+        std::fs::create_dir_all(target_folder.join("assets")).expect("target assets");
+        let theirs = target_folder.join("assets").join("holiday.png");
+        std::fs::write(&theirs, PNG).expect("same");
+        // The text cannot be written: its name is a folder.
+        let target = target_folder.join("doc.md");
+        std::fs::create_dir(&target).expect("a folder in the way");
+        let result = save_as(
+            &state,
+            id,
+            &frame_for("![a](assets/cat.png)\n", &lf(), "doc.md"),
+            &|_: &SaveRequest| Some(target.clone()),
+        );
+        assert!(result.is_err());
+        assert_eq!(std::fs::read(&theirs).expect("still there"), PNG);
+        assert!(state.drafts().exists(1), "the draft is kept");
+    }
+
+    #[test]
+    fn draft_images_save_as_without_images_leaves_no_assets_folder_and_no_draft() {
+        let dir = temp();
+        let (state, id) = with_draft(&dir.path, 2);
+        let target = dir.path.join("plain.md");
+        let saved = save_as(
+            &state,
+            id,
+            &frame_for("no pictures\n", &lf(), "plain.md"),
+            &|_: &SaveRequest| Some(target.clone()),
+        )
+        .expect("saves")
+        .expect("not cancelled");
+        assert!(saved.renamed_images.is_empty());
+        assert!(!dir.path.join("assets").exists());
+    }
+
+    #[test]
+    fn draft_images_a_cancelled_save_as_keeps_the_draft() {
+        let dir = temp();
+        let (state, id) = with_draft(&dir.path, 1);
+        draft_image(&state, 1, "image-20261113-153000.png", PNG);
+        let saved = save_as(
+            &state,
+            id,
+            &frame_for("![a](assets/image-20261113-153000.png)", &lf(), "doc.md"),
+            &|_: &SaveRequest| None,
+        )
+        .expect("no error");
+        assert!(saved.is_none());
+        assert!(state.drafts().exists(1));
+        assert!(state.documents().is_untitled(id));
+    }
+
+    #[test]
+    fn draft_images_a_failed_write_takes_back_the_copies_and_keeps_the_draft() {
+        let dir = temp();
+        let (state, id) = with_draft(&dir.path, 1);
+        draft_image(&state, 1, "image-20261113-153000.png", PNG);
+        let folder = dir.path.join("notes");
+        std::fs::create_dir(&folder).expect("folder");
+        // The chosen name is a folder, so the file cannot be written.
+        let target = folder.join("doc.md");
+        std::fs::create_dir(&target).expect("a folder in the way");
+        let result = save_as(
+            &state,
+            id,
+            &frame_for("![a](assets/image-20261113-153000.png)", &lf(), "doc.md"),
+            &|_: &SaveRequest| Some(target.clone()),
+        );
+        assert!(result.is_err());
+        assert!(
+            !folder
+                .join("assets")
+                .join("image-20261113-153000.png")
+                .exists()
+        );
+        assert!(state.drafts().exists(1));
+        assert!(state.documents().is_untitled(id));
+    }
+
+    #[test]
+    fn draft_images_a_save_into_the_draft_folder_is_refused() {
+        let dir = temp();
+        let (state, id) = with_draft(&dir.path, 1);
+        draft_image(&state, 1, "image-20261113-153000.png", PNG);
+        let inside = state.drafts().folder(1).expect("folder").join("doc.md");
+        let error = save_as(
+            &state,
+            id,
+            &frame_for("text", &lf(), "doc.md"),
+            &|_: &SaveRequest| Some(inside.clone()),
+        )
+        .expect_err("refused");
+        assert_eq!(error.kind(), "invalid");
+        assert!(!inside.exists());
+        assert!(state.drafts().exists(1));
+        // Nor into another draft's folder, which does not exist yet.
+        let elsewhere = state.drafts().folder(9).expect("folder").join("doc.md");
+        assert!(
+            save_as(
+                &state,
+                id,
+                &frame_for("text", &lf(), "doc.md"),
+                &|_: &SaveRequest| Some(elsewhere.clone()),
+            )
+            .is_err()
         );
     }
 }

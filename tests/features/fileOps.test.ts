@@ -14,7 +14,6 @@ import {
   documentOfTab,
   followerOfTab,
   openPath,
-  problem,
   resetDocuments,
 } from '@/documents/store'
 import FileTree from '@/features/tree/FileTree.vue'
@@ -44,6 +43,7 @@ import { LF, type Endings } from '@/lib/endings'
 import { setHost } from '@/platform'
 import { createMockHost, type MockHost } from '@/platform/mock'
 import { imageTabs, resetWorkbench } from '@/workbench/store'
+import { toasts } from '../helpers/toasts'
 
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
@@ -96,7 +96,6 @@ beforeEach(() => {
   resetTree()
   resetDocuments()
   resetWorkbench()
-  problem.value = null
 })
 
 afterEach(() => {
@@ -372,11 +371,11 @@ describe('moving (ISC-102)', () => {
     await start()
     const move = vi.spyOn(host, 'moveEntry')
     await moveRow('/work/notes', '/work/notes')
-    expect(problem.value).toContain('into itself')
+    expect(toasts.last).toContain('into itself')
     await moveRow('/work/notes', '/work/notes/deep')
-    expect(problem.value).toContain('into itself')
+    expect(toasts.last).toContain('into itself')
     await moveRow('/work/readme.md', '/work')
-    expect(problem.value).toContain('already in')
+    expect(toasts.last).toContain('already in')
     expect(move).not.toHaveBeenCalled()
   })
 
@@ -384,7 +383,7 @@ describe('moving (ISC-102)', () => {
     await start()
     host.files.write('/work/empty/readme.md', 'already here')
     await moveRow('/work/readme.md', '/work/empty')
-    expect(problem.value).toContain('already exists')
+    expect(toasts.last).toContain('already exists')
     expect(host.files.read('/work/readme.md')).toBe('# readme\n')
     expect(host.files.read('/work/empty/readme.md')).toBe('already here')
   })
@@ -392,7 +391,7 @@ describe('moving (ISC-102)', () => {
   it('refuses a target outside the workspace', async () => {
     await start()
     await moveRow('/work/readme.md', '/outside')
-    expect(problem.value).toContain('not allowed')
+    expect(toasts.last).toContain('not allowed')
     expect(host.files.has('/work/readme.md')).toBe(true)
     expect(host.files.has('/outside/readme.md')).toBe(false)
   })
@@ -427,7 +426,7 @@ describe('deleting (ISC-103)', () => {
     vi.spyOn(host, 'deleteEntry').mockRejectedValue(new Error('no Recycle Bin on this drive'))
     await deleteRow('/work/Zeta.txt')
     await flush()
-    expect(problem.value).toContain('no Recycle Bin')
+    expect(toasts.last).toContain('no Recycle Bin')
     expect(host.files.has('/work/Zeta.txt')).toBe(true)
     expect(names()).toContain('  Zeta.txt')
   })
@@ -435,7 +434,7 @@ describe('deleting (ISC-103)', () => {
   it('refuses a workspace root', async () => {
     await start()
     await deleteRow('/work')
-    expect(problem.value).toContain('Remove Folder')
+    expect(toasts.last).toContain('Remove Folder')
     expect(host.recycled).toEqual([])
   })
 })
@@ -450,7 +449,7 @@ describe('reveal in the file manager (ISC-104)', () => {
   it('says so when the path is outside the workspace', async () => {
     await start()
     await revealInFileManager('/outside/o.md')
-    expect(problem.value).toContain('not allowed')
+    expect(toasts.last).toContain('not allowed')
     expect(host.revealed).toEqual([])
   })
 })
@@ -703,7 +702,7 @@ describe('asking before a delete (ISC-227)', () => {
     cancelDelete()
     await requestDelete('/work')
     expect(deletePrompt.value).toBeNull()
-    expect(problem.value).toContain('Remove Folder')
+    expect(toasts.last).toContain('Remove Folder')
   })
 })
 

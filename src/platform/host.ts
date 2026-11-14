@@ -113,6 +113,19 @@ export interface SavedFile {
   readonly size: number
 }
 
+/** An image that changed name on its way from a draft folder to the saved file's folder. */
+export interface RenamedImage {
+  readonly from: string
+  readonly to: string
+}
+
+/** What a new untitled tab gets from the host. */
+export interface NewUntitled {
+  readonly id: number
+  /** Where its images go: its own folder under the app's data folder, made with the first image. */
+  readonly draftFolder: string
+}
+
 /** What Save As wrote: the file the document now has. */
 export interface SavedAs {
   /** The path as people read it, with symlinks resolved. */
@@ -124,6 +137,11 @@ export interface SavedAs {
   readonly kind: 'markdown' | 'text' | 'image'
   readonly encoding: 'utf-8' | 'utf-16le' | 'utf-16be'
   readonly bom: boolean
+  /**
+   * Draft images that got another name beside the file because theirs was taken there. The text
+   * that was written already links to the new names; the page makes the same change to its own.
+   */
+  readonly renamedImages: readonly RenamedImage[]
 }
 
 /** What the page suggests the save dialog shows. */
@@ -132,6 +150,22 @@ export interface SaveAsHint {
   readonly name: string
   /** The folder to start in, or null to leave it to the system. */
   readonly folder: string | null
+}
+
+/** What a dropped picture came to. */
+export interface DroppedImage {
+  /** The path to write in the document, relative to its folder, with `/` as the separator. */
+  readonly link: string
+  /** True when the file was copied into the images folder, false when it is linked where it lies. */
+  readonly copied: boolean
+}
+
+/** An image Rust saved for a document. */
+export interface PastedImage {
+  /** The file's name inside the images folder. */
+  readonly name: string
+  /** The path to write in the document, relative to its folder, with `/` as the separator. */
+  readonly link: string
 }
 
 /** The Open Recent lists, newest first. */
@@ -172,14 +206,28 @@ export interface Host {
    * restored session does not pass it.
    */
   openFile(path: string, remember?: boolean): Promise<OpenedFile>
-  /** Gives a new untitled tab its document id. The document has no file until `saveAs`. */
-  newUntitled(): Promise<number>
+  /**
+   * Gives a new untitled tab its document id and its draft folder. The document has no file until
+   * `saveAs`. `number` is the one in its name (`Untitled-3`), which keys the folder: a restored tab
+   * brings its number back and finds its images. Rejects with `invalid` for a number that another
+   * open untitled document has.
+   */
+  newUntitled(number: number): Promise<NewUntitled>
+  /**
+   * Removes the draft folders that no untitled tab holds: the numbers in `keep` and those of every
+   * untitled document open now stay. Call it once the last session is back, never before. Resolves
+   * to how many folders went.
+   */
+  sweepDrafts(keep: readonly number[]): Promise<number>
   /**
    * Shows the save dialog and writes the document into the file the user chooses: the first save of
    * an untitled document, or Save As. Granting the chosen file happens in the host, never on the
    * page's say-so. The document then has that file; the original of a Save As is not touched, and a
    * file in an encoding mdmate cannot write is written as UTF-8. Resolves to null when the user
-   * cancels. Rejects with `invalid` for a file open in another tab, `exists` for a name the dialog
+   * cancels. The images of an untitled document are copied beside the file first, so its links
+   * resolve at once; a name taken there is not overwritten, and `renamedImages` says which links
+   * the written text already has changed. Rejects with `invalid` for a file open in another tab or
+   * inside the app's draft folder, `exists` for a name the dialog
    * could not have asked about, and `read-only` when asked to replace an unwritable original.
    */
   saveAs(id: number, text: string, endings: Endings, hint: SaveAsHint): Promise<SavedAs | null>
@@ -211,8 +259,12 @@ export interface Host {
   loadSession(): Promise<string | null>
   /** Replaces the session snapshot on disk. Resolves once it is safely written. */
   writeSession(json: string): Promise<void>
-  /** Keeps text that could not be put back in a tab, in a file of its own. Resolves to where it went. */
-  recoverBuffer(name: string, text: string): Promise<string>
+  /**
+   * Keeps text that could not be put back in a tab, in a file of its own. Resolves to where it went.
+   * For the text of an untitled document, `untitled` is its number: the images its text links to
+   * are kept beside the file, since its draft folder goes when the document is closed.
+   */
+  recoverBuffer(name: string, text: string, untitled?: number): Promise<string>
   /**
    * Calls `onClose` when the user closes the window, instead of the window closing. The page then
    * writes the session and calls `quitApp`. Only one listener is live at a time.
@@ -292,6 +344,22 @@ export interface Host {
   imageInfo(path: string): Promise<ImageInfo>
   /** Says that no tab shows this image any more, so the next session does not grant it again. */
   imageClosed(path: string): Promise<void>
+  /**
+   * Saves an image pasted into an open document, in the `assets` folder next to its file, and says
+   * where it went. The page names no path: `stamp` is its local time (`YYYYMMDD-HHMMSS`) for the
+   * file name, a taken name gets `-2`, `-3`, and the type comes from the bytes. Rejects with
+   * `invalid` for bytes that are not a PNG, JPEG, GIF or WebP image and for a document with no file,
+   * `read-only` for a document that cannot be edited, and `not-open` for an id Rust does not have.
+   */
+  savePastedImage(id: number, bytes: ArrayBuffer, stamp: string): Promise<PastedImage>
+  /**
+   * Handles a picture dropped onto the text of an open document: `path` must be one a native drop
+   * delivered. Rust links a file inside the document's workspace folder where it lies, and copies
+   * any other into `assets` (named like a paste, from `stamp`) and links the copy. Rejects with
+   * `not-allowed` for a path no drop delivered, `invalid` for a file that is not an image and for a
+   * document with no file, and `read-only` and `not-open` as `savePastedImage` does.
+   */
+  dropImage(id: number, path: string, stamp: string): Promise<DroppedImage>
   /** Makes a dropped folder a workspace root. Rejects with `not-allowed` for a path no drop delivered. */
   addDroppedRoot(path: string): Promise<string>
   /**

@@ -7,14 +7,14 @@
  */
 import { afterEach, describe, expect, it } from 'vitest'
 import { createApp, nextTick, type App } from 'vue'
-import { problem, resetDocuments } from '@/documents/store'
+import { resetDocuments } from '@/documents/store'
 import { indexStatus, resetIndexStatus, watchIndexStatus } from '@/features/index/status'
 import { setHost } from '@/platform'
 import { IDLE_INDEX, parseIndexStatus } from '@/platform/indexStatus'
 import { createMockHost } from '@/platform/mock'
 import StatusBar from '@/shell/StatusBar.vue'
 import { findCounts } from '@/workbench/find'
-import { resetWorkbench } from '@/workbench/store'
+import { resetWorkbench, workbenchLayout } from '@/workbench/store'
 
 let mounted: { app: App; root: HTMLElement } | undefined
 
@@ -26,7 +26,6 @@ afterEach(() => {
   setHost(undefined)
   resetDocuments()
   resetWorkbench()
-  problem.value = null
   findCounts.clear()
 })
 
@@ -67,16 +66,16 @@ describe('the indexing label and percent bar', () => {
     expect(bar(root)).toBeNull()
   })
 
-  it('names the folder that was cut at the file limit, until a message or a find count takes the text', async () => {
+  it('names the folder that was cut at the file limit, until a find count takes the text', async () => {
     const root = await mountBar()
     indexStatus.value = { indexing: false, percent: 0, cut: ['notes', 'big'] }
     await nextTick()
     expect(root.textContent).toContain('notes, big')
     expect(root.textContent).toContain('1,000,000')
 
-    problem.value = 'Could not open x.md'
+    findCounts.set(workbenchLayout.value.activePane, '3 of 12')
     await nextTick()
-    expect(root.textContent).toContain('Could not open x.md')
+    expect(root.textContent).toContain('3 of 12')
     expect(root.textContent).not.toContain('notes, big')
   })
 

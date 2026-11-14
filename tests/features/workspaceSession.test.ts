@@ -7,7 +7,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { flushSession, resetSession, restoreSession } from '@/documents/session'
-import { openPath, problem, resetDocuments } from '@/documents/store'
+import { openPath, resetDocuments } from '@/documents/store'
 import { handleDrop, installFileDrop } from '@/features/drop'
 import {
   expandedFolderPaths,
@@ -20,6 +20,7 @@ import {
 import { setHost } from '@/platform'
 import { createMockHost, type MockHost } from '@/platform/mock'
 import { resetWorkbench } from '@/workbench/store'
+import { toasts } from '../helpers/toasts'
 
 const FILES: Record<string, string> = {
   '/work/notes/a.md': '# a\n',
@@ -164,7 +165,7 @@ describe('dropping a folder from Explorer (ISC-195, page side)', () => {
     await flush()
     expect(workspaceRoots.value).toEqual(['/dropped'])
     expect(treeRows.value.map((row) => row.name)).toContain('d.md')
-    expect(problem.value).toBeNull()
+    expect(toasts.last).toBeNull()
   })
 
   it('makes a root of a folder dropped on a pane, over the editor', async () => {
@@ -204,7 +205,7 @@ describe('dropping a folder from Explorer (ISC-195, page side)', () => {
     await handleDrop(['/elsewhere'], { x: 0, y: 0 })
     expect(workspaceRoots.value).toEqual([])
     expect(host.roots).toEqual([])
-    expect(problem.value).toMatch(/not allowed/)
+    expect(toasts.last).toMatch(/not allowed/)
   })
 
   it('does not make a dropped file a root', async () => {
@@ -213,6 +214,6 @@ describe('dropping a folder from Explorer (ISC-195, page side)', () => {
     host.simulateDrop(['/work/readme.md'])
     await flush()
     expect(workspaceRoots.value).toEqual([])
-    expect(problem.value).toBeNull()
+    expect(toasts.last).toBeNull()
   })
 })

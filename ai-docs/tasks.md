@@ -103,11 +103,11 @@ Phase 9 runs before this phase (owner's decision, 2026-11-13): image paste ships
 
 ## Phase 9: Image authoring ([plan](phases/phase-09/plan.md))
 
-- [ ] P9-T1: Paste images — closes ISC-154, ISC-155, ISC-160, ISC-329
-- [ ] P9-T2: Drop images — closes ISC-156, ISC-328
-- [ ] P9-T3: Draw `<img>` tags — closes ISC-323, ISC-324
-- [ ] P9-T4: Select, resize and delete images — closes ISC-157, ISC-158, ISC-159, ISC-322, ISC-325, ISC-326
-- [ ] P9-T5: Images in untitled documents (a draft folder per document) — closes ISC-327, ISC-331, ISC-332, ISC-333
+- [x] P9-T1: Paste images — closes ISC-154, ISC-155, ISC-160, ISC-329
+- [x] P9-T2: Drop images — closes ISC-156, ISC-328
+- [x] P9-T3: Draw `<img>` tags — closes ISC-323, ISC-324
+- [x] P9-T4: Select, resize and delete images — closes ISC-157, ISC-158, ISC-159, ISC-322, ISC-325, ISC-326
+- [x] P9-T5: Images in untitled documents (a draft folder per document) — closes ISC-327, ISC-331, ISC-332, ISC-333
 
 ## Phase 10: Ship ([plan](phases/phase-10/plan.md))
 

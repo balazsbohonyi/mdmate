@@ -1,5 +1,7 @@
 import { WidgetType, type EditorView } from '@codemirror/view'
-import { imageSizeOf, rememberImageSize, type ImageSize } from './image'
+import { freshImageSrc, imageSizeOf, rememberImageSize, type ImageSize } from './image'
+import { cancelDrag, createHandle } from './imageHandle'
+import { selectImage } from './imageSelect'
 import type { BlockItem, ImageItem, Inline, TableModel } from './scan'
 
 /** Common ground of the block widgets: what kind of block this is, for the field and the tests. */
@@ -223,6 +225,22 @@ const INLINE_PLACEHOLDER = 20
 /** The padding above and below a block image, in px. */
 const IMAGE_PADDING = 14
 
+/**
+ * The size an image is shown at: an `<img>` tag's `width` and `height` where it has them, with the
+ * other side following the picture's own proportions when only one is given. Both given means
+ * exactly that box, as a browser draws it.
+ */
+export function shownSize(
+  natural: ImageSize,
+  width: number | null,
+  height: number | null,
+): ImageSize {
+  if (width !== null && height !== null) return { width, height }
+  if (width !== null) return { width, height: (width * natural.height) / natural.width }
+  if (height !== null) return { width: (height * natural.width) / natural.height, height }
+  return natural
+}
+
 /** Fits `frame` to an image of this size, so it takes the space the image will fill. */
 function reserve(frame: HTMLElement, size: ImageSize, block: boolean): void {
   frame.classList.add('cm-md-image-sized')
@@ -292,13 +310,27 @@ export class ImageWidget extends BlockWidget {
   readonly alt: string
   readonly title: string | null
   readonly block: boolean
+  readonly width: number | null
+  readonly height: number | null
+  readonly html: boolean
+  readonly address: string
+  /** The image's own text, which a resize is written against. */
+  readonly source: string
+  /** True while this is the selected image: outlined, with a resize handle once it has loaded. */
+  readonly selected: boolean
 
-  constructor(item: ImageItem) {
+  constructor(item: ImageItem, selected = false) {
     super()
     this.src = item.src
     this.alt = item.alt
     this.title = item.title
     this.block = item.block
+    this.width = item.width
+    this.height = item.height
+    this.html = item.html
+    this.address = item.address
+    this.source = item.source
+    this.selected = selected
   }
 
   override eq(other: WidgetType): boolean {
@@ -307,19 +339,25 @@ export class ImageWidget extends BlockWidget {
       other.src === this.src &&
       other.alt === this.alt &&
       other.title === this.title &&
-      other.block === this.block
+      other.block === this.block &&
+      other.width === this.width &&
+      other.height === this.height &&
+      other.source === this.source &&
+      other.selected === this.selected
     )
   }
 
   override get estimatedHeight(): number {
     if (!this.block) return -1
     const known = this.src === null ? undefined : imageSizeOf(this.src)
-    return (known?.height ?? BLOCK_PLACEHOLDER) + IMAGE_PADDING * 2
+    const shown = known === undefined ? undefined : shownSize(known, this.width, this.height)
+    return (shown?.height ?? BLOCK_PLACEHOLDER) + IMAGE_PADDING * 2
   }
 
   override toDOM(view: EditorView): HTMLElement {
     const wrap: HTMLElement = document.createElement(this.block ? 'div' : 'span')
     wrap.className = this.block ? 'cm-md-image cm-md-image-block' : 'cm-md-image'
+    if (this.selected) wrap.classList.add('cm-md-image-selected')
     const frame: HTMLElement = document.createElement(this.block ? 'div' : 'span')
     frame.className = 'cm-md-image-frame'
     wrap.append(frame)
@@ -328,7 +366,7 @@ export class ImageWidget extends BlockWidget {
     if (known === undefined) {
       frame.style.minHeight = `${String(this.block ? BLOCK_PLACEHOLDER : INLINE_PLACEHOLDER)}px`
     } else {
-      reserve(frame, known, this.block)
+      reserve(frame, shownSize(known, this.width, this.height), this.block)
     }
 
     const fail = (reason: string): void => {
@@ -338,6 +376,8 @@ export class ImageWidget extends BlockWidget {
       label.className = 'cm-md-image-label'
       label.textContent = this.alt === '' ? 'image' : this.alt
       frame.append(label)
+      // The reason is the more useful hint on a picture that did not load; the title waits.
+      delete frame.dataset.hint
       wrap.dataset.hint = reason
       view.requestMeasure()
     }
@@ -350,9 +390,14 @@ export class ImageWidget extends BlockWidget {
       const src = this.src
       const img = document.createElement('img')
       img.alt = this.alt
-      if (this.title !== null) img.title = this.title
+      // The picture's own title is a hint drawn by the editor like the shadcn tooltip, never a
+      // native `title` attribute (ISC-226). It sits on the frame, which is as wide as the picture.
+      if (this.title !== null) frame.dataset.hint = this.title
       img.decoding = 'async'
       img.draggable = false
+      // A tag with both sizes is that box exactly, as a browser draws it; the frame's own rule
+      // would letterbox it.
+      if (this.width !== null && this.height !== null) img.style.objectFit = 'fill'
       // The address of the document is nobody else's business.
       img.referrerPolicy = 'no-referrer'
       img.addEventListener('load', () => {
@@ -366,8 +411,12 @@ export class ImageWidget extends BlockWidget {
         // scroll position is and where the first line is. Applied here it could land after a
         // scroll that moved the image into the one place nothing makes up for.
         const apply = (): void => {
-          reserve(frame, size, this.block)
+          reserve(frame, shownSize(size, this.width, this.height), this.block)
           frame.classList.add('cm-md-image-loaded')
+          // Only a picture that has loaded can be resized.
+          if (this.selected && frame.querySelector('.cm-md-image-handle') === null) {
+            frame.append(createHandle(view, wrap, frame, this))
+          }
         }
         view.requestMeasure({
           read: () => (wrap.isConnected ? lineItWouldMove(view, wrap) : undefined),
@@ -384,16 +433,22 @@ export class ImageWidget extends BlockWidget {
         fail('This image could not be loaded.')
       })
       frame.append(img)
-      img.src = src
+      // A local file is asked for under its current number, not served from the webview's memory.
+      img.src = freshImageSrc(src)
     }
 
     wrap.addEventListener('mousedown', (event) => {
       if (event.button !== 0) return
-      const start = view.posAtDOM(wrap)
       event.preventDefault()
-      view.dispatch({ selection: { anchor: start }, scrollIntoView: true })
+      // The caret stays where it was; the click selects the image (outline, handle, keys).
+      const start = view.posAtDOM(wrap)
+      view.dispatch({ effects: selectImage.of({ from: start, to: start + this.source.length }) })
       view.focus()
     })
     return wrap
+  }
+
+  override destroy(dom: HTMLElement): void {
+    cancelDrag(dom)
   }
 }

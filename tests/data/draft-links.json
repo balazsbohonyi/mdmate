@@ -1,0 +1,107 @@
+[
+  {
+    "name": "a Markdown link",
+    "text": "![a](assets/image-20261113-153000.png)",
+    "renames": { "image-20261113-153000.png": "image-20261113-153000-2.png" },
+    "expected": "![a](assets/image-20261113-153000-2.png)",
+    "used": ["image-20261113-153000.png"]
+  },
+  {
+    "name": "an <img> tag, double and single quotes and none",
+    "text": "<img src=\"assets/a.png\" width=\"9\"> <img src='assets/a.png'> <img src=assets/a.png>",
+    "renames": { "a.png": "a-2.png" },
+    "expected": "<img src=\"assets/a-2.png\" width=\"9\"> <img src='assets/a-2.png'> <img src=assets/a-2.png>",
+    "used": ["a.png", "a.png", "a.png"]
+  },
+  {
+    "name": "a name that is another's new name is renamed once, not twice",
+    "text": "![](assets/a.png) ![](assets/b.png)",
+    "renames": { "a.png": "b.png", "b.png": "c.png" },
+    "expected": "![](assets/b.png) ![](assets/c.png)",
+    "used": ["a.png", "b.png"]
+  },
+  {
+    "name": "nothing to rename",
+    "text": "![](assets/z.png) and assets/y.png",
+    "renames": { "a.png": "a-2.png" },
+    "expected": "![](assets/z.png) and assets/y.png",
+    "used": []
+  },
+  {
+    "name": "a folder that only ends in assets",
+    "text": "![](myassets/a.png) ![](xassets/a.png)",
+    "renames": { "a.png": "a-2.png" },
+    "expected": "![](myassets/a.png) ![](xassets/a.png)",
+    "used": []
+  },
+  {
+    "name": "another folder's assets, up or down a path",
+    "text": "![](../assets/a.png) ![](../../assets/a.png) ![](sub/assets/a.png) ![](x/./assets/a.png)",
+    "renames": { "a.png": "a-2.png" },
+    "expected": "![](../assets/a.png) ![](../../assets/a.png) ![](sub/assets/a.png) ![](x/./assets/a.png)",
+    "used": []
+  },
+  {
+    "name": "this folder spelt with ./",
+    "text": "![](./assets/a.png) <img src=\"./assets/a.png\">",
+    "renames": { "a.png": "a-2.png" },
+    "expected": "![](./assets/a-2.png) <img src=\"./assets/a-2.png\">",
+    "used": ["a.png", "a.png"]
+  },
+  {
+    "name": "a longer name is another file",
+    "text": "![](assets/a.png2) ![](assets/a.png-x) ![](assets/a.pngx) ![](assets/a.png.bak)",
+    "renames": { "a.png": "a-2.png" },
+    "expected": "![](assets/a.png2) ![](assets/a.png-x) ![](assets/a.pngx) ![](assets/a.png.bak)",
+    "used": []
+  },
+  {
+    "name": "the end of a sentence, a query, a fragment, a title",
+    "text": "see assets/a.png. ![](assets/a.png?raw=1) ![](assets/a.png#top) ![](assets/a.png \"t\")",
+    "renames": { "a.png": "a-2.png" },
+    "expected": "see assets/a-2.png. ![](assets/a-2.png?raw=1) ![](assets/a-2.png#top) ![](assets/a-2.png \"t\")",
+    "used": ["a.png", "a.png", "a.png", "a.png"]
+  },
+  {
+    "name": "wrapped in angle brackets",
+    "text": "![](<assets/a.png>)",
+    "renames": { "a.png": "a-2.png" },
+    "expected": "![](<assets/a-2.png>)",
+    "used": ["a.png"]
+  },
+  {
+    "name": "the start of the text, and text with characters of more than one byte",
+    "text": "assets/a.png é ![ü](assets/a.png) 日本語 assets/a.png",
+    "renames": { "a.png": "a-2.png" },
+    "expected": "assets/a-2.png é ![ü](assets/a-2.png) 日本語 assets/a-2.png",
+    "used": ["a.png", "a.png", "a.png"]
+  },
+  {
+    "name": "a backslash path is not this link",
+    "text": "![](C:\\assets/a.png) ![](\\assets/a.png)",
+    "renames": { "a.png": "a-2.png" },
+    "expected": "![](C:\\assets/a.png) ![](\\assets/a.png)",
+    "used": []
+  },
+  {
+    "name": "a reference definition and a bare line",
+    "text": "[pic]: assets/a.png\n\nassets/a.png\n",
+    "renames": { "a.png": "a-2.png" },
+    "expected": "[pic]: assets/a-2.png\n\nassets/a-2.png\n",
+    "used": ["a.png", "a.png"]
+  },
+  {
+    "name": "two different renames in one text",
+    "text": "![](assets/a.png)\n![](assets/b.png)\n![](assets/c.png)",
+    "renames": { "a.png": "a-2.png", "c.png": "c-3.png" },
+    "expected": "![](assets/a-2.png)\n![](assets/b.png)\n![](assets/c-3.png)",
+    "used": ["a.png", "c.png"]
+  },
+  {
+    "name": "no renames at all",
+    "text": "![](assets/a.png)",
+    "renames": {},
+    "expected": "![](assets/a.png)",
+    "used": []
+  }
+]

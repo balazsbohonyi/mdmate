@@ -1,15 +1,9 @@
 import { rootOf } from '@/features/tree/store'
 import { findPane, type PaneId } from '@/workbench/splitTree'
 import { openTabFor, workbenchLayout } from '@/workbench/store'
-import {
-  createUntitled,
-  describe,
-  documentOfTab,
-  lastFileFolder,
-  problem,
-  setSaveHint,
-} from './store'
+import { createUntitled, describe, documentOfTab, lastFileFolder, setSaveHint } from './store'
 import { suggestedFileName } from './suggest'
+import { reportError } from '@/shell/toasts'
 
 /**
  * New files that have no file yet. They are numbered through the session (`Untitled-1`,
@@ -30,15 +24,14 @@ export function resetUntitled(): void {
 
 /**
  * Opens a new empty Markdown tab in `paneId`, or in the focused pane when none is named. Failures
- * go to `problem`.
+ * show as a toast.
  */
 export async function newUntitledTab(paneId?: PaneId): Promise<void> {
-  problem.value = null
   try {
     const doc = await createUntitled(++counter)
     openTabFor({ kind: 'markdown', docId: doc.id }, paneId)
   } catch (error) {
-    problem.value = `Could not make a new file: ${describe(error)}`
+    reportError(`Could not make a new file: ${describe(error)}`)
   }
 }
 

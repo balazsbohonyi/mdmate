@@ -10,9 +10,11 @@ import {
   type Text,
 } from '@codemirror/state'
 import { createFollowerState, createMasterState } from '@/editor/create'
-import { imageContext } from '@/editor/livePreview/blocks'
+import { imageSink, imageStamp } from '@/editor/imagePaste'
+import { imageContext, imagesMoved } from '@/editor/livePreview/blocks'
 import { brokenLinks, LinkStatus, linkStatus } from '@/editor/brokenLinks'
 import { linkNavigation } from '@/editor/links'
+import { renameEdits } from './draftLinks'
 import { isLargeFile } from './largeFile'
 import { endingsOf, lineEndingsFor } from '@/editor/lineEndings'
 import { sourceCopy } from '@/editor/sourceCopy'
@@ -84,8 +86,32 @@ export interface DocumentOptions {
   readonly followLink?: (tabId: string, href: string) => void
   /** The number in the name of an untitled document, which has no path. */
   readonly untitledNumber?: number
+  /**
+   * Where the images of an untitled document are kept, since it has no folder of its own: its
+   * pictures are linked and loaded from here until the first Save As copies them beside the file.
+   */
+  readonly draftFolder?: string
+  /**
+   * Saves a pasted or dropped picture next to this document, by the stamp (local time) for its
+   * name, and resolves to the path to write in the link. Without it a paste of a picture is an
+   * ordinary paste.
+   */
+  readonly saveImage?: (bytes: ArrayBuffer, stamp: string) => Promise<string>
+  /**
+   * Handles a file a native drop delivered onto this document's text: resolves to the link path,
+   * the file's own place when it is inside the workspace folder and a copy in `assets` when not.
+   */
+  readonly dropImage?: (path: string, stamp: string) => Promise<string>
+  /** Shows the user a message about something that did not work: a warning for a refusal, an error for a failure. */
+  readonly notify?: (message: string, level: 'warning' | 'error') => void
   /** Says which link targets are missing files, for the broken-link style. Without it, none is drawn. */
   readonly checkLinks?: (hrefs: readonly string[]) => Promise<readonly boolean[]>
+}
+
+/** `doc` with the links of renamed images updated. */
+function renamedLinks(doc: Text, renames: ReadonlyMap<string, string>): Text {
+  const edits = renameEdits(doc.toString(), renames)
+  return edits.length === 0 ? doc : ChangeSet.of(edits, doc.length).apply(doc)
 }
 
 /** Where a caret is, as the session stores it. */
@@ -180,6 +206,7 @@ export class Document implements FollowerHost {
             sourceCopy(() => link.endings()),
             readOnlyFacet(this.readOnly),
             this.#imageSupport(),
+            this.#imageSinkSupport(),
             this.#linkSupport(tabId),
             this.#brokenLinkSupport(),
             this.#options.extensions ?? [],
@@ -218,11 +245,33 @@ export class Document implements FollowerHost {
     if (url === undefined) return []
     return imageContext.of({
       folder: () => {
+        if (this.untitled) return this.#options.draftFolder ?? null
         const cut = Math.max(this.path.lastIndexOf('/'), this.path.lastIndexOf('\\'))
         return cut <= 0 ? null : this.path.slice(0, cut)
       },
       boundary: () => (this.untitled ? null : (this.#options.imageBoundary?.(this.path) ?? null)),
       url,
+    })
+  }
+
+  /**
+   * What lets a tab take a picture: the paste hands it to `saveImage` and the drop to `dropImage`. A
+   * document with no file keeps them in its draft folder, which the host makes with the first one.
+   */
+  #imageSinkSupport(): Extension {
+    const save = this.#options.saveImage
+    if (save === undefined) return []
+    const notify = this.#options.notify ?? (() => undefined)
+    return imageSink.of({
+      refusal: () => null,
+      save: (bytes) => save(bytes, imageStamp()),
+      drop: (path) => {
+        const handle = this.#options.dropImage
+        return handle === undefined
+          ? Promise.reject(new Error('this document takes no dropped images'))
+          : handle(path, imageStamp())
+      },
+      notify,
     })
   }
 
@@ -362,18 +411,40 @@ export class Document implements FollowerHost {
   /**
    * Gives the document the file a Save As wrote: it follows the file, `snapshot` is what that file
    * holds, and the history stays. A document that could not be saved (a file in an encoding mdmate
-   * cannot write) can be saved from now on, since what was written is UTF-8.
+   * cannot write) can be saved from now on, since what was written is UTF-8. Images that got
+   * another name beside the file are renamed in the links of the text too, as one change that is
+   * not a step of history (the written file has it already).
    */
   relocate(snapshot: Snapshot, saved: SavedAs): void {
+    const renames = new Map(saved.renamedImages.map((image) => [image.from, image.to]))
+    const baseline = renames.size === 0 ? snapshot.doc : renamedLinks(snapshot.doc, renames)
+    if (renames.size > 0) this.#renameImageLinks(renames)
     this.path = saved.path
     this.name = saved.name
     this.untitledNumber = null
-    this.#saved = { doc: snapshot.doc, endings: snapshot.endings }
+    this.#saved = { doc: baseline, endings: snapshot.endings }
     this.diskHash = saved.hash
     this.#applyReadOnly(null)
+    this.imagesMoved()
     this.#touched()
     this.#refreshDirty()
     this.#changed(this)
+  }
+
+  /**
+   * Points the links of renamed images at their new names, in the master and every follower, as a
+   * change history does not record: undo takes back typing, never a rename the disk already has.
+   */
+  #renameImageLinks(renames: ReadonlyMap<string, string>): void {
+    const master = this.#master
+    const edits = renameEdits(master.doc.toString(), renames)
+    if (edits.length === 0) return
+    const changes = ChangeSet.of(edits, master.doc.length, master.lineBreak)
+    this.#master = master.update({
+      changes,
+      annotations: Transaction.addToHistory.of(false),
+    }).state
+    for (const follower of this.#followers.values()) follower.receive(changes)
   }
 
   /**
@@ -430,6 +501,15 @@ export class Document implements FollowerHost {
     this.#master = this.#master.update({ effects: effect }).state
     for (const follower of this.#followers.values()) follower.reconfigure(effect)
     this.#changed(this)
+  }
+
+  /**
+   * Tells every tab that the folder its pictures load from has changed: the document got a file, or
+   * its file moved. The text may be the same, so the pictures are resolved again on purpose.
+   */
+  imagesMoved(): void {
+    const effect = imagesMoved.of(null)
+    for (const follower of this.#followers.values()) follower.reconfigure(effect)
   }
 
   #refreshDirty(): void {

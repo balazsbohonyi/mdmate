@@ -74,6 +74,27 @@ export const blockTheme = EditorView.baseTheme({
     overflow: 'hidden',
   },
   '.cm-md-image-label': { overflowWrap: 'anywhere' },
+  // A selected image: an outline on the picture and, once it has loaded, a handle at its corner.
+  '.cm-md-image-selected > .cm-md-image-frame': {
+    outline: '2px solid var(--primary)',
+    outlineOffset: '1px',
+  },
+  '.cm-md-image-handle': {
+    position: 'absolute',
+    right: '-6px',
+    bottom: '-6px',
+    width: '12px',
+    height: '12px',
+    boxSizing: 'border-box',
+    border: '2px solid var(--background)',
+    borderRadius: '3px',
+    backgroundColor: 'var(--primary)',
+    cursor: 'nwse-resize',
+    touchAction: 'none',
+  },
+  // The caret is somewhere else while an image is selected, so it is not drawn.
+  '&.cm-image-selected .cm-content': { caretColor: 'transparent' },
+  '&.cm-image-selected .cm-cursorLayer': { visibility: 'hidden' },
   '.cm-md-table code': {
     fontFamily: 'var(--font-mono)',
     fontSize: '0.92em',

@@ -7,7 +7,7 @@
  * paths as Rust's drop record does; the pane under the pointer is found through `data-pane-id`.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { problem, resetDocuments } from '@/documents/store'
+import { resetDocuments } from '@/documents/store'
 import { handleDrop, installFileDrop } from '@/features/drop'
 import { resetTree, restoreWorkspace, workspaceRoots } from '@/features/tree/store'
 import { setHost } from '@/platform'
@@ -21,6 +21,7 @@ import {
   tabTitle,
   workbenchLayout,
 } from '@/workbench/store'
+import { toasts } from '../helpers/toasts'
 
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 async function flush(): Promise<void> {
@@ -72,7 +73,6 @@ beforeEach(() => {
   resetTree()
   resetDocuments()
   resetWorkbench()
-  problem.value = null
 })
 
 afterEach(() => {
@@ -141,11 +141,11 @@ describe('an image dropped from Explorer (ISC-201)', () => {
     expect(imageTabs()[0]?.[1]).toMatchObject({ kind: 'image', path: '/in/c.png' })
   })
 
-  it("opens nothing over a document's text, where inserting a link is P9-T2", async () => {
+  it("opens a tab when the text it lands on is no editor's (a drop onto a real view links instead: dropImage.test.ts)", async () => {
     await start()
     await dropOn(inPane(workbenchLayout.value.activePane, 'cm-content'), ['/in/c.png'])
-    expect(imageTabs()).toHaveLength(0)
-    expect(problem.value).toBeNull()
+    expect(imageTabs()).toHaveLength(1)
+    expect(toasts.last).toBeNull()
   })
 
   it("still opens a Markdown file dropped over a document's text", async () => {
@@ -161,7 +161,7 @@ describe('what a drop must still do', () => {
     hit = document.body
     await handleDrop(['/never/secret.md'], { x: 5, y: 5 })
     expect(tabNames(workbenchLayout.value.activePane)).toEqual([])
-    expect(problem.value).toMatch(/Could not use the dropped files/)
+    expect(toasts.last).toMatch(/Could not use the dropped files/)
   })
 
   it('opens none of a drop that mixes one delivered path with one that was not', async () => {

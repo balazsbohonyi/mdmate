@@ -171,3 +171,51 @@ export function rememberImageSize(url: string, width: number, height: number): v
 export function resetImageSizes(): void {
   sizes.clear()
 }
+
+/**
+ * Pictures from disk are read again when they are drawn again, not served from the webview's own
+ * memory. The webview keeps every image it has loaded under its address for as long as the page
+ * lives, whatever the file does afterwards: a deleted picture kept drawing, even in a tab closed and
+ * opened again, until the app restarted. A local picture's address therefore carries a number that
+ * goes up whenever its files may have changed (a document opens, the window gets the focus back),
+ * which makes it a new address to the webview. The asset protocol ignores the query string.
+ */
+let epoch = 0
+
+/** The pictures of a local file are served by Tauri under one of these. Nothing else gets a number. */
+const ASSET_URL = /^(?:https?:\/\/asset\.localhost\/|asset:\/\/localhost\/)/i
+
+/** From now on, pictures drawn are read from disk again. Nothing already on screen changes. */
+export function bumpImageEpoch(): void {
+  epoch += 1
+}
+
+/** `src` as an `<img>` should load it now: a local file's address with the current number, else as is. */
+export function freshImageSrc(src: string): string {
+  if (epoch === 0 || !ASSET_URL.test(src)) return src
+  return `${src}${src.includes('?') ? '&' : '?'}v=${String(epoch)}`
+}
+
+/** `src` without the number `freshImageSrc` added. */
+export function plainImageSrc(src: string): string {
+  return src.replace(/[?&]v=\d+$/, '')
+}
+
+const refreshers = new Set<() => void>()
+
+/** Calls `run` whenever `refreshPictures` is. Returns what stops it. */
+export function onPicturesRefresh(run: () => void): () => void {
+  refreshers.add(run)
+  return () => refreshers.delete(run)
+}
+
+/** The files may have changed under every picture on screen: read them again, in place. */
+export function refreshPictures(): void {
+  bumpImageEpoch()
+  for (const run of [...refreshers]) run()
+}
+
+/** For tests. */
+export function resetImageEpoch(): void {
+  epoch = 0
+}

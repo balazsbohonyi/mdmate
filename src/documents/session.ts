@@ -31,9 +31,9 @@ import {
   documentById,
   onDocumentsTouched,
   openDocument,
-  problem,
 } from './store'
 import { noteUntitledNumber } from './untitled'
+import { reportError, reportWarning } from '@/shell/toasts'
 
 /**
  * Hot exit, page side. The session is one JSON snapshot: the layout, each tab's file and caret, and
@@ -275,7 +275,9 @@ export async function startJournal(options: JournalOptions = {}): Promise<void> 
     })
   } catch (error) {
     // Without it a close still works, but only the last interval's edits are kept.
-    problem.value = `Could not watch for the window closing: ${error instanceof Error ? error.message : JSON.stringify(error)}`
+    reportError(
+      `Could not watch for the window closing: ${error instanceof Error ? error.message : JSON.stringify(error)}`,
+    )
   }
 }
 
@@ -454,7 +456,9 @@ export async function restoreSession(): Promise<RestoreReport | null> {
   setSidebarWidth(snapshot?.sidebarWidth ?? null, currentWindowWidth())
   await restoreWorkspace(snapshot?.expanded ?? [], snapshot?.places ?? undefined).catch(
     (error: unknown) => {
-      problem.value = `Could not restore the workspace: ${error instanceof Error ? error.message : JSON.stringify(error)}`
+      reportError(
+        `Could not restore the workspace: ${error instanceof Error ? error.message : JSON.stringify(error)}`,
+      )
     },
   )
   if (text === null) return null
@@ -488,7 +492,7 @@ export async function restoreSession(): Promise<RestoreReport | null> {
     const raw = endings === null ? buffer.text : joinWithEndings(buffer.text, endings)
     const name = bufferName(buffer)
     try {
-      const kept = await host.recoverBuffer(name, raw)
+      const kept = await host.recoverBuffer(name, raw, buffer.untitled ?? undefined)
       notices.push(`${why}: the unsaved text of ${name} is in ${kept}.`)
     } catch (error) {
       notices.push(
@@ -666,16 +670,34 @@ export const sessionReady = new Promise<RestoreReport | null>((resolve) => {
   markReady = resolve
 })
 
-/** Restores the last session before the first paint. It never fails startup: a problem becomes a notice. */
+/**
+ * Removes the draft folders of untitled tabs that are gone, once the session is back and nothing
+ * about it went wrong: a damaged or partly restored session may still name a draft whose tab did
+ * not come back, and that folder is the only copy of its images. The numbers of the tabs that are
+ * open are kept by the host. A first start has nothing to sweep, and a failure here costs only disk.
+ */
+async function sweepDraftsAfter(report: RestoreReport | null): Promise<void> {
+  if (report === null || report.notices.length > 0) return
+  try {
+    await (await getHost()).sweepDrafts([])
+  } catch {
+    // Left for the next start.
+  }
+}
+
+/** Restores the last session before the first paint. It never fails startup: a problem becomes a toast. */
 export async function restoreOnStart(): Promise<RestoreReport | null> {
   performance.mark('restore-start')
   try {
     const report = await restoreSession()
     performance.mark('restore-end')
-    if (report !== null && report.notices.length > 0) problem.value = report.notices.join(' ')
+    if (report !== null && report.notices.length > 0) reportWarning(report.notices.join(' '))
+    await sweepDraftsAfter(report)
     return report
   } catch (error) {
-    problem.value = `Could not restore the last session: ${error instanceof Error ? error.message : JSON.stringify(error)}`
+    reportError(
+      `Could not restore the last session: ${error instanceof Error ? error.message : JSON.stringify(error)}`,
+    )
     return null
   }
 }

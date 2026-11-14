@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, useTemplateRef, watch } from 'vue'
-import { describe, openInActivePane, problem } from '@/documents/store'
+import { describe, openInActivePane } from '@/documents/store'
 import { indexStatus } from '@/features/index/status'
 import { getHost } from '@/platform'
 import type { QuickOpenAnswer } from '@/platform/quickOpen'
@@ -115,7 +115,7 @@ async function accept(at: number): Promise<void> {
       focusActiveEditor()
     } else await runCommand(row.key)
   } catch (error) {
-    if (mode === 'files') problem.value = `Could not open ${row.key}: ${describe(error)}`
+    if (mode === 'files') reportError(`Could not open ${row.key}: ${describe(error)}`)
     else console.error(`Command "${row.key}" failed`, error)
   }
 }

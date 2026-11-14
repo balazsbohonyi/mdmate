@@ -1,5 +1,5 @@
 import { shallowRef } from 'vue'
-import { allDocuments, describe, documentMoved, problem } from '@/documents/store'
+import { allDocuments, describe, documentMoved } from '@/documents/store'
 import { moveWithLinks } from '@/features/links/rewrite'
 import type { TabId } from '@/workbench/splitTree'
 import { holdingEditorFocus } from '@/workbench/focus'
@@ -24,6 +24,7 @@ import {
   treeRows,
   workspaceRoots,
 } from './store'
+import { reportError, reportWarning } from '@/shell/toasts'
 
 /**
  * What the sidebar does to files: create, rename, move, delete, reveal, and copy what a drop
@@ -130,10 +131,9 @@ export function moveProblem(path: string, folder: string): string | null {
 
 /** Moves a file or folder into another folder of the workspace. Failures go to the status bar. */
 export async function moveRow(path: string, folder: string): Promise<void> {
-  problem.value = null
   const refusal = moveProblem(path, folder)
   if (refusal !== null) {
-    problem.value = refusal
+    reportWarning(refusal)
     return
   }
   try {
@@ -143,7 +143,7 @@ export async function moveRow(path: string, folder: string): Promise<void> {
     afterMove(path, moved)
     restoreTreeFocus()
   } catch (error) {
-    problem.value = `Could not move ${baseName(path)}: ${describe(error)}`
+    reportError(`Could not move ${baseName(path)}: ${describe(error)}`)
   }
 }
 
@@ -210,13 +210,12 @@ export async function confirmDelete(
  * edits: the question was answered before this runs (ISC-228).
  */
 export async function deleteRow(path: string): Promise<void> {
-  problem.value = null
   const { tabs } = tabsUnder(path)
   try {
     const host = await getHost()
     await host.deleteEntry(path)
   } catch (error) {
-    problem.value = `Could not delete ${baseName(path)}: ${describe(error)}`
+    reportError(`Could not delete ${baseName(path)}: ${describe(error)}`)
     return
   }
   // Closing the tabs shows a neighbour, whose editor would take focus; it stays in the tree.
@@ -235,7 +234,7 @@ export async function revealInFileManager(path: string): Promise<void> {
     const host = await getHost()
     await host.revealEntry(path)
   } catch (error) {
-    problem.value = `Could not show ${baseName(path)}: ${describe(error)}`
+    reportError(`Could not show ${baseName(path)}: ${describe(error)}`)
   }
 }
 
@@ -245,7 +244,7 @@ export async function openFolderInFileManager(path: string): Promise<void> {
     const host = await getHost()
     await host.showFolder(path)
   } catch (error) {
-    problem.value = `Could not open ${baseName(path)}: ${describe(error)}`
+    reportError(`Could not open ${baseName(path)}: ${describe(error)}`)
   }
 }
 
@@ -297,22 +296,20 @@ async function runCopy(
     await loadFolder(into)
     const first = report.copied[0]
     if (first !== undefined) await revealPath(first)
-    const notes: string[] = []
     if (report.failed.length > 0) {
       const first = report.failed[0]
       const more = report.failed.length > 1 ? ` and ${String(report.failed.length - 1)} more` : ''
-      notes.push(
+      reportError(
         `Could not copy ${first?.name ?? 'an item'}${more}: ${first?.message ?? 'unknown error'}`,
       )
     }
     if (report.linksLeft > 0) {
-      notes.push(
+      reportWarning(
         `${String(report.linksLeft)} link${report.linksLeft === 1 ? ' was' : 's were'} left out`,
       )
     }
-    problem.value = notes.length > 0 ? notes.join('. ') : null
   } catch (error) {
-    problem.value = `Could not copy the dropped files: ${describe(error)}`
+    reportError(`Could not copy the dropped files: ${describe(error)}`)
   }
 }
 
@@ -324,17 +321,16 @@ async function runCopy(
  */
 export async function copyDropInto(into: string, paths: readonly string[]): Promise<void> {
   if (copyPrompt.value !== null) {
-    problem.value = 'Answer the question about the earlier drop first.'
+    reportWarning('Answer the question about the earlier drop first.')
     return
   }
-  problem.value = null
   try {
     const host = await getHost()
     const clashes = await host.copyClashes(into, paths)
     if (clashes.length === 0) return await runCopy(into, paths, [])
     copyPrompt.value = { into, paths, clashes, answers: [] }
   } catch (error) {
-    problem.value = `Could not copy the dropped files: ${describe(error)}`
+    reportError(`Could not copy the dropped files: ${describe(error)}`)
   }
 }
 

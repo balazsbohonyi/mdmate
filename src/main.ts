@@ -1,6 +1,8 @@
 import { createApp } from 'vue'
 import App from './App.vue'
 import './styles/tokens.css'
+import 'vue-sonner/style.css'
+import './styles/toasts.css'
 // Registers the Ctrl+click handler for links with the document store.
 import './documents/links'
 import { blockNativeMenu } from './lib/nativeMenu'
