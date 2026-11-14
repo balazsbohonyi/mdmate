@@ -802,7 +802,12 @@ describe('ISC-357: the search box filters the rows of every group', () => {
     )
     expect(document.querySelector('[aria-current="page"]')).toBeNull()
     await find('')
-    expect(rowKeys()).toEqual(['editor.wordWrap', 'editor.highlightExtensions'])
+    expect(rowKeys()).toEqual([
+      'editor.wordWrap',
+      'editor.limitContentWidth',
+      'editor.contentMaxWidth',
+      'editor.highlightExtensions',
+    ])
     await find('recent')
     await click(document.querySelector('[data-settings-category="advanced"]'))
     expect(search().value).toBe('')

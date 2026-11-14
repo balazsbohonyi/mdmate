@@ -29,6 +29,8 @@ export interface SettingValueMap {
   'fonts.codeSize': number
   'fonts.headingScale': readonly number[]
   'editor.wordWrap': boolean
+  'editor.limitContentWidth': boolean
+  'editor.contentMaxWidth': number
   'editor.highlightExtensions': readonly string[]
   'images.pasteFolder': string
   'links.onRename': LinksOnRename
@@ -267,6 +269,20 @@ export const SETTING_DEFS: { readonly [K in SettingKey]: SettingDef<SettingValue
     path: ['editor', 'wordWrap'],
     default: DEFAULT_SETTINGS.editor.wordWrap,
     check: isBoolean,
+    equals: same,
+  },
+  'editor.limitContentWidth': {
+    key: 'editor.limitContentWidth',
+    path: ['editor', 'limitContentWidth'],
+    default: DEFAULT_SETTINGS.editor.limitContentWidth,
+    check: isBoolean,
+    equals: same,
+  },
+  'editor.contentMaxWidth': {
+    key: 'editor.contentMaxWidth',
+    path: ['editor', 'contentMaxWidth'],
+    default: DEFAULT_SETTINGS.editor.contentMaxWidth,
+    check: numberIn(300, 4000, true),
     equals: same,
   },
   'editor.highlightExtensions': {

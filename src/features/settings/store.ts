@@ -8,6 +8,7 @@ import {
   saveDocument,
 } from '@/documents/store'
 import { updateDocumentFonts } from '@/editor/documentFonts'
+import { updateContentWidth } from '@/editor/documentWidth'
 import { refreshSourceLanguages } from '@/editor/sourceLanguage'
 import { refreshWordWrap } from '@/editor/wordWrap'
 import type { FileTemplate } from '@/lib/fileTemplate'
@@ -155,6 +156,7 @@ export function applySettingsText(text: string | null): void {
   assignSettings(settingsAfter(settings, parsed))
   if (settings.editor.wordWrap !== wrapped) refreshWordWrap()
   updateDocumentFonts()
+  updateContentWidth()
   refreshSourceLanguages()
   applyTheme(settings.theme)
   pushRuntime()

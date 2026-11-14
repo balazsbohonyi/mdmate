@@ -18,6 +18,7 @@ import { renameEdits } from './draftLinks'
 import { isLargeFile } from './largeFile'
 import { endingsOf, lineEndingsFor } from '@/editor/lineEndings'
 import { sourceCopy } from '@/editor/sourceCopy'
+import { fullWidthFor, refreshFullWidth } from '@/editor/documentWidth'
 import { refreshSourceLanguages, sourceLanguage } from '@/editor/sourceLanguage'
 import { carriedAnnotations, followerSync } from '@/editor/sync'
 import { endingsEqual, type Endings } from '@/lib/endings'
@@ -210,6 +211,7 @@ export class Document implements FollowerHost {
             followerSync(link),
             sourceCopy(() => link.endings()),
             readOnlyFacet(this.readOnly),
+            fullWidthFor(() => this.name),
             this.#colorable && this.#options.parser === false
               ? sourceLanguage(() => this.name)
               : [],
@@ -431,6 +433,7 @@ export class Document implements FollowerHost {
     this.path = saved.path
     this.name = saved.name
     refreshSourceLanguages() // a Save As to another extension changes the colors
+    refreshFullWidth() // and a Save As to or from settings.json changes the width
     this.untitledNumber = null
     this.#saved = { doc: baseline, endings: snapshot.endings }
     this.diskHash = saved.hash

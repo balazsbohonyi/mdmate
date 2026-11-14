@@ -1,6 +1,7 @@
 import { computed, shallowRef, watch } from 'vue'
 import { uniformEndings, type Endings } from '@/lib/endings'
 import { bumpImageEpoch, refreshPictures } from '@/editor/livePreview/blocks'
+import { refreshFullWidth } from '@/editor/documentWidth'
 import { refreshSourceLanguages } from '@/editor/sourceLanguage'
 import { getHost, type OpenedFile, type SaveAsHint } from '@/platform'
 import { isMarkdownName } from '@/features/tree/model'
@@ -62,6 +63,7 @@ export function documentMoved(id: number, path: string): void {
   doc.path = path
   doc.name = path.split(/[\\/]/).pop() ?? path
   refreshSourceLanguages() // a rename to another extension changes the colors
+  refreshFullWidth() // and a rename to or from settings.json changes the width
   doc.imagesMoved()
   publish(doc)
   touched()

@@ -101,6 +101,10 @@ export interface Settings {
   }
   editor: {
     wordWrap: boolean
+    /** Whether the text column of a tab stops at `contentMaxWidth` and sits in the middle. */
+    limitContentWidth: boolean
+    /** The widest the text column gets, in px, not counting the padding round it. */
+    contentMaxWidth: number
     /** The file extensions (no dot, lower case) of non-Markdown files shown with syntax colors. */
     highlightExtensions: readonly string[]
   }
@@ -137,7 +141,14 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = {
     codeSize: 14,
     headingScale: DEFAULT_HEADING_SCALE,
   },
-  editor: { wordWrap: true, highlightExtensions: DEFAULT_HIGHLIGHT_EXTENSIONS },
+  editor: {
+    wordWrap: true,
+    // 900 px of text is about 107 to 117 characters of the built-in monospace body font at 14 px
+    // (Consolas is 0.55 em wide, Courier New 0.6 em), and about 109 at the default 15 px.
+    limitContentWidth: true,
+    contentMaxWidth: 900,
+    highlightExtensions: DEFAULT_HIGHLIGHT_EXTENSIONS,
+  },
   images: { pasteFolder: 'assets' },
   links: { onRename: 'never' },
   files: { largeFileMB: 3 },

@@ -15,7 +15,14 @@ import { livePreview } from './livePreview'
 import { previewSlot } from './previewMode'
 import { markdownSupport } from './markdownSupport'
 import { documentFonts } from './documentFonts'
+import {
+  contentWidthValue,
+  CONTENT_PADDING_X,
+  FULL_WIDTH_CLASS,
+  WIDTH_VARIABLE,
+} from './documentWidth'
 import { wordWrap } from './wordWrap'
+import { DEFAULT_SETTINGS } from '@/lib/settings'
 
 /** Fills its parent and scrolls inside itself, in the app's own colors. */
 const frame = EditorView.theme({
@@ -32,13 +39,22 @@ const frame = EditorView.theme({
   // scrollbar stays at the pane's edge, and CodeMirror counts content padding in its heights.
   '.cm-content': {
     caretColor: 'var(--foreground)',
-    padding: '1.25rem 1.5rem',
+    padding: `1.25rem ${CONTENT_PADDING_X}`,
+    // The text column stops at the width from settings.json and sits in the middle (documentWidth.ts).
+    // The fallback is the default, for the moment before the file is read or when it cannot be.
+    maxWidth: `var(${WIDTH_VARIABLE}, ${contentWidthValue(DEFAULT_SETTINGS.editor)})`,
+    marginInline: 'auto',
     // The document's body font and size, from settings.json (documentFonts.ts). The fallbacks are
     // the defaults, for the moment before the file is read or when it cannot be (a test keeps them
     // equal to DEFAULT_SETTINGS).
     fontFamily: 'var(--doc-font-body, monospace)',
     fontSize: 'var(--doc-size, 15px)',
   },
+  // Without wrapping there is no column to keep: a long line runs out of it, so the limit waits for
+  // word wrap (documentWidth.ts).
+  '.cm-content:not(.cm-lineWrapping)': { maxWidth: 'none', marginInline: '0' },
+  // The app's own JSON files keep the whole width (documentWidth.ts).
+  [`&.${FULL_WIDTH_CLASS} .cm-content`]: { maxWidth: 'none', marginInline: '0' },
 })
 
 /**

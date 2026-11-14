@@ -93,6 +93,22 @@ export const SETTING_ROWS: readonly SettingRowSpec[] = [
     control: { kind: 'switch' },
   },
   {
+    key: 'editor.limitContentWidth',
+    category: 'editor',
+    label: 'Limit content width',
+    description:
+      'Keep the text of a tab to a readable column, centered. On a narrow window it uses the whole width. Not used while long lines scroll sideways.',
+    control: { kind: 'switch' },
+  },
+  {
+    key: 'editor.contentMaxWidth',
+    category: 'editor',
+    label: 'Maximum content width',
+    description:
+      'The widest the text column gets, in pixels. 900 is about 110 characters at the default size. Used when the limit is on.',
+    control: { kind: 'number' },
+  },
+  {
     key: 'editor.highlightExtensions',
     category: 'editor',
     label: 'Syntax colors',
