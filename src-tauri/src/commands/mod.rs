@@ -15,6 +15,7 @@ use crate::recent::{self, RecentStore};
 use crate::save_as::{self, SaveRequest, SavedAs};
 use crate::search;
 use crate::session::{self, CloseHook, SessionStore};
+use crate::settings::SettingsStore;
 use crate::workspace::ops::{self, ClashAnswer, CopyReport, Moved};
 use crate::workspace::roots::{self, RootStore};
 use crate::workspace::tree::{self, TreeEntry};
@@ -869,10 +870,66 @@ pub(crate) fn rewrite_check(
 }
 
 /// What the environment says a rename or move does about links (`ask`, `update` or `never`), or
-/// None when it says nothing the page can use. Temporary, until `settings.json` (P8-T1).
+/// None when it says nothing the page can use. A launch-time override that wins over
+/// `settings.json` for that run.
 #[tauri::command]
 pub(crate) fn links_on_rename_override() -> Option<&'static str> {
     crate::settings::links_on_rename_from_env()
+}
+
+/// The text of `settings.json` in the data folder, or nothing when there is no file yet. A file
+/// that is not UTF-8 text or is too big is an error, never a guess. The page decides what it means.
+#[tauri::command]
+pub(crate) async fn settings_read(
+    store: State<'_, Arc<SettingsStore>>,
+) -> Result<Option<String>, AppError> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || store.read())
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Replaces `settings.json` with the text, atomically. The page names no path: the file is always
+/// the one in the data folder.
+#[tauri::command]
+pub(crate) async fn settings_write(
+    store: State<'_, Arc<SettingsStore>>,
+    text: String,
+) -> Result<(), AppError> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || store.write(&text))
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Tells the page each time `settings.json` changes, whoever changed it. Calling it again replaces
+/// the channel.
+#[tauri::command]
+pub(crate) fn watch_settings(
+    store: State<'_, Arc<SettingsStore>>,
+    on_change: Channel<()>,
+) -> Result<(), AppError> {
+    store.watch(Box::new(move || {
+        // A page that has gone away has nobody to tell; the next subscription replaces this one.
+        let _ = on_change.send(());
+    }))
+}
+
+/// Makes `settings.json` if it is missing and lets the page open it as a tab. Returns its path.
+/// It is the one file this grants, and the page cannot name another.
+#[tauri::command]
+pub(crate) async fn settings_file(
+    state: State<'_, Arc<AppState>>,
+    store: State<'_, Arc<SettingsStore>>,
+) -> Result<String, AppError> {
+    let (state, store) = (state.inner().clone(), store.inner().clone());
+    tauri::async_runtime::spawn_blocking(move || {
+        let file = store.ensure_file()?;
+        let resolved = state.access().grant_file(&file)?;
+        Ok::<_, AppError>(display_path(&resolved.path))
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
 }
 
 /// Checks a rename or move and reads the workspace for the links it would change, without

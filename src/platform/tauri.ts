@@ -240,6 +240,25 @@ export const tauriHost: Host = {
   async linksOnRenameOverride() {
     return parseLinksOnRename(await invoke<unknown>('links_on_rename_override'))
   },
+  async settingsRead() {
+    const text = await invoke<unknown>('settings_read')
+    return typeof text === 'string' ? text : null
+  },
+  async settingsWrite(text) {
+    await invoke('settings_write', { text })
+  },
+  async watchSettings(onChange) {
+    const channel = new Channel<null>()
+    channel.onmessage = onChange
+    await invoke('watch_settings', { onChange: channel })
+    // Rust keeps one channel, and subscribing again replaces it, so stopping only mutes this one.
+    return () => {
+      channel.onmessage = () => undefined
+    }
+  },
+  async settingsFile() {
+    return invoke<string>('settings_file')
+  },
   async rewritePlan(path, change, buffers, onProgress) {
     const channel = new Channel<number>()
     channel.onmessage = onProgress

@@ -3,7 +3,7 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 317/385
+progress: 322/386
 started: 2026-11-07T00:30:52Z
 updated: 2026-11-14T20:00:00Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
@@ -291,7 +291,7 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-364 | bash | save 1, open a 2 MB file | plain-text mode | pnpm test:web tests/features/settings.test.ts | derived: configurable | | |
 | ISC-365 | bash | save 3 and 2, open more than that | the lists hold 3 and 2 | pnpm test:rust recent | derived: configurable | | |
 | ISC-366 | bash | add a folder name, search for text inside it | no hits, index rebuilt once | pnpm test:web tests/features/settings.test.ts | derived: configurable | | |
-| ISC-367 | bash | edit the list, press reset | the key is gone, the 20 names show | pnpm test:web tests/features/settingsView.test.ts | derived: configurable | | |
+| ISC-367 | bash | edit the list, press reset | the key is gone, the built-in names show (the page's list equals the one in `fs/exclude.rs`) | pnpm test:web tests/features/settingsView.test.ts | derived: configurable | | |
 | ISC-368 | bash | save `C:/x` and `../x` | row error, paste lands in the previous folder | pnpm test:web tests/features/settings.test.ts | derived: configurable | | |
 | ISC-369 | bash | mount the screen with the override set | control disabled, note names the variable | pnpm test:web tests/features/settingsView.test.ts | derived: configurable | | |
 | ISC-370 | bash | build the rows and the menu entries, flip each setting | the state follows the setting | pnpm test:web tests/workbench/commands.test.ts | derived: configurable | | |
@@ -310,6 +310,7 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-383 | bash | set `foreground` near `background` | warning shown with the ratio | pnpm test:web tests/features/themes.test.ts | derived: themeable | | |
 | ISC-384 | bash | open a workspace holding both files | their values are not applied | pnpm test:web tests/features/settings.test.ts | derived: security | | |
 | ISC-385 | bash | customize and edit a colour | dark.css, light.css and sepia.css unchanged | pnpm test:web tests/features/themes.test.ts | derived: themeable | | |
+| ISC-386 | bash | make the host's write fail; write over a file with a missing comma | old file and live value kept, a notice says why; the Rust store keeps the old file when its write fails | pnpm test:web tests/features/settings.test.ts; pnpm test:rust settings | derived: configurable | | |
 | ISC-161 | manual | launch twice with a file | one window, new tab | Real app run | derived: os-integration | | |
 | ISC-162 | manual | second launch with a relative path from another folder | right file | Real app run | derived: os-integration | | |
 | ISC-163 | manual | run mdmate file.md while closed | file opens | Real app run | derived: os-integration | | |
@@ -666,8 +667,8 @@ Why: the look must be yours to change without rebuilding, which is why everythin
 
 - [ ] ISC-145: Dark and light built-in themes switch live.
 - [ ] ISC-146: Anti: built-in themes copy no SublimeText assets.
-- [ ] ISC-147: Saving `settings.json` applies changes without a restart.
-- [ ] ISC-148: Invalid settings keep the last good values with a notice.
+- [x] ISC-147: Saving `settings.json` applies changes without a restart.
+- [x] ISC-148: Invalid settings keep the last good values with a notice.
 - [ ] ISC-149: Saving `keybindings.json` changes a shortcut.
 - [ ] ISC-150: A user theme file overrides a token.
 - [ ] ISC-151: Saving a theme file updates the app live.
@@ -697,7 +698,7 @@ Why: the look must be yours to change without rebuilding, which is why everythin
 - [ ] ISC-364: `files.largeFileMB` sets the size above which the next opened file uses plain-text mode.
 - [ ] ISC-365: `recent.files` and `recent.folders` cap the two recent lists.
 - [ ] ISC-366: A changed `workspace.excludedFolders` re-indexes the open folders and search skips a newly added name.
-- [ ] ISC-367: Reset to built-in list restores the 20 built-in excluded folders.
+- [ ] ISC-367: Reset to built-in list restores the built-in excluded folders (21 today).
 - [ ] ISC-368: An absolute or escaping `images.pasteFolder` is refused on its row and the last good folder stays in use for the next paste.
 - [ ] ISC-369: While `MDMATE_LINKS_ON_RENAME` is set, the Links row is read-only and names the variable.
 - [ ] ISC-370: Toggle Word Wrap and Toggle Developer Tools show their current on or off state in the palette and the menu.
@@ -714,8 +715,9 @@ Why: the look must be yours to change without rebuilding, which is why everythin
 - [ ] ISC-381: The colour editor lists every token of the theme in groups.
 - [ ] ISC-382: Changing a colour in the editor writes the theme file and updates the app at once.
 - [ ] ISC-383: A colour that brings a required pair under its contrast floor shows a warning beside it.
-- [ ] ISC-384: Anti: `settings.json` and `keybindings.json` are read only from the app data folder, never from an opened folder.
+- [x] ISC-384: Anti: `settings.json` and `keybindings.json` are read only from the app data folder, never from an opened folder.
 - [ ] ISC-385: Anti: Customize and the colour editor never write to a built-in theme.
+- [x] ISC-386: A write to `settings.json` that fails, or meets a file that is not valid JSON, leaves the file and the live value as they were and says why.
 
 ### F10 · Image authoring
 Why: screenshots are the most common thing dropped into documentation, and adding one should take a single paste.
@@ -896,7 +898,7 @@ Why: a large workspace stays quick to search only when mdmate keeps a list of it
 - [x] ISC-317: A rename or move that cannot be done (a name that is taken or not allowed) is refused where it was typed before anything is asked or read, and one that would move nothing (the same name, the same folder) asks nothing.
 - [x] ISC-318: After links were updated a line says how many links in how many files (or that no link pointed to the file); a line with nothing wrong in it goes away by itself and leaves the keyboard where it was, and one that lists files that kept their links or could not be read stays until dismissed and takes the keyboard.
 - [x] ISC-319: The `MDMATE_LINKS_ON_RENAME` environment variable (`ask`, `update` or `never`, any case, spaces ignored) sets `links.onRename` while `settings.json` does not exist, is read when the app runs, and wins over the setting; unset, empty or unknown leaves the default, `never`.
-- [ ] ISC-320: `settings.json` holds `links.onRename` (`ask`, `update` or `never`) and a saved change applies to the next rename with no restart; what `MDMATE_LINKS_ON_RENAME` does once the file exists is decided and written in the Phase 8 decisions.
+- [x] ISC-320: `settings.json` holds `links.onRename` (`ask`, `update` or `never`) and a saved change applies to the next rename with no restart; what `MDMATE_LINKS_ON_RENAME` does once the file exists is decided and written in the Phase 8 decisions.
 - [x] ISC-321: A rename or move reads files for links only in the workspace roots that hold the file (all of them when roots lie inside one another), so another workspace is neither read nor changed; Find File References looks in the same roots, and in every root for a file no root holds.
 
 ## Decisions
@@ -1031,6 +1033,9 @@ Why: a large workspace stays quick to search only when mdmate keeps a list of it
 - 2026-11-14: refined: one picture is one file, and a dropped file keeps its name (owner, after trying Phase 9: "if I drop the same image 10 times, that could mean the same image is added 10 times with different names"). New ISC-335 to ISC-337; ISC-154 and ISC-329 reworded. A picture whose bytes are already in the destination images folder is linked there, not written again (paste, drop and the Save As copy of draft images); the copy of a dropped file keeps its own name, cleaned (see ISC-336), where a paste keeps the stamp name. Reversed from the P9-T1 choice "the file keeps the stamp name": that choice avoided cleaning names, and the owner preferred readable names plus no duplicates. See `ai-docs/phases/phase-09/decisions.md`.
 - 2026-11-13: refined: ISC-154 now says a copied JPEG, GIF or WebP keeps the extension of its own type (a screenshot is `.png`). The P9-T1 check in the real window showed that an Explorer file copy arrives as a `File` with its real name, type and bytes in `clipboardData.files`, like a screenshot, so one path handles both; saving JPEG bytes as `.png` would give a file that lies about its type. The check and the other P9-T1 choices are in `ai-docs/phases/phase-09/decisions.md`.
 - 2026-11-14: refined: Phase 8 gains a settings screen beside the files (new ISC-343 to ISC-385), after the owner asked for logically grouped settings and a consistent UI that edit the same JSON as hand editing. Settled in a design session: one singleton Settings tab (Ctrl+, , menu, palette, gear); controls apply instantly and write only the key they touch, a default value removes the key; `settings.json`, `keybindings.json` and `themes/` live in the app data folder and are never read from a workspace; an invalid file keeps the last good values with a banner; a dirty `settings.json` tab gets a Save/Discard/Cancel prompt before the screen writes; categories are Appearance, Editor, Files & Workspace, Keyboard, Advanced; every row shows label, description, JSON key, modified dot and reset. New settings beyond the three planned: three font families, `fonts.size`, `fonts.codeSize` and a per-level `fonts.headingScale` (defaults equal today's look), `editor.wordWrap`, `files.largeFileMB`, `recent.files`/`recent.folders`, `workspace.excludedFolders`. Themes grow a Sepia built-in (MarkdownWeave's palette, darkened where it fails the contrast floors, syntax colours designed here) and System, plus a Customize copy and an on-screen editor for all 54 tokens; keybindings get an on-screen recorder with conflict Replace. `MDMATE_LINKS_ON_RENAME` stays as a launch-time override and locks its row. Departs from the P8-T1 plan, which was files only.
+- 2026-11-14: refined: ISC-367 said "the 20 built-in excluded folders"; `EXCLUDED_DIRS` in `fs/exclude.rs` holds 21 (counted in P8-T1), and the plan's "20 names" came from the same miscount. The claim now names no count (it says 21 today) and its probe compares the page's list with the Rust file, so a third copy of the number cannot rot. Not a softening: the claim still asks for the whole built-in list.
+- 2026-11-14: refined: P8-T1 builds the settings core. One validator, in the page (`src/lib/settingsFile.ts`, a table of every key with its default and check); Rust keeps only the file (read, atomic write, watch, grant the one file to open as a tab) and takes no path from the page, which is what ISC-384 rests on. A key with a bad value keeps its last good value (the first load, before any good value, uses the default); a key the file lacks goes back to its default. What `MDMATE_LINKS_ON_RENAME` does once the file exists (ISC-320): while it holds ask, update or never it wins over the file for that run; with it unset the file decides. New ISC-386 (a failed write or a file that is not JSON changes nothing and says why). ISC-349 to ISC-351 are checked at the store boundary in P8-T1 (`changeSetting`/`resetSetting`, the file watcher), in the file the plan names; the mounted rows and controls add their cases to the same file in P8-T1d, which is where ISC-355 and ISC-356 close. Details: `ai-docs/phases/phase-08/decisions.md`.
+- 2026-11-14: refined: ISC-349, ISC-350, ISC-351, ISC-352 and ISC-353 name a control, a row, a banner or the open Settings screen, which do not exist until P8-T1d, so they stay open and move from P8-T1 to P8-T1d (the banner text and the row flag are the T1d part) in `ai-docs/tasks.md`. P8-T1 proved the same writes and the same live update at the store boundary (`changeSetting`, in tests and in the real window), recorded as an evidence note in Verification; that is a weaker probe than the claim, so it is not closed on it. progress is 322/386. P8-T1 also closes ISC-386, which it added.
 
 ## Verification
 
@@ -1377,6 +1382,14 @@ Why: a large workspace stays quick to search only when mdmate keeps a list of it
 - ISC-157: same run: a click on a picture selected it (outline and handle in the DOM); dragging the handle 60 px left with real mouse events took the frame from 160 to 100 px and wrote `<img src="assets/image-….jpg" width="100">`.
 - ISC-322: same run: after the click the handle showed and the source stayed hidden; Escape deselected (selected and handle gone, picture still drawn at 100 px); a second click then a click on the heading deselected; a third click then Enter showed the source (`<img src=… width="100">` in the line, the picture's frame gone).
 - Table extents (ISC-183, ISC-334 follow-up): `tests/editor/blocks.test.ts` "holds for random edits of a document of tables and pictures, with the caret in a table": two seeds of 800 rounds of 5 random edits each, after which what the field draws equals what a fresh scan draws. It failed at once on the old field, and 7 seeds of 8000 rounds each pass on the new one.
+
+- ISC-147 (P8-T1): `tests/features/settings.test.ts` "a file saved while the app runs is applied with no restart" (a file written through the mock host while the watcher listens changes `fonts.size`, `fonts.codeSize` and `links.onRename` one key at a time; a key taken out goes back to its default). Real window (2026-11-14, debug `mdmate.exe` built with `--features perf` into its own target folder, over my own Vite on 1420, own MDMATE_DATA_DIR and WebView2 profile, DevTools port, driven by a script outside the repo): another process wrote `settings.json` while the app ran; Rust's watcher fired and the page applied `fonts.size` 19, `devtools` true and `links.onRename` ask within 1.2 s. A file already there at start (bad `fonts.size`, good `codeSize` and `devtools`) was applied at start with one notice (the probe read the state 7 s after launch, so it does not show whether this happened before the first paint).
+- ISC-148 (P8-T1) closed on this; ISC-352 stays open until P8-T1d (it names the banner on the screen), evidence at the store boundary: `tests/features/settings.test.ts` (a file with a missing comma keeps the last good values, names line 5, and a fixed file applies) and `tests/lib/settingsFile.test.ts` (the line comes from the engine message). Real window, same run: a file with a missing comma left `fonts.size` 19, `devtools` and `links.onRename` as they were, the state held `line 5, column 3`, and one toast said so.
+- Evidence note, claim stays open until P8-T1d (it names the row): ISC-353 (P8-T1): `tests/features/settings.test.ts` (`"big"` and 400: previous size stays, the key is flagged, the rest of the file still applies; a first load with a bad value starts on the default) and the value rules in `tests/lib/settingsFile.test.ts`. Real window, same run: `fonts.size` 400 left 19, flagged `Use a number from 8 to 40.`, and applied `codeSize` 12 from the same file.
+- ISC-320 (P8-T1): `tests/lib/settings.test.ts`: with the mock host, a saved `links.onRename` of `update` makes the next rename rewrite the link with no restart, removing the key goes back to `never`, an invalid value keeps the last good one, and `linksOnRename: never` from the environment wins over a file that says `update`. The decision about the environment variable is in the Phase 8 decisions.
+- Evidence note, claims stay open until P8-T1d (they name the control and the screen): ISC-349, ISC-350, ISC-351 at the store boundary (P8-T1), the mounted screen adds its cases to the same file in P8-T1d: `tests/features/settingsView.test.ts` (changing one key keeps unknown groups and unknown keys inside known groups; a default takes the key and an emptied group out and leaves `{}` for the last one; a hand edit updates the live value, the modified state and the marks; two changes asked for together run in order and the echo does not undo the second) and `tests/lib/settingsEdit.test.ts` (three seeds of 300 random edits keep unknown keys and take defaults out exactly). Real window, same run: `changeSetting("editor.wordWrap", false)` on a file with an unknown group and an unknown key inside `fonts` wrote only `editor.wordWrap`; `changeSetting("fonts.size", 15)` took `fonts.size` out and left the rest; the data folder held only `settings.json` after all the writes. These were calls of the store function from the page, not clicks on controls: no control exists yet.
+- ISC-384 (P8-T1): `tests/features/settings.test.ts`: a workspace holding `settings.json`, `keybindings.json` and `.mdmate/settings.json` changes no value, and the screen writes the data folder's file and leaves the workspace's alone. Structurally no host method takes a path (`settingsRead`, `settingsWrite`, `watchSettings`, `settingsFile`).
+- ISC-386 (P8-T1): `tests/features/settings.test.ts` (a failing host write keeps file and live value and reports `Could not save settings.json`; a file that is not valid JSON is not overwritten; a refused value does not touch the file) and `pnpm test:rust settings` (10 tests: a failed write and a read-only file keep the old file, a write replaces the file whole and leaves no temp file, not UTF-8 and over 1 MB are refused). Real window, same run: a read-only `settings.json` gave ok false, an unchanged file and `permission was denied, the file may be read-only or you may not have access to it`; a file with a missing comma was left byte for byte as it was.
 
 ## Remaining Work
 

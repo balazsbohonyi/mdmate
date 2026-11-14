@@ -384,9 +384,28 @@ export interface Host {
   rewriteCheck(path: string, change: RewriteChange): Promise<boolean>
   /**
    * What the environment (`MDMATE_LINKS_ON_RENAME`) says a rename or move does about links, or null
-   * when it says nothing the page can use. Temporary, until `settings.json` arrives (P8-T1).
+   * when it says nothing the page can use. A launch-time override: while it is set it wins over
+   * `settings.json`, and the Links row of the settings screen shows it read-only.
    */
   linksOnRenameOverride(): Promise<LinksOnRename | null>
+  /**
+   * The text of `settings.json` in the app's data folder, or null when there is no file yet. The
+   * file is always that one: the page names no path, so nothing in an opened folder can stand in
+   * for it. Rejects with `invalid` for a file that is not UTF-8 text or is over 1 MB.
+   */
+  settingsRead(): Promise<string | null>
+  /** Replaces `settings.json` with the text, atomically: the old file stays whole until the new one is written. */
+  settingsWrite(text: string): Promise<void>
+  /**
+   * Calls `onChange` each time `settings.json` changes on disk, whoever changed it, this page's own
+   * writes included. Returns the function that stops listening; one listener is live at a time.
+   */
+  watchSettings(onChange: () => void): Promise<() => void>
+  /**
+   * Makes `settings.json` when it is missing, lets the page open it as a tab, and resolves to its
+   * path. It grants that one file and nothing else.
+   */
+  settingsFile(): Promise<string>
   /**
    * Checks a rename or move and reads the workspace for the links it would change, without
    * changing anything. `onProgress` hears how many files were read so far. `buffers` are the open

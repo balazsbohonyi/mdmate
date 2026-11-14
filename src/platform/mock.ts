@@ -144,6 +144,9 @@ export interface MockHost extends Host {
 /** Where the mock keeps the draft folders of untitled documents. */
 export const DRAFT_ROOT = '/mock-data/drafts'
 
+/** Where the mock keeps `settings.json`, in the same files the app can open as a tab. */
+export const MOCK_SETTINGS_FILE = '/mock-data/settings.json'
+
 /** The files of a draft's `assets` that can be copied: a name and one of the four extensions. */
 const DRAFT_IMAGE = /^[^/\\]+\.(?:png|jpg|gif|webp)$/i
 
@@ -1005,6 +1008,29 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     },
     linksOnRenameOverride() {
       return Promise.resolve(options.linksOnRename ?? null)
+    },
+    settingsRead() {
+      return attempt(() => files.read(MOCK_SETTINGS_FILE) ?? null)
+    },
+    settingsWrite(text) {
+      return attempt(() => {
+        files.write(MOCK_SETTINGS_FILE, text)
+      })
+    },
+    watchSettings(onChange) {
+      // Any change to the file, the page's own writes and a save of its tab included, as Rust's
+      // watcher reports them.
+      return Promise.resolve(
+        files.onChange((path) => {
+          if (pathKey(path) === pathKey(MOCK_SETTINGS_FILE)) onChange()
+        }),
+      )
+    },
+    settingsFile() {
+      return attempt(() => {
+        if (!files.has(MOCK_SETTINGS_FILE)) files.write(MOCK_SETTINGS_FILE, '{}\n')
+        return MOCK_SETTINGS_FILE
+      })
     },
     rewritePlan(path, change, buffers, onProgress) {
       return planRewrite(path, change, buffers, onProgress)

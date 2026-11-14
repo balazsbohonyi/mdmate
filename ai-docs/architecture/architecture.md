@@ -201,6 +201,12 @@ Ctrl+P lists files and Ctrl+Shift+P lists commands, in one picker (`src/features
 
 Files come from Rust. `workspace/quick.rs` keeps a list of every file under every root except `.git` (the link scan's walk), builds it on the first query and again in the background each time the picker opens, and answers `quick_open_query(query, limit)` with the best matches and the letters to mark, as UTF-16 offsets. The page never holds the file list. Commands come from the registry; their titles are ranked by `src/lib/fuzzy.ts`, which uses the same points as the Rust scorer. The browser host answers the same two calls from its in-memory files with `fuzzy.ts`.
 
+## Settings
+
+`settings.json` lives in the data folder next to `session.json` and is the source of truth: strict JSON, two-space indent, nested by group (`{"fonts": {"size": 18}}`), unknown keys left alone. Rust (`settings/mod.rs`) keeps only the file: read, atomic write, a watcher on the data folder filtered to that name, and `settings_file`, which makes the file if it is missing and grants that one file so the page can open it as a tab. No call takes a path from the page, so nothing in an opened folder can stand in for it.
+
+The page holds one validator, a table of every key with its file path, default and check (`src/lib/settingsFile.ts`). Data enters as `unknown`; a key with a bad value keeps its last good value and is flagged, a key the file lacks goes to its default, and a file that is not one JSON object changes nothing. `features/settings/store.ts` reads the file at start (before the session is restored) and again each time the watcher fires, puts the result in the reactive `settings` object (`src/lib/settings.ts`), and writes a change from the screen as an edit of one key of the file's text (`src/lib/settingsEdit.ts`): other keys stay, a value equal to the default takes its key out, and a file that is not valid JSON is never overwritten. Writes run one at a time, each on the file as it is when its turn comes. `MDMATE_LINKS_ON_RENAME` still wins over `links.onRename` for a run.
+
 ## Security
 
 Markdown content is untrusted, and people will open files they did not write.
