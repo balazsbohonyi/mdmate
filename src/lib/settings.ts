@@ -41,6 +41,39 @@ export const BUILT_IN_EXCLUDED_FOLDERS: readonly string[] = [
   '.idea',
 ]
 
+/**
+ * The file types shown with syntax colors until the setting says otherwise: the web stack (JS, TS,
+ * JSX, TSX, Vue, HTML, CSS and its dialects), Rust's config and data formats, shell and SQL. Every
+ * name is one the CodeMirror language list knows, so each has a parser (`codeLanguages.ts`).
+ */
+export const DEFAULT_HIGHLIGHT_EXTENSIONS: readonly string[] = [
+  'json',
+  'js',
+  'mjs',
+  'cjs',
+  'jsx',
+  'ts',
+  'mts',
+  'cts',
+  'tsx',
+  'vue',
+  'html',
+  'css',
+  'scss',
+  'sass',
+  'less',
+  'yaml',
+  'yml',
+  'toml',
+  'rs',
+  'xml',
+  'svg',
+  'sh',
+  'bash',
+  'ps1',
+  'sql',
+]
+
 /** The heading sizes the editor has always had, as multiples of the body size, H1 to H6. */
 export const DEFAULT_HEADING_SCALE: readonly number[] = [1.7, 1.45, 1.25, 1.1, 1, 0.95]
 
@@ -68,6 +101,8 @@ export interface Settings {
   }
   editor: {
     wordWrap: boolean
+    /** The file extensions (no dot, lower case) of non-Markdown files shown with syntax colors. */
+    highlightExtensions: readonly string[]
   }
   images: {
     /** Where a pasted or dropped picture goes: a folder name or relative path under the document's folder. */
@@ -102,7 +137,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = {
     codeSize: 14,
     headingScale: DEFAULT_HEADING_SCALE,
   },
-  editor: { wordWrap: true },
+  editor: { wordWrap: true, highlightExtensions: DEFAULT_HIGHLIGHT_EXTENSIONS },
   images: { pasteFolder: 'assets' },
   links: { onRename: 'never' },
   files: { largeFileMB: 3 },
@@ -116,7 +151,7 @@ export function cloneSettings(from: Readonly<Settings>): Settings {
   return {
     theme: from.theme,
     fonts: { ...from.fonts, headingScale: [...from.fonts.headingScale] },
-    editor: { ...from.editor },
+    editor: { ...from.editor, highlightExtensions: [...from.editor.highlightExtensions] },
     images: { ...from.images },
     links: { ...from.links },
     files: { ...from.files },

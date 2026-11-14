@@ -20,6 +20,8 @@ export type RowControl =
   | { readonly kind: 'scale' }
   | { readonly kind: 'choice'; readonly options: readonly { value: string; label: string }[] }
   | { readonly kind: 'folders' }
+  /** File extensions as chips, added by picking a language from a searchable list. */
+  | { readonly kind: 'extensions' }
 
 export interface SettingRowSpec {
   readonly key: SettingKey
@@ -42,18 +44,18 @@ export const SETTING_ROWS: readonly SettingRowSpec[] = [
     control: { kind: 'choice', options: THEME_CHOICES },
   },
   {
-    key: 'fonts.body',
-    category: 'appearance',
-    label: 'Body font',
-    description: 'The font of the document text. Empty uses the built-in font.',
-    control: { kind: 'font', family: 'body' },
-  },
-  {
     key: 'fonts.heading',
     category: 'appearance',
     label: 'Heading font',
     description: 'The font of headings. Empty uses the body font.',
     control: { kind: 'font', family: 'heading' },
+  },
+  {
+    key: 'fonts.body',
+    category: 'appearance',
+    label: 'Body font',
+    description: 'The font of the document text. Empty uses the built-in font.',
+    control: { kind: 'font', family: 'body' },
   },
   {
     key: 'fonts.code',
@@ -89,6 +91,14 @@ export const SETTING_ROWS: readonly SettingRowSpec[] = [
     label: 'Word wrap',
     description: 'Wrap long lines at the edge of the editor instead of scrolling sideways.',
     control: { kind: 'switch' },
+  },
+  {
+    key: 'editor.highlightExtensions',
+    category: 'editor',
+    label: 'Syntax colors',
+    description:
+      'File types, by extension, that open with syntax colors. Pick a language to add its extensions.',
+    control: { kind: 'extensions' },
   },
   {
     key: 'files.largeFileMB',

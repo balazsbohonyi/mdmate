@@ -31,6 +31,7 @@ import {
 } from '@/features/settings/store'
 import {
   BUILT_IN_EXCLUDED_FOLDERS,
+  DEFAULT_HIGHLIGHT_EXTENSIONS,
   resetSettings,
   settings,
   type LinksOnRename,
@@ -799,7 +800,7 @@ describe('ISC-357: the search box filters the rows of every group', () => {
     )
     expect(document.querySelector('[aria-current="page"]')).toBeNull()
     await find('')
-    expect(rowKeys()).toEqual(['editor.wordWrap'])
+    expect(rowKeys()).toEqual(['editor.wordWrap', 'editor.highlightExtensions'])
     await find('recent')
     await click(document.querySelector('[data-settings-category="advanced"]'))
     expect(search().value).toBe('')
@@ -821,7 +822,11 @@ describe('ISC-367: the excluded folders are chips with an add field and a reset'
   it('starts on the built-in list, which is 21 names', async () => {
     await mountScreen('files')
     expect(BUILT_IN_EXCLUDED_FOLDERS).toHaveLength(21)
-    expect(chips()).toEqual([...BUILT_IN_EXCLUDED_FOLDERS])
+    expect(chips()).toEqual(
+      [...BUILT_IN_EXCLUDED_FOLDERS].sort((a, b) =>
+        a.localeCompare(b, undefined, { sensitivity: 'base' }),
+      ),
+    )
     expect(document.querySelector('[data-excluded-reset]')).toBeNull()
   })
 
@@ -841,7 +846,7 @@ describe('ISC-367: the excluded folders are chips with an add field and a reset'
     ).not.toBeNull()
     await click(document.querySelector('[data-excluded-reset]'))
     expect(fileObject()).toEqual({})
-    expect(chips()).toEqual([...BUILT_IN_EXCLUDED_FOLDERS])
+    expect([...chips()].sort()).toEqual([...BUILT_IN_EXCLUDED_FOLDERS].sort())
     expect(settings.workspace.excludedFolders).toEqual([...BUILT_IN_EXCLUDED_FOLDERS])
   })
 
@@ -854,7 +859,7 @@ describe('ISC-367: the excluded folders are chips with an add field and a reset'
       expect(errorOf('workspace.excludedFolders')).not.toBeNull()
     }
     expect(host.files.read(MOCK_SETTINGS_FILE)).toBe(before)
-    expect(chips()).toEqual([...BUILT_IN_EXCLUDED_FOLDERS])
+    expect([...chips()].sort()).toEqual([...BUILT_IN_EXCLUDED_FOLDERS].sort())
   })
 })
 
@@ -903,5 +908,189 @@ describe('the Advanced and Keyboard groups', () => {
     expect(document.querySelector('[data-settings-empty]')?.textContent).toContain(
       'no settings yet',
     )
+  })
+})
+
+describe('the syntax colors row lists languages as tags, with a language picker and a reset', () => {
+  const chips = (): string[] =>
+    [...document.querySelectorAll('[data-extension-chip]')].map((chip) => chip.textContent.trim())
+
+  const chipOf = (label: string): HTMLElement | undefined =>
+    [...document.querySelectorAll<HTMLElement>('[data-extension-chip]')].find(
+      (chip) => chip.textContent.trim() === label,
+    )
+
+  /** The screen, once the language list has loaded and the extensions are shown as their languages. */
+  async function mountWithLanguages(): Promise<void> {
+    await mountScreen('editor')
+    await vi.waitFor(() => {
+      expect(chips()).toContain('Rust')
+    })
+  }
+
+  it('shows the default list as languages, A to Z, and no bare extensions', async () => {
+    await mountWithLanguages()
+    expect(chips()).toEqual(expect.arrayContaining(['JSON', 'TypeScript', 'Rust', 'Vue', 'SQL']))
+    expect(chips().some((label) => label.startsWith('.'))).toBe(false)
+    expect(chips()).toEqual(
+      [...chips()].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })),
+    )
+    expect(document.querySelector('[data-extension-reset]')).toBeNull()
+    expect(document.querySelector('[data-extension-picker]')).not.toBeNull()
+  })
+
+  it('shows a language’s extensions in a hover hint', async () => {
+    await mountWithLanguages()
+    const tag = chipOf('TypeScript')
+    if (tag === undefined) throw new Error('no TypeScript tag')
+    tag.dispatchEvent(new MouseEvent('pointerenter'))
+    tag.dispatchEvent(new MouseEvent('pointermove', { bubbles: true }))
+    await flush()
+    // The tooltip repeats its text once for screen readers, so the text is found in it.
+    expect(document.body.querySelector('[data-hover-hint]')?.textContent).toContain('.ts .mts .cts')
+  })
+
+  it('removes a language with all its extensions, marks the row changed, and Reset takes the key out', async () => {
+    await mountWithLanguages()
+    await click(buttonNamed('Remove TypeScript') ?? null)
+    expect(chips()).not.toContain('TypeScript')
+    for (const extension of ['ts', 'mts', 'cts']) {
+      expect(settings.editor.highlightExtensions).not.toContain(extension)
+    }
+    expect(settings.editor.highlightExtensions).toContain('tsx')
+    expect(
+      rowOf('editor.highlightExtensions').querySelector('[data-setting-modified]'),
+    ).not.toBeNull()
+    expect(fileObject()).toMatchObject({
+      editor: { highlightExtensions: expect.any(Array) as unknown },
+    })
+    await click(document.querySelector('[data-extension-reset]'))
+    expect(fileObject()).toEqual({})
+    expect(chips()).toContain('TypeScript')
+  })
+
+  it('keeps a hand-written extension no language owns as a tag of its own', async () => {
+    await mountScreen('editor')
+    expect(
+      await changeSetting('editor.highlightExtensions', [...DEFAULT_HIGHLIGHT_EXTENSIONS, 'zzz']),
+    ).toBe(true)
+    await vi.waitFor(() => {
+      expect(chips()).toContain('.zzz')
+    })
+    await click(buttonNamed('Remove .zzz') ?? null)
+    expect(settings.editor.highlightExtensions).not.toContain('zzz')
+  })
+})
+
+describe('the language picker adds the extensions of a language', () => {
+  /** The language names in the list, in order. */
+  const items = (): string[] =>
+    [...document.querySelectorAll('[data-language-name]')].map((node) => node.textContent.trim())
+
+  const optionOf = (name: string): HTMLElement | undefined =>
+    [...document.querySelectorAll<HTMLElement>('[data-language-item]')].find(
+      (node) => node.querySelector('[data-language-name]')?.textContent.trim() === name,
+    )
+
+  async function typeInSearch(text: string): Promise<void> {
+    const search = document.querySelector<HTMLInputElement>('[data-slot="combobox-input"]')
+    if (search === null) throw new Error('no search box')
+    search.value = text
+    search.dispatchEvent(new Event('input', { bubbles: true }))
+    await flush()
+  }
+
+  async function openPicker(): Promise<void> {
+    // jsdom has no scrollIntoView, which the list calls when it highlights an item.
+    Element.prototype.scrollIntoView = vi.fn()
+    await mountScreen('editor')
+    await click(document.querySelector('[data-extension-picker]'))
+    await vi.waitFor(() => {
+      expect(items().length).toBeGreaterThan(10)
+    })
+  }
+
+  it('is as wide as the chips above it', async () => {
+    await mountScreen('editor')
+    const picker = document.querySelector('[data-extension-picker]')
+    expect(picker?.classList.contains('w-full')).toBe(true)
+  })
+
+  it('shows the name, and below it the extensions on one smaller, muted line that ends in an ellipsis', async () => {
+    await openPicker()
+    const python = optionOf('Python')
+    expect(python).toBeDefined()
+    const name = python?.querySelector('[data-language-name]')
+    const extensions = python?.querySelector<HTMLElement>('[data-language-extensions]')
+    expect(name?.textContent.trim()).toBe('Python')
+    // Every extension on the one line, in lower case, as they will be added.
+    expect(extensions?.textContent.trim()).toBe('.build .bzl .py .pyw')
+    expect(extensions?.classList.contains('truncate')).toBe(true)
+    expect(extensions?.classList.contains('text-xs')).toBe(true)
+    expect(extensions?.className).toContain('text-muted-foreground')
+    // The name and the extensions are two lines of one column.
+    expect(name?.parentElement).toBe(extensions?.parentElement)
+  })
+
+  it('shows every extension of the language in a hover hint', async () => {
+    await openPicker()
+    const extensions = optionOf('TypeScript')?.querySelector<HTMLElement>(
+      '[data-language-extensions]',
+    )
+    if (extensions === null || extensions === undefined) throw new Error('no extensions line')
+    extensions.dispatchEvent(new MouseEvent('pointerenter'))
+    extensions.dispatchEvent(new MouseEvent('pointermove', { bubbles: true }))
+    await flush()
+    // The tooltip repeats its text once for screen readers, so the text is found in it, not equal to it.
+    expect(document.body.querySelector('[data-hover-hint]')?.textContent).toContain('.ts .mts .cts')
+  })
+
+  it('filters as you type: by part of a name, or by an exact extension, and says when nothing matches', async () => {
+    await openPicker()
+    const all = items().length
+    await typeInSearch('scrip')
+    expect(items()).toEqual(expect.arrayContaining(['JavaScript', 'TypeScript']))
+    expect(items().length).toBeLessThan(all / 4)
+    expect(items()).not.toContain('Python')
+    await typeInSearch('pyx')
+    expect(items()).toEqual(['Cython'])
+    await typeInSearch('zzzzqq')
+    expect(items()).toEqual([])
+    expect(document.querySelector('[data-language-empty]')).not.toBeNull()
+  })
+
+  it('adds the extensions of the language that is chosen', async () => {
+    await openPicker()
+    await typeInSearch('py')
+    const item = optionOf('Python')
+    if (item === undefined) throw new Error('Python is not offered for "py"')
+    await click(item)
+    await vi.waitFor(() => {
+      expect(settings.editor.highlightExtensions).toContain('py')
+    })
+    expect(settings.editor.highlightExtensions).toEqual(
+      expect.arrayContaining([...DEFAULT_HIGHLIGHT_EXTENSIONS, 'py']),
+    )
+    expect(fileObject()).toMatchObject({
+      editor: { highlightExtensions: expect.arrayContaining(['py']) as unknown },
+    })
+  })
+})
+
+describe('the search field sits at the top of the sidebar', () => {
+  it('is inside the groups list, above the first group, with a search icon in the field', async () => {
+    await mountScreen()
+    const nav = document.querySelector('nav[aria-label="Settings groups"]')
+    const field = document.querySelector('[data-settings-search]')
+    const first = document.querySelector('[data-settings-category]')
+    if (nav === null || field === null || first === null) throw new Error('screen did not render')
+    expect(nav.contains(field)).toBe(true)
+    // The field comes before the first group in the document, so it is drawn above it.
+    expect(field.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+    const icon = field.parentElement?.querySelector('svg')
+    expect(icon).not.toBeNull()
+    expect(icon?.getAttribute('aria-hidden')).toBe('true')
+    // The panel's heading row no longer holds a field.
+    expect(document.querySelector('[data-settings-panel] [data-settings-search]')).toBeNull()
   })
 })

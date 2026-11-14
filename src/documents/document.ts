@@ -18,6 +18,7 @@ import { renameEdits } from './draftLinks'
 import { isLargeFile } from './largeFile'
 import { endingsOf, lineEndingsFor } from '@/editor/lineEndings'
 import { sourceCopy } from '@/editor/sourceCopy'
+import { refreshSourceLanguages, sourceLanguage } from '@/editor/sourceLanguage'
 import { carriedAnnotations, followerSync } from '@/editor/sync'
 import { endingsEqual, type Endings } from '@/lib/endings'
 import type { OpenedFile, ReadOnlyReason, SavedAs, SavedFile } from '@/platform'
@@ -143,6 +144,8 @@ export class Document implements FollowerHost {
   /** Hash of the bytes last read from or written to disk. */
   diskHash: string
   #master: EditorState
+  /** True for a non-Markdown file small enough to be colored by its extension. */
+  readonly #colorable: boolean
   #saved: { doc: Text; endings: Endings }
   #dirty = false
   readonly #followers = new Map<string, Follower>()
@@ -165,6 +168,8 @@ export class Document implements FollowerHost {
     this.kind = opened.kind === 'markdown' ? 'markdown' : 'text'
     const parser = options.parser ?? (this.kind === 'markdown' && !isLargeFile(opened.size))
     this.plainSource = !parser
+    // Colors for a file that is not Markdown, by its extension; a file above the size cutoff stays plain.
+    this.#colorable = this.kind === 'text' && !isLargeFile(opened.size)
     this.#options = { ...options, parser }
     this.#master = createMasterState(opened.text, [
       lineEndingsFor(opened.endings),
@@ -205,6 +210,9 @@ export class Document implements FollowerHost {
             followerSync(link),
             sourceCopy(() => link.endings()),
             readOnlyFacet(this.readOnly),
+            this.#colorable && this.#options.parser === false
+              ? sourceLanguage(() => this.name)
+              : [],
             this.#imageSupport(),
             this.#imageSinkSupport(),
             this.#linkSupport(tabId),
@@ -422,6 +430,7 @@ export class Document implements FollowerHost {
     if (renames.size > 0) this.#renameImageLinks(renames, saved.imagesFolder)
     this.path = saved.path
     this.name = saved.name
+    refreshSourceLanguages() // a Save As to another extension changes the colors
     this.untitledNumber = null
     this.#saved = { doc: baseline, endings: snapshot.endings }
     this.diskHash = saved.hash

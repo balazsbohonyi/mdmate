@@ -8,8 +8,10 @@ import {
   saveDocument,
 } from '@/documents/store'
 import { updateDocumentFonts } from '@/editor/documentFonts'
+import { refreshSourceLanguages } from '@/editor/sourceLanguage'
 import { refreshWordWrap } from '@/editor/wordWrap'
 import { editSettingsText } from '@/lib/settingsEdit'
+import { applyTheme } from '@/lib/themes'
 import {
   describeSyntax,
   getSettingFrom,
@@ -144,6 +146,8 @@ export function applySettingsText(text: string | null): void {
   assignSettings(settingsAfter(settings, parsed))
   if (settings.editor.wordWrap !== wrapped) refreshWordWrap()
   updateDocumentFonts()
+  refreshSourceLanguages()
+  applyTheme(settings.theme)
   pushRuntime()
   const first = Object.entries(problems)[0]
   notify(

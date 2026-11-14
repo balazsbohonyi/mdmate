@@ -1,9 +1,21 @@
 <script setup lang="ts">
-import { X } from '@lucide/vue'
+import { Check, ChevronsUpDown, Search, X } from '@lucide/vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { docMeta } from '@/documents/meta'
+import { languageChoices, type LanguageChoice } from '@/editor/codeLanguages'
 import { familyStack } from '@/editor/documentFonts'
 import { Button } from '@/components/ui/button'
+import {
+  Combobox,
+  ComboboxAnchor,
+  ComboboxGroup,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxTrigger,
+  ComboboxViewport,
+} from '@/components/ui/combobox'
+import HoverHint from '@/components/HoverHint.vue'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -20,6 +32,7 @@ import {
   type SettingsCategory,
 } from '@/lib/settingsCategories'
 import {
+  checkExtension,
   checkFolderName,
   getSettingFrom,
   SETTING_DEFS,
@@ -69,6 +82,8 @@ function choose(id: SettingsCategory): void {
 const linksLock = ref<LinksOnRename | null>(null)
 
 onMounted(() => {
+  // The Syntax colors row names languages, so the list is read with the screen (a lazy chunk).
+  loadLanguages(true)
   getHost()
     .then((host) => host.linksOnRenameOverride())
     .then((mode) => {
@@ -191,6 +206,12 @@ function revert(key: SettingKey): void {
 }
 
 const folderDraft = ref('')
+/** The chips, A to Z whatever the case. Shown sorted; the file keeps the order it was written in. */
+const sortedFolders = computed(() =>
+  [...settings.workspace.excludedFolders].sort((a, b) =>
+    a.localeCompare(b, undefined, { sensitivity: 'base' }),
+  ),
+)
 const FOLDERS = 'workspace.excludedFolders' as const
 
 function addFolder(): void {
@@ -221,6 +242,127 @@ function removeFolder(name: string): void {
   set(
     FOLDERS,
     settings.workspace.excludedFolders.filter((have) => have !== name),
+  )
+}
+
+const EXTENSIONS = 'editor.highlightExtensions' as const
+
+/** The languages the picker offers: null until the list has loaded, which waits for the first open. */
+const languages = ref<readonly LanguageChoice[] | null>(null)
+const languageSearch = ref('')
+
+function loadLanguages(open: boolean): void {
+  if (!open || languages.value !== null) return
+  void languageChoices().then((list) => {
+    languages.value = list
+  })
+}
+
+/** A language's extensions that the list can hold; the picker adds exactly these. */
+function usableExtensions(language: LanguageChoice): string[] {
+  const usable = language.extensions
+    .filter((extension) => checkExtension(extension).ok)
+    .map((extension) => extension.toLowerCase())
+  return [...new Set(usable)]
+}
+
+/** A language's extensions on one line, each with its dot: `.ts .mts .cts`. */
+function extensionsText(language: LanguageChoice): string {
+  return usableExtensions(language)
+    .map((extension) => `.${extension}`)
+    .join(' ')
+}
+
+function allEnabled(language: LanguageChoice): boolean {
+  return usableExtensions(language).every((extension) =>
+    settings.editor.highlightExtensions.includes(extension.toLowerCase()),
+  )
+}
+
+/**
+ * The languages for what is typed in the picker's search box: every word is part of the name, or is
+ * exactly one of its extensions (`rs` finds Rust, though the name has no `rs` in it). The options
+ * show names only, so a match is never one the label cannot explain, apart from that exact case.
+ */
+const matchingLanguages = computed(() => {
+  const words = languageSearch.value.toLowerCase().split(/\s+/).filter(Boolean)
+  return (languages.value ?? []).filter((language) => {
+    if (usableExtensions(language).length === 0) return false
+    const name = language.name.toLowerCase()
+    const extensions = language.extensions.map((extension) => extension.toLowerCase())
+    return words.every(
+      (word) => name.includes(word) || extensions.includes(word.replace(/^\./, '')),
+    )
+  })
+})
+
+function addLanguage(name: string): void {
+  const language = languages.value?.find((have) => have.name === name)
+  if (language === undefined) return
+  const next = SETTING_DEFS[EXTENSIONS].check([
+    ...settings.editor.highlightExtensions,
+    ...usableExtensions(language),
+  ])
+  if (!next.ok) {
+    refused[EXTENSIONS] = next.why
+    return
+  }
+  delete refused[EXTENSIONS]
+  languageSearch.value = ''
+  set(EXTENSIONS, next.value)
+}
+
+/** One tag in the Syntax colors row: a language, or a bare extension no language in the list owns. */
+interface ColorTag {
+  readonly key: string
+  readonly label: string
+  /** What a hover shows: the language's extensions. Empty for a bare extension. */
+  readonly hint: string
+  /** The extensions that go when the tag is removed. */
+  readonly extensions: readonly string[]
+  readonly language: boolean
+}
+
+/**
+ * The tags: each language with at least one of its extensions in the list, A to Z by name, then any
+ * extension no language owns (a hand-written one), so nothing in the file is out of sight. Until
+ * the language list has loaded every extension shows as its own tag. The file keeps its own order.
+ */
+const colorTags = computed<readonly ColorTag[]>(() => {
+  const have = new Set(settings.editor.highlightExtensions)
+  const covered = new Set<string>()
+  const tags: ColorTag[] = []
+  for (const language of languages.value ?? []) {
+    const extensions = usableExtensions(language)
+    const on = extensions.filter((extension) => have.has(extension))
+    if (on.length === 0) continue
+    on.forEach((extension) => covered.add(extension))
+    tags.push({
+      key: `language:${language.name}`,
+      label: language.name,
+      hint: extensionsText(language),
+      extensions,
+      language: true,
+    })
+  }
+  for (const extension of [...have].sort()) {
+    if (covered.has(extension)) continue
+    tags.push({
+      key: `extension:${extension}`,
+      label: `.${extension}`,
+      hint: '',
+      extensions: [extension],
+      language: false,
+    })
+  }
+  return tags
+})
+
+function removeTag(tag: ColorTag): void {
+  delete refused[EXTENSIONS]
+  set(
+    EXTENSIONS,
+    settings.editor.highlightExtensions.filter((have) => !tag.extensions.includes(have)),
   )
 }
 
@@ -317,6 +459,20 @@ function openFile(): void {
         aria-label="Settings groups"
         class="flex w-52 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border p-2"
       >
+        <div class="relative mb-1.5">
+          <Search
+            class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <Input
+            v-model="query"
+            type="search"
+            placeholder="Search settings"
+            aria-label="Search settings"
+            class="pl-8"
+            data-settings-search
+          />
+        </div>
         <button
           v-for="item in SETTINGS_CATEGORIES"
           :key="item.id"
@@ -339,22 +495,12 @@ function openFile(): void {
         class="min-w-0 flex-1 overflow-y-auto p-6"
         data-settings-panel
       >
-        <div class="flex items-center gap-4">
-          <h1
-            class="min-w-0 flex-1 text-lg font-medium"
-            data-settings-heading
-          >
-            {{ heading }}
-          </h1>
-          <Input
-            v-model="query"
-            type="search"
-            placeholder="Search settings"
-            aria-label="Search settings"
-            class="max-w-64"
-            data-settings-search
-          />
-        </div>
+        <h1
+          class="min-w-0 text-lg font-medium"
+          data-settings-heading
+        >
+          {{ heading }}
+        </h1>
         <div class="mt-2">
           <SettingRow
             v-for="spec in shown"
@@ -464,13 +610,13 @@ function openFile(): void {
               </SelectContent>
             </Select>
             <div
-              v-else
+              v-else-if="spec.control.kind === 'folders'"
               class="flex flex-col gap-2"
               data-excluded-folders
             >
               <ul class="flex flex-wrap gap-1">
                 <li
-                  v-for="name in settings.workspace.excludedFolders"
+                  v-for="name in sortedFolders"
                   :key="name"
                   class="flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs"
                   data-excluded-chip
@@ -496,7 +642,6 @@ function openFile(): void {
                 <Button
                   type="button"
                   variant="outline"
-                  size="sm"
                   @click="addFolder"
                 >
                   Add
@@ -511,6 +656,111 @@ function openFile(): void {
                 @click="reset(spec.key)"
               >
                 Reset to built-in list
+              </Button>
+            </div>
+            <div
+              v-else-if="spec.control.kind === 'extensions'"
+              class="flex flex-col gap-2"
+              data-highlight-extensions
+            >
+              <ul class="flex flex-wrap gap-1">
+                <HoverHint
+                  v-for="tag in colorTags"
+                  :key="tag.key"
+                  :text="tag.hint"
+                >
+                  <li
+                    class="flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs"
+                    data-extension-chip
+                    :data-language-chip="tag.language ? 'true' : undefined"
+                  >
+                    {{ tag.label }}
+                    <button
+                      type="button"
+                      class="cursor-default rounded-sm text-muted-foreground hover:text-foreground"
+                      :aria-label="`Remove ${tag.label}`"
+                      @click="removeTag(tag)"
+                    >
+                      <X class="size-3" />
+                    </button>
+                  </li>
+                </HoverHint>
+              </ul>
+              <Combobox
+                :model-value="''"
+                ignore-filter
+                @update:model-value="(value) => addLanguage(String(value))"
+                @update:open="loadLanguages"
+              >
+                <ComboboxAnchor as-child>
+                  <ComboboxTrigger as-child>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      class="w-full justify-between font-normal"
+                      aria-label="Add a language"
+                      data-extension-picker
+                    >
+                      Add a language
+                      <ChevronsUpDown class="opacity-50" />
+                    </Button>
+                  </ComboboxTrigger>
+                </ComboboxAnchor>
+                <ComboboxList>
+                  <ComboboxInput
+                    v-model="languageSearch"
+                    placeholder="Search languages"
+                  />
+                  <p
+                    v-if="languages === null"
+                    class="px-2 py-2 text-center text-sm text-muted-foreground"
+                  >
+                    Loading languages…
+                  </p>
+                  <p
+                    v-else-if="matchingLanguages.length === 0"
+                    class="px-2 py-2 text-center text-sm text-muted-foreground"
+                    data-language-empty
+                  >
+                    No language found.
+                  </p>
+                  <ComboboxViewport class="max-h-60">
+                    <ComboboxGroup>
+                      <ComboboxItem
+                        v-for="language in matchingLanguages"
+                        :key="language.name"
+                        :value="language.name"
+                        :disabled="allEnabled(language)"
+                        data-language-item
+                      >
+                        <span class="flex min-w-0 flex-1 flex-col">
+                          <span data-language-name>{{ language.name }}</span>
+                          <HoverHint :text="extensionsText(language)">
+                            <span
+                              class="truncate text-xs text-muted-foreground!"
+                              data-language-extensions
+                              >{{ extensionsText(language) }}</span
+                            >
+                          </HoverHint>
+                        </span>
+                        <Check
+                          v-if="allEnabled(language)"
+                          class="size-4 shrink-0"
+                        />
+                      </ComboboxItem>
+                    </ComboboxGroup>
+                  </ComboboxViewport>
+                </ComboboxList>
+              </Combobox>
+              <Button
+                v-if="isModified(spec.key)"
+                type="button"
+                variant="outline"
+                size="sm"
+                data-extension-reset
+                @click="reset(spec.key)"
+              >
+                Reset to the default list
               </Button>
             </div>
           </SettingRow>

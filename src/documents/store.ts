@@ -1,6 +1,7 @@
 import { computed, shallowRef, watch } from 'vue'
 import { uniformEndings, type Endings } from '@/lib/endings'
 import { bumpImageEpoch, refreshPictures } from '@/editor/livePreview/blocks'
+import { refreshSourceLanguages } from '@/editor/sourceLanguage'
 import { getHost, type OpenedFile, type SaveAsHint } from '@/platform'
 import { isMarkdownName } from '@/features/tree/model'
 import { focusActiveEditor } from '@/workbench/focus'
@@ -60,6 +61,7 @@ export function documentMoved(id: number, path: string): void {
   if (doc === undefined) return
   doc.path = path
   doc.name = path.split(/[\\/]/).pop() ?? path
+  refreshSourceLanguages() // a rename to another extension changes the colors
   doc.imagesMoved()
   publish(doc)
   touched()

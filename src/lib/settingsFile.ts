@@ -28,6 +28,7 @@ export interface SettingValueMap {
   'fonts.codeSize': number
   'fonts.headingScale': readonly number[]
   'editor.wordWrap': boolean
+  'editor.highlightExtensions': readonly string[]
   'images.pasteFolder': string
   'links.onRename': LinksOnRename
   'files.largeFileMB': number
@@ -165,6 +166,36 @@ function checkExcludedFolders(value: unknown): Checked<readonly string[]> {
   return good(names)
 }
 
+/** The most extensions the highlight list holds, and the longest one. */
+export const MAX_HIGHLIGHT_EXTENSIONS = 200
+const MAX_EXTENSION = 20
+
+/** One file extension for the highlight list: letters and digits, in lower case, no dot (`.RS` is `rs`). */
+export function checkExtension(value: unknown): Checked<string> {
+  if (typeof value !== 'string') return bad('Use file extensions in quotes.')
+  const text = value.trim().replace(/^\./, '').toLowerCase()
+  if (text === '') return bad('An extension cannot be empty.')
+  if (text.length > MAX_EXTENSION) return bad(`Use at most ${String(MAX_EXTENSION)} characters.`)
+  if (!/^[a-z0-9][a-z0-9_+-]*$/.test(text)) return bad('Use an extension such as ts or rs.')
+  return good(text)
+}
+
+function checkHighlightExtensions(value: unknown): Checked<readonly string[]> {
+  if (!Array.isArray(value)) return bad('Use a list of file extensions.')
+  if (value.length > MAX_HIGHLIGHT_EXTENSIONS)
+    return bad(`Use at most ${String(MAX_HIGHLIGHT_EXTENSIONS)} extensions.`)
+  const found: string[] = []
+  const seen = new Set<string>()
+  for (const item of value as unknown[]) {
+    const checked = checkExtension(item)
+    if (!checked.ok) return checked
+    if (seen.has(checked.value)) continue
+    seen.add(checked.value)
+    found.push(checked.value)
+  }
+  return good(found)
+}
+
 function checkTheme(value: unknown): Checked<string> {
   if (typeof value !== 'string') return bad('Use a theme name in quotes.')
   const text = value.trim()
@@ -236,6 +267,14 @@ export const SETTING_DEFS: { readonly [K in SettingKey]: SettingDef<SettingValue
     default: DEFAULT_SETTINGS.editor.wordWrap,
     check: isBoolean,
     equals: same,
+  },
+  'editor.highlightExtensions': {
+    key: 'editor.highlightExtensions',
+    path: ['editor', 'highlightExtensions'],
+    default: DEFAULT_SETTINGS.editor.highlightExtensions,
+    check: checkHighlightExtensions,
+    // The list is a set of extensions: order and repeats do not change what is colored.
+    equals: (a, b) => sameList([...a].sort(), [...b].sort()),
   },
   'images.pasteFolder': {
     key: 'images.pasteFolder',

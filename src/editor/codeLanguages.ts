@@ -64,6 +64,59 @@ export function codeLanguage(info: string): LanguageDescription | null {
   return description
 }
 
+const forFile = new Map<string, Promise<LanguageSupport | null>>()
+
+/**
+ * The language of a whole file, by its name (`settings.json`, `main.rs`), loaded the first time one
+ * is asked for, or null when the list does not know the name. Same lazy loading as a fence word.
+ */
+export function languageForFile(name: string): Promise<LanguageSupport | null> {
+  const key = name.toLowerCase()
+  let found = forFile.get(key)
+  if (found === undefined) {
+    found = import('@codemirror/language-data').then(async ({ languages }) => {
+      const description = LanguageDescription.matchFilename(languages, key)
+      return description === null ? null : description.load()
+    })
+    // A load that failed is not remembered, so the next file of that kind tries again.
+    found = found.catch(() => {
+      forFile.delete(key)
+      return null
+    })
+    forFile.set(key, found)
+  }
+  return found
+}
+
+/** A language the list knows, for a picker: its name and the file extensions that name it. */
+export interface LanguageChoice {
+  readonly name: string
+  readonly extensions: readonly string[]
+}
+
+let choices: Promise<readonly LanguageChoice[]> | null = null
+
+/**
+ * Every language with at least one file extension, A to Z, for the Settings picker. Markdown is
+ * left out: its files open in the live editor, not as colored source. The list loads on the first
+ * call, so the Settings screen pays for it only when the picker opens.
+ */
+export function languageChoices(): Promise<readonly LanguageChoice[]> {
+  choices ??= import('@codemirror/language-data')
+    .then(({ languages }) =>
+      languages
+        .filter((language) => language.extensions.length > 0 && language.name !== 'Markdown')
+        .map((language) => ({ name: language.name, extensions: [...language.extensions] }))
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })),
+    )
+    .catch(() => {
+      // Not remembered, so opening the picker again tries again.
+      choices = null
+      return []
+    })
+  return choices
+}
+
 /**
  * What to call the language of the fence word `info` on screen: the list's name for it once the
  * word has been looked up, or null before that and for a word the list does not know. A block is

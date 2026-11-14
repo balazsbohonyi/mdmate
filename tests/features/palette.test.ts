@@ -661,7 +661,7 @@ describe('Switch Theme opens a list of the themes there are (ISC-395)', () => {
     await start()
     await openThemes()
     expect(paletteMode.value).toBe('themes')
-    expect(rowsText()).toEqual(['Dark In use'])
+    expect(rowsText()).toEqual(['Dark In use', 'Light'])
     expect(selectedText()).toBe('Dark In use')
     expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe(
       'Switch theme',
@@ -683,12 +683,15 @@ describe('Switch Theme opens a list of the themes there are (ISC-395)', () => {
   it('choosing a theme writes it: from a file that holds another value, Dark takes the key out', async () => {
     await start()
     const { changeSettingFromCommand } = await import('@/features/settings/quick')
-    // Only Dark exists until P8-T3, so a second theme is not offered; the path is the screen's.
     await changeSettingFromCommand('theme', 'light')
     expect(JSON.parse(fileText() ?? '{}')).toEqual({ theme: 'light' })
     expect(settings.theme).toBe('light')
+    expect(document.documentElement.classList.contains('light')).toBe(true)
     await openThemes()
-    expect(rowsText()).toEqual(['Dark'])
+    expect(rowsText()).toEqual(['Dark', 'Light In use'])
+    expect(selectedText()).toBe('Light In use')
+    press({ key: 'ArrowUp' })
+    await flush()
     expect(selectedText()).toBe('Dark')
     press({ key: 'Enter' })
     await flush()
