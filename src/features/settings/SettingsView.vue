@@ -840,21 +840,23 @@ function openFile(): void {
                 type="button"
                 variant="outline"
                 size="sm"
-                data-open-settings-file
-                @click="openFile"
-              >
-                Open settings.json
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
+                class="w-[4.5rem]"
                 :disabled="!settingsHaveAny"
                 aria-label="Reset all settings"
                 data-reset-all-settings
                 @click="askReset('settings')"
               >
                 Reset all
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                class="w-[10.25rem]"
+                data-open-settings-file
+                @click="openFile"
+              >
+                Open settings.json
               </Button>
             </div>
           </SettingRow>
@@ -872,21 +874,23 @@ function openFile(): void {
                 type="button"
                 variant="outline"
                 size="sm"
-                data-open-keybindings-file
-                @click="openKeybindingsFile"
-              >
-                Open keybindings.json
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
+                class="w-[4.5rem]"
                 :disabled="!shortcutsHaveAny"
                 aria-label="Reset all shortcuts"
                 data-reset-all-shortcuts
                 @click="askReset('shortcuts')"
               >
                 Reset all
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                class="w-[10.25rem]"
+                data-open-keybindings-file
+                @click="openKeybindingsFile"
+              >
+                Open keybindings.json
               </Button>
             </div>
           </SettingRow>

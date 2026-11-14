@@ -149,6 +149,25 @@ describe('ISC-433: Reset all is on the Advanced page, in the row of its file', (
     expect(shortcutsButton()?.textContent.trim()).toBe('Reset all')
     expect(shortcutsButton()?.getAttribute('aria-label')).toBe('Reset all shortcuts')
   })
+
+  it('puts Reset all before the Open button, and gives equal buttons one width in both rows', async () => {
+    await mount('advanced')
+    const openSettings = find('[data-open-settings-file]')
+    const openKeys = find('[data-open-keybindings-file]')
+    const follows = (first: Element | null, second: Element | null): boolean =>
+      first !== null &&
+      second !== null &&
+      (first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
+    expect(follows(settingsButton(), openSettings)).toBe(true)
+    expect(follows(shortcutsButton(), openKeys)).toBe(true)
+    // jsdom has no layout, so the width is pinned by its class; the drawn widths are measured in the real window.
+    const width = (el: Element | null): string | undefined =>
+      el?.className.split(/\s+/).find((name) => /^w-(\d|\[)/.test(name))
+    expect(width(settingsButton())).toBeDefined()
+    expect(width(settingsButton())).toBe(width(shortcutsButton()))
+    expect(width(openSettings)).toBeDefined()
+    expect(width(openSettings)).toBe(width(openKeys))
+  })
 })
 
 describe('ISC-434: nothing is reset until the dialog is confirmed', () => {
