@@ -13,8 +13,9 @@ use serde::Serialize;
 use std::io::{ErrorKind, Write as _};
 use std::path::{Component, Path, PathBuf};
 
-/// The folder pasted and copied images go to, next to the document. A constant until P8-T1 adds
-/// the `images.pasteFolder` setting (ISC-330).
+/// The folder an untitled document's pictures live in, inside its draft. It is not the setting: a
+/// draft is the app's own folder, and `images.pasteFolder` applies where the document is saved,
+/// with its links rewritten (`drafts::adopt`).
 pub(crate) const IMAGES_FOLDER: &str = "assets";
 
 /// The largest image the app will write. A screenshot of several monitors is a few megabytes.
@@ -109,7 +110,7 @@ fn forbidden_in_name(c: char) -> bool {
 }
 
 /// Names Windows keeps for devices, with or without an extension (`con.png` is `con`).
-fn reserved_name(stem: &str) -> bool {
+pub(crate) fn reserved_name(stem: &str) -> bool {
     let base = stem.split('.').next().unwrap_or_default().trim_end();
     let upper = base.to_ascii_uppercase();
     matches!(upper.as_str(), "CON" | "PRN" | "AUX" | "NUL")
@@ -149,28 +150,66 @@ pub(crate) fn safe_stem(original: &str) -> String {
     stem
 }
 
-/// Writes `bytes` as a new file in `folder/IMAGES_FOLDER`, creating that folder on the first use,
+/// Writes `bytes` as a new file in `folder/images`, creating that folder on the first use,
 /// unless a file with exactly these bytes is already there: then nothing is written and the link
 /// is to that file (`reused`). A name that is taken by another image gets `-2`, `-3`, and a file
 /// that is there is never opened for writing: the file is created in the same step that checks the
 /// name, so two pastes in one second cannot meet.
 ///
 /// `stem` is the name without its extension, which comes from what the bytes are. `folder` is the
-/// folder of the document, already resolved. A `assets` that is not a folder, or that leads out of
-/// `folder` (a link or junction), is refused: an image saved there would not load, and the write
-/// would reach a place the document does not own.
+/// folder of the document, already resolved. `images` is the folder name or relative path under it,
+/// in the spelling `settings::clean_paste_folder` gives. A part of it that is not a folder, or that
+/// leads out of `folder` (a link or junction), is refused: an image saved there would not load, and
+/// the write would reach a place the document does not own.
 pub(crate) fn save_into(
     folder: &Path,
+    images: &str,
     ignore_case: bool,
     stem: &str,
     bytes: &[u8],
 ) -> Result<SavedImage, AppError> {
-    save_into_where(folder, ignore_case, stem, bytes, |_| true)
+    save_into_where(folder, images, ignore_case, stem, bytes, |_| true)
+}
+
+/// The folder `images` under `folder`, made part by part, each part checked on disk as it is
+/// reached: a part that is a file is refused, and so is one that is a link leading out of `folder`,
+/// before anything is made beyond it. Returns the resolved folder.
+fn ensure_images_dir(folder: &Path, images: &str, ignore_case: bool) -> Result<PathBuf, AppError> {
+    let key = |path: &Path| {
+        let text = display_path(path);
+        if ignore_case {
+            text.to_lowercase()
+        } else {
+            text
+        }
+    };
+    let base = std::fs::canonicalize(folder)?;
+    let mut at = base.clone();
+    for part in images.split('/') {
+        let next = at.join(part);
+        match std::fs::symlink_metadata(&next) {
+            Ok(_) => {}
+            Err(error) if error.kind() == ErrorKind::NotFound => std::fs::create_dir(&next)?,
+            Err(error) => return Err(error.into()),
+        }
+        let resolved = std::fs::canonicalize(&next)?;
+        if !resolved.is_dir() {
+            return Err(AppError::Invalid(format!("{part} is not a folder")));
+        }
+        if !is_inside(&key(&resolved), &key(&base)) {
+            return Err(AppError::NotAllowed(format!(
+                "{part} leads out of the document's folder"
+            )));
+        }
+        at = resolved;
+    }
+    Ok(at)
 }
 
 /// [`save_into`], reusing an identical file only when `may_reuse` accepts its name.
 pub(crate) fn save_into_where(
     folder: &Path,
+    images: &str,
     ignore_case: bool,
     stem: &str,
     bytes: &[u8],
@@ -188,36 +227,12 @@ pub(crate) fn save_into_where(
         ));
     };
 
-    let images = folder.join(IMAGES_FOLDER);
-    match std::fs::symlink_metadata(&images) {
-        Ok(_) => {}
-        Err(error) if error.kind() == ErrorKind::NotFound => std::fs::create_dir(&images)?,
-        Err(error) => return Err(error.into()),
-    }
-    let resolved = std::fs::canonicalize(&images)?;
-    if !resolved.is_dir() {
-        return Err(AppError::Invalid(format!(
-            "{IMAGES_FOLDER} is not a folder"
-        )));
-    }
-    let key = |path: &Path| {
-        let text = display_path(path);
-        if ignore_case {
-            text.to_lowercase()
-        } else {
-            text
-        }
-    };
-    if !is_inside(&key(&resolved), &key(&std::fs::canonicalize(folder)?)) {
-        return Err(AppError::NotAllowed(format!(
-            "{IMAGES_FOLDER} leads out of the document's folder"
-        )));
-    }
+    let resolved = ensure_images_dir(folder, images, ignore_case)?;
 
     // The same picture dropped or pasted again is the same file: one image, one copy.
     if let Some(name) = find_identical(&resolved, bytes, may_reuse) {
         return Ok(SavedImage {
-            link: format!("{IMAGES_FOLDER}/{name}"),
+            link: format!("{images}/{name}"),
             name,
             reused: true,
         });
@@ -246,7 +261,7 @@ pub(crate) fn save_into_where(
             return Err(error.into());
         }
         return Ok(SavedImage {
-            link: format!("{IMAGES_FOLDER}/{name}"),
+            link: format!("{images}/{name}"),
             name,
             reused: false,
         });
@@ -283,8 +298,9 @@ fn find_identical(images: &Path, bytes: &[u8], may_reuse: impl Fn(&str) -> bool)
 
 /// Saves an image pasted into the open document `id`, next to its file.
 ///
-/// A document with no file puts `assets` in its draft folder (`drafts.rs`), and a read-only one takes
-/// no pasted text, so it is refused.
+/// A document with no file puts `assets` in its draft folder (`drafts.rs`), any other document the
+/// folder the `images.pasteFolder` setting names, and a read-only one takes no pasted text, so it is
+/// refused.
 pub(crate) fn save_pasted(
     state: &AppState,
     id: u32,
@@ -293,18 +309,27 @@ pub(crate) fn save_pasted(
 ) -> Result<SavedImage, AppError> {
     let stem = stamp_stem(stamp)?;
     let home = document_for_images(state, id)?;
-    save_into(&home.folder, state.ignore_case(), &stem, bytes)
+    save_into(
+        &home.folder,
+        &home.images,
+        state.ignore_case(),
+        &stem,
+        bytes,
+    )
 }
 
 /// Where the images of a document go.
 pub(crate) struct ImageHome {
     /// The document's file, or `None` for an untitled document, which has a draft folder instead.
     pub(crate) file: Option<PathBuf>,
-    /// The folder `assets` goes in, as it really is on disk.
+    /// The folder the images folder goes in, as it really is on disk.
     pub(crate) folder: PathBuf,
+    /// The images folder under `folder`: the draft's own for an untitled document, the setting's
+    /// for a file.
+    pub(crate) images: String,
 }
 
-/// The folder `assets` goes in for the open document `id`: beside its file, or in the draft folder
+/// The folder the images folder goes in for the open document `id`: beside its file, or in the draft folder
 /// of an untitled document (made now, since it is only made when the first image comes). Refused for
 /// a document that cannot be edited and for an unknown id.
 pub(crate) fn document_for_images(state: &AppState, id: u32) -> Result<ImageHome, AppError> {
@@ -315,6 +340,7 @@ pub(crate) fn document_for_images(state: &AppState, id: u32) -> Result<ImageHome
             return Ok(ImageHome {
                 file: None,
                 folder: state.drafts().ensure(number)?,
+                images: IMAGES_FOLDER.to_owned(),
             });
         }
         documents.get(id).cloned().ok_or(AppError::NotOpen(id))?
@@ -330,6 +356,7 @@ pub(crate) fn document_for_images(state: &AppState, id: u32) -> Result<ImageHome
     Ok(ImageHome {
         file: Some(entry.path),
         folder,
+        images: state.runtime().paste_folder(),
     })
 }
 
@@ -398,6 +425,7 @@ pub(crate) fn drop_image(
     }
     let home = document_for_images(state, id)?;
     let folder = home.folder;
+    let images = home.images;
     let resolved_folder = std::fs::canonicalize(&folder)?;
     let resolved_file = std::fs::canonicalize(&dropped)?;
     if !resolved_file.is_file() {
@@ -454,10 +482,10 @@ pub(crate) fn drop_image(
     } else {
         own
     };
-    let saved = save_into(&folder, ignore_case, &stem, &bytes)?;
+    let saved = save_into(&folder, &images, ignore_case, &stem, &bytes)?;
     Ok(DroppedImage {
         link: saved.link,
-        // True also when the copy was already there: the link goes to `assets`, not to the original.
+        // True also when the copy was already there: the link goes to the images folder, not to the original.
         copied: true,
     })
 }
@@ -479,7 +507,7 @@ mod tests {
     #[test]
     fn paste_image_saved_in_assets_next_to_the_document() {
         let dir = temp();
-        let saved = save_into(dir.path(), false, STEM, PNG).expect("saves");
+        let saved = save_into(dir.path(), "assets", false, STEM, PNG).expect("saves");
         assert_eq!(saved.name, "image-20261113-153000.png");
         assert_eq!(saved.link, "assets/image-20261113-153000.png");
         let on_disk = dir.path().join("assets").join(&saved.name);
@@ -493,8 +521,8 @@ mod tests {
             !dir.path().join("assets").exists(),
             "nothing before a paste"
         );
-        save_into(dir.path(), false, STEM, PNG).expect("first");
-        save_into(dir.path(), false, "image-20261113-153001", PNG_B).expect("second");
+        save_into(dir.path(), "assets", false, STEM, PNG).expect("first");
+        save_into(dir.path(), "assets", false, "image-20261113-153001", PNG_B).expect("second");
         let count = std::fs::read_dir(dir.path().join("assets"))
             .expect("lists")
             .count();
@@ -507,9 +535,9 @@ mod tests {
         std::fs::create_dir(dir.path().join("assets")).expect("creates");
         let original = dir.path().join("assets").join("image-20261113-153000.png");
         std::fs::write(&original, b"the owner's own file").expect("writes");
-        let second = save_into(dir.path(), false, STEM, PNG).expect("saves");
+        let second = save_into(dir.path(), "assets", false, STEM, PNG).expect("saves");
         assert_eq!(second.name, "image-20261113-153000-2.png");
-        let third = save_into(dir.path(), false, STEM, PNG_B).expect("saves");
+        let third = save_into(dir.path(), "assets", false, STEM, PNG_B).expect("saves");
         assert_eq!(third.name, "image-20261113-153000-3.png");
         assert_eq!(
             std::fs::read(&original).expect("still there"),
@@ -521,10 +549,11 @@ mod tests {
     #[test]
     fn paste_image_saved_twice_is_one_file() {
         let dir = temp();
-        let first = save_into(dir.path(), false, STEM, PNG).expect("first");
+        let first = save_into(dir.path(), "assets", false, STEM, PNG).expect("first");
         assert!(!first.reused);
         // The same bytes a second later, and under another name: still the one file.
-        let second = save_into(dir.path(), false, "image-20261113-153001", PNG).expect("second");
+        let second =
+            save_into(dir.path(), "assets", false, "image-20261113-153001", PNG).expect("second");
         assert!(second.reused);
         assert_eq!(second.link, first.link);
         assert_eq!(
@@ -540,7 +569,7 @@ mod tests {
         let dir = temp();
         std::fs::create_dir(dir.path().join("assets")).expect("creates");
         std::fs::write(dir.path().join("assets").join("my cat.png"), PNG).expect("writes");
-        let saved = save_into(dir.path(), false, STEM, PNG).expect("saves");
+        let saved = save_into(dir.path(), "assets", false, STEM, PNG).expect("saves");
         assert!(saved.reused);
         assert_eq!(saved.link, "assets/my cat.png");
     }
@@ -549,8 +578,8 @@ mod tests {
     fn paste_image_saved_with_the_same_size_but_other_bytes_is_a_new_file() {
         let dir = temp();
         assert_eq!(PNG.len(), PNG_B.len(), "the test needs equal sizes");
-        save_into(dir.path(), false, STEM, PNG).expect("first");
-        let other = save_into(dir.path(), false, STEM, PNG_B).expect("second");
+        save_into(dir.path(), "assets", false, STEM, PNG).expect("first");
+        let other = save_into(dir.path(), "assets", false, STEM, PNG_B).expect("second");
         assert!(!other.reused);
         assert_eq!(other.name, "image-20261113-153000-2.png");
     }
@@ -560,7 +589,8 @@ mod tests {
         let dir = temp();
         std::fs::create_dir(dir.path().join("assets")).expect("creates");
         std::fs::write(dir.path().join("assets").join("note.png"), b"# a note").expect("writes");
-        let error = save_into(dir.path(), false, STEM, b"# a note").expect_err("not an image");
+        let error =
+            save_into(dir.path(), "assets", false, STEM, b"# a note").expect_err("not an image");
         assert_eq!(error.kind(), "invalid");
     }
 
@@ -569,7 +599,7 @@ mod tests {
         let dir = temp();
         std::fs::create_dir_all(dir.path().join("assets").join("sub")).expect("creates");
         std::fs::write(dir.path().join("assets").join("sub").join("p.png"), PNG).expect("writes");
-        let saved = save_into(dir.path(), false, STEM, PNG).expect("saves");
+        let saved = save_into(dir.path(), "assets", false, STEM, PNG).expect("saves");
         assert!(!saved.reused, "a file in a folder below is not looked at");
     }
 
@@ -578,19 +608,19 @@ mod tests {
         let dir = temp();
         let jpeg = [0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3];
         assert_eq!(
-            save_into(dir.path(), false, STEM, &jpeg)
+            save_into(dir.path(), "assets", false, STEM, &jpeg)
                 .expect("jpeg")
                 .name,
             "image-20261113-153000.jpg"
         );
         assert_eq!(
-            save_into(dir.path(), false, STEM, b"GIF89a-bytes")
+            save_into(dir.path(), "assets", false, STEM, b"GIF89a-bytes")
                 .expect("gif")
                 .name,
             "image-20261113-153000.gif"
         );
         assert_eq!(
-            save_into(dir.path(), false, STEM, b"RIFF\0\0\0\0WEBPVP8 ")
+            save_into(dir.path(), "assets", false, STEM, b"RIFF\0\0\0\0WEBPVP8 ")
                 .expect("webp")
                 .name,
             "image-20261113-153000.webp"
@@ -606,7 +636,8 @@ mod tests {
             b"<svg onload=alert(1)>",
             b"MZ\x90\x00",
         ] {
-            let error = save_into(dir.path(), false, STEM, bytes).expect_err("not an image");
+            let error =
+                save_into(dir.path(), "assets", false, STEM, bytes).expect_err("not an image");
             assert_eq!(error.kind(), "invalid");
         }
         assert!(
@@ -640,17 +671,50 @@ mod tests {
         for stem in [
             "", "..", "../x", "a/b", "a\\b", "a:b", "cat.", "cat ", "con", "NUL.x", "a#b", "a%b",
         ] {
-            let error = save_into(dir.path(), false, stem, PNG).expect_err(stem);
+            let error = save_into(dir.path(), "assets", false, stem, PNG).expect_err(stem);
             assert_eq!(error.kind(), "invalid", "{stem}");
         }
         assert!(!dir.path().join("assets").exists());
     }
 
     #[test]
+    fn a_nested_images_folder_is_made_part_by_part_and_the_link_names_it() {
+        let dir = temp();
+        let saved = save_into(dir.path(), "media/img", false, STEM, PNG).expect("saves");
+        assert_eq!(saved.link, format!("media/img/{STEM}.png"));
+        assert_eq!(
+            std::fs::read(
+                dir.path()
+                    .join("media")
+                    .join("img")
+                    .join(format!("{STEM}.png"))
+            )
+            .expect("written"),
+            PNG
+        );
+        // The same picture pasted again is the one file, and a second one lands beside it.
+        let again = save_into(dir.path(), "media/img", false, STEM, PNG).expect("saves");
+        assert!(again.reused);
+        assert_eq!(again.link, saved.link);
+    }
+
+    #[test]
+    fn a_part_of_the_images_folder_that_is_a_file_is_refused_and_nothing_is_made_beyond_it() {
+        let dir = temp();
+        std::fs::write(dir.path().join("media"), b"a file").expect("writes");
+        let error = save_into(dir.path(), "media/img", false, STEM, PNG).expect_err("a file");
+        assert!(error.to_string().contains("not a folder"), "{error}");
+        assert_eq!(
+            std::fs::read(dir.path().join("media")).expect("untouched"),
+            b"a file"
+        );
+    }
+
+    #[test]
     fn paste_image_saved_refuses_an_assets_that_is_a_file() {
         let dir = temp();
         std::fs::write(dir.path().join("assets"), b"a file").expect("writes");
-        assert!(save_into(dir.path(), false, STEM, PNG).is_err());
+        assert!(save_into(dir.path(), "assets", false, STEM, PNG).is_err());
         assert_eq!(
             std::fs::read(dir.path().join("assets")).expect("untouched"),
             b"a file"
@@ -665,7 +729,7 @@ mod tests {
         std::fs::create_dir(&document).expect("creates");
         crate::platform::make_folder_link(outside.path(), &document.join("assets"))
             .expect("a folder link can be made here");
-        let error = save_into(&document, false, STEM, PNG).expect_err("leads out");
+        let error = save_into(&document, "assets", false, STEM, PNG).expect_err("leads out");
         assert_eq!(error.kind(), "not-allowed");
         assert_eq!(
             std::fs::read_dir(outside.path()).expect("lists").count(),

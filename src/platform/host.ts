@@ -142,6 +142,26 @@ export interface SavedAs {
    * that was written already links to the new names; the page makes the same change to its own.
    */
   readonly renamedImages: readonly RenamedImage[]
+  /**
+   * The folder those images are in beside the file: `assets`, or what `images.pasteFolder` said
+   * when the file was saved. Their links in the written text point there already.
+   */
+  readonly imagesFolder: string
+}
+
+/**
+ * The settings Rust acts on by itself. The page sends them after it has validated the file, and
+ * Rust checks them again before it uses one.
+ */
+export interface AppliedSettings {
+  /** Where a pasted or copied image goes, relative to its document's folder. */
+  readonly pasteFolder: string
+  readonly recentFiles: number
+  readonly recentFolders: number
+  /** The folder names the workspace index skips, in place of the built-in list. */
+  readonly excludedFolders: readonly string[]
+  /** Whether F12 may open the developer tools. */
+  readonly devtools: boolean
 }
 
 /** What the page suggests the save dialog shows. */
@@ -406,6 +426,14 @@ export interface Host {
    * path. It grants that one file and nothing else.
    */
   settingsFile(): Promise<string>
+  /**
+   * Tells Rust the settings it acts on itself (`AppliedSettings`). Rejects with `invalid`, and
+   * applies none of them, if Rust disagrees with the page about one. A changed exclusion list
+   * makes the open folders' indexes walk again.
+   */
+  settingsApply(values: AppliedSettings): Promise<void>
+  /** Opens the developer tools. Rejects with `not-allowed` while the `devtools` setting is off. */
+  devtoolsOpen(): Promise<void>
   /**
    * Checks a rename or move and reads the workspace for the links it would change, without
    * changing anything. `onProgress` hears how many files were read so far. `buffers` are the open

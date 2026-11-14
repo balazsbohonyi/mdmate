@@ -3,6 +3,7 @@
  * value of the wrong type or outside its range. Data enters as `unknown`.
  */
 import { describe, expect, it } from 'vitest'
+import pasteFolders from '../data/paste-folders.json'
 import { BUILT_IN_EXCLUDED_FOLDERS, cloneSettings, DEFAULT_SETTINGS } from '@/lib/settings'
 import {
   checkPasteFolder,
@@ -131,7 +132,7 @@ describe('the value rules', () => {
   })
 
   it('takes a folder name or a relative path for the paste folder and nothing that leaves it', () => {
-    for (const good of ['assets', 'img', 'images/pasted', 'a b', 'my.images', '.assets']) {
+    for (const good of ['assets', 'img', 'images/pasted', 'a-b_c', 'my.images', '.assets']) {
       expect(checkPasteFolder(good).ok, good).toBe(true)
     }
     for (const bad of [
@@ -152,6 +153,9 @@ describe('the value rules', () => {
       'a/NUL.txt',
       'a.',
       'a /b',
+      'a b',
+      'a(b)',
+      'a#b',
       'a:b',
       'a<b',
       'x'.repeat(101),
@@ -232,4 +236,17 @@ describe('settingsAfter', () => {
     expect(after.fonts.headingScale).not.toBe(DEFAULT_SETTINGS.fonts.headingScale)
     expect(after.workspace.excludedFolders).not.toBe(BUILT_IN_EXCLUDED_FOLDERS)
   })
+})
+
+describe('the paste folder rule shared with Rust (tests/data/paste-folders.json)', () => {
+  it('reads the shared cases', () => {
+    expect(pasteFolders.length).toBeGreaterThan(20)
+  })
+
+  for (const sample of pasteFolders as readonly { input: string; folder: string | null }[]) {
+    it(`says the same as Rust about ${JSON.stringify(sample.input)}`, () => {
+      const checked = checkPasteFolder(sample.input)
+      expect(checked.ok ? checked.value : null).toBe(sample.folder)
+    })
+  }
 })

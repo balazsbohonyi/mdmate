@@ -78,3 +78,40 @@ fn the_tree_still_lists_the_excluded_folders_and_their_files() {
     assert_eq!(inside.len(), 1);
     assert_eq!(inside[0].name, "readme.md");
 }
+
+#[test]
+fn a_new_exclusion_list_and_a_new_walk_drop_the_files_it_skips_and_a_shorter_one_brings_them_back()
+{
+    use crate::fs::exclude;
+    let dir = tree(&[
+        "keep.md",
+        "zz-settings-skip/a.md",
+        "x/zz-settings-skip/deep/b.md",
+    ]);
+    let root = root(&dir);
+    let index = index();
+    index.add_root_now(&root);
+    assert_eq!(index.rels(&root).len(), 3, "nothing is skipped yet");
+
+    let _alone = exclude::LIST_GUARD
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut list = exclude::builtin();
+    list.push("zz-settings-skip".into());
+    assert!(exclude::set(&list));
+    // `rescan_all` queues this same walk for every root.
+    index.reconcile_now(&root);
+    assert_eq!(
+        index.rels(&root),
+        ["keep.md"],
+        "the skipped folder is gone at any depth"
+    );
+
+    assert!(exclude::set(&exclude::builtin()));
+    index.reconcile_now(&root);
+    assert_eq!(
+        index.rels(&root).len(),
+        3,
+        "taking the name out brings its files back"
+    );
+}

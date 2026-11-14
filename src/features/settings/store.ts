@@ -1,5 +1,6 @@
 import { reactive } from 'vue'
 import { describe } from '@/documents/store'
+import { refreshWordWrap } from '@/editor/wordWrap'
 import { editSettingsText } from '@/lib/settingsEdit'
 import {
   describeSyntax,
@@ -12,6 +13,7 @@ import {
 } from '@/lib/settingsFile'
 import { cloneSettings, DEFAULT_SETTINGS, settings } from '@/lib/settings'
 import { getHost } from '@/platform'
+import type { AppliedSettings } from '@/platform/host'
 import { reportError, reportWarning } from '@/shell/toasts'
 
 /**
@@ -40,6 +42,45 @@ export const settingsFileState = reactive<SettingsFileState>({
   problems: {},
   loaded: false,
 })
+
+/**
+ * The few settings Rust acts on by itself go to it after every change, once each distinct set. They
+ * are pushed in order, and `loadSettings` waits for the first push, so Rust holds the file's values
+ * before a session is restored or a file is pasted into.
+ */
+let lastPushed = ''
+let pushing: Promise<void> = Promise.resolve()
+
+function runtimeValues(): AppliedSettings {
+  return {
+    pasteFolder: settings.images.pasteFolder,
+    recentFiles: settings.recent.files,
+    recentFolders: settings.recent.folders,
+    excludedFolders: [...settings.workspace.excludedFolders],
+    devtools: settings.devtools,
+  }
+}
+
+function pushRuntime(): void {
+  const values = runtimeValues()
+  const key = JSON.stringify(values)
+  if (key === lastPushed) return
+  lastPushed = key
+  pushing = pushing.then(async () => {
+    try {
+      await (await getHost()).settingsApply(values)
+    } catch (error) {
+      // Rust disagreed with the page about a value: it applied none, and the next change tries again.
+      lastPushed = ''
+      reportWarning(`Could not apply the settings: ${describe(error)}`)
+    }
+  })
+}
+
+/** Resolves once every push to Rust has been made. */
+export function settledRuntime(): Promise<void> {
+  return pushing
+}
 
 /** Puts `next` into the live settings object field by field, so what reads it stays reactive. */
 function assignSettings(next: typeof settings): void {
@@ -91,7 +132,10 @@ export function applySettingsText(text: string | null): void {
   // A group that is not an object flags every key under it.
   for (const [key, checked] of parsed.present) if (!checked.ok) problems[key] = checked.why
   settingsFileState.problems = problems
+  const wrapped = settings.editor.wordWrap
   assignSettings(settingsAfter(settings, parsed))
+  if (settings.editor.wordWrap !== wrapped) refreshWordWrap()
+  pushRuntime()
   const first = Object.entries(problems)[0]
   notify(
     first === undefined
@@ -105,6 +149,7 @@ export async function loadSettings(): Promise<void> {
   try {
     const host = await getHost()
     applySettingsText(await host.settingsRead())
+    await settledRuntime()
   } catch (error) {
     settingsFileState.loaded = true
     settingsFileState.broken = {
@@ -216,6 +261,8 @@ export function resetSettingsState(): void {
   settingsFileState.problems = {}
   settingsFileState.loaded = false
   lastNotice = ''
+  lastPushed = ''
+  pushing = Promise.resolve()
   queue = Promise.resolve()
   Object.assign(settings, cloneSettings(DEFAULT_SETTINGS))
 }

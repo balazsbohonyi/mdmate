@@ -3,6 +3,14 @@
 use super::testkit::*;
 use super::*;
 use crate::fs::exclude;
+use std::sync::{PoisonError, RwLockReadGuard};
+
+/// Holds the exclusion list still: a cache file made now is read back against the same signature.
+fn stable() -> RwLockReadGuard<'static, ()> {
+    exclude::LIST_GUARD
+        .read()
+        .unwrap_or_else(PoisonError::into_inner)
+}
 
 fn cached_index(cache: &Path) -> WorkspaceIndex {
     let index = index();
@@ -23,6 +31,7 @@ fn files_in(cache: &Path) -> Vec<String> {
 
 #[test]
 fn a_cache_written_for_a_root_reads_back_equal() {
+    let _stable = stable();
     let dir = tree(&["a.md", "b/c.txt", "b/d/e.png"]);
     let root = root(&dir);
     let cache = tempfile::tempdir().expect("a temp dir");
@@ -39,6 +48,7 @@ fn a_cache_written_for_a_root_reads_back_equal() {
 
 #[test]
 fn the_cache_holds_paths_and_facts_and_never_contents() {
+    let _stable = stable();
     let dir = tree(&[]);
     let root = root(&dir);
     put(&root, "secret.md", "UNIQUE-CONTENT-MARKER-12345");
@@ -62,6 +72,7 @@ fn the_cache_holds_paths_and_facts_and_never_contents() {
 
 #[test]
 fn each_root_has_a_file_of_its_own() {
+    let _stable = stable();
     let one = tree(&["a.md"]);
     let two = tree(&["b.md"]);
     let cache = tempfile::tempdir().expect("a temp dir");
@@ -93,6 +104,7 @@ fn sample(root: &str) -> (Vec<FileEntry>, Vec<u8>) {
 
 #[test]
 fn a_file_made_by_this_version_for_this_root_is_trusted() {
+    let _stable = stable();
     let (entries, bytes) = sample("/w");
     let loaded = cachefile::decode(&bytes, "/w").expect("good");
     assert_eq!(loaded.entries, entries);
@@ -101,6 +113,7 @@ fn a_file_made_by_this_version_for_this_root_is_trusted() {
 
 #[test]
 fn another_version_another_exclusion_list_or_another_root_is_not_trusted() {
+    let _stable = stable();
     let (entries, _) = sample("/w");
     let other_version = cachefile::encode_with(
         cachefile::VERSION + 1,
@@ -128,6 +141,7 @@ fn another_version_another_exclusion_list_or_another_root_is_not_trusted() {
 
 #[test]
 fn a_damaged_file_is_not_trusted_whatever_the_damage() {
+    let _stable = stable();
     let (_, bytes) = sample("/w");
     assert!(cachefile::decode(&bytes, "/w").is_some());
     // Every single flipped byte, and every cut, is caught by the checksum or the layout.
@@ -151,6 +165,7 @@ fn a_damaged_file_is_not_trusted_whatever_the_damage() {
 
 #[test]
 fn a_stale_or_broken_cache_is_ignored_and_the_root_is_built_from_the_disk() {
+    let _stable = stable();
     let dir = tree(&["real.md"]);
     let root = root(&dir);
     let shown = display_path(&root);
@@ -197,6 +212,7 @@ fn a_stale_or_broken_cache_is_ignored_and_the_root_is_built_from_the_disk() {
 
 #[test]
 fn a_missing_cache_folder_is_made_when_the_first_file_is_written() {
+    let _stable = stable();
     let dir = tree(&["a.md"]);
     let root = root(&dir);
     let base = tempfile::tempdir().expect("a temp dir");
@@ -209,6 +225,7 @@ fn a_missing_cache_folder_is_made_when_the_first_file_is_written() {
 
 #[test]
 fn removing_a_root_deletes_its_cache_file_and_leaves_the_others() {
+    let _stable = stable();
     let one = tree(&["a.md"]);
     let two = tree(&["b.md"]);
     let (one, two) = (root(&one), root(&two));
@@ -231,6 +248,7 @@ fn removing_a_root_deletes_its_cache_file_and_leaves_the_others() {
 
 #[test]
 fn a_cache_that_cannot_be_written_does_not_stop_the_index() {
+    let _stable = stable();
     let dir = tree(&["a.md"]);
     let root = root(&dir);
     let base = tempfile::tempdir().expect("a temp dir");

@@ -28,6 +28,7 @@ import { togglePalette } from '@/features/palette/state'
 import { showOutline } from '@/features/outline/store'
 import { showSearch } from '@/features/search/store'
 import { focusTree, openFolderDialog } from '@/features/tree/store'
+import { settings } from '@/lib/settings'
 import { getHost } from '@/platform'
 import { registerCommand, removeCommand } from './commands'
 import { canFind, openFind, stepFind } from './find'
@@ -71,6 +72,7 @@ export const COMMAND_IDS = {
   strikethrough: 'format.strikethrough',
   headingUp: 'format.headingUp',
   headingDown: 'format.headingDown',
+  openDevtools: 'tools.openDevtools',
   exit: 'app.exit',
 } as const
 
@@ -214,6 +216,16 @@ export function registerDefaultCommands(): () => void {
       run: () => {
         const tab = activeTabId()
         return tab === null ? undefined : renameTab(tab)
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.openDevtools,
+      title: 'Open Developer Tools',
+      keybinding: 'F12',
+      // Off until the `devtools` setting turns it on; Rust refuses the call too while it is off.
+      enabled: () => settings.devtools,
+      run: async () => {
+        await (await getHost()).devtoolsOpen()
       },
     }),
     registerCommand({

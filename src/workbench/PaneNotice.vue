@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { docMeta } from '@/documents/meta'
-import { LARGE_FILE_NOTICE } from '@/documents/largeFile'
+import { largeFileNotice } from '@/documents/largeFile'
 import {
   pendingClose,
   pendingRevert,
@@ -157,7 +157,7 @@ function resolve(choice: 'save' | 'discard' | 'cancel'): void {
     data-testid="large-file-notice"
     class="shrink-0 border-b border-border bg-muted px-3 py-1.5 text-chrome"
   >
-    {{ LARGE_FILE_NOTICE }}
+    {{ largeFileNotice() }}
   </div>
   <div
     v-if="!closing && conflict === null && meta?.readOnly"

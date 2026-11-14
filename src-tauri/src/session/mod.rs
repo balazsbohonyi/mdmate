@@ -148,7 +148,14 @@ impl SessionStore {
         let copied = std::fs::canonicalize(&folder)
             .map_err(AppError::from)
             .and_then(|resolved| {
-                drafts::adopt(state.drafts(), number, text, &resolved, state.ignore_case())
+                drafts::adopt(
+                    state.drafts(),
+                    number,
+                    text,
+                    &resolved,
+                    crate::images::IMAGES_FOLDER,
+                    state.ignore_case(),
+                )
             });
         match copied {
             Ok(adopted) => self.recover(name, &adopted.text).inspect_err(|_| {

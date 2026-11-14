@@ -207,6 +207,8 @@ Files come from Rust. `workspace/quick.rs` keeps a list of every file under ever
 
 The page holds one validator, a table of every key with its file path, default and check (`src/lib/settingsFile.ts`). Data enters as `unknown`; a key with a bad value keeps its last good value and is flagged, a key the file lacks goes to its default, and a file that is not one JSON object changes nothing. `features/settings/store.ts` reads the file at start (before the session is restored) and again each time the watcher fires, puts the result in the reactive `settings` object (`src/lib/settings.ts`), and writes a change from the screen as an edit of one key of the file's text (`src/lib/settingsEdit.ts`): other keys stay, a value equal to the default takes its key out, and a file that is not valid JSON is never overwritten. Writes run one at a time, each on the file as it is when its turn comes. `MDMATE_LINKS_ON_RENAME` still wins over `links.onRename` for a run.
 
+Keys that Rust has to act on reach it through one command, `settings_apply` (`settings/runtime.rs`): the paste folder, the recent caps, the excluded folder names and `devtools`. The page validates and pushes only when the values changed; Rust checks them again and refuses the lot if one is wrong. `AppState.runtime` holds the paste folder and `devtools`, `RecentStore` holds its two caps, and `fs/exclude.rs` holds the excluded list that the walker, the watcher and the index read (a changed list rescans every root). A draft keeps the fixed `assets` folder; `images.pasteFolder` applies at Save As. The developer tools are a `tauri` feature plus a command that refuses while the setting is off.
+
 ## Security
 
 Markdown content is untrusted, and people will open files they did not write.

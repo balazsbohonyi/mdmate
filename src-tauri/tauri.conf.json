@@ -20,7 +20,8 @@
         "minHeight": 320,
         "visible": false,
         "decorations": false,
-        "backgroundColor": "#1d2027"
+        "backgroundColor": "#1d2027",
+        "devtools": false
       }
     ],
     "security": {

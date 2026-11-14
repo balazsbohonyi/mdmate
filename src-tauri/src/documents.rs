@@ -215,6 +215,8 @@ pub(crate) struct AppState {
     rewrite_tokens: std::sync::atomic::AtomicU64,
     /// Every file under the workspace roots; see [`crate::workspace::index`].
     index: crate::workspace::index::WorkspaceIndex,
+    /// The settings Rust acts on by itself; see [`crate::settings::runtime`].
+    runtime: crate::settings::runtime::Runtime,
     /// The id of the folder search that is allowed to run; any other running search stops. Zero
     /// means none.
     search_current: std::sync::atomic::AtomicU64,
@@ -240,7 +242,14 @@ impl AppState {
             #[cfg(test)]
             index: crate::workspace::index::WorkspaceIndex::new(ignore_case).without_watcher(),
             search_current: std::sync::atomic::AtomicU64::new(0),
+            runtime: crate::settings::runtime::Runtime::default(),
         }
+    }
+
+    /// The settings in force that Rust reads when it acts (where a pasted image goes, whether the
+    /// developer tools may open).
+    pub(crate) fn runtime(&self) -> &crate::settings::runtime::Runtime {
+        &self.runtime
     }
 
     /// The id of the one folder search that may run, or zero. Starting a search sets it, so the one

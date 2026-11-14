@@ -915,6 +915,42 @@ pub(crate) fn watch_settings(
     }))
 }
 
+/// Takes the settings Rust acts on from the page, which has validated the file: where a pasted
+/// image goes, how many recent files are kept, which folders the index skips, and whether the
+/// developer tools may open. Rust checks them again and refuses the lot if one is wrong. A changed
+/// exclusion list makes every open folder's index walk again.
+#[tauri::command]
+pub(crate) fn settings_apply(
+    state: State<'_, Arc<AppState>>,
+    recent: State<'_, Arc<RecentStore>>,
+    applied: crate::settings::runtime::Applied,
+) -> Result<(), AppError> {
+    let checked = crate::settings::runtime::check(&applied)?;
+    state.runtime().set_paste_folder(&checked.paste_folder);
+    state.runtime().set_devtools(checked.devtools);
+    recent.set_limits(checked.recent_files, checked.recent_folders);
+    if crate::fs::exclude::set(&checked.excluded_folders) {
+        state.index().rescan_all();
+    }
+    Ok(())
+}
+
+/// Opens the developer tools, only while the `devtools` setting is on. The page asks on F12; the
+/// check is here so a page that skips its own cannot open them.
+#[tauri::command]
+pub(crate) fn devtools_open(
+    state: State<'_, Arc<AppState>>,
+    window: tauri::WebviewWindow,
+) -> Result<(), AppError> {
+    if !state.runtime().devtools() {
+        return Err(AppError::NotAllowed(
+            "the developer tools while the setting is off".into(),
+        ));
+    }
+    window.open_devtools();
+    Ok(())
+}
+
 /// Makes `settings.json` if it is missing and lets the page open it as a tab. Returns its path.
 /// It is the one file this grants, and the page cannot name another.
 #[tauri::command]

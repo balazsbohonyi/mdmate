@@ -2,12 +2,15 @@
 //!
 //! Rust keeps the file and nothing else about it: it reads and writes the text, writes it
 //! atomically, says when another program changed it, and hands the page the one file it may open as
-//! a tab. What the text means is the page's to decide, through one validator, so there is no
-//! second copy of its rules here. The file is read from the data folder only: no call takes a path,
-//! so nothing in an opened workspace can stand in for it.
+//! a tab. What the text means is the page's to decide, through one validator. The few values Rust
+//! acts on by itself reach it from the page after that check, and `runtime` checks the ones that
+//! guard something again. The file is read from the data folder only: no call takes a path, so
+//! nothing in an opened workspace can stand in for it.
 //!
 //! Until the page can name the environment variable's value itself, what a rename does about links
 //! can also come from `MDMATE_LINKS_ON_RENAME`, which wins over the file for that run.
+
+pub(crate) mod runtime;
 
 use crate::error::AppError;
 use crate::fs::atomic;

@@ -94,18 +94,18 @@ export function checkPasteFolder(value: unknown): Checked<string> {
   if (typeof value !== 'string') return bad('Use a folder name in quotes.')
   const text = value.trim().replaceAll('\\', '/')
   if (text === '') return bad('Name a folder.')
-  if (text.length > 100) return bad('Use at most 100 characters.')
+  if ([...text].length > 100) return bad('Use at most 100 characters.')
   if (/^(?:[a-z]:|\/|~)/i.test(text))
     return bad('Use a folder inside the document’s folder, not a full path.')
-  // eslint-disable-next-line no-control-regex -- control characters are exactly what is refused
-  if (/[\u0000-\u001f\u007f<>:"|?*]/u.test(text))
-    return bad('A folder name cannot hold < > : " | ? * or control characters.')
   const parts = text.split('/')
   for (const part of parts) {
     if (part === '') return bad('Leave out empty parts such as // or a trailing /.')
     if (part === '..') return bad('The folder cannot leave the document’s folder.')
     if (part === '.') return bad('Leave out . parts.')
-    if (/[. ]$/.test(part)) return bad('A folder name cannot end with a dot or a space.')
+    // The link made from the folder is plain Markdown, so a space or a bracket has no place in it.
+    if (!/^[\p{Alphabetic}\p{N}_.-]+$/u.test(part))
+      return bad('Use letters, digits, - _ and . only, so the link stays plain.')
+    if (part.endsWith('.')) return bad('A folder name cannot end with a dot.')
     if (reservedName(part)) return bad(`${part} is a name Windows keeps.`)
   }
   return good(parts.join('/'))

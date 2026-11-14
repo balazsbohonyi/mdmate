@@ -259,6 +259,12 @@ export const tauriHost: Host = {
   async settingsFile() {
     return invoke<string>('settings_file')
   },
+  async settingsApply(values) {
+    await invoke('settings_apply', { applied: values })
+  },
+  async devtoolsOpen() {
+    await invoke('devtools_open')
+  },
   async rewritePlan(path, change, buffers, onProgress) {
     const channel = new Channel<number>()
     channel.onmessage = onProgress

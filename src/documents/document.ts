@@ -109,8 +109,8 @@ export interface DocumentOptions {
 }
 
 /** `doc` with the links of renamed images updated. */
-function renamedLinks(doc: Text, renames: ReadonlyMap<string, string>): Text {
-  const edits = renameEdits(doc.toString(), renames)
+function renamedLinks(doc: Text, renames: ReadonlyMap<string, string>, folder: string): Text {
+  const edits = renameEdits(doc.toString(), renames, folder)
   return edits.length === 0 ? doc : ChangeSet.of(edits, doc.length).apply(doc)
 }
 
@@ -417,8 +417,9 @@ export class Document implements FollowerHost {
    */
   relocate(snapshot: Snapshot, saved: SavedAs): void {
     const renames = new Map(saved.renamedImages.map((image) => [image.from, image.to]))
-    const baseline = renames.size === 0 ? snapshot.doc : renamedLinks(snapshot.doc, renames)
-    if (renames.size > 0) this.#renameImageLinks(renames)
+    const baseline =
+      renames.size === 0 ? snapshot.doc : renamedLinks(snapshot.doc, renames, saved.imagesFolder)
+    if (renames.size > 0) this.#renameImageLinks(renames, saved.imagesFolder)
     this.path = saved.path
     this.name = saved.name
     this.untitledNumber = null
@@ -435,9 +436,9 @@ export class Document implements FollowerHost {
    * Points the links of renamed images at their new names, in the master and every follower, as a
    * change history does not record: undo takes back typing, never a rename the disk already has.
    */
-  #renameImageLinks(renames: ReadonlyMap<string, string>): void {
+  #renameImageLinks(renames: ReadonlyMap<string, string>, folder: string): void {
     const master = this.#master
-    const edits = renameEdits(master.doc.toString(), renames)
+    const edits = renameEdits(master.doc.toString(), renames, folder)
     if (edits.length === 0) return
     const changes = ChangeSet.of(edits, master.doc.length, master.lineBreak)
     this.#master = master.update({

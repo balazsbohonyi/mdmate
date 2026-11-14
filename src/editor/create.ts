@@ -13,6 +13,7 @@ import { smartPaste } from './paste'
 import { livePreview } from './livePreview'
 import { previewSlot } from './previewMode'
 import { markdownSupport } from './markdownSupport'
+import { wordWrap } from './wordWrap'
 
 /** Fills its parent and scrolls inside itself, in the app's own colors. */
 const frame = EditorView.theme({
@@ -60,7 +61,7 @@ const tabKeys: Extension = [
 const common: Extension = [
   history(),
   keymap.of([...editorKeymap, ...historyKeymap]),
-  EditorView.lineWrapping,
+  wordWrap,
   frame,
   tabKeys,
   textDrag(),
@@ -111,7 +112,7 @@ export function createMasterState(doc: string, extensions: Extension = []): Edit
 /** What every follower gets: the default keys without history, which lives on the master. */
 const followerBase: Extension = [
   keymap.of(editorKeymap),
-  EditorView.lineWrapping,
+  wordWrap,
   frame,
   tabKeys,
   // Drag-to-move for selected text, on pointer events (P5-T7).
