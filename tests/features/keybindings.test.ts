@@ -428,6 +428,10 @@ describe('ISC-374: a combination already used names its owner, and Replace takes
     await mountKeyboard()
     await rebind(COMMAND_IDS.bold, 'Mod+Shift+B')
     expect(conflictOf(COMMAND_IDS.bold)?.textContent).toContain('Toggle Sidebar')
+    // ISC-438: the message uses the warning color, and the buttons below it keep their own.
+    const message = conflictOf(COMMAND_IDS.bold)?.querySelector('[data-shortcut-conflict-message]')
+    expect(message?.classList.contains('text-warning')).toBe(true)
+    expect(message?.classList.contains('text-foreground')).toBe(false)
     expect(host.files.read(MOCK_KEYBINDINGS_FILE)).toBeUndefined()
     expect(idOf('Mod+B')).toBe(COMMAND_IDS.bold)
 
@@ -587,6 +591,14 @@ describe('ISC-406: recording a shortcut', () => {
   })
 })
 
+/** Goes to the Advanced page, presses Reset all shortcuts, and confirms the question. */
+async function resetAllShortcuts(): Promise<void> {
+  setSettingsCategory(tabId, 'advanced')
+  await flush()
+  await click(document.querySelector('[data-reset-all-shortcuts]'))
+  await click(document.querySelector('[data-reset-confirm]'))
+}
+
 describe('ISC-408: Reset all', () => {
   it('gives back the commented template and puts every command on its default shortcut', async () => {
     await mountKeyboard()
@@ -594,24 +606,30 @@ describe('ISC-408: Reset all', () => {
     await rebind(COMMAND_IDS.open, 'Mod+Shift+J')
     await rebind(COMMAND_IDS.save, 'F6')
     expect(idOf('Mod+N')).toBeUndefined()
-    await click(document.querySelector('[data-keyboard-reset-all]'))
+    await resetAllShortcuts()
     expect(host.files.read(MOCK_KEYBINDINGS_FILE)).toBe(keybindingsTemplate().text)
     expect(idOf('Mod+N')).toBe(COMMAND_IDS.newFile)
     expect(idOf('Mod+O')).toBe(COMMAND_IDS.open)
     expect(idOf('Mod+S')).toBe(COMMAND_IDS.save)
+    setSettingsCategory(tabId, 'keyboard')
+    await flush()
     expect(document.querySelectorAll('[data-setting-modified]')).toHaveLength(0)
   })
 
   it('is off while the file holds nothing, and clears entries for commands this build lacks', async () => {
     await mountKeyboard('{}')
-    expect(document.querySelector<HTMLButtonElement>('[data-keyboard-reset-all]')?.disabled).toBe(
+    setSettingsCategory(tabId, 'advanced')
+    await flush()
+    expect(document.querySelector<HTMLButtonElement>('[data-reset-all-shortcuts]')?.disabled).toBe(
       true,
     )
     host.files.write(MOCK_KEYBINDINGS_FILE, '{"gone.command": "Mod+K"}')
     await flush()
-    const reset = document.querySelector<HTMLButtonElement>('[data-keyboard-reset-all]')
-    expect(reset?.disabled).toBe(false)
-    await click(reset)
+    expect(document.querySelector<HTMLButtonElement>('[data-reset-all-shortcuts]')?.disabled).toBe(
+      false,
+    )
+    await click(document.querySelector('[data-reset-all-shortcuts]'))
+    await click(document.querySelector('[data-reset-confirm]'))
     expect(host.files.read(MOCK_KEYBINDINGS_FILE)).toBe('{}\n')
   })
 })

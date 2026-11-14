@@ -102,6 +102,14 @@ export async function loadKeybindings(): Promise<void> {
   }
 }
 
+/** Whether the file holds any entry. Comments are not entries; a file that cannot be read is. */
+export function keybindingsHaveEntries(): boolean {
+  const text = keybindingsFileState.text
+  if (text === null) return false
+  const read = readRoot(text, FILE)
+  return !read.ok || Object.keys(read.root).length > 0
+}
+
 /** Writes go one after another, each on top of the file as it is when its turn comes. */
 let queue: Promise<unknown> = Promise.resolve()
 

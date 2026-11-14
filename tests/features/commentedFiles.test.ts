@@ -225,7 +225,7 @@ describe('ISC-421: Reset all keeps the comments', () => {
 describe('ISC-422: a file of only comments counts as no entries', () => {
   it('leaves Reset all off for the template, and on once an entry is there', async () => {
     await start({ [MOCK_KEYBINDINGS_FILE]: keybindingsTemplate().text })
-    const tab = openSettingsTab('keyboard')
+    const tab = openSettingsTab('advanced')
     const root = document.createElement('div')
     document.body.append(root)
     const app = tooltipApp(SettingsView, { tabId: tab })
@@ -233,7 +233,7 @@ describe('ISC-422: a file of only comments counts as no entries', () => {
     screen = { app, root }
     await flush()
     const reset = (): HTMLButtonElement | null =>
-      document.querySelector<HTMLButtonElement>('[data-keyboard-reset-all]')
+      document.querySelector<HTMLButtonElement>('[data-reset-all-shortcuts]')
     expect(reset()?.disabled).toBe(true)
     applyKeybindingsText('{\n  // a comment\n  "file.new": "Mod+Shift+U"\n}\n')
     await flush()

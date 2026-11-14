@@ -1,16 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { Button } from '@/components/ui/button'
-import { docMeta } from '@/documents/meta'
-import { readRoot } from '@/lib/settingsEdit'
 import { interpretKey } from '@/features/keybindings/recorder'
 import { commandSections, type SearchableCommand } from '@/features/keybindings/shortcutSearch'
-import {
-  keybindingsFileState,
-  pendingKeybindingChange,
-  requestKeybindingChange,
-  resolvePendingKeybindingChange,
-} from '@/features/keybindings/store'
+import { keybindingsFileState, requestKeybindingChange } from '@/features/keybindings/store'
 import {
   commandHolding,
   defaultShortcutLabel,
@@ -67,19 +60,6 @@ const conflict = ref<{
 
 const problems = computed(() => keybindingProblems())
 const broken = computed(() => keybindingsFileState.broken)
-/** Whether the file holds any entry. Comments are not entries; a file that cannot be read is. */
-const hasEntries = computed(() => {
-  const text = keybindingsFileState.text
-  if (text === null) return false
-  const read = readRoot(text, 'keybindings.json')
-  return !read.ok || Object.keys(read.root).length > 0
-})
-const asking = computed(() => pendingKeybindingChange.value)
-const askingError = computed(() => {
-  const pending = asking.value
-  return pending === null ? null : (docMeta(pending.docId)?.saveError ?? null)
-})
-
 function change(
   edit: Readonly<Record<string, string | null | undefined>> | 'all',
   label: string,
@@ -151,18 +131,6 @@ function reset(command: Command): void {
   change({ [command.id]: undefined }, command.title)
 }
 
-function resetAll(): void {
-  stopRecording()
-  conflict.value = null
-  change('all', 'all shortcuts')
-}
-
-function answer(choice: 'save' | 'discard' | 'cancel'): void {
-  resolvePendingKeybindingChange(choice).catch((error: unknown) => {
-    console.error('Could not answer the shortcuts question', error)
-  })
-}
-
 function openFile(): void {
   runCommand(COMMAND_IDS.openKeybindingsFile).catch((error: unknown) => {
     console.error('Could not open keybindings.json', error)
@@ -202,47 +170,6 @@ function buttonText(command: Command): string {
         Open keybindings.json
       </Button>
     </div>
-    <div
-      v-if="asking !== null"
-      role="alert"
-      class="mt-2 flex items-center gap-3 rounded-md bg-muted px-3 py-1.5 text-chrome"
-      data-keyboard-confirm
-    >
-      <span class="min-w-0 flex-1">
-        keybindings.json has changes you have not saved. Save them before changing
-        {{ asking.label }}?
-        <span
-          v-if="askingError !== null"
-          class="text-destructive"
-        >
-          Could not save: {{ askingError }}
-        </span>
-      </span>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        @click="answer('save')"
-      >
-        Save
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        @click="answer('discard')"
-      >
-        Don't save
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        @click="answer('cancel')"
-      >
-        Cancel
-      </Button>
-    </div>
     <ul
       v-if="problems.length > 0"
       class="mt-2 flex flex-col gap-1 rounded-md bg-muted px-3 py-1.5 text-chrome"
@@ -255,19 +182,7 @@ function buttonText(command: Command): string {
         {{ problem.message }}
       </li>
     </ul>
-    <div class="mt-2 flex items-center justify-between gap-3">
-      <p class="text-chrome text-muted-foreground">Click a shortcut, then press the new keys.</p>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        :disabled="!hasEntries"
-        data-keyboard-reset-all
-        @click="resetAll"
-      >
-        Reset all
-      </Button>
-    </div>
+    <p class="mt-2 text-chrome text-muted-foreground">Click a shortcut, then press the new keys.</p>
     <div class="mt-2">
       <section
         v-for="section in sections"
@@ -276,7 +191,7 @@ function buttonText(command: Command): string {
         data-keyboard-group
       >
         <h2
-          class="mt-5 mb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase"
+          class="mt-10 mb-1 text-base font-semibold text-foreground"
           data-keyboard-group-heading
         >
           {{ section.group }}
@@ -316,7 +231,10 @@ function buttonText(command: Command): string {
             class="flex flex-col gap-1 text-xs"
             data-shortcut-conflict
           >
-            <span>
+            <span
+              class="text-warning"
+              data-shortcut-conflict-message
+            >
               {{ formatKeybinding(conflict.binding, platform) }} is used by
               {{ conflict.other.title }}.
             </span>

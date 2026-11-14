@@ -92,6 +92,7 @@ const PAIRS: [string, string, number][] = [
   ['--accent-foreground', '--accent', 4.5],
   ['--primary', '--background', 4.5],
   ['--destructive', '--background', 4.5],
+  ['--warning', '--background', 4.5],
   ['--sidebar-foreground', '--sidebar', 4.5],
   ['--sidebar-accent-foreground', '--sidebar-accent', 4.5],
   ['--titlebar-foreground', '--titlebar', 4.5],

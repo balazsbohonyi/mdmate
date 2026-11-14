@@ -44,15 +44,26 @@ import { runCommand } from '@/workbench/commands'
 import { COMMAND_IDS } from '@/workbench/defaultCommands'
 import { setSettingsCategory, settingsCategoryOf } from '@/workbench/store'
 import {
+  keybindingsHaveEntries,
+  pendingKeybindingChange,
+  requestKeybindingChange,
+  resolvePendingKeybindingChange,
+} from '@/features/keybindings/store'
+import {
   isModified,
   pendingSettingChange,
+  requestResetAllSettings,
   requestResetSetting,
   requestSettingChange,
   resolvePendingSettingChange,
   settingsFileState,
+  settingsHaveEntries,
+  type ResetKind,
 } from './store'
 import { LINKS_ENV_VAR, rowsMatching, rowsOf, SETTING_ROWS, type SettingRowSpec } from './rows'
 import KeyboardPanel from './KeyboardPanel.vue'
+import ResetAllDialog from './ResetAllDialog.vue'
+import SaveFirstQuestion from './SaveFirstQuestion.vue'
 import SettingRow from './SettingRow.vue'
 
 /**
@@ -376,9 +387,11 @@ function removeTag(tag: ColorTag): void {
 const bannerHint = computed(() => settingsFileState.broken)
 
 const asking = computed(() => pendingSettingChange.value)
-const askingLabel = computed(
-  () => SETTING_ROWS.find((row) => row.key === asking.value?.key)?.label ?? 'a setting',
-)
+const askingLabel = computed(() => {
+  const key = asking.value?.key
+  if (key === null) return 'all settings'
+  return SETTING_ROWS.find((row) => row.key === key)?.label ?? 'a setting'
+})
 const askingError = computed(() => {
   const pending = asking.value
   return pending === null ? null : (docMeta(pending.docId)?.saveError ?? null)
@@ -387,6 +400,40 @@ const askingError = computed(() => {
 function answer(choice: 'save' | 'discard' | 'cancel'): void {
   resolvePendingSettingChange(choice).catch((error: unknown) => {
     console.error('Could not answer the settings question', error)
+  })
+}
+
+/** The question the Keyboard page's changes and the Advanced page's reset share. */
+const askingShortcuts = computed(() => pendingKeybindingChange.value)
+const askingShortcutsError = computed(() => {
+  const pending = askingShortcuts.value
+  return pending === null ? null : (docMeta(pending.docId)?.saveError ?? null)
+})
+
+function answerShortcuts(choice: 'save' | 'discard' | 'cancel'): void {
+  resolvePendingKeybindingChange(choice).catch((error: unknown) => {
+    console.error('Could not answer the shortcuts question', error)
+  })
+}
+
+/** Which reset the dialog asks about, and whether it is open. */
+const resetKind = ref<ResetKind>('settings')
+const resetOpen = ref(false)
+const settingsHaveAny = computed(() => settingsHaveEntries())
+const shortcutsHaveAny = computed(() => keybindingsHaveEntries())
+
+function askReset(kind: ResetKind): void {
+  resetKind.value = kind
+  resetOpen.value = true
+}
+
+function resetAll(kind: ResetKind): void {
+  const done =
+    kind === 'settings'
+      ? requestResetAllSettings()
+      : requestKeybindingChange('all', 'all shortcuts')
+  done.catch((error: unknown) => {
+    console.error(`Could not reset all ${kind}`, error)
   })
 }
 
@@ -426,47 +473,22 @@ function openFile(): void {
         Open settings.json
       </Button>
     </div>
-    <div
+    <SaveFirstQuestion
       v-if="asking !== null"
-      role="alert"
-      class="flex shrink-0 items-center gap-3 border-b border-border bg-muted px-3 py-1.5 text-chrome"
+      file="settings.json"
+      :label="askingLabel"
+      :error="askingError"
       data-settings-confirm
-    >
-      <span class="min-w-0 flex-1">
-        settings.json has changes you have not saved. Save them before changing
-        {{ askingLabel }}?
-        <span
-          v-if="askingError !== null"
-          class="text-destructive"
-        >
-          Could not save: {{ askingError }}
-        </span>
-      </span>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        @click="answer('save')"
-      >
-        Save
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        @click="answer('discard')"
-      >
-        Don't save
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        @click="answer('cancel')"
-      >
-        Cancel
-      </Button>
-    </div>
+      @answer="answer"
+    />
+    <SaveFirstQuestion
+      v-if="askingShortcuts !== null"
+      file="keybindings.json"
+      :label="askingShortcuts.label"
+      :error="askingShortcutsError"
+      data-keyboard-confirm
+      @answer="answerShortcuts"
+    />
     <div class="flex min-h-0 flex-1">
       <nav
         aria-label="Settings groups"
@@ -813,15 +835,28 @@ function openFile(): void {
             :error="null"
             :locked="null"
           >
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              data-open-settings-file
-              @click="openFile"
-            >
-              Open settings.json
-            </Button>
+            <div class="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                data-open-settings-file
+                @click="openFile"
+              >
+                Open settings.json
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                :disabled="!settingsHaveAny"
+                aria-label="Reset all settings"
+                data-reset-all-settings
+                @click="askReset('settings')"
+              >
+                Reset all
+              </Button>
+            </div>
           </SettingRow>
           <SettingRow
             v-if="showsActions"
@@ -832,15 +867,28 @@ function openFile(): void {
             :error="null"
             :locked="null"
           >
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              data-open-keybindings-file
-              @click="openKeybindingsFile"
-            >
-              Open keybindings.json
-            </Button>
+            <div class="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                data-open-keybindings-file
+                @click="openKeybindingsFile"
+              >
+                Open keybindings.json
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                :disabled="!shortcutsHaveAny"
+                aria-label="Reset all shortcuts"
+                data-reset-all-shortcuts
+                @click="askReset('shortcuts')"
+              >
+                Reset all
+              </Button>
+            </div>
           </SettingRow>
           <p
             v-if="shown.length === 0 && !showsActions"
@@ -852,5 +900,10 @@ function openFile(): void {
         </div>
       </section>
     </div>
+    <ResetAllDialog
+      v-model:open="resetOpen"
+      :kind="resetKind"
+      @confirm="resetAll"
+    />
   </div>
 </template>

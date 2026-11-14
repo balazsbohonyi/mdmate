@@ -23,6 +23,8 @@
   --accent: oklch(0.92 0.008 85);
   --accent-foreground: var(--foreground);
   --destructive: oklch(0.52 0.2 27);
+  /* A hint that needs a second look but is not an error: a dark amber, readable on the page. */
+  --warning: oklch(0.55 0.12 68);
   --border: oklch(0.88 0.008 85);
   --input: oklch(0.84 0.01 85);
   --ring: var(--primary);

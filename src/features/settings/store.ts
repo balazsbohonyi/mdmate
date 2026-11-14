@@ -10,7 +10,15 @@ import {
 import { updateDocumentFonts } from '@/editor/documentFonts'
 import { refreshSourceLanguages } from '@/editor/sourceLanguage'
 import { refreshWordWrap } from '@/editor/wordWrap'
-import { editSettingsText, isBlankFile, isUnchanged } from '@/lib/settingsEdit'
+import type { FileTemplate } from '@/lib/fileTemplate'
+import {
+  clearSettingsText,
+  editSettingsText,
+  isBlankFile,
+  isUnchanged,
+  readRoot,
+  type EditResult,
+} from '@/lib/settingsEdit'
 import { applyTheme } from '@/lib/themes'
 import {
   describeSyntax,
@@ -201,24 +209,42 @@ export function changeSetting<K extends SettingKey>(
   key: K,
   value: SettingValueMap[K],
 ): Promise<boolean> {
+  const def = SETTING_DEFS[key]
+  const checked = def.check(value)
+  if (!checked.ok) {
+    reportWarning(`${key}: ${checked.why}`)
+    return Promise.resolve(false)
+  }
+  return writeSettings((current, template) =>
+    editSettingsText(
+      current,
+      def.path,
+      def.equals(checked.value, def.default) ? undefined : checked.value,
+      'settings.json',
+      template,
+    ),
+  )
+}
+
+/**
+ * Takes every entry out of `settings.json`, unknown ones included, and leaves its comments; with
+ * the template in the file, each known entry's commented example comes back. Same rules as a change
+ * of one key: nothing is written for a file that would not change, or that is not valid JSON.
+ */
+export function resetAllSettings(): Promise<boolean> {
+  return writeSettings((current, template) => clearSettingsText(current, 'settings.json', template))
+}
+
+/** Runs one edit of the file's text, one after another with the other writes, and applies it. */
+function writeSettings(
+  edit: (current: string, template: FileTemplate) => EditResult,
+): Promise<boolean> {
   return enqueue(async () => {
-    const def = SETTING_DEFS[key]
-    const checked = def.check(value)
-    if (!checked.ok) {
-      reportWarning(`${key}: ${checked.why}`)
-      return false
-    }
     try {
       const host = await getHost()
       const current = await host.settingsRead()
       const template = settingsTemplate()
-      const edited = editSettingsText(
-        current ?? '',
-        def.path,
-        def.equals(checked.value, def.default) ? undefined : checked.value,
-        'settings.json',
-        template,
-      )
+      const edited = edit(current ?? '', template)
       if (!edited.ok) {
         reportError(edited.message)
         applySettingsText(current)
@@ -244,9 +270,13 @@ export function resetSetting(key: SettingKey): Promise<boolean> {
   return changeSetting(key, def.default as never)
 }
 
+/** Which file a reset-all is for: every setting, or every shortcut. */
+export type ResetKind = 'settings' | 'shortcuts'
+
 /** A change the screen asked for while the `settings.json` tab holds unsaved edits. */
 export interface PendingSettingChange {
-  readonly key: SettingKey
+  /** The key to change, or null for a reset of every setting. */
+  readonly key: SettingKey | null
   readonly value: unknown
   /** The document of the tab that holds the edits. */
   readonly docId: number
@@ -318,17 +348,40 @@ export async function requestSettingChange<K extends SettingKey>(
   key: K,
   value: SettingValueMap[K],
 ): Promise<boolean> {
+  if (await holdForUnsavedEdits((docId) => ({ key, value, docId }))) return false
+  return changeSetting(key, value)
+}
+
+/** The same for a reset of every setting, which the Advanced page asks for after a confirmation. */
+export async function requestResetAllSettings(): Promise<boolean> {
+  if (await holdForUnsavedEdits((docId) => ({ key: null, value: undefined, docId }))) return false
+  return resetAllSettings()
+}
+
+/**
+ * Puts the change in `pendingSettingChange` when the `settings.json` tab has unsaved edits. Resolves
+ * to whether the change must wait: a file that cannot be checked counts as waiting, with a notice.
+ */
+async function holdForUnsavedEdits(
+  pending: (docId: number) => PendingSettingChange,
+): Promise<boolean> {
   try {
     const docId = await unsavedSettingsDocument()
-    if (docId !== undefined) {
-      pendingSettingChange.value = { key, value, docId }
-      return false
-    }
+    if (docId === undefined) return false
+    pendingSettingChange.value = pending(docId)
+    return true
   } catch (error) {
     reportError(`Could not check settings.json: ${describe(error)}`)
-    return false
+    return true
   }
-  return changeSetting(key, value)
+}
+
+/** Whether the file holds any entry. Comments are not entries; a file that cannot be read is. */
+export function settingsHaveEntries(): boolean {
+  const text = settingsFileState.text
+  if (text === null) return false
+  const read = readRoot(text, 'settings.json')
+  return !read.ok || Object.keys(read.root).length > 0
 }
 
 /** The same, for a row's reset: the default goes through the same question. */
@@ -359,7 +412,8 @@ export async function resolvePendingSettingChange(
       : await revertDocument(pending.docId)
   if (!ready) return
   pendingSettingChange.value = null
-  await changeSetting(pending.key, pending.value as never)
+  if (pending.key === null) await resetAllSettings()
+  else await changeSetting(pending.key, pending.value as never)
 }
 
 /** Whether a key currently differs from its default. */
