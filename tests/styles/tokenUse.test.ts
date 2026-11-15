@@ -63,6 +63,16 @@ describe('every theme token is used (ISC-499)', () => {
     expect(classes).toContain('data-[state=drag]:bg-handle-active')
   })
 
+  it('has the sidebar edge at --handle at rest and --handle-active when hovered, focused or pressed (ISC-505)', () => {
+    const frame = readFileSync(resolve(root, 'src/shell/SidebarFrame.vue'), 'utf8')
+    const classes = /data-sidebar-handle\s+class="([^"]*)"/.exec(frame)?.[1]?.split(/\s+/) ?? []
+    expect(classes).toContain('bg-handle')
+    expect(classes).toContain('hover:bg-handle-active')
+    expect(classes).toContain('focus-visible:bg-handle-active')
+    expect(classes).toContain('active:bg-handle-active')
+    expect(classes.some((name) => name.includes('bg-ring'))).toBe(false)
+  })
+
   it('finds a use for every token', () => {
     const unused = [...THEME_TOKEN_NAMES].filter((token) => users(token).length === 0)
     expect(unused).toEqual([])
