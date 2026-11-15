@@ -35,6 +35,11 @@ export interface SettingRowSpec {
    * other; a search lists rows from every category flat and shows no headings.
    */
   readonly group?: string
+  /**
+   * The row is drawn by the color editor, not in the list, and only while a theme of the user's is
+   * being edited. It still has its key, default and place in the `settings.json` template.
+   */
+  readonly inEditor?: boolean
 }
 
 /** The environment variable that sets what a rename does about links for one run. */
@@ -101,6 +106,7 @@ export const SETTING_ROWS: readonly SettingRowSpec[] = [
     key: 'themes.hideContrastWarnings',
     category: 'appearance',
     group: 'Theme colors',
+    inEditor: true,
     label: 'Hide contrast warnings',
     description:
       'Leave out the lines in the color editor about text that is hard to read on its background.',

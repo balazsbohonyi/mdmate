@@ -154,6 +154,8 @@ function customize(): void {
           Duplicate
         </Button>
       </div>
+      <!-- What the Settings screen puts above the colors of a theme being edited. -->
+      <slot name="user-options" />
       <div
         v-for="group in THEME_GROUPS"
         :key="group.id"

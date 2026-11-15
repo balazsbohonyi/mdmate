@@ -303,7 +303,7 @@ describe('ISC-355: every row is the same row', () => {
     for (const { id } of SETTINGS_CATEGORIES) {
       setSettingsCategory(tabId, id)
       await flush()
-      const expected = SETTING_ROWS.filter((row) => row.category === id)
+      const expected = SETTING_ROWS.filter((row) => row.category === id && row.inEditor !== true)
       expect(rowKeys()).toEqual(expected.map((row) => row.key))
       for (const spec of expected) {
         const row = rowOf(spec.key)

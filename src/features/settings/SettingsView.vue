@@ -84,7 +84,9 @@ const label = computed(() => settingsCategoryLabel(category.value))
 const query = ref('')
 const searching = computed(() => query.value.trim() !== '')
 const shown = computed<readonly SettingRowSpec[]>(() =>
-  searching.value ? rowsMatching(query.value) : rowsOf(category.value),
+  (searching.value ? rowsMatching(query.value) : rowsOf(category.value)).filter(
+    (row) => row.inEditor !== true,
+  ),
 )
 const heading = computed(() => (searching.value ? 'Search results' : label.value))
 const showsActions = computed(() => !searching.value && category.value === 'advanced')
@@ -948,7 +950,25 @@ function openFile(): void {
             {{ searching ? 'No setting matches that.' : 'This group has no settings yet.' }}
           </p>
         </div>
-        <ThemeColors v-if="showsColors" />
+        <ThemeColors v-if="showsColors">
+          <template #user-options>
+            <SettingRow
+              setting-key="themes.hideContrastWarnings"
+              label="Hide contrast warnings"
+              description="Leave out the lines below about text that is hard to read on its background."
+              :modified="isModified('themes.hideContrastWarnings')"
+              :error="null"
+              :locked="null"
+              @reset="reset('themes.hideContrastWarnings')"
+            >
+              <Switch
+                :model-value="settings.themes.hideContrastWarnings"
+                aria-label="Hide contrast warnings"
+                @update:model-value="(on: boolean) => set('themes.hideContrastWarnings', on)"
+              />
+            </SettingRow>
+          </template>
+        </ThemeColors>
       </section>
     </div>
     <ResetAllDialog

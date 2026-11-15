@@ -5,7 +5,7 @@
  * warning when a required pair falls under its floor. Customize is what a built-in theme offers.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { createApp, nextTick, type App } from 'vue'
+import { nextTick, type App } from 'vue'
 import { flushThemeColors } from '@/features/themes/customize'
 import { loadSettings, resetSettingsState } from '@/features/settings/store'
 import {
@@ -26,6 +26,7 @@ import {
   type MockHost,
 } from '@/platform/mock'
 import { parseJsonc } from '../helpers/jsonc'
+import { tooltipApp } from '../helpers/tooltips'
 
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 const themeFile = (name: string): string => `${MOCK_THEMES_FOLDER}/${name}.json`
@@ -49,7 +50,7 @@ async function mount(files: Record<string, string> = {}): Promise<void> {
   stops.push(await watchThemesFolder())
   const element = document.createElement('div')
   document.body.append(element)
-  const app = createApp(ThemeColors)
+  const app = tooltipApp(ThemeColors)
   app.mount(element)
   mounted = { app, host: element }
   await flush()

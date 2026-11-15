@@ -189,7 +189,6 @@ describe('ISC-464: the Appearance rows sit under their headings', () => {
       'fonts.codeSize',
       'fonts.headingScale',
       '# Theme colors',
-      'themes.hideContrastWarnings',
       'themes.colorFormat',
     ])
   })
@@ -206,7 +205,7 @@ describe('ISC-464: the Appearance rows sit under their headings', () => {
   })
 })
 
-describe('ISC-466: the two color-editor settings are the first rows of Theme colors', () => {
+describe('ISC-466: Show colors as is the first row of Theme colors; Hide contrast warnings is in the editor', () => {
   const fileObject = (): unknown => {
     const text = host.files.read(MOCK_SETTINGS_FILE)
     return text === undefined ? undefined : parseJsonc(text)
@@ -219,6 +218,35 @@ describe('ISC-466: the two color-editor settings are the first rows of Theme col
     if (rows === null || editor === null) throw new Error('missing')
     // The rows are in the page before the editor's own section.
     expect(rows.compareDocumentPosition(editor) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('shows the switch only while a user theme is edited, right above Core', async () => {
+    await mountScreen('appearance')
+    expect(document.querySelector('[data-setting-row="themes.hideContrastWarnings"]')).toBeNull()
+    expect(document.querySelector('[data-theme-customize]')).not.toBeNull()
+    document.querySelector<HTMLElement>('[data-theme-customize]')?.click()
+    await flush()
+    await flush()
+    const row = document.querySelector('[data-setting-row="themes.hideContrastWarnings"]')
+    const core = document.querySelector('[data-theme-group="core"]')
+    if (row === null || core === null) throw new Error('missing')
+    expect(
+      document.querySelectorAll('[data-setting-row="themes.hideContrastWarnings"]'),
+    ).toHaveLength(1)
+    expect(row.compareDocumentPosition(core) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(core.previousElementSibling).toBe(row)
+  })
+
+  it('is not in a search for it, since it belongs to the editor', async () => {
+    await mountScreen('appearance', SELECT_MINE)
+    const search = document.querySelector<HTMLInputElement>('input[type="search"]')
+    if (search === null) throw new Error('no search box')
+    search.value = 'contrast'
+    search.dispatchEvent(new Event('input', { bubbles: true }))
+    await flush()
+    expect(
+      document.querySelectorAll('[data-setting-row="themes.hideContrastWarnings"]'),
+    ).toHaveLength(0)
   })
 
   it('writes the switch to settings.json, and the default is back when it is turned back', async () => {
