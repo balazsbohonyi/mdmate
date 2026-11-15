@@ -228,6 +228,10 @@ describe('ISC-466: Show colors as is the first row of Theme colors; Hide contras
     expect(document.querySelector('[data-theme-customize]')).not.toBeNull()
     document.querySelector<HTMLElement>('[data-theme-customize]')?.click()
     await flush()
+    // The copy is named in the form of the Themes list, which comes up suggesting "Dark copy".
+    document.querySelector<HTMLElement>('[data-theme-new-create]')?.click()
+    await flush()
+    await flush()
     await flush()
     const row = document.querySelector('[data-setting-row="themes.hideContrastWarnings"]')
     const core = document.querySelector('[data-theme-group="core"]')

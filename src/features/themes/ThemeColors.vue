@@ -11,8 +11,8 @@ import { checkThemeColor } from '@/lib/themeFile'
 import { effectiveTokens } from '@/lib/themes'
 import { CONTRAST_PAIRS, THEME_GROUPS, THEME_TOKENS, tokensOf } from '@/lib/themeTokens'
 import SubGroupHeading from '@/features/settings/SubGroupHeading.vue'
-import { baseColorOf, changeThemeColor, customizeTheme, setThemeBase } from './customize'
-import { currentTheme } from './store'
+import { baseColorOf, changeThemeColor, setThemeBase } from './customize'
+import { currentTheme, openThemeForm } from './store'
 
 /**
  * The color editor on the Appearance page: every token of the theme in force, in groups, each with
@@ -132,10 +132,9 @@ const warnings = computed(() => {
   return found
 })
 
+/** Customize and Duplicate ask for the copy's name in the Themes list, which comes into view. */
 function customize(): void {
-  customizeTheme().catch((error: unknown) => {
-    console.error('Could not customize the theme', error)
-  })
+  openThemeForm({ kind: 'copy' })
 }
 </script>
 

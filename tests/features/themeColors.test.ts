@@ -6,12 +6,13 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { nextTick, type App } from 'vue'
-import { baseColorOf, flushThemeColors } from '@/features/themes/customize'
+import { baseColorOf, copyTheme, flushThemeColors } from '@/features/themes/customize'
 import { loadSettings, resetSettingsState } from '@/features/settings/store'
 import {
   loadThemes,
   resetThemesState,
   settledThemes,
+  themeForm,
   watchThemesFolder,
 } from '@/features/themes/store'
 import ThemeColors from '@/features/themes/ThemeColors.vue'
@@ -113,12 +114,16 @@ const SHOW_WARNINGS = (file?: string): Record<string, string> => ({
 })
 
 describe('a built-in theme', () => {
-  it('has no editor, only Customize, which copies it and opens the copy for editing', async () => {
+  it('has no editor, only Customize, which asks for a name for the copy and then opens the copy for editing', async () => {
     await mount()
     expect(document.querySelector('[data-theme-builtin]')?.textContent).toContain('built in')
     expect(document.querySelectorAll('[data-theme-token]')).toHaveLength(0)
     document.querySelector<HTMLElement>('[data-theme-customize]')?.click()
     await flush()
+    // Customize writes nothing itself: it opens the name form of the Themes list.
+    expect(themeForm.value).toEqual({ kind: 'copy' })
+    expect(settings.theme).toBe('dark')
+    expect((await copyTheme(undefined, 'Dark copy')).ok).toBe(true)
     await settledThemes()
     await flush()
     expect(settings.theme).toBe('Dark copy')

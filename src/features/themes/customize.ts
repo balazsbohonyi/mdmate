@@ -143,24 +143,45 @@ export async function createTheme(rawName: string, from: StartFrom): Promise<Che
   return { ok: true, value: id }
 }
 
-/**
- * Copies a theme (the one in force unless one is named) into a new file called "<name> copy", with
- * its colors written out as they are, and selects the copy. Built-in CSS is never written. Resolves
- * to the copy's file name, or null when nothing was made (a notice says why).
- */
-export async function duplicateTheme(value?: string): Promise<string | null> {
-  const from = value ?? currentTheme.value.setting
-  const source = sourceOf(from)
+/** What a copy of this theme (the one in force when none is named) starts from. */
+function copySource(value?: string): Source {
+  const source = sourceOf(value ?? currentTheme.value.setting)
+  if (source !== null) return source
   const shown = currentTheme.value
-  const start: Source =
-    source ??
-    (shown.user === null
-      ? { label: shown.label, palette: shown.palette, colors: effectiveTokens(shown) }
-      : { label: shown.user.label, palette: shown.palette, colors: effectiveTokens(shown) })
-  const id = await writeNewTheme(copyLabel(start.label, userLabels()), start.palette, start.colors)
-  if (id === null) return null
+  return {
+    label: shown.user === null ? shown.label : shown.user.label,
+    palette: shown.palette,
+    colors: effectiveTokens(shown),
+  }
+}
+
+/** The name a copy of this theme gets unless the user types another: "<name> copy", numbered when taken. */
+export const suggestCopyName = (value?: string): string =>
+  copyLabel(copySource(value).label, userLabels())
+
+/**
+ * Copies a theme (the one in force unless one is named) into a new file called by the name given,
+ * with its colors written out as they are, and selects the copy. Built-in CSS is never written.
+ * Resolves to the copy's file name, or why the name was refused (a notice says why for any other
+ * failure).
+ */
+export async function copyTheme(
+  value: string | undefined,
+  rawName: string,
+): Promise<Checked<string>> {
+  const checked = checkThemeLabel(rawName, userLabels())
+  if (!checked.ok) return checked
+  const start = copySource(value)
+  const id = await writeNewTheme(checked.value, start.palette, start.colors)
+  if (id === null) return { ok: false, why: 'The theme could not be made.' }
   await selectAndShow(id)
-  return id
+  return { ok: true, value: id }
+}
+
+/** Copies a theme under the name "<name> copy". Resolves to the copy's file name, or null when nothing was made. */
+export async function duplicateTheme(value?: string): Promise<string | null> {
+  const made = await copyTheme(value, suggestCopyName(value))
+  return made.ok ? made.value : null
 }
 
 /** Customize and Duplicate are one thing: a copy of the theme in force, selected and ready to edit. */

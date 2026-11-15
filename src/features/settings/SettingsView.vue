@@ -45,7 +45,7 @@ import { COMMAND_IDS } from '@/workbench/defaultCommands'
 import SubGroupHeading from './SubGroupHeading.vue'
 import ThemeColors from '@/features/themes/ThemeColors.vue'
 import ThemeList from '@/features/themes/ThemeList.vue'
-import { editorScrollRequests } from '@/features/themes/store'
+import { editorScrollRequests, themeForm } from '@/features/themes/store'
 import { openThemesFolder } from '@/features/themes/customize'
 import { themeChoices, themeProblem } from '@/features/themes/store'
 import { setSettingsCategory, settingsCategoryOf } from '@/workbench/store'
@@ -177,6 +177,19 @@ watch(editorScrollRequests, async () => {
     typeof window.matchMedia === 'function' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches
   heading?.scrollIntoView({ block: 'start', behavior: calm ? 'auto' : 'smooth' })
+})
+
+/** The name form of the Themes list comes into view when it opens, in the middle of the screen. */
+watch(themeForm, async (request) => {
+  if (request === null) return
+  await nextTick()
+  await new Promise<void>((resolve) => setTimeout(resolve, 0))
+  const calm =
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  document
+    .querySelector('[data-settings-view] [data-theme-new-form]')
+    ?.scrollIntoView({ block: 'center', behavior: calm ? 'auto' : 'smooth' })
 })
 
 /**
@@ -888,7 +901,7 @@ function openFile(): void {
             :error="null"
             :locked="null"
           >
-            <div class="flex flex-wrap gap-2">
+            <div class="flex flex-wrap justify-end gap-2">
               <Button
                 type="button"
                 variant="outline"
@@ -922,7 +935,7 @@ function openFile(): void {
             :error="null"
             :locked="null"
           >
-            <div class="flex flex-wrap gap-2">
+            <div class="flex flex-wrap justify-end gap-2">
               <Button
                 type="button"
                 variant="outline"
@@ -956,16 +969,18 @@ function openFile(): void {
             :error="null"
             :locked="null"
           >
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              class="w-[10.25rem]"
-              data-open-themes-folder
-              @click="openThemesFolder"
-            >
-              Open themes folder
-            </Button>
+            <div class="flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                class="w-[10.25rem]"
+                data-open-themes-folder
+                @click="openThemesFolder"
+              >
+                Open themes folder
+              </Button>
+            </div>
           </SettingRow>
           <p
             v-if="shown.length === 0 && !showsActions"

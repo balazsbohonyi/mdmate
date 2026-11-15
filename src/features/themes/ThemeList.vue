@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed, nextTick, reactive, ref } from 'vue'
+import { Ellipsis } from '@lucide/vue'
+import { computed, nextTick, reactive, ref, useTemplateRef, watch } from 'vue'
+import HoverHint from '@/components/HoverHint.vue'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -11,28 +13,42 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { requestSettingChange } from '@/features/settings/store'
 import { BUILT_IN_IDS, BUILT_IN_THEMES } from '@/lib/builtinThemes'
 import { settings } from '@/lib/settings'
 import { effectiveTokens, slotKey, SYSTEM_THEME } from '@/lib/themes'
 import {
+  copyTheme,
   createTheme,
   deleteTheme,
-  duplicateTheme,
   editTheme,
   renameTheme,
+  suggestCopyName,
   type StartFrom,
 } from './customize'
-import { themeSlots } from './store'
+import { closeThemeForm, openThemeForm, themeForm, themeSlots } from './store'
 
 /**
- * Every theme there is, in one list: the built-in ones first, then the user's own by name. Each row
- * shows the name, what it is based on, five swatches and an "In use" mark, and offers what can be
- * done to it: Select, Edit colors, Rename, Duplicate and Delete for a theme of the user's; Select
- * and Duplicate for a built-in one. New theme makes one from a name and a palette. Loaded with the
- * Settings screen (settings-lazy).
+ * Every theme there is, in one list: the built-in ones first, then the user's own by name. A row
+ * shows the name, what it is based on and five swatches, and ends with Select (or a disabled "In
+ * use" for the theme in use) and a menu of everything else that can be done to it: Edit colors,
+ * Rename, Duplicate and Delete for a theme of the user's, Duplicate for a built-in one. New theme
+ * and Duplicate ask for a name in one form. Loaded with the Settings screen (settings-lazy).
  */
+
+interface Swatch {
+  readonly token: string
+  readonly label: string
+  readonly hint: string
+  readonly color: string
+}
 
 interface Row {
   /** What the theme setting holds to select it. */
@@ -42,15 +58,27 @@ interface Row {
   /** A line under the name: what it is, or what is wrong with the file. */
   readonly note: string
   /** Five colors that stand for the theme, or none (System follows the operating system). */
-  readonly swatches: readonly string[]
+  readonly swatches: readonly Swatch[]
 }
 
-const SWATCH_TOKENS = ['background', 'card', 'foreground', 'primary', 'accent'] as const
+/** The colors a swatch shows, and what each one is for. */
+const SWATCH_INFO = [
+  { token: 'background', label: 'Background', hint: 'behind the editor and the Settings pages.' },
+  { token: 'card', label: 'Card', hint: 'panels and cards, such as the New theme form.' },
+  { token: 'foreground', label: 'Foreground', hint: 'the color of text.' },
+  { token: 'primary', label: 'Primary', hint: 'buttons, headings and other highlights.' },
+  {
+    token: 'accent',
+    label: 'Accent',
+    hint: 'the highlight under the pointer on tabs and window buttons.',
+  },
+] as const
 
-const swatchesOf = (colors: ReadonlyMap<string, string>): string[] =>
-  SWATCH_TOKENS.map((token) => colors.get(token)).filter(
-    (color): color is string => color !== undefined,
-  )
+const swatchesOf = (colors: ReadonlyMap<string, string>): Swatch[] =>
+  SWATCH_INFO.flatMap((info) => {
+    const color = colors.get(info.token)
+    return color === undefined ? [] : [{ ...info, color }]
+  })
 
 const rows = computed<readonly Row[]>(() => {
   const list: Row[] = BUILT_IN_IDS.map((id) => ({
@@ -88,30 +116,79 @@ const rows = computed<readonly Row[]>(() => {
 
 const inUse = (row: Row): boolean => slotKey(settings.theme) === slotKey(row.id)
 
-// ---- New theme ----
+/**
+ * True while an item that opens a field (Rename, Duplicate) is being handled: that field takes the
+ * focus, so the menu must not hand it back to its button as it closes. Any other item leaves the
+ * focus where a closing menu puts it, on the button.
+ */
+let fieldTakesFocus = false
+
+function renameFromMenu(row: Row): void {
+  fieldTakesFocus = true
+  void startRename(row)
+}
+
+function duplicateFromMenu(row: Row): void {
+  fieldTakesFocus = true
+  openThemeForm({ kind: 'copy', of: row.id })
+}
+
+function keepFocusInField(event: Event): void {
+  if (!fieldTakesFocus) return
+  fieldTakesFocus = false
+  event.preventDefault()
+}
+
+/**
+ * Resolves once the menu an action came from has closed. An open menu keeps the focus inside it, so
+ * a field that takes the focus before then is refused it.
+ */
+async function afterMenuClosed(): Promise<void> {
+  await nextTick()
+  await new Promise<void>((resolve) => setTimeout(resolve, 0))
+}
+
+// ---- The name form: New theme, and a copy of a theme ----
 const FROM_CHOICES: readonly { readonly value: StartFrom; readonly label: string }[] = [
   ...BUILT_IN_IDS.map((id) => ({ value: id, label: BUILT_IN_THEMES[id].label })),
   { value: 'current', label: 'The theme in use' },
 ]
-const creating = ref(false)
+const formEl = useTemplateRef<HTMLFormElement>('formEl')
 const newName = ref('')
 const newFrom = ref<StartFrom>('dark')
 const newError = ref<string | null>(null)
 const busy = ref(false)
 
-function openNew(): void {
-  creating.value = true
-  newName.value = ''
+/** The theme a copy is made of, for the form to name. */
+const copyOfRow = computed<Row | undefined>(() => {
+  const request = themeForm.value
+  if (request?.kind !== 'copy') return undefined
+  const key = slotKey(request.of ?? settings.theme)
+  return rows.value.find((row) => slotKey(row.id) === key)
+})
+
+// A form that opens, or opens for another theme, starts clean with the name selected.
+watch(themeForm, async (request) => {
+  if (request === null) return
   newError.value = null
   newFrom.value = 'dark'
-}
+  newName.value = request.kind === 'copy' ? suggestCopyName(request.of) : ''
+  await afterMenuClosed()
+  const field = formEl.value?.querySelector('input')
+  field?.focus()
+  field?.select()
+})
 
 async function create(): Promise<void> {
-  if (busy.value) return
+  const request = themeForm.value
+  if (busy.value || request === null) return
   busy.value = true
   try {
-    const made = await createTheme(newName.value, newFrom.value)
-    if (made.ok) creating.value = false
+    const made =
+      request.kind === 'copy'
+        ? await copyTheme(request.of, newName.value)
+        : await createTheme(newName.value, newFrom.value)
+    if (made.ok) closeThemeForm()
     else newError.value = made.why
   } finally {
     busy.value = false
@@ -128,7 +205,7 @@ async function startRename(row: Row): Promise<void> {
   renaming.value = row.id
   renameText.value = row.label
   renameError.value = null
-  await nextTick()
+  await afterMenuClosed()
   renameField.el?.focus()
   renameField.el?.select()
 }
@@ -193,21 +270,23 @@ const select = (row: Row): void => {
         variant="outline"
         size="sm"
         data-theme-new
-        @click="openNew"
+        @click="openThemeForm({ kind: 'new' })"
       >
         New theme
       </Button>
     </div>
 
     <form
-      v-if="creating"
+      v-if="themeForm !== null"
+      ref="formEl"
       class="mt-3 grid gap-3 rounded-lg border border-border bg-card p-3"
       data-theme-new-form
+      :data-theme-form-kind="themeForm.kind"
       @submit.prevent="create"
-      @keydown.escape="creating = false"
+      @keydown.escape="closeThemeForm"
     >
       <label class="grid gap-1 text-sm text-foreground">
-        Name
+        {{ themeForm.kind === 'copy' ? 'Name of the copy' : 'Name' }}
         <Input
           v-model="newName"
           placeholder="My theme"
@@ -216,7 +295,15 @@ const select = (row: Row): void => {
           data-theme-new-name
         />
       </label>
+      <p
+        v-if="themeForm.kind === 'copy'"
+        class="text-sm text-muted-foreground"
+        data-theme-copy-of
+      >
+        A copy of {{ copyOfRow?.label ?? 'the theme in use' }}, with every color as it is now.
+      </p>
       <div
+        v-else
         class="grid gap-1 text-sm text-foreground"
         role="group"
         aria-label="Start from"
@@ -250,13 +337,13 @@ const select = (row: Row): void => {
           :disabled="busy"
           data-theme-new-create
         >
-          Create
+          {{ themeForm.kind === 'copy' ? 'Duplicate' : 'Create' }}
         </Button>
         <Button
           type="button"
           variant="ghost"
           data-theme-new-cancel
-          @click="creating = false"
+          @click="closeThemeForm"
         >
           Cancel
         </Button>
@@ -293,89 +380,109 @@ const select = (row: Row): void => {
             </p>
           </template>
           <template v-else>
-            <div class="flex items-center gap-2">
-              <span
-                class="truncate text-sm font-medium text-foreground"
-                data-theme-name
-              >
-                {{ row.label }}
-              </span>
-              <span
-                v-if="inUse(row)"
-                class="shrink-0 rounded-full bg-primary/15 px-2 text-xs text-primary"
-                data-theme-in-use-mark
-              >
-                In use
-              </span>
-            </div>
+            <span
+              class="block truncate text-sm font-medium text-foreground"
+              data-theme-name
+            >
+              {{ row.label }}
+            </span>
             <p class="text-xs text-muted-foreground">{{ row.note }}</p>
           </template>
         </div>
         <div
           v-if="row.swatches.length > 0"
           class="flex shrink-0 gap-1"
-          aria-hidden="true"
           data-theme-swatches
         >
-          <span
-            v-for="(color, at) in row.swatches"
-            :key="at"
-            class="size-4 rounded-sm border border-border"
-            :style="{ backgroundColor: color }"
-          />
+          <HoverHint
+            v-for="swatch in row.swatches"
+            :key="swatch.token"
+            :text="`${swatch.label}: ${swatch.hint}`"
+          >
+            <span
+              class="size-4 rounded-sm border border-border"
+              :style="{ backgroundColor: swatch.color }"
+              :data-theme-swatch="swatch.token"
+            />
+          </HoverHint>
         </div>
-        <div class="flex shrink-0 flex-wrap gap-1">
+        <div
+          class="w-20 shrink-0"
+          data-theme-state-slot
+        >
           <Button
-            v-if="!inUse(row) && row.kind !== 'broken'"
+            v-if="inUse(row)"
             type="button"
             variant="outline"
             size="xs"
+            disabled
+            class="w-full border-success/50 bg-success/10 text-success disabled:opacity-100 dark:border-success/50 dark:bg-success/10"
+            data-theme-in-use-mark
+          >
+            In use
+          </Button>
+          <Button
+            v-else-if="row.kind !== 'broken'"
+            type="button"
+            variant="outline"
+            size="xs"
+            class="w-full"
             data-theme-select
             @click="select(row)"
           >
             Select
           </Button>
-          <Button
-            v-if="row.kind === 'user'"
-            type="button"
-            variant="outline"
-            size="xs"
-            data-theme-edit
-            @click="editTheme(row.id)"
-          >
-            Edit colors
-          </Button>
-          <Button
-            v-if="row.kind === 'user'"
-            type="button"
-            variant="outline"
-            size="xs"
-            data-theme-rename
-            @click="startRename(row)"
-          >
-            Rename
-          </Button>
-          <Button
-            v-if="row.kind !== 'broken'"
-            type="button"
-            variant="outline"
-            size="xs"
-            data-theme-duplicate
-            @click="duplicateTheme(row.id)"
-          >
-            Duplicate
-          </Button>
-          <Button
-            v-if="row.kind === 'user' || row.kind === 'broken'"
-            type="button"
-            variant="outline"
-            size="xs"
-            data-theme-delete
-            @click="askDelete(row)"
-          >
-            Delete
-          </Button>
         </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger as-child>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              class="hover:bg-transparent aria-expanded:bg-transparent dark:hover:bg-transparent"
+              :aria-label="`More actions for ${row.label}`"
+              data-theme-menu
+            >
+              <Ellipsis />
+            </Button>
+          </DropdownMenuTrigger>
+          <!-- An item that opens a field takes the focus itself; the menu must not hand it back to its button. -->
+          <DropdownMenuContent
+            align="end"
+            data-theme-menu-content
+            @close-auto-focus="keepFocusInField"
+          >
+            <DropdownMenuItem
+              v-if="row.kind === 'user'"
+              data-theme-edit
+              @select="editTheme(row.id)"
+            >
+              Edit colors
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              v-if="row.kind === 'user'"
+              data-theme-rename
+              @select="renameFromMenu(row)"
+            >
+              Rename
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              v-if="row.kind !== 'broken'"
+              data-theme-duplicate
+              @select="duplicateFromMenu(row)"
+            >
+              Duplicate
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              v-if="row.kind === 'user' || row.kind === 'broken'"
+              variant="destructive"
+              data-theme-delete
+              @select="askDelete(row)"
+            >
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </li>
     </ul>
 

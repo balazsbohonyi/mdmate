@@ -162,3 +162,25 @@ describe('ISC-457: Open themes folder', () => {
     expect(host.openedFolders).toEqual([MOCK_THEMES_FOLDER])
   })
 })
+
+describe('ISC-487: the three file buttons of the Advanced page', () => {
+  const widthOf = (selector: string): string | undefined =>
+    document.querySelector(selector)?.className.match(/\bw-\[[^\]]+\]/)?.[0]
+  const cellOf = (selector: string): HTMLElement | null | undefined =>
+    document.querySelector(selector)?.parentElement
+
+  it('are one width and sit at the right of their column', async () => {
+    await mountScreen('advanced')
+    const buttons = [
+      '[data-open-settings-file]',
+      '[data-open-keybindings-file]',
+      '[data-open-themes-folder]',
+    ]
+    const widths = buttons.map(widthOf)
+    expect(widths[0]).toBe('w-[10.25rem]')
+    expect(new Set(widths).size).toBe(1)
+    // Each button's own row is a flex line pushed to the right edge.
+    for (const selector of buttons)
+      expect(cellOf(selector)?.className, selector).toContain('justify-end')
+  })
+})

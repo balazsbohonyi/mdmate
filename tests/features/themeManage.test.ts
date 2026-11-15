@@ -7,12 +7,14 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
+  copyTheme,
   createTheme,
   deleteTheme,
   duplicateTheme,
   editTheme,
   renameTheme,
   setThemeBase,
+  suggestCopyName,
 } from '@/features/themes/customize'
 import {
   currentTheme,
@@ -87,7 +89,7 @@ const SELECT_MINE = {
 
 describe('ISC-474: New theme', () => {
   it.each(BUILT_IN_IDS)(
-    'from %s: the name, the base and all 57 colors as the palette has them, selected, editor asked for',
+    'from %s: the name, the base and every color as the palette has them, selected, editor asked for',
     async (id) => {
       await start()
       const asked = editorScrollRequests.value
@@ -352,4 +354,56 @@ describe('ISC-482: a built-in theme is never renamed, deleted or written', () =>
       expect(settings.theme).toBe(id)
     },
   )
+})
+
+describe('ISC-486: a copy takes the name it is given', () => {
+  it('suggests "<name> copy" for a built-in, for a user theme and for System, numbered when taken', async () => {
+    await start(SELECT_MINE)
+    expect(suggestCopyName('dark')).toBe('Dark copy')
+    expect(suggestCopyName('system')).toBe('System copy')
+    expect(suggestCopyName('Mine')).toBe('Mine copy')
+    expect(suggestCopyName()).toBe('Mine copy')
+    expect(await duplicateTheme('Mine')).toBe('Mine copy')
+    expect(suggestCopyName('Mine')).toBe('Mine copy 2')
+  })
+
+  it('writes the name given as the theme name and file, with the colors of the source verbatim', async () => {
+    await start(SELECT_MINE)
+    expect(await copyTheme('Mine', 'My brighter one')).toEqual({
+      ok: true,
+      value: 'My brighter one',
+    })
+    const file = parsed('My brighter one').theme
+    expect(file.name).toBe('My brighter one')
+    expect(file.base).toBe('light')
+    expect(file.colors.get('background')).toBe('#abcdef')
+    expect(file.colors.size).toBe(THEME_TOKENS.length)
+    expect(settings.theme).toBe('My brighter one')
+    expect(host.files.read(themeFile('Mine'))).toBe(MINE)
+  })
+
+  it('copies the theme in force when none is named, and a built-in under the name given', async () => {
+    await start()
+    expect((await copyTheme(undefined, 'Night')).ok).toBe(true)
+    expect(parsed('Night').theme.base).toBe('dark')
+    expect((await copyTheme('sepia', 'Warm')).ok).toBe(true)
+    expect(parsed('Warm').theme.base).toBe('sepia')
+  })
+
+  it.each([
+    ['', 'Name the theme'],
+    ['dark', 'built-in'],
+    ['MINE', 'exists'],
+    ['x'.repeat(61), '60'],
+  ])('refuses %j with a reason and writes nothing', async (name, reason) => {
+    await start(SELECT_MINE)
+    const before = stems()
+    const asked = editorScrollRequests.value
+    const refused = await copyTheme('dark', name)
+    expect(refused.ok).toBe(false)
+    if (!refused.ok) expect(refused.why).toContain(reason)
+    expect(stems()).toEqual(before)
+    expect(settings.theme).toBe('Mine')
+    expect(editorScrollRequests.value).toBe(asked)
+  })
 })

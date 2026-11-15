@@ -74,6 +74,23 @@ export function requestEditorScroll(): void {
   editorScrollRequests.value++
 }
 
+/**
+ * The name form of the Themes list: New theme asks for a name and a palette, a copy (Duplicate, or
+ * Customize above the colors) asks for a name for the copy of the theme in `of`, or of the
+ * theme in force when `of` is left out. Null while the form is closed. The list draws it; the screen scrolls it into view.
+ */
+export type ThemeFormRequest =
+  { readonly kind: 'new' } | { readonly kind: 'copy'; readonly of?: string }
+export const themeForm = shallowRef<ThemeFormRequest | null>(null)
+
+export function openThemeForm(request: ThemeFormRequest): void {
+  themeForm.value = request
+}
+
+export function closeThemeForm(): void {
+  themeForm.value = null
+}
+
 /** The names of the files in the folder, in any case, for picking a name no file has. */
 export function themeFileNames(): string[] {
   return [...known.keys()]
@@ -304,5 +321,6 @@ export function resetThemesState(): void {
   lastNotice = ''
   heldNotices = 0
   editorScrollRequests.value = 0
+  themeForm.value = null
   currentTheme.value = resolveTheme(settings.theme, new Map(), { systemDark: false, loaded: false })
 }

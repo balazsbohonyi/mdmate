@@ -113,6 +113,32 @@ const ids = (): string[] =>
 const button = (id: string, kind: string): HTMLElement | null =>
   item(id).querySelector<HTMLElement>(`[data-theme-${kind}]`)
 
+/** Opens the ellipsis menu of a row and returns what is in it (the menu is drawn in the body). */
+async function openMenu(id: string): Promise<HTMLElement[]> {
+  const trigger = item(id).querySelector<HTMLElement>('[data-theme-menu]')
+  if (trigger === null) throw new Error('no menu for ' + id)
+  trigger.dispatchEvent(
+    new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+  )
+  await flush()
+  return [...document.querySelectorAll<HTMLElement>('[data-theme-menu-content] [role="menuitem"]')]
+}
+
+async function closeMenu(): Promise<void> {
+  document
+    .querySelector('[data-theme-menu-content]')
+    ?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+  await flush()
+}
+const menuLabels = async (id: string): Promise<string[]> =>
+  (await openMenu(id)).map((one) => one.textContent.trim())
+
+/** Opens the menu of a row and picks the item of that kind. */
+async function pressMenu(id: string, kind: string): Promise<void> {
+  await openMenu(id)
+  await press(document.querySelector<HTMLElement>(`[data-theme-menu-content] [data-theme-${kind}]`))
+}
+
 async function press(element: HTMLElement | null): Promise<void> {
   if (element === null) throw new Error('no such button')
   element.click()
@@ -126,6 +152,9 @@ async function typeInto(input: HTMLInputElement, text: string): Promise<void> {
   input.dispatchEvent(new Event('input', { bubbles: true }))
   await nextTick()
 }
+
+const parsedName = (stem: string): string | undefined =>
+  /"name":\s*"([^"]*)"/.exec(host.files.read(themeFile(stem)) ?? '')?.[1]
 
 const themeStems = (): string[] =>
   host.files
@@ -174,44 +203,133 @@ describe('ISC-478: the list', () => {
     expect(item('Zed').querySelector('[data-theme-in-use-mark]')).toBeNull()
   })
 
-  it('offers each kind what fits it: built-ins Select and Duplicate, user themes also Edit, Rename and Delete', async () => {
+  it('gives every row Select, or a disabled green "In use" of the same width, and nothing else but the menu', async () => {
     await mountScreen({ ...TWO, [MOCK_SETTINGS_FILE]: '{ "theme": "alpha" }' })
-    for (const id of ['dark', 'light', 'sepia', 'system']) {
-      expect(button(id, 'select'), `${id} select`).not.toBeNull()
-      expect(button(id, 'duplicate'), `${id} duplicate`).not.toBeNull()
-      expect(button(id, 'edit'), `${id} edit`).toBeNull()
-      expect(button(id, 'rename'), `${id} rename`).toBeNull()
-      expect(button(id, 'delete'), `${id} delete`).toBeNull()
+    for (const id of ids()) {
+      const labels = [...item(id).querySelectorAll('button')].map((one) => one.textContent.trim())
+      expect(labels, id).toEqual([id === 'alpha' ? 'In use' : 'Select', ''])
     }
-    for (const id of ['alpha', 'Zed']) {
-      expect(button(id, 'edit'), `${id} edit`).not.toBeNull()
-      expect(button(id, 'rename'), `${id} rename`).not.toBeNull()
-      expect(button(id, 'duplicate'), `${id} duplicate`).not.toBeNull()
-      expect(button(id, 'delete'), `${id} delete`).not.toBeNull()
+    const slot = (id: string): HTMLElement | null =>
+      item(id).querySelector<HTMLElement>('[data-theme-state-slot]')
+    const mark = item('alpha').querySelector<HTMLButtonElement>('[data-theme-in-use-mark]')
+    expect(mark?.disabled).toBe(true)
+    // Green by the theme's own success color: the text, the outline and a faint background.
+    const classes = (mark?.className ?? '').split(' ')
+    for (const wanted of [
+      'text-success',
+      'border-success/50',
+      'bg-success/10',
+      'dark:border-success/50',
+      'dark:bg-success/10',
+    ])
+      expect(classes, wanted).toContain(wanted)
+    // The outline button's own dark-scheme grey must be gone, or the green shows only in Light.
+    expect(mark?.className).not.toMatch(/dark:(bg|border)-input/)
+    expect(mark?.className).toContain('disabled:opacity-100')
+    // One width: each button fills a slot, and every slot has the same width class.
+    const widths = new Set(ids().map((id) => slot(id)?.className.match(/\bw-\d+\b/)?.[0]))
+    expect([...widths]).toEqual(['w-20'])
+    for (const id of ids()) {
+      const one = item(id).querySelector('[data-theme-in-use-mark], [data-theme-select]')
+      expect(one?.className, id).toContain('w-full')
     }
-    // The theme in use has no Select.
-    expect(button('alpha', 'select')).toBeNull()
-    expect(button('Zed', 'select')).not.toBeNull()
+    // The in-use button does nothing.
+    mark?.click()
+    await flush()
+    expect(settings.theme).toBe('alpha')
   })
 
-  it('lists a file that cannot be read, with the reason and a Delete', async () => {
+  it('keeps everything else in an ellipsis menu: built-ins Duplicate, user themes Edit colors, Rename, Duplicate and Delete', async () => {
+    await mountScreen({ ...TWO, [MOCK_SETTINGS_FILE]: '{ "theme": "alpha" }' })
+    for (const id of ['dark', 'light', 'sepia', 'system']) {
+      expect(await menuLabels(id), id).toEqual(['Duplicate'])
+      await closeMenu()
+    }
+    for (const id of ['alpha', 'Zed']) {
+      expect(await menuLabels(id), id).toEqual(['Edit colors', 'Rename', 'Duplicate', 'Delete'])
+      await closeMenu()
+    }
+  })
+
+  it('draws the menu trigger as a bare icon that says whose menu it is', async () => {
+    await mountScreen(TWO)
+    const trigger = item('Zed').querySelector<HTMLElement>('[data-theme-menu]')
+    expect(trigger?.getAttribute('aria-label')).toBe('More actions for Zed')
+    expect(trigger?.textContent.trim()).toBe('')
+    expect(trigger?.querySelector('svg')).not.toBeNull()
+    // No border and no background of its own, not even under the pointer.
+    expect(trigger?.className).toContain('hover:bg-transparent')
+    expect(trigger?.className).toContain('aria-expanded:bg-transparent')
+    expect(trigger?.className).not.toContain('aria-expanded:bg-muted')
+    expect(trigger?.className).not.toMatch(/\bborder-border\b|\bbg-background\b|\bbg-primary\b/)
+  })
+
+  it('lists a file that cannot be read, with the reason and only a Delete in its menu', async () => {
     await mountScreen({ [themeFile('Broken')]: '{ "colors": ' })
     expect(item('Broken').textContent).toContain('valid JSON')
-    expect(button('Broken', 'delete')).not.toBeNull()
-    expect(button('Broken', 'rename')).toBeNull()
-    expect(button('Broken', 'select')).toBeNull()
+    expect(item('Broken').querySelector('[data-theme-select]')).toBeNull()
+    expect(await menuLabels('Broken')).toEqual(['Delete'])
   })
 })
+
+describe('ISC-484: where the focus goes when the menu closes', () => {
+  it('returns to the ellipsis button after an item that opens no field', async () => {
+    await mountScreen({ ...TWO, [MOCK_SETTINGS_FILE]: '{ "theme": "dark" }' })
+    await pressMenu('alpha', 'edit')
+    await flush()
+    expect(document.activeElement).toBe(item('alpha').querySelector('[data-theme-menu]'))
+  })
+})
+
+describe('ISC-485: the swatches say what each color is for', () => {
+  async function hint(id: string, token: string): Promise<string> {
+    const swatch = item(id).querySelector<HTMLElement>(`[data-theme-swatch="${token}"]`)
+    if (swatch === null) throw new Error('no swatch ' + token)
+    swatch.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 5, clientY: 5 }))
+    await flush()
+    const text = document.querySelector('[data-slot="tooltip-content"]')?.textContent ?? ''
+    swatch.dispatchEvent(new MouseEvent('pointerleave', { bubbles: true }))
+    await flush()
+    return text.trim()
+  }
+
+  it.each([
+    ['background', 'Background: behind the editor'],
+    ['card', 'Card: panels and cards'],
+    ['foreground', 'Foreground: the color of text'],
+    ['primary', 'Primary: buttons, headings'],
+    ['accent', 'Accent: the highlight under the pointer'],
+  ])('names %s and what it is for', async (token, start) => {
+    await mountScreen(TWO)
+    expect(await hint('Zed', token)).toContain(start)
+  })
+
+  it('says the same on a built-in theme', async () => {
+    await mountScreen(TWO)
+    expect(await hint('dark', 'primary')).toContain('Primary: buttons, headings')
+  })
+
+  it('has the five swatches in that order, each with its token', async () => {
+    await mountScreen(TWO)
+    const tokens = [...item('Zed').querySelectorAll<HTMLElement>('[data-theme-swatch]')].map(
+      (one) => one.dataset.themeSwatch,
+    )
+    expect(tokens).toEqual(['background', 'card', 'foreground', 'primary', 'accent'])
+  })
+})
+
+const nameField = (): HTMLInputElement => {
+  const field = document.querySelector<HTMLInputElement>('[data-theme-new-name]')
+  if (field === null) throw new Error('no name field')
+  return field
+}
 
 describe('ISC-474 and ISC-475: New theme and Duplicate', () => {
   async function openForm(): Promise<void> {
     await press(document.querySelector<HTMLElement>('[data-theme-new]'))
     expect(document.querySelector('[data-theme-new-form]')).not.toBeNull()
-  }
-  const nameField = (): HTMLInputElement => {
-    const field = document.querySelector<HTMLInputElement>('[data-theme-new-name]')
-    if (field === null) throw new Error('no name field')
-    return field
+    scrolled.mockClear()
+    formOpenAtScroll.length = 0
   }
 
   it('makes a theme from the chosen palette, selects it, closes the form and brings the editor up', async () => {
@@ -245,15 +363,85 @@ describe('ISC-474 and ISC-475: New theme and Duplicate', () => {
     expect(document.querySelector('[data-theme-new-form]')).toBeNull()
   })
 
-  it('duplicates any row, selects the copy and brings the editor up', async () => {
+  it('asks for the name of a copy, suggesting "<name> copy", and uses the one given', async () => {
     await mountScreen(TWO)
-    await press(button('light', 'duplicate'))
-    expect(themeStems()).toContain('Light copy')
-    expect(settings.theme).toBe('Light copy')
-    expect(scrolled).toHaveBeenCalledTimes(1)
-    await press(button('alpha', 'duplicate'))
+    await openMenu('light')
+    await press(
+      document.querySelector<HTMLElement>('[data-theme-menu-content] [data-theme-duplicate]'),
+    )
+    const form = document.querySelector<HTMLElement>('[data-theme-new-form]')
+    expect(form?.dataset.themeFormKind).toBe('copy')
+    expect(nameField().value).toBe('Light copy')
+    // The menu closed, and the focus is in the name field, not back on the ellipsis button.
+    expect(document.activeElement).toBe(nameField())
+    expect(form?.querySelector('[data-theme-new-from]')).toBeNull()
+    expect(document.querySelector('[data-theme-copy-of]')?.textContent).toContain('A copy of Light')
+    expect(themeStems()).toEqual(['Zed', 'alpha'])
+    await typeInto(nameField(), 'My own light')
+    await press(document.querySelector<HTMLElement>('[data-theme-new-create]'))
+    expect(themeStems()).toContain('My own light')
+    expect(settings.theme).toBe('My own light')
+    expect(parsedName('My own light')).toBe('My own light')
+    expect(document.querySelector('[data-theme-new-form]')).toBeNull()
+    expect(scrolled).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps the suggested name when it is left alone, and never touches the source', async () => {
+    await mountScreen(TWO)
+    await openMenu('alpha')
+    await press(
+      document.querySelector<HTMLElement>('[data-theme-menu-content] [data-theme-duplicate]'),
+    )
+    expect(nameField().value).toBe('alpha copy')
+    await press(document.querySelector<HTMLElement>('[data-theme-new-create]'))
     expect(themeStems()).toContain('alpha copy')
     expect(host.files.read(themeFile('alpha'))).toBe(DARK_ONE)
+  })
+
+  it('refuses a bad or taken name with the reason, writes nothing, and Cancel closes the form', async () => {
+    await mountScreen(TWO)
+    await openMenu('alpha')
+    await press(
+      document.querySelector<HTMLElement>('[data-theme-menu-content] [data-theme-duplicate]'),
+    )
+    for (const [name, reason] of [
+      ['', 'Name the theme'],
+      ['sepia', 'built-in'],
+      ['ZED', 'exists'],
+    ] as const) {
+      await typeInto(nameField(), name)
+      await press(document.querySelector<HTMLElement>('[data-theme-new-create]'))
+      expect(document.querySelector('[data-theme-new-error]')?.textContent, name).toContain(reason)
+    }
+    expect(themeStems()).toEqual(['Zed', 'alpha'])
+    await press(document.querySelector<HTMLElement>('[data-theme-new-cancel]'))
+    expect(document.querySelector('[data-theme-new-form]')).toBeNull()
+    expect(themeStems()).toEqual(['Zed', 'alpha'])
+  })
+
+  it('opens from Customize above the colors for the theme in use, and a second request starts clean', async () => {
+    await mountScreen({ [MOCK_SETTINGS_FILE]: '{ "theme": "sepia" }' })
+    document.querySelector<HTMLElement>('[data-theme-customize]')?.click()
+    await flush()
+    expect(nameField().value).toBe('Sepia copy')
+    await typeInto(nameField(), 'half typed')
+    await press(document.querySelector<HTMLElement>('[data-theme-new-cancel]'))
+    document.querySelector<HTMLElement>('[data-theme-customize]')?.click()
+    await flush()
+    expect(nameField().value).toBe('Sepia copy')
+    await typeInto(nameField(), 'Warm')
+    await press(document.querySelector<HTMLElement>('[data-theme-new-create]'))
+    expect(themeStems()).toEqual(['Warm'])
+    expect(parsedName('Warm')).toBe('Warm')
+    expect(host.files.read(themeFile('Warm'))).toContain('"base": "sepia"')
+  })
+
+  it('scrolls the form into view when it opens', async () => {
+    await mountScreen(TWO)
+    await press(document.querySelector<HTMLElement>('[data-theme-new]'))
+    expect(scrolled).toHaveBeenCalledTimes(1)
+    expect(scrolled.mock.instances[0]).toBe(document.querySelector('[data-theme-new-form]'))
+    expect(scrolled.mock.calls[0]?.[0]).toMatchObject({ block: 'center' })
   })
 })
 
@@ -262,7 +450,7 @@ describe('ISC-481: the editor comes into view', () => {
     await mountScreen({ ...TWO, [MOCK_SETTINGS_FILE]: '{ "theme": "dark" }' })
     await press(button('Zed', 'select'))
     expect(scrolled).not.toHaveBeenCalled()
-    await press(button('alpha', 'edit'))
+    await pressMenu('alpha', 'edit')
     expect(scrolled).toHaveBeenCalledTimes(1)
     expect(scrolled.mock.instances[0]).toBe(
       document.querySelector('[data-settings-group-heading="Theme colors"]'),
@@ -287,8 +475,9 @@ describe('ISC-476: Rename in the list', () => {
 
   it('turns the name into a field with the name in it, and Enter renames', async () => {
     await mountScreen(TWO)
-    await press(button('Zed', 'rename'))
+    await pressMenu('Zed', 'rename')
     expect(field().value).toBe('Zed')
+    expect(document.activeElement).toBe(field())
     await typeInto(field(), 'Zebra stripes')
     await enter()
     expect(themeStems()).toEqual(['Zebra stripes', 'alpha'])
@@ -302,7 +491,7 @@ describe('ISC-476: Rename in the list', () => {
 
   it('shows the reason under the field for a taken name and keeps the field open', async () => {
     await mountScreen(TWO)
-    await press(button('Zed', 'rename'))
+    await pressMenu('Zed', 'rename')
     await typeInto(field(), 'ALPHA')
     await enter()
     expect(document.querySelector('[data-theme-rename-error]')?.textContent).toContain('exists')
@@ -312,7 +501,7 @@ describe('ISC-476: Rename in the list', () => {
 
   it('drops the edit on Escape', async () => {
     await mountScreen(TWO)
-    await press(button('Zed', 'rename'))
+    await pressMenu('Zed', 'rename')
     await typeInto(field(), 'Something else')
     field().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     await flush()
@@ -327,7 +516,7 @@ describe('ISC-477: Delete in the list', () => {
 
   it('asks first, naming the theme, and Cancel changes nothing', async () => {
     await mountScreen(TWO)
-    await press(button('alpha', 'delete'))
+    await pressMenu('alpha', 'delete')
     expect(dialog()?.textContent).toContain('Delete alpha?')
     expect(dialog()?.textContent).toContain('Recycle Bin')
     await press(document.querySelector<HTMLElement>('[data-theme-delete-cancel]'))
@@ -338,7 +527,7 @@ describe('ISC-477: Delete in the list', () => {
 
   it('sends the file to the bin on confirm', async () => {
     await mountScreen(TWO)
-    await press(button('alpha', 'delete'))
+    await pressMenu('alpha', 'delete')
     await press(document.querySelector<HTMLElement>('[data-theme-delete-confirm]'))
     expect(themeStems()).toEqual(['Zed'])
     expect(host.recycled.map((one) => one.path)).toEqual([themeFile('alpha')])
@@ -347,7 +536,7 @@ describe('ISC-477: Delete in the list', () => {
 
   it('says Dark is used instead when the theme in use is deleted, and does it', async () => {
     await mountScreen(TWO)
-    await press(button('Zed', 'delete'))
+    await pressMenu('Zed', 'delete')
     expect(dialog()?.textContent).toContain('Dark is used instead')
     await press(document.querySelector<HTMLElement>('[data-theme-delete-confirm]'))
     expect(settings.theme).toBe('dark')
@@ -356,7 +545,7 @@ describe('ISC-477: Delete in the list', () => {
 
   it('keeps the theme in the list when there is no Recycle Bin', async () => {
     await mountScreen(TWO, { noRecycleBin: true })
-    await press(button('alpha', 'delete'))
+    await pressMenu('alpha', 'delete')
     await press(document.querySelector<HTMLElement>('[data-theme-delete-confirm]'))
     expect(themeStems()).toEqual(['Zed', 'alpha'])
     expect(ids()).toContain('alpha')
