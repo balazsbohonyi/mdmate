@@ -6,9 +6,11 @@ import { describe, expect, it } from 'vitest'
 import { BUILT_IN_IDS, BUILT_IN_THEMES, resolveToken } from '@/lib/builtinThemes'
 import {
   formatColor,
+  fromHsv,
   parseColor,
   toHex,
   toHexString,
+  toHsv,
   toOklchString,
   tryParseColor,
   withOpacity,
@@ -146,5 +148,46 @@ describe('ISC-490: withOpacity changes only the opacity', () => {
   it('clamps an opacity outside 0 to 1', () => {
     expect(parseColor(withOpacity(parseColor('#336699'), 7, 'hex')).alpha).toBe(1)
     expect(parseColor(withOpacity(parseColor('#336699'), -2, 'hex')).alpha).toBe(0)
+  })
+})
+
+describe('ISC-497: hue, saturation and brightness', () => {
+  it('brings every color of a 17-step grid of the sRGB cube back exactly, with its alpha', () => {
+    const steps = Array.from({ length: 17 }, (_, at) => Math.min(255, at * 16))
+    for (const r of steps)
+      for (const g of steps)
+        for (const b of steps) {
+          const hex = `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`
+          const color = parseColor(hex)
+          const back = fromHsv(toHsv(color), 0.4)
+          expect(toHex(back)).toBe(hex)
+          expect(back.alpha).toBe(0.4)
+        }
+  })
+
+  it('reads the primaries and the extremes', () => {
+    const read = (hex: string) => toHsv(parseColor(hex))
+    expect(read('#ff0000')).toEqual({ h: 0, s: 1, v: 1 })
+    expect(read('#00ff00')).toEqual({ h: 120, s: 1, v: 1 })
+    expect(read('#0000ff')).toEqual({ h: 240, s: 1, v: 1 })
+    expect(read('#ffffff')).toMatchObject({ s: 0, v: 1 })
+    expect(read('#000000')).toMatchObject({ s: 0, v: 0 })
+  })
+
+  it('gives a grey or a black the hue it is asked to keep, and a color its own', () => {
+    expect(toHsv(parseColor('#808080'), 200).h).toBe(200)
+    expect(toHsv(parseColor('#000000'), 77).h).toBe(77)
+    expect(toHsv(parseColor('#00ff00'), 200).h).toBe(120)
+  })
+
+  it('wraps a hue outside 0 to 360', () => {
+    expect(toHex(fromHsv({ h: 360, s: 1, v: 1 }))).toBe('#ff0000')
+    expect(toHex(fromHsv({ h: -120, s: 1, v: 1 }))).toBe('#0000ff')
+    expect(toHex(fromHsv({ h: 480, s: 1, v: 1 }))).toBe('#00ff00')
+  })
+
+  it('does not change the color of an out-of-gamut value more than clamping it into sRGB', () => {
+    const outside = parseColor('oklch(0.8 0.4 150)')
+    expect(toHex(fromHsv(toHsv(outside)))).toBe(toHex(outside))
   })
 })

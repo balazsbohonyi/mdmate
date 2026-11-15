@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * The color editor on the Appearance page (ISC-454 to ISC-456): every token of the theme in force,
- * in groups; a text field that checks what is typed; a picker for every color, and an opacity field for a translucent one; a
+ * in groups; a text field that checks what is typed; a picker popover for every color, with alpha; a
  * warning when a required pair falls under its floor. Customize is what a built-in theme offers.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -16,7 +16,7 @@ import {
   watchThemesFolder,
 } from '@/features/themes/store'
 import ThemeColors from '@/features/themes/ThemeColors.vue'
-import { formatColor, parseColor, toHex, tryParseColor } from '@/lib/color'
+import { formatColor, fromHsv, parseColor, toHexString, toHsv, tryParseColor } from '@/lib/color'
 import { resetSettings, settings } from '@/lib/settings'
 import { THEME_GROUPS, THEME_TOKENS, tokensOf } from '@/lib/themeTokens'
 import { setHost } from '@/platform'
@@ -215,45 +215,6 @@ describe('ISC-455: typing a color', () => {
     await type('background', '#101418')
     await settledThemes()
     expect(host.files.read(themeFile('mine'))).toBe(MINE)
-  })
-
-  it('has a picker for every color, and an opacity field only for a translucent one', async () => {
-    await mount({
-      [MOCK_SETTINGS_FILE]: '{ "theme": "mine" }',
-      [themeFile('mine')]: '{ "colors": { "background": "#101418", "border": "#ffffff80" } }',
-    })
-    expect(rowOf('background').querySelector('[data-theme-picker]')).not.toBeNull()
-    expect(rowOf('border').querySelector('[data-theme-picker]')).not.toBeNull()
-    expect(rowOf('background').querySelector('[data-theme-opacity]')).toBeNull()
-    expect(rowOf('border').querySelector('[data-theme-opacity]')).not.toBeNull()
-    const picker = rowOf('background').querySelector<HTMLInputElement>('[data-theme-picker]')
-    expect(picker?.value).toBe('#101418')
-  })
-
-  it('applies and writes what the picker chooses', async () => {
-    await mount(SELECT_MINE)
-    const picker = rowOf('background').querySelector<HTMLInputElement>('[data-theme-picker]')
-    if (picker === null) throw new Error('no picker')
-    picker.value = '#224466'
-    picker.dispatchEvent(new Event('input', { bubbles: true }))
-    await nextTick()
-    expect(document.documentElement.style.getPropertyValue('--background')).toBe('#224466')
-    await flushThemeColors()
-    await settledThemes()
-    expect(fileColors('mine').background).toBe('#224466')
-  })
-
-  it('writes what the picker chooses in the chosen format (ISC-469)', async () => {
-    await mount(withThemes({ colorFormat: 'oklch' }))
-    const picker = rowOf('background').querySelector<HTMLInputElement>('[data-theme-picker]')
-    if (picker === null) throw new Error('no picker')
-    picker.value = '#224466'
-    picker.dispatchEvent(new Event('input', { bubbles: true }))
-    await nextTick()
-    await flushThemeColors()
-    await settledThemes()
-    expect(fileColors('mine').background).toBe(formatColor('#224466', 'oklch'))
-    expect(fileColors('mine').background).toMatch(/^oklch\(/)
   })
 })
 
@@ -498,104 +459,312 @@ describe('ISC-488: the Based on toggle group', () => {
   })
 })
 
-describe('ISC-490: the opacity of a translucent color', () => {
-  const SCROLL = '"scrollbar-thumb": "oklch(0.6 0.014 262 / 38%)"'
+describe('the color picker popover (ISC-492 to ISC-496)', () => {
+  const COLORS: Record<string, string> = {
+    background: '#101418',
+    'scrollbar-thumb': 'oklch(0.6 0.014 262 / 38%)',
+    primary: 'oklch(0.8 0.4 150)',
+    caret: '#3366cc',
+  }
   const files = (extra: Record<string, unknown> = {}): Record<string, string> => ({
     [MOCK_SETTINGS_FILE]: JSON.stringify({ theme: 'mine', ...extra }),
-    [themeFile('mine')]: `{ "base": "dark", "colors": { ${SCROLL} } }`,
+    [themeFile('mine')]: JSON.stringify({ base: 'dark', colors: COLORS }),
   })
-  const opacityField = (token: string): HTMLInputElement => {
-    const field = rowOf(token).querySelector<HTMLInputElement>('[data-theme-opacity]')
-    if (field === null) throw new Error(`no opacity field for ${token}`)
-    return field
+  const swatchOf = (token: string): HTMLButtonElement => {
+    const button = rowOf(token).querySelector<HTMLButtonElement>('[data-theme-picker]')
+    if (button === null) throw new Error(`no swatch button for ${token}`)
+    return button
   }
-  const setOpacity = async (token: string, text: string): Promise<void> => {
-    const field = opacityField(token)
+  const panel = (): HTMLElement => {
+    const found = document.querySelector<HTMLElement>('[data-theme-picker-content]')
+    if (found === null) throw new Error('the popover is not open')
+    return found
+  }
+  const part = (selector: string): HTMLElement => {
+    const found = panel().querySelector<HTMLElement>(selector)
+    if (found === null) throw new Error(`no ${selector} in the popover`)
+    return found
+  }
+  const areaThumb = (): HTMLElement => part('[data-picker-area-thumb]')
+  const hueThumb = (): HTMLElement => part('[data-picker-hue] [role="slider"]')
+  const alphaThumb = (): HTMLElement => part('[data-picker-alpha] [role="slider"]')
+  const opacityField = (): HTMLInputElement => part('[data-picker-opacity]') as HTMLInputElement
+  const now = (thumb: HTMLElement): number => Number(thumb.getAttribute('aria-valuenow'))
+
+  async function openPicker(token: string): Promise<void> {
+    swatchOf(token).click()
+    await flush()
+    panel()
+  }
+  async function closeWithEscape(): Promise<void> {
+    const target = document.activeElement ?? document.body
+    target.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
+    )
+    await flush()
+  }
+  async function press(el: Element, key: string, shiftKey = false): Promise<void> {
+    el.dispatchEvent(
+      new KeyboardEvent('keydown', { key, shiftKey, bubbles: true, cancelable: true }),
+    )
+    await nextTick()
+  }
+  const pageColor = (token: string): ReturnType<typeof parseColor> =>
+    parseColor(document.documentElement.style.getPropertyValue(`--${token}`))
+  const pageHex = (token: string): string => toHexString(pageColor(token))
+  const hsvOf = (value: string): { h: number; s: number; v: number } =>
+    toHsv(tryParseColor(value) ?? parseColor('#000000'))
+  /** The saturation and brightness the area holds are whole percents, so a step lands on one. */
+  const expectedHex = (h: number, s: number, v: number, alpha = 1): string =>
+    toHexString(fromHsv({ h, s, v }, alpha))
+  async function setOpacity(text: string): Promise<void> {
+    const field = opacityField()
     field.value = text
     field.dispatchEvent(new Event('change', { bubbles: true }))
     await flush()
-    await settledThemes()
   }
-  const pick = async (token: string, value: string): Promise<void> => {
-    const picker = rowOf(token).querySelector<HTMLInputElement>('[data-theme-picker]')
-    if (picker === null) throw new Error(`no picker for ${token}`)
-    picker.value = value
-    picker.dispatchEvent(new Event('input', { bubbles: true }))
-    await nextTick()
+
+  // A pointer in jsdom: no layout, no pointer capture. The area is 200 by 100.
+  const proto = Element.prototype as unknown as Record<string, unknown>
+  const saved: Record<string, unknown> = {}
+  beforeEach(() => {
+    for (const name of ['setPointerCapture', 'hasPointerCapture', 'releasePointerCapture'])
+      saved[name] = proto[name]
+    proto.setPointerCapture = (): void => undefined
+    proto.hasPointerCapture = (): boolean => true
+    proto.releasePointerCapture = (): void => undefined
+  })
+  afterEach(async () => {
+    // A color changed in a test is written a moment later; it must not land in the next test's file.
     await flushThemeColors()
     await settledThemes()
+    for (const [name, value] of Object.entries(saved)) proto[name] = value
+    // A popover left open keeps its portal in the page; the next test must not find it.
+    for (const left of document.querySelectorAll('[data-theme-picker-content]'))
+      (left.closest('[data-reka-popper-content-wrapper]') ?? left).remove()
+  })
+  function stubSize(el: HTMLElement, width: number, height: number): void {
+    el.getBoundingClientRect = (): DOMRect => ({
+      left: 0,
+      top: 0,
+      right: width,
+      bottom: height,
+      width,
+      height,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    })
+  }
+  async function pointer(target: Element, type: string, x: number, y: number): Promise<void> {
+    const event = new MouseEvent(type, {
+      clientX: x,
+      clientY: y,
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    })
+    Object.defineProperty(event, 'pointerId', { value: 1 })
+    target.dispatchEvent(event)
+    await nextTick()
+  }
+  async function drag(target: HTMLElement, points: [number, number][]): Promise<void> {
+    const [first, ...rest] = points
+    if (first === undefined) return
+    await pointer(target, 'pointerdown', first[0], first[1])
+    for (const [x, y] of rest) await pointer(target, 'pointermove', x, y)
+    await pointer(target, 'pointerup', points.at(-1)?.[0] ?? 0, points.at(-1)?.[1] ?? 0)
   }
 
-  it('shows a picker and the opacity in percent for each of the three translucent tokens', async () => {
+  it('gives every color one button that opens it, with no native input and no field in the row', async () => {
     await mount(files())
-    for (const token of ['scrollbar-thumb', 'scrollbar-thumb-hover', 'drop-preview']) {
-      expect(rowOf(token).querySelector('[data-theme-picker]'), token).not.toBeNull()
-      expect(rowOf(token).querySelector('[data-theme-opacity]'), token).not.toBeNull()
-    }
-    expect(opacityField('scrollbar-thumb').value).toBe('38')
-    expect(
-      rowOf('scrollbar-thumb').querySelector<HTMLInputElement>('[data-theme-picker]')?.value,
-    ).toMatch(/^#[0-9a-f]{6}$/)
+    const buttons = [...document.querySelectorAll('[data-theme-picker]')]
+    expect(buttons).toHaveLength(THEME_TOKENS.length)
+    expect(buttons.every((one) => one.tagName === 'BUTTON')).toBe(true)
+    expect(document.querySelector('input[type="color"]')).toBeNull()
+    expect(document.querySelector('[data-theme-opacity]')).toBeNull()
+    expect(swatchOf('background').querySelector('.color-checker')).not.toBeNull()
+    await openPicker('background')
+    for (const selector of [
+      '[data-picker-area]',
+      '[data-picker-hue]',
+      '[data-picker-alpha]',
+      '[data-picker-opacity]',
+    ])
+      expect(panel().querySelector(selector), selector).not.toBeNull()
   })
 
-  it('keeps the opacity field on a translucent token the file made opaque, so it can come back', async () => {
-    await mount({
-      [MOCK_SETTINGS_FILE]: '{ "theme": "mine" }',
-      [themeFile('mine')]: '{ "base": "dark", "colors": { "drop-preview": "#57cebd" } }',
-    })
-    expect(opacityField('drop-preview').value).toBe('100')
-    await setOpacity('drop-preview', '22')
-    expect(parseColor(fileColors('mine')['drop-preview'] ?? '').alpha).toBeCloseTo(0.22, 2)
+  it('closes on Escape and puts the focus back on the swatch', async () => {
+    await mount(files())
+    await openPicker('background')
+    await closeWithEscape()
+    expect(document.querySelector('[data-theme-picker-content]')).toBeNull()
+    expect(document.activeElement).toBe(swatchOf('background'))
   })
 
-  it('has no opacity field for a color no built-in theme makes translucent', async () => {
-    await mount(files())
-    expect(rowOf('background').querySelector('[data-theme-opacity]')).toBeNull()
-    expect(rowOf('primary').querySelector('[data-theme-opacity]')).toBeNull()
-  })
+  it.each(Object.keys(COLORS))(
+    'changes nothing when %s is opened and closed untouched',
+    async (token) => {
+      await mount(files())
+      const before = host.files.read(themeFile('mine'))
+      await openPicker(token)
+      const color = tryParseColor(COLORS[token] ?? '')
+      if (color === null) throw new Error('bad test color')
+      // The popover shows the token's color: its opacity, and its hue unless it is a grey.
+      expect(opacityField().value).toBe(String(Math.round(color.alpha * 100)))
+      expect(Math.abs(now(hueThumb()) - hsvOf(COLORS[token] ?? '').h)).toBeLessThan(1)
+      await closeWithEscape()
+      await flushThemeColors()
+      await settledThemes()
+      expect(host.files.read(themeFile('mine'))).toBe(before)
+    },
+  )
 
-  it('keeps the color and writes the new opacity, in hex', async () => {
+  it('moves saturation and brightness from the keyboard, ten at a time with Shift', async () => {
     await mount(files())
-    const before = tryParseColor(fileColors('mine')['scrollbar-thumb'] ?? '')
-    await setOpacity('scrollbar-thumb', '50')
-    const text = fileColors('mine')['scrollbar-thumb'] ?? ''
-    expect(text).toMatch(/^#[0-9a-f]{6}80$/)
-    expect(toHex(tryParseColor(text) ?? parseColor('#000'))).toBe(
-      toHex(before ?? parseColor('#fff')),
+    const before = hsvOf('#3366cc')
+    await openPicker('caret')
+    const wholeS = Math.round(before.s * 100)
+    const wholeV = Math.round(before.v * 100)
+    await press(areaThumb(), 'ArrowRight')
+    expect(pageHex('caret')).toBe(expectedHex(before.h, (wholeS + 1) / 100, wholeV / 100))
+    await press(areaThumb(), 'ArrowUp', true)
+    expect(pageHex('caret')).toBe(
+      expectedHex(before.h, (wholeS + 1) / 100, Math.min(1, (wholeV + 10) / 100)),
     )
-    expect(opacityField('scrollbar-thumb').value).toBe('50')
   })
 
-  it('writes the new opacity in oklch when that is the format', async () => {
-    await mount(files({ themes: { colorFormat: 'oklch' } }))
-    await setOpacity('scrollbar-thumb', '50')
-    expect(fileColors('mine')['scrollbar-thumb']).toMatch(/^oklch\(.* \/ 0\.5\)$/)
-  })
-
-  it('keeps the opacity when the picker moves the color', async () => {
+  it('moves the hue and the opacity from the keyboard, and the page follows', async () => {
     await mount(files())
-    await pick('scrollbar-thumb', '#224466')
-    const text = fileColors('mine')['scrollbar-thumb'] ?? ''
-    const written = parseColor(text)
-    expect(toHex(written)).toBe('#224466')
-    expect(written.alpha).toBeCloseTo(0.38, 2)
+    const before = hsvOf('#3366cc')
+    await openPicker('caret')
+    await press(hueThumb(), 'ArrowRight')
+    const hue = now(hueThumb())
+    expect(Math.abs(hue - (before.h + 1))).toBeLessThan(1.01)
+    expect(pageHex('caret')).toBe(expectedHex(hue, before.s, before.v))
+    await press(alphaThumb(), 'ArrowLeft')
+    expect(opacityField().value).toBe('99')
+    expect(pageColor('caret').alpha).toBeCloseTo(0.99, 2)
+    await press(alphaThumb(), 'Home')
+    expect(opacityField().value).toBe('0')
+    expect(pageColor('caret').alpha).toBe(0)
+    await press(alphaThumb(), 'End')
+    expect(opacityField().value).toBe('100')
+    expect(pageColor('caret').alpha).toBe(1)
+  })
+
+  it('shows each change on the page at once and writes the last one when the popover closes', async () => {
+    await mount(files())
+    const before = hsvOf('#3366cc')
+    await openPicker('caret')
+    for (let step = 0; step < 3; step++) await press(areaThumb(), 'ArrowLeft')
+    const wanted = expectedHex(
+      before.h,
+      (Math.round(before.s * 100) - 3) / 100,
+      Math.round(before.v * 100) / 100,
+    )
+    expect(pageHex('caret')).toBe(wanted)
+    expect(fileColors('mine').caret).toBe('#3366cc')
+    await closeWithEscape()
+    await settledThemes()
+    expect(fileColors('mine').caret).toBe(wanted)
+  })
+
+  it('follows a pointer drag on the area and writes one value in the chosen format', async () => {
+    await mount(files({ themes: { colorFormat: 'oklch' } }))
+    const before = hsvOf('#3366cc')
+    await openPicker('caret')
+    const area = part('[data-picker-area]')
+    stubSize(area, 200, 100)
+    await drag(area, [
+      [100, 50],
+      [150, 25],
+      [200, 0],
+    ])
+    expect(areaThumb().getAttribute('aria-valuetext')).toBe('Saturation 100, Brightness 100')
+    expect(pageHex('caret')).toBe(expectedHex(before.h, 1, 1))
+    await closeWithEscape()
+    await settledThemes()
+    expect(fileColors('mine').caret).toMatch(/^oklch\(/)
+    expect(toHexString(parseColor(fileColors('mine').caret ?? ''))).toBe(
+      expectedHex(before.h, 1, 1),
+    )
+  })
+
+  it('gives alpha to an opaque color, and 100 percent writes none', async () => {
+    await mount(files())
+    await openPicker('background')
+    await setOpacity('50')
+    await flushThemeColors()
+    await settledThemes()
+    expect(fileColors('mine').background).toMatch(/^#[0-9a-f]{6}80$/)
+    await setOpacity('100')
+    await flushThemeColors()
+    await settledThemes()
+    expect(fileColors('mine').background).toMatch(/^#[0-9a-f]{6}$/)
+  })
+
+  it('writes the opacity in oklch when that is the format', async () => {
+    await mount(files({ themes: { colorFormat: 'oklch' } }))
+    await openPicker('background')
+    await setOpacity('50')
+    await flushThemeColors()
+    await settledThemes()
+    expect(fileColors('mine').background).toMatch(/^oklch\(.* \/ 0\.5\)$/)
   })
 
   it('refuses an opacity outside 0 to 100, or not a number, and puts the shown one back', async () => {
     await mount(files())
     const before = host.files.read(themeFile('mine'))
+    await openPicker('scrollbar-thumb')
     for (const bad of ['150', '-5', 'abc', '']) {
-      await setOpacity('scrollbar-thumb', bad)
-      expect(opacityField('scrollbar-thumb').value, bad).toBe('38')
+      await setOpacity(bad)
+      expect(opacityField().value, bad).toBe('38')
     }
+    await flushThemeColors()
+    await settledThemes()
     expect(host.files.read(themeFile('mine'))).toBe(before)
   })
 
-  it('writes 0 and 100 as the edges', async () => {
+  it('keeps the hue chosen while the color is black, and uses it when brightness comes back', async () => {
     await mount(files())
-    await setOpacity('scrollbar-thumb', '0')
-    expect(parseColor(fileColors('mine')['scrollbar-thumb'] ?? '').alpha).toBe(0)
-    await setOpacity('scrollbar-thumb', '100')
-    expect(fileColors('mine')['scrollbar-thumb']).toMatch(/^#[0-9a-f]{6}$/)
+    await openPicker('caret')
+    const area = part('[data-picker-area]')
+    stubSize(area, 200, 100)
+    await drag(area, [[0, 100]])
+    expect(areaThumb().getAttribute('aria-valuetext')).toBe('Saturation 0, Brightness 0')
+    const start = now(hueThumb())
+    for (let step = 0; step < 20; step++) await press(hueThumb(), 'ArrowRight')
+    const hue = now(hueThumb())
+    expect(hue).toBeGreaterThan(start + 15)
+    await drag(area, [[200, 0]])
+    expect(pageHex('caret')).toBe(expectedHex(hue, 1, 1))
+  })
+
+  it('does not read its own write back: the hue stays where it was while the area is dragged', async () => {
+    await mount(files())
+    await openPicker('caret')
+    const hue = now(hueThumb())
+    const area = part('[data-picker-area]')
+    stubSize(area, 200, 100)
+    // A very pale, dark color: its 8-bit rounding would move a hue read back from it.
+    await drag(area, [
+      [100, 50],
+      [6, 95],
+      [4, 94],
+    ])
+    expect(now(hueThumb())).toBe(hue)
+  })
+
+  it('follows a value typed in the row while it is open', async () => {
+    await mount(files())
+    await openPicker('caret')
+    await type('caret', '#ff0000')
+    expect(now(hueThumb())).toBe(0)
+    expect(areaThumb().getAttribute('aria-valuetext')).toBe('Saturation 100, Brightness 100')
+    expect(opacityField().value).toBe('100')
+    await type('caret', '#00ff0080')
+    expect(now(hueThumb())).toBe(120)
+    expect(opacityField().value).toBe('50')
   })
 })

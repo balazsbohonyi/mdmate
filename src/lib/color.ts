@@ -174,3 +174,51 @@ export function withOpacity(color: Rgb, alpha: number, format: 'hex' | 'oklch'):
   const next = { linear: color.linear, alpha }
   return format === 'hex' ? toHexString(next) : toOklchString(next)
 }
+
+/** A color as hue (degrees, 0 up to 360), saturation and brightness (0 to 1): what a picker holds. */
+export interface Hsv {
+  h: number
+  s: number
+  v: number
+}
+
+/**
+ * The color as hue, saturation and brightness, read from its 8-bit sRGB channels (clamped into
+ * sRGB, alpha left out). A grey or a black has no hue of its own, so `keepHue` is what comes back:
+ * a picker passes the hue it holds, and dragging through grey does not lose it.
+ */
+export function toHsv(color: Rgb, keepHue = 0): Hsv {
+  const [r, g, b] = color.linear.map(
+    (channel) => Math.round(linearToSrgb(channel) * 255) / 255,
+  ) as [number, number, number]
+  const high = Math.max(r, g, b)
+  const spread = high - Math.min(r, g, b)
+  if (spread === 0) return { h: keepHue, s: 0, v: high }
+  const sector =
+    high === r ? ((g - b) / spread) % 6 : high === g ? (b - r) / spread + 2 : (r - g) / spread + 4
+  return { h: (sector * 60 + 360) % 360, s: spread / high, v: high }
+}
+
+/** The color for a hue, saturation and brightness (see `toHsv`), with the alpha given. */
+export function fromHsv({ h, s, v }: Hsv, alpha = 1): Rgb {
+  const chroma = v * s
+  const sector = (((h % 360) + 360) % 360) / 60
+  const x = chroma * (1 - Math.abs((sector % 2) - 1))
+  const [r, g, b] =
+    sector < 1
+      ? [chroma, x, 0]
+      : sector < 2
+        ? [x, chroma, 0]
+        : sector < 3
+          ? [0, chroma, x]
+          : sector < 4
+            ? [0, x, chroma]
+            : sector < 5
+              ? [x, 0, chroma]
+              : [chroma, 0, x]
+  const lift = v - chroma
+  return {
+    linear: [srgbToLinear(r + lift), srgbToLinear(g + lift), srgbToLinear(b + lift)],
+    alpha,
+  }
+}
