@@ -280,13 +280,13 @@ const select = (row: Row): void => {
     <form
       v-if="themeForm !== null"
       ref="formEl"
-      class="mt-3 grid gap-3 rounded-lg border border-border bg-card p-3"
+      class="mt-3 grid gap-3 rounded-lg border border-border bg-card p-3 text-card-foreground"
       data-theme-new-form
       :data-theme-form-kind="themeForm.kind"
       @submit.prevent="create"
       @keydown.escape="closeThemeForm"
     >
-      <label class="flex items-center gap-3 text-sm text-foreground">
+      <label class="flex items-center gap-3 text-sm">
         <span class="shrink-0">Name</span>
         <Input
           v-model="newName"

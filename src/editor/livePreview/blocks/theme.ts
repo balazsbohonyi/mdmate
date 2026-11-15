@@ -88,9 +88,13 @@ export const blockTheme = EditorView.baseTheme({
     boxSizing: 'border-box',
     border: '2px solid var(--background)',
     borderRadius: '3px',
-    backgroundColor: 'var(--primary)',
+    backgroundColor: 'var(--handle)',
     cursor: 'nwse-resize',
     touchAction: 'none',
+  },
+  // The split handle's colors: at rest, and under the pointer or while it is dragged (`:active`).
+  '.cm-md-image-handle:hover, .cm-md-image-handle:active': {
+    backgroundColor: 'var(--handle-active)',
   },
   // The caret is somewhere else while an image is selected, so it is not drawn.
   '&.cm-image-selected .cm-content': { caretColor: 'transparent' },

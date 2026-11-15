@@ -1,7 +1,7 @@
 import { defaultKeymap, history, historyKeymap, indentLess, insertTab } from '@codemirror/commands'
 import { indentUnit, syntaxHighlighting } from '@codemirror/language'
 import { EditorState, type EditorSelection, type Extension, type Text } from '@codemirror/state'
-import { EditorView, keymap } from '@codemirror/view'
+import { drawSelection, EditorView, keymap } from '@codemirror/view'
 import { appKeys } from './appKeys'
 import { findSupport } from './find'
 import { matchTicks } from './matchTicks'
@@ -37,8 +37,13 @@ const frame = EditorView.theme({
   '.cm-scroller': { overflow: 'auto' },
   // Room between the text and the edges of the pane. Padding on the content, not margin: the
   // scrollbar stays at the pane's edge, and CodeMirror counts content padding in its heights.
+  // The selection and the caret are drawn by CodeMirror (`drawSelection`, in `common` and
+  // `followerBase`), which hides the browser's own, so the theme's Selection and Caret colors apply
+  // here. The focused rule is as specific as CodeMirror's own, and wins by coming from the theme.
+  '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--caret)' },
+  '.cm-selectionBackground, &.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-content ::selection':
+    { background: 'var(--selection)' },
   '.cm-content': {
-    caretColor: 'var(--foreground)',
     padding: `1.25rem ${CONTENT_PADDING_X}`,
     // The text column stops at the width from settings.json and sits in the middle (documentWidth.ts).
     // The fallback is the default, for the moment before the file is read or when it cannot be.
@@ -94,6 +99,7 @@ const common: Extension = [
   wordWrap,
   documentFonts,
   frame,
+  drawSelection(),
   tabKeys,
   textDrag(),
   findSupport(),
@@ -148,6 +154,7 @@ const followerBase: Extension = [
   wordWrap,
   documentFonts,
   frame,
+  drawSelection(),
   tabKeys,
   // Drag-to-move for selected text, on pointer events (P5-T7).
   textDrag(),

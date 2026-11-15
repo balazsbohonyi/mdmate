@@ -332,6 +332,15 @@ describe('ISC-474 and ISC-475: New theme and Duplicate', () => {
     formOpenAtScroll.length = 0
   }
 
+  it('shows the form on the card colors: its text is --card-foreground, and the label follows it (ISC-503)', async () => {
+    await mountScreen()
+    await openForm()
+    const form = document.querySelector<HTMLElement>('[data-theme-new-form]')
+    expect(form?.classList.contains('bg-card')).toBe(true)
+    expect(form?.classList.contains('text-card-foreground')).toBe(true)
+    expect(nameField().closest('label')?.className).not.toMatch(/text-foreground/)
+  })
+
   it('makes a theme from the chosen palette, selects it, closes the form and brings the editor up', async () => {
     await mountScreen()
     await openForm()
