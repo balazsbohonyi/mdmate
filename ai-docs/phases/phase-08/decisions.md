@@ -159,3 +159,15 @@ Choices made while building, in the order they were made. The settled design is 
 - **Sixth follow-up: selected inline code.** The code span's background hid the selection. The covered part of the span is now cut out and drawn with no background in the foreground color; the rest of the span keeps its look. Not covered: code inside a table cell.
 - **Seventh follow-up: the selected image.** Its outline (was `--primary`) and its resize square are both `--handle-active`, in every state; the square no longer uses `--handle` at rest. That also makes the square easy to see. `--handle` remains the resting color of the split handle and the sidebar edge.
 - **Left.** P8-T7, the preview tab. Two "Sepia copy" test files are in this machine's Recycle Bin from the real runs.
+
+## P8-T7: theme preview tab (part 1)
+
+- **A second panel tab.** `themePreview` sits beside `settings` as a panel tab: no document, no caret, no host call. One at a time, never copied by a split, closes with no question, not saved with the session.
+- **Where it opens.** In the pane next to the Settings pane (after it, else before it, else a new pane to its right). The focused pane does not matter. A second press selects the tab.
+- **Lazy.** `PaneView` loads it with `import()`; the arch rule `theme-preview-lazy` keeps `features/themes/preview/` out of every static import from outside.
+- **The sample.** The app's own editor on a built-in Tidewatch README, read-only and not focusable. It has three selection ranges, a find query and a link status of its own, so a selection, a find match, the caret and a broken link show with no folder open. The find count event stops inside the tab.
+- **The miniature** is markup with the app's token classes, not the live components (those read open files and start window drags). Only `TabStripItem` is reused.
+- **Seen in the real window.** A read-only CodeMirror view still moves its selection on a click and on keys, so a click collapsed the three ranges to one caret; the editor now answers mousedown, touchstart, dragstart and keydown at the highest precedence. In a 430 px pane the sidebar left the note a few words a line; the page is a container and the miniature drops its sidebar below 32 rem, with a line saying so.
+- **Redundant, kept.** CodeMirror's `search()` takes the main selection's text as its first query, so the explicit query in the preview editor changes nothing today.
+- **Test timing.** The repository-wide arch case takes about 2 s alone and ran past the 5 s default beside the full suite; it has a 30 s timeout.
+- **Left.** Part 2: the gallery (buttons, field, switch, dropdown, tooltip, dialog, context menu, toasts, find bar, palette, scrollbar) and the states strip. Two "Sepia copy" and one "Custom Dark" test files are in this machine's Recycle Bin from the real runs.

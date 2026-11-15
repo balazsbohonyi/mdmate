@@ -31,10 +31,11 @@ import {
   setSidebarWidth,
   sidebarWidth,
 } from '@/workbench/sidebar'
-import { allTabs } from '@/workbench/splitTree'
+import { allTabs, panesOf } from '@/workbench/splitTree'
 import {
   moveTabTo,
   openSettingsTab,
+  openThemePreviewTab,
   resetWorkbench,
   resizeSplit,
   selectTab,
@@ -1045,3 +1046,85 @@ describe('the Settings tab (P8-T1c)', () => {
     expect(settingsTabId()).toBeDefined()
   })
 })
+
+describe('the Theme preview tab (P8-T7)', () => {
+  interface Written {
+    layout: string
+    tabs: { id: string; path: string; kind?: string; caret?: unknown }[]
+  }
+  const written = (): Written => JSON.parse(host.session ?? '{}') as Written
+  /** The ids a saved layout names, in order. */
+  const layoutTabs = (): string[] => {
+    const ids: string[] = []
+    const walk = (node: { tabs?: string[]; children?: unknown[] }): void => {
+      ids.push(...(node.tabs ?? []))
+      for (const child of node.children ?? []) walk(child as { tabs?: string[] })
+    }
+    walk((JSON.parse(written().layout) as { root: { tabs?: string[] } }).root)
+    return ids
+  }
+  const previewTabs = (): string[] =>
+    allTabs(workbenchLayout.value).filter((id) => tabRecord(id)?.kind === 'themePreview')
+
+  it('is not written, and leaves no empty pane behind when it was alone in its own (ISC-515)', async () => {
+    const settings = openSettingsTab('appearance')
+    const preview = openThemePreviewTab()
+    expect(panesOfLayout()).toBe(2)
+    await flushSession()
+
+    // The file names neither the tab nor the pane it was alone in.
+    expect(written().tabs.map((tab) => tab.id)).toEqual([settings])
+    expect(layoutTabs()).toEqual([settings])
+    // Writing it left the open workbench as it was.
+    expect(previewTabs()).toEqual([preview])
+    expect(panesOfLayout()).toBe(2)
+
+    newRun(host)
+    const report = await restoreSession()
+    expect(report).toMatchObject({ tabs: 1, notices: [] })
+    expect(previewTabs()).toEqual([])
+    expect(panesOfLayout()).toBe(1)
+    expect(tabRecord(settings)).toEqual({ kind: 'settings', category: 'appearance' })
+  })
+
+  it('is left out of a pane it shared, and the other tabs and the panes stay as saved (ISC-515)', async () => {
+    const a = await openPath(A)
+    splitActivePane('row')
+    // The split copied the document into the new pane, and Settings joins it there.
+    const copy = allTabs(workbenchLayout.value)[1] ?? ''
+    const settings = openSettingsTab('editor')
+    const preview = openThemePreviewTab()
+    // Settings is in the last of two panes, so the preview went into the first, beside the document.
+    expect(allTabs(workbenchLayout.value)).toEqual([a, preview, copy, settings])
+    await flushSession()
+    expect(layoutTabs()).toEqual([a, copy, settings])
+
+    newRun(host)
+    const report = await restoreSession()
+    expect(report).toMatchObject({ notices: [] })
+    expect(allTabs(workbenchLayout.value)).toEqual([a, copy, settings])
+    expect(previewTabs()).toEqual([])
+    expect(panesOfLayout()).toBe(2)
+    expect(allDocuments().map((doc) => doc.path)).toEqual([A])
+  })
+
+  it('drops a saved tab of this kind from an older or damaged file, and opens no file for it', async () => {
+    const a = await openPath(A)
+    const b = await openPath(B)
+    await flushSession()
+    const file = written()
+    const tab = file.tabs.find((candidate) => candidate.id === b)
+    if (tab !== undefined) tab.kind = 'themePreview'
+    host.session = JSON.stringify(file)
+    newRun(host)
+    const report = await restoreSession()
+    expect(report).toMatchObject({ tabs: 1, notices: [] })
+    expect(allTabs(workbenchLayout.value)).toEqual([a])
+    expect(allDocuments().map((doc) => doc.path)).toEqual([A])
+  })
+})
+
+/** How many panes the open workbench has. */
+function panesOfLayout(): number {
+  return panesOf(workbenchLayout.value).length
+}

@@ -18,6 +18,10 @@ import TabStrip from './TabStrip.vue'
 // The Settings screen loads the first time its tab is shown (check-arch: settings-lazy), so a
 // window that never opens it never pays for it.
 const SettingsView = defineAsyncComponent(() => import('@/features/settings/SettingsView.vue'))
+// The Theme preview loads the same way: the first time its tab is shown (theme-preview-lazy).
+const ThemePreview = defineAsyncComponent(
+  () => import('@/features/themes/preview/ThemePreview.vue'),
+)
 
 const { pane, active } = defineProps<{ pane: PaneNode; active: boolean }>()
 
@@ -35,6 +39,9 @@ const activeImage = computed(() => {
 
 /** True while the pane's active tab is the Settings tab. */
 const activeSettings = computed(() => activeRecord.value?.kind === 'settings')
+
+/** True while the pane's active tab is the Theme preview. */
+const activePreview = computed(() => activeRecord.value?.kind === 'themePreview')
 
 /** A click on a tab puts the caret in its editor, also when that tab was already the one shown (ISC-255). */
 function onSelect(id: string): void {
@@ -103,6 +110,10 @@ function startDrag(id: string, event: PointerEvent): void {
         v-else-if="activeSettings"
         :key="pane.activeTab ?? ''"
         :tab-id="pane.activeTab ?? ''"
+      />
+      <ThemePreview
+        v-else-if="activePreview"
+        :key="pane.activeTab ?? ''"
       />
       <div
         v-else

@@ -18,7 +18,7 @@ import {
   workbenchLayout,
 } from '@/workbench/store'
 import type { PaneId, TabId } from '@/workbench/splitTree'
-import { docIdOf } from '@/workbench/tabs'
+import { docIdOf, isPanelTab } from '@/workbench/tabs'
 import { Document } from './document'
 import type { Follower } from './follower'
 import { clearDocMeta, docMeta, patchDocMeta, removeDocMeta, setDocMeta } from './meta'
@@ -793,8 +793,8 @@ onTabClosed((tabId, record) => {
       })
     return
   }
-  // The Settings tab holds no document and nothing in Rust.
-  if (record.kind === 'settings') return
+  // The Settings tab and the Theme preview hold no document and nothing in Rust.
+  if (isPanelTab(record)) return
   documents.get(record.docId)?.closeFollower(tabId)
   release(record.docId)
 })

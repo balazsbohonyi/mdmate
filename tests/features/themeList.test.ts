@@ -23,7 +23,13 @@ import {
   type MockHost,
   type MockHostOptions,
 } from '@/platform/mock'
-import { openSettingsTab, resetWorkbench } from '@/workbench/store'
+import { panesOf } from '@/workbench/splitTree'
+import {
+  openSettingsTab,
+  resetWorkbench,
+  themePreviewTabId,
+  workbenchLayout,
+} from '@/workbench/store'
 import { toasts } from '../helpers/toasts'
 import { tooltipApp } from '../helpers/tooltips'
 
@@ -608,5 +614,45 @@ describe('ISC-488 and ISC-489: the form for a new theme or a copy', () => {
     expect(label?.textContent?.trim()).toBe('Name')
     expect(label?.children[1]).toBe(document.querySelector('[data-theme-new-name]'))
     expect(document.body.textContent).not.toContain('Name of the copy')
+  })
+})
+
+describe('ISC-511 and ISC-524: the Preview button at the Theme colors heading', () => {
+  const button = (): HTMLButtonElement | null =>
+    document.querySelector<HTMLButtonElement>('[data-theme-preview-open]')
+
+  it('sits on the heading line of Theme colors and opens the preview beside Settings', async () => {
+    await mountScreen()
+    const heading = document.querySelector('[data-settings-group-heading="Theme colors"]')
+    expect(heading?.textContent?.trim()).toBe('Theme colors')
+    expect(button()).not.toBeNull()
+    // The same line: the heading and the button share one parent.
+    expect(heading?.parentElement?.contains(button())).toBe(true)
+    expect(button()?.textContent?.trim()).toBe('Preview')
+
+    button()?.click()
+    await flush()
+    const preview = themePreviewTabId()
+    expect(preview).toBeDefined()
+    const panes = panesOf(workbenchLayout.value)
+    expect(panes).toHaveLength(2)
+    expect(panes[1]?.tabs).toEqual([preview])
+  })
+
+  it('is there for a theme of the user too, and a second press shows the same tab', async () => {
+    await mountScreen(TWO)
+    expect(button()).not.toBeNull()
+    button()?.click()
+    await flush()
+    const first = themePreviewTabId()
+    button()?.click()
+    await flush()
+    expect(themePreviewTabId()).toBe(first)
+    expect(panesOf(workbenchLayout.value)).toHaveLength(2)
+  })
+
+  it('is on no other page of Settings', async () => {
+    await mountScreen()
+    expect(document.querySelectorAll('[data-theme-preview-open]')).toHaveLength(1)
   })
 })

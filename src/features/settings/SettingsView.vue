@@ -48,7 +48,7 @@ import ThemeList from '@/features/themes/ThemeList.vue'
 import { editorScrollRequests, themeForm } from '@/features/themes/store'
 import { openThemesFolder } from '@/features/themes/customize'
 import { themeChoices, themeProblem } from '@/features/themes/store'
-import { setSettingsCategory, settingsCategoryOf } from '@/workbench/store'
+import { openThemePreviewTab, setSettingsCategory, settingsCategoryOf } from '@/workbench/store'
 import {
   keybindingsHaveEntries,
   pendingKeybindingChange,
@@ -624,8 +624,31 @@ function openFile(): void {
               <SubGroupHeading data-settings-themes-heading>Themes</SubGroupHeading>
               <ThemeList />
             </template>
+            <!-- The theme colors have a Preview button at their heading: it opens the tab that shows them. -->
+            <div
+              v-if="headingBefore(spec, at) === 'Theme colors'"
+              class="flex items-baseline justify-between gap-3"
+            >
+              <SubGroupHeading
+                :first="at === 0"
+                data-settings-group-heading="Theme colors"
+              >
+                Theme colors
+              </SubGroupHeading>
+              <HoverHint text="Open a preview of the theme beside Settings">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  data-theme-preview-open
+                  @click="openThemePreviewTab()"
+                >
+                  Preview
+                </Button>
+              </HoverHint>
+            </div>
             <SubGroupHeading
-              v-if="headingBefore(spec, at) !== null"
+              v-else-if="headingBefore(spec, at) !== null"
               :first="at === 0"
               :data-settings-group-heading="headingBefore(spec, at)"
             >

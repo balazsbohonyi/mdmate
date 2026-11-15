@@ -341,6 +341,29 @@ const cases: RuleCase[] = [
     },
   },
   {
+    rule: 'theme-preview-lazy',
+    clean: {
+      'src/workbench/PaneView.vue':
+        '<script setup lang="ts">\nconst P = () => import(\'@/features/themes/preview/ThemePreview.vue\')\n</script>\n',
+      'src/features/themes/preview/ThemePreview.vue':
+        '<script setup lang="ts">\nimport Mini from \'./MiniApp.vue\'\nvoid Mini\n</script>\n',
+      'src/features/themes/preview/MiniApp.vue': '<script setup lang="ts"></script>\n',
+      'src/features/themes/store.ts': 'export const loadThemes = 1\n',
+    },
+    planted: {
+      'a static import of the preview': {
+        'src/workbench/PaneView.vue':
+          '<script setup lang="ts">\nimport T from \'@/features/themes/preview/ThemePreview.vue\'\nvoid T\n</script>\n',
+      },
+      'a static import of a part of it': {
+        'src/shell/a.ts': "import M from '@/features/themes/preview/MiniApp.vue'\nvoid M\n",
+      },
+      'a relative static import of the preview': {
+        'src/shell/b.ts': "import T from '../features/themes/preview/ThemePreview.vue'\nvoid T\n",
+      },
+    },
+  },
+  {
     rule: 'no-plugin-fs',
     clean: {
       'src-tauri/Cargo.toml': '[dependencies]\ntauri = "2"\n# tauri-plugin-fs stays out\n',
@@ -619,7 +642,9 @@ describe('check-arch command line', () => {
     })
   })
 
-  it('passes every rule on this repository', () => {
+  // It starts a process that reads the whole repository: about 2 s alone, more than the 5 s default
+  // when the full suite runs in parallel.
+  it('passes every rule on this repository', { timeout: 30_000 }, () => {
     const result = run([])
     expect(result.out).not.toContain('FAIL')
     expect(result.status).toBe(0)

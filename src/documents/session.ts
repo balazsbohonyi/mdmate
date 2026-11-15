@@ -127,7 +127,12 @@ function bufferOf(doc: Document): string {
 
 /** The snapshot of the workbench as it is now, as JSON text. */
 export function buildSnapshot(): string {
-  const layout = workbenchLayout.value
+  // The Theme preview is a view of the Settings screen and is never brought back, so the layout is
+  // written without it, and without the pane it was alone in (ISC-515).
+  let layout = workbenchLayout.value
+  for (const id of allTabs(layout)) {
+    if (tabRecord(id)?.kind === 'themePreview') layout = closeTab(layout, id)
+  }
   const tabs: SnapshotTab[] = []
   for (const id of allTabs(layout)) {
     const record = tabRecord(id)

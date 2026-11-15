@@ -13,6 +13,8 @@ import {
   moveTab,
   moveTabToEdge,
   openTab,
+  paneOfTab,
+  panesOf,
   setSizes,
   splitPane,
   type Direction,
@@ -22,7 +24,15 @@ import {
   type SplitId,
   type TabId,
 } from './splitTree'
-import { docIdOf, type ImageTab, type SettingsTab, type TabInfo, type TabRecord } from './tabs'
+import {
+  docIdOf,
+  isPanelTab,
+  type ImageTab,
+  type SettingsTab,
+  type TabInfo,
+  type TabRecord,
+  type ThemePreviewTab,
+} from './tabs'
 
 /**
  * The live workbench: the current layout and what each tab shows. A module-level store, shared by
@@ -42,11 +52,15 @@ export function tabRecord(id: TabId): TabRecord | undefined {
 /** The name on the Settings tab. */
 export const SETTINGS_TAB_TITLE = 'Settings'
 
+/** The name on the Theme preview tab. */
+export const THEME_PREVIEW_TAB_TITLE = 'Theme preview'
+
 /** The name on a tab: its file's name. */
 export function tabTitle(id: TabId): string {
   const record = records.get(id)
   if (record === undefined) return id
   if (record.kind === 'settings') return SETTINGS_TAB_TITLE
+  if (record.kind === 'themePreview') return THEME_PREVIEW_TAB_TITLE
   if (record.kind === 'image') return baseName(record.path)
   return docMeta(record.docId)?.name ?? id
 }
@@ -127,6 +141,38 @@ export function openSettingsTab(category?: SettingsCategory): TabId {
   return open
 }
 
+/** The Theme preview tab, wherever it is, or undefined while none is open. */
+export function themePreviewTabId(): TabId | undefined {
+  return [...records].find(([, record]) => record.kind === 'themePreview')?.[0]
+}
+
+/**
+ * Shows the Theme preview: the tab that is open, in whichever pane it is, or a new one beside the
+ * Settings screen it belongs to. There is never a second. It goes in the pane next to the Settings
+ * pane (the one after it, or the one before when it is the last), and when Settings is the only
+ * pane, in a new pane to its right. Which pane is focused does not matter (ISC-511, ISC-512).
+ */
+export function openThemePreviewTab(): TabId {
+  const open = themePreviewTabId()
+  if (open !== undefined) {
+    selectTab(open)
+    return open
+  }
+  const record: ThemePreviewTab = { kind: 'themePreview' }
+  const current = layout.value
+  const settings = settingsTabId()
+  const home =
+    (settings === undefined ? undefined : paneOfTab(current, settings)) ??
+    findPane(current, current.activePane)
+  const panes = panesOf(current)
+  const at = home === undefined ? -1 : panes.findIndex((pane) => pane.id === home.id)
+  const neighbour = at < 0 ? undefined : (panes[at + 1] ?? panes[at - 1])
+  if (neighbour !== undefined) return openTabFor(record, neighbour.id)
+  const id = newTabId(record)
+  change((state) => splitPane(state, home?.id ?? state.activePane, 'row', 'after', [id]))
+  return id
+}
+
 type ClosedListener = (tabId: TabId, record: TabRecord) => void
 const closedListeners = new Set<ClosedListener>()
 
@@ -193,14 +239,14 @@ export function resizeSplit(splitId: SplitId, sizes: readonly number[]): void {
 /**
  * Splits the active pane. The new pane opens a tab on `shown`, or by default on the same document
  * as the active tab, so an edit in either pane shows in both. With neither, the new pane is empty.
- * The Settings tab is never copied: there is one, so splitting its pane leaves the new one empty
- * (ISC-345).
+ * The Settings tab and the Theme preview are never copied: there is one of each, so splitting
+ * their pane leaves the new one empty (ISC-345, ISC-513).
  */
 export function splitActivePane(direction: Direction, shown?: TabRecord): void {
   const current = layout.value
   const active = findPane(current, current.activePane)
   const record = shown ?? (active?.activeTab ? records.get(active.activeTab) : undefined)
-  const tabs = record === undefined || record.kind === 'settings' ? [] : [newTabId(record)]
+  const tabs = record === undefined || isPanelTab(record) ? [] : [newTabId(record)]
   change((state) => splitPane(state, state.activePane, direction, 'after', tabs))
 }
 
