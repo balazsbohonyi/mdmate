@@ -2,6 +2,8 @@ import { parse, printParseErrorCode, type ParseError } from 'jsonc-parser'
 import {
   BUILT_IN_EXCLUDED_FOLDERS,
   cloneSettings,
+  COLOR_FORMATS,
+  type ColorFormat,
   DEFAULT_HEADING_SCALE,
   DEFAULT_SETTINGS,
   LINKS_ON_RENAME,
@@ -38,6 +40,8 @@ export interface SettingValueMap {
   'recent.files': number
   'recent.folders': number
   'workspace.excludedFolders': readonly string[]
+  'themes.hideContrastWarnings': boolean
+  'themes.colorFormat': ColorFormat
   devtools: boolean
 }
 
@@ -118,6 +122,11 @@ export function checkPasteFolder(value: unknown): Checked<string> {
 function checkLinksOnRename(value: unknown): Checked<LinksOnRename> {
   const found = LINKS_ON_RENAME.find((mode) => mode === value)
   return found === undefined ? bad('Use "ask", "update" or "never".') : good(found)
+}
+
+function checkColorFormat(value: unknown): Checked<ColorFormat> {
+  const found = COLOR_FORMATS.find((format) => format === value)
+  return found === undefined ? bad('Use "hex" or "oklch".') : good(found)
 }
 
 function checkHeadingScale(value: unknown): Checked<readonly number[]> {
@@ -335,6 +344,20 @@ export const SETTING_DEFS: { readonly [K in SettingKey]: SettingDef<SettingValue
     check: checkExcludedFolders,
     // Case and order are part of a list the user wrote, but the index treats the names as a set.
     equals: (a, b) => sameList([...a].sort(), [...b].sort()),
+  },
+  'themes.hideContrastWarnings': {
+    key: 'themes.hideContrastWarnings',
+    path: ['themes', 'hideContrastWarnings'],
+    default: DEFAULT_SETTINGS.themes.hideContrastWarnings,
+    check: isBoolean,
+    equals: same,
+  },
+  'themes.colorFormat': {
+    key: 'themes.colorFormat',
+    path: ['themes', 'colorFormat'],
+    default: DEFAULT_SETTINGS.themes.colorFormat,
+    check: checkColorFormat,
+    equals: same,
   },
   devtools: {
     key: 'devtools',

@@ -42,6 +42,7 @@ import {
 import { getHost } from '@/platform'
 import { runCommand } from '@/workbench/commands'
 import { COMMAND_IDS } from '@/workbench/defaultCommands'
+import SubGroupHeading from './SubGroupHeading.vue'
 import ThemeColors from '@/features/themes/ThemeColors.vue'
 import { openThemesFolder } from '@/features/themes/customize'
 import { themeChoices, themeProblem } from '@/features/themes/store'
@@ -153,6 +154,15 @@ function optionsOf(spec: SettingRowSpec): readonly { value: string; label: strin
   return known.some((option) => option.value === current)
     ? known
     : [...known, { value: current, label: current }]
+}
+
+/**
+ * The heading a row starts a sub-group with, or null: the row's group when it differs from the row
+ * before it. A search lists rows from every category with no headings.
+ */
+function headingBefore(spec: SettingRowSpec, at: number): string | null {
+  if (searching.value || spec.group === undefined) return null
+  return shown.value[at - 1]?.group === spec.group ? null : spec.group
 }
 
 function set<K extends SettingKey>(key: K, value: SettingValueMap[K]): void {
@@ -570,52 +580,36 @@ function openFile(): void {
           v-else
           class="mt-2"
         >
-          <SettingRow
-            v-for="spec in shown"
+          <template
+            v-for="(spec, at) in shown"
             :key="spec.key"
-            :setting-key="spec.key"
-            :label="spec.label"
-            :description="spec.description"
-            :modified="isModified(spec.key)"
-            :error="errorOf(spec.key)"
-            :locked="lockOf(spec.key)"
-            @reset="reset(spec.key)"
           >
-            <Switch
-              v-if="spec.control.kind === 'switch'"
-              :model-value="valueOf(spec.key) === true"
-              :aria-label="spec.label"
-              @update:model-value="(on: boolean) => set(spec.key as 'devtools', on)"
-            />
-            <Input
-              v-else-if="spec.control.kind === 'number'"
-              :model-value="shownText(spec.key)"
-              inputmode="decimal"
-              :aria-label="spec.label"
-              :aria-invalid="refused[spec.key] !== undefined ? true : undefined"
-              @update:model-value="(text: string | number) => onType(spec.key, text)"
-              @change="accept(spec)"
-              @keydown.enter="accept(spec)"
-              @keydown.esc="revert(spec.key)"
-            />
-            <Input
-              v-else-if="spec.control.kind === 'text'"
-              :model-value="shownText(spec.key)"
-              :placeholder="spec.control.placeholder"
-              :aria-label="spec.label"
-              :aria-invalid="refused[spec.key] !== undefined ? true : undefined"
-              @update:model-value="(text: string | number) => onType(spec.key, text)"
-              @change="accept(spec)"
-              @keydown.enter="accept(spec)"
-              @keydown.esc="revert(spec.key)"
-            />
-            <div
-              v-else-if="spec.control.kind === 'font'"
-              class="flex flex-col gap-1"
+            <SubGroupHeading
+              v-if="headingBefore(spec, at) !== null"
+              :first="at === 0"
+              data-settings-group-heading
             >
+              {{ headingBefore(spec, at) }}
+            </SubGroupHeading>
+            <SettingRow
+              :setting-key="spec.key"
+              :label="spec.label"
+              :description="spec.description"
+              :modified="isModified(spec.key)"
+              :error="errorOf(spec.key)"
+              :locked="lockOf(spec.key)"
+              @reset="reset(spec.key)"
+            >
+              <Switch
+                v-if="spec.control.kind === 'switch'"
+                :model-value="valueOf(spec.key) === true"
+                :aria-label="spec.label"
+                @update:model-value="(on: boolean) => set(spec.key as 'devtools', on)"
+              />
               <Input
+                v-else-if="spec.control.kind === 'number'"
                 :model-value="shownText(spec.key)"
-                placeholder="Built-in"
+                inputmode="decimal"
                 :aria-label="spec.label"
                 :aria-invalid="refused[spec.key] !== undefined ? true : undefined"
                 @update:model-value="(text: string | number) => onType(spec.key, text)"
@@ -623,215 +617,241 @@ function openFile(): void {
                 @keydown.enter="accept(spec)"
                 @keydown.esc="revert(spec.key)"
               />
-              <p
-                class="truncate text-sm text-foreground"
-                :style="{ fontFamily: sampleStack(spec) }"
-                data-font-sample
-              >
-                The quick brown fox jumps over the lazy dog
-              </p>
-            </div>
-            <div
-              v-else-if="spec.control.kind === 'scale'"
-              class="grid grid-cols-6 gap-1"
-              data-heading-scale
-            >
-              <label
-                v-for="(_, index) in settings.fonts.headingScale"
-                :key="index"
-                class="flex flex-col items-center gap-0.5 text-xs text-muted-foreground"
-              >
-                H{{ index + 1 }}
-                <Input
-                  :model-value="scaleText(index)"
-                  inputmode="decimal"
-                  :aria-label="`Heading ${index + 1} size`"
-                  :aria-invalid="refused[spec.key] !== undefined ? true : undefined"
-                  class="px-1 text-center"
-                  @update:model-value="(text: string | number) => onScaleType(index, text)"
-                  @change="acceptScale"
-                  @keydown.enter="acceptScale"
-                  @keydown.esc="revertScale"
-                />
-              </label>
-            </div>
-            <Select
-              v-else-if="spec.control.kind === 'choice'"
-              :model-value="choiceValue(spec)"
-              :disabled="lockOf(spec.key) !== null"
-              @update:model-value="(value) => set(spec.key as 'theme', String(value))"
-            >
-              <SelectTrigger
-                class="w-full"
+              <Input
+                v-else-if="spec.control.kind === 'text'"
+                :model-value="shownText(spec.key)"
+                :placeholder="spec.control.placeholder"
                 :aria-label="spec.label"
+                :aria-invalid="refused[spec.key] !== undefined ? true : undefined"
+                @update:model-value="(text: string | number) => onType(spec.key, text)"
+                @change="accept(spec)"
+                @keydown.enter="accept(spec)"
+                @keydown.esc="revert(spec.key)"
+              />
+              <div
+                v-else-if="spec.control.kind === 'font'"
+                class="flex flex-col gap-1"
               >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem
-                  v-for="option in optionsOf(spec)"
-                  :key="option.value"
-                  :value="option.value"
-                >
-                  {{ option.label }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-            <div
-              v-else-if="spec.control.kind === 'folders'"
-              class="flex flex-col gap-2"
-              data-excluded-folders
-            >
-              <ul class="flex flex-wrap gap-1">
-                <li
-                  v-for="name in sortedFolders"
-                  :key="name"
-                  class="flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs"
-                  data-excluded-chip
-                >
-                  {{ name }}
-                  <button
-                    type="button"
-                    class="cursor-default rounded-sm text-muted-foreground hover:text-foreground"
-                    :aria-label="`Remove ${name}`"
-                    @click="removeFolder(name)"
-                  >
-                    <X class="size-3" />
-                  </button>
-                </li>
-              </ul>
-              <div class="flex gap-1">
                 <Input
-                  v-model="folderDraft"
-                  placeholder="Add a folder name"
-                  aria-label="Add an excluded folder"
-                  @keydown.enter.prevent="addFolder"
+                  :model-value="shownText(spec.key)"
+                  placeholder="Built-in"
+                  :aria-label="spec.label"
+                  :aria-invalid="refused[spec.key] !== undefined ? true : undefined"
+                  @update:model-value="(text: string | number) => onType(spec.key, text)"
+                  @change="accept(spec)"
+                  @keydown.enter="accept(spec)"
+                  @keydown.esc="revert(spec.key)"
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  @click="addFolder"
+                <p
+                  class="truncate text-sm text-foreground"
+                  :style="{ fontFamily: sampleStack(spec) }"
+                  data-font-sample
                 >
-                  Add
-                </Button>
+                  The quick brown fox jumps over the lazy dog
+                </p>
               </div>
-              <Button
-                v-if="isModified(spec.key)"
-                type="button"
-                variant="outline"
-                size="sm"
-                data-excluded-reset
-                @click="reset(spec.key)"
+              <div
+                v-else-if="spec.control.kind === 'scale'"
+                class="grid grid-cols-6 gap-1"
+                data-heading-scale
               >
-                Reset to built-in list
-              </Button>
-            </div>
-            <div
-              v-else-if="spec.control.kind === 'extensions'"
-              class="flex flex-col gap-2"
-              data-highlight-extensions
-            >
-              <ul class="flex flex-wrap gap-1">
-                <HoverHint
-                  v-for="tag in colorTags"
-                  :key="tag.key"
-                  :text="tag.hint"
+                <label
+                  v-for="(_, index) in settings.fonts.headingScale"
+                  :key="index"
+                  class="flex flex-col items-center gap-0.5 text-xs text-muted-foreground"
                 >
-                  <li
-                    class="flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs"
-                    data-extension-chip
-                    :data-language-chip="tag.language ? 'true' : undefined"
+                  H{{ index + 1 }}
+                  <Input
+                    :model-value="scaleText(index)"
+                    inputmode="decimal"
+                    :aria-label="`Heading ${index + 1} size`"
+                    :aria-invalid="refused[spec.key] !== undefined ? true : undefined"
+                    class="px-1 text-center"
+                    @update:model-value="(text: string | number) => onScaleType(index, text)"
+                    @change="acceptScale"
+                    @keydown.enter="acceptScale"
+                    @keydown.esc="revertScale"
+                  />
+                </label>
+              </div>
+              <Select
+                v-else-if="spec.control.kind === 'choice'"
+                :model-value="choiceValue(spec)"
+                :disabled="lockOf(spec.key) !== null"
+                @update:model-value="(value) => set(spec.key as 'theme', String(value))"
+              >
+                <SelectTrigger
+                  class="w-full"
+                  :aria-label="spec.label"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem
+                    v-for="option in optionsOf(spec)"
+                    :key="option.value"
+                    :value="option.value"
                   >
-                    {{ tag.label }}
+                    {{ option.label }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <div
+                v-else-if="spec.control.kind === 'folders'"
+                class="flex flex-col gap-2"
+                data-excluded-folders
+              >
+                <ul class="flex flex-wrap gap-1">
+                  <li
+                    v-for="name in sortedFolders"
+                    :key="name"
+                    class="flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs"
+                    data-excluded-chip
+                  >
+                    {{ name }}
                     <button
                       type="button"
                       class="cursor-default rounded-sm text-muted-foreground hover:text-foreground"
-                      :aria-label="`Remove ${tag.label}`"
-                      @click="removeTag(tag)"
+                      :aria-label="`Remove ${name}`"
+                      @click="removeFolder(name)"
                     >
                       <X class="size-3" />
                     </button>
                   </li>
-                </HoverHint>
-              </ul>
-              <Combobox
-                :model-value="''"
-                ignore-filter
-                @update:model-value="(value) => addLanguage(String(value))"
-                @update:open="loadLanguages"
-              >
-                <ComboboxAnchor as-child>
-                  <ComboboxTrigger as-child>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      class="w-full justify-between font-normal"
-                      aria-label="Add a language"
-                      data-extension-picker
-                    >
-                      Add a language
-                      <ChevronsUpDown class="opacity-50" />
-                    </Button>
-                  </ComboboxTrigger>
-                </ComboboxAnchor>
-                <ComboboxList>
-                  <ComboboxInput
-                    v-model="languageSearch"
-                    placeholder="Search languages"
+                </ul>
+                <div class="flex gap-1">
+                  <Input
+                    v-model="folderDraft"
+                    placeholder="Add a folder name"
+                    aria-label="Add an excluded folder"
+                    @keydown.enter.prevent="addFolder"
                   />
-                  <p
-                    v-if="languages === null"
-                    class="px-2 py-2 text-center text-sm text-muted-foreground"
+                  <Button
+                    type="button"
+                    variant="outline"
+                    @click="addFolder"
                   >
-                    Loading languages…
-                  </p>
-                  <p
-                    v-else-if="matchingLanguages.length === 0"
-                    class="px-2 py-2 text-center text-sm text-muted-foreground"
-                    data-language-empty
-                  >
-                    No language found.
-                  </p>
-                  <ComboboxViewport class="max-h-60">
-                    <ComboboxGroup>
-                      <ComboboxItem
-                        v-for="language in matchingLanguages"
-                        :key="language.name"
-                        :value="language.name"
-                        :disabled="allEnabled(language)"
-                        data-language-item
-                      >
-                        <span class="flex min-w-0 flex-1 flex-col">
-                          <span data-language-name>{{ language.name }}</span>
-                          <HoverHint :text="extensionsText(language)">
-                            <span
-                              class="truncate text-xs text-muted-foreground!"
-                              data-language-extensions
-                              >{{ extensionsText(language) }}</span
-                            >
-                          </HoverHint>
-                        </span>
-                        <Check
-                          v-if="allEnabled(language)"
-                          class="size-4 shrink-0"
-                        />
-                      </ComboboxItem>
-                    </ComboboxGroup>
-                  </ComboboxViewport>
-                </ComboboxList>
-              </Combobox>
-              <Button
-                v-if="isModified(spec.key)"
-                type="button"
-                variant="outline"
-                size="sm"
-                data-extension-reset
-                @click="reset(spec.key)"
+                    Add
+                  </Button>
+                </div>
+                <Button
+                  v-if="isModified(spec.key)"
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  data-excluded-reset
+                  @click="reset(spec.key)"
+                >
+                  Reset to built-in list
+                </Button>
+              </div>
+              <div
+                v-else-if="spec.control.kind === 'extensions'"
+                class="flex flex-col gap-2"
+                data-highlight-extensions
               >
-                Reset to the default list
-              </Button>
-            </div>
-          </SettingRow>
+                <ul class="flex flex-wrap gap-1">
+                  <HoverHint
+                    v-for="tag in colorTags"
+                    :key="tag.key"
+                    :text="tag.hint"
+                  >
+                    <li
+                      class="flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs"
+                      data-extension-chip
+                      :data-language-chip="tag.language ? 'true' : undefined"
+                    >
+                      {{ tag.label }}
+                      <button
+                        type="button"
+                        class="cursor-default rounded-sm text-muted-foreground hover:text-foreground"
+                        :aria-label="`Remove ${tag.label}`"
+                        @click="removeTag(tag)"
+                      >
+                        <X class="size-3" />
+                      </button>
+                    </li>
+                  </HoverHint>
+                </ul>
+                <Combobox
+                  :model-value="''"
+                  ignore-filter
+                  @update:model-value="(value) => addLanguage(String(value))"
+                  @update:open="loadLanguages"
+                >
+                  <ComboboxAnchor as-child>
+                    <ComboboxTrigger as-child>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        class="w-full justify-between font-normal"
+                        aria-label="Add a language"
+                        data-extension-picker
+                      >
+                        Add a language
+                        <ChevronsUpDown class="opacity-50" />
+                      </Button>
+                    </ComboboxTrigger>
+                  </ComboboxAnchor>
+                  <ComboboxList>
+                    <ComboboxInput
+                      v-model="languageSearch"
+                      placeholder="Search languages"
+                    />
+                    <p
+                      v-if="languages === null"
+                      class="px-2 py-2 text-center text-sm text-muted-foreground"
+                    >
+                      Loading languages…
+                    </p>
+                    <p
+                      v-else-if="matchingLanguages.length === 0"
+                      class="px-2 py-2 text-center text-sm text-muted-foreground"
+                      data-language-empty
+                    >
+                      No language found.
+                    </p>
+                    <ComboboxViewport class="max-h-60">
+                      <ComboboxGroup>
+                        <ComboboxItem
+                          v-for="language in matchingLanguages"
+                          :key="language.name"
+                          :value="language.name"
+                          :disabled="allEnabled(language)"
+                          data-language-item
+                        >
+                          <span class="flex min-w-0 flex-1 flex-col">
+                            <span data-language-name>{{ language.name }}</span>
+                            <HoverHint :text="extensionsText(language)">
+                              <span
+                                class="truncate text-xs text-muted-foreground!"
+                                data-language-extensions
+                                >{{ extensionsText(language) }}</span
+                              >
+                            </HoverHint>
+                          </span>
+                          <Check
+                            v-if="allEnabled(language)"
+                            class="size-4 shrink-0"
+                          />
+                        </ComboboxItem>
+                      </ComboboxGroup>
+                    </ComboboxViewport>
+                  </ComboboxList>
+                </Combobox>
+                <Button
+                  v-if="isModified(spec.key)"
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  data-extension-reset
+                  @click="reset(spec.key)"
+                >
+                  Reset to the default list
+                </Button>
+              </div>
+            </SettingRow>
+          </template>
           <SettingRow
             v-if="showsActions"
             :setting-key="null"

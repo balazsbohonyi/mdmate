@@ -22,6 +22,7 @@ import {
   type Keybinding,
 } from '@/workbench/keybinding'
 import SettingRow from './SettingRow.vue'
+import SubGroupHeading from './SubGroupHeading.vue'
 
 /**
  * The Keyboard category: every command with its shortcut. Clicking a shortcut records the next
@@ -190,12 +191,7 @@ function buttonText(command: Command): string {
         :aria-label="section.group"
         data-keyboard-group
       >
-        <h2
-          class="mt-10 mb-1 text-base font-semibold text-foreground"
-          data-keyboard-group-heading
-        >
-          {{ section.group }}
-        </h2>
+        <SubGroupHeading data-keyboard-group-heading>{{ section.group }}</SubGroupHeading>
         <SettingRow
           v-for="command in section.commands"
           :key="command.id"

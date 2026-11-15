@@ -30,6 +30,11 @@ export interface SettingRowSpec {
   /** One line: what it does and, where it matters, what the value means. */
   readonly description: string
   readonly control: RowControl
+  /**
+   * The sub-group heading the row sits under in its category. Rows of one group are next to each
+   * other; a search lists rows from every category flat and shows no headings.
+   */
+  readonly group?: string
 }
 
 /** The environment variable that sets what a rename does about links for one run. */
@@ -40,12 +45,14 @@ export const SETTING_ROWS: readonly SettingRowSpec[] = [
     key: 'theme',
     category: 'appearance',
     label: 'Theme',
+    group: 'Theme',
     description: 'The colours of the whole window. System follows the operating system.',
     control: { kind: 'choice', options: BUILT_IN_CHOICES },
   },
   {
     key: 'fonts.heading',
     category: 'appearance',
+    group: 'Fonts',
     label: 'Heading font',
     description: 'The font of headings. Empty uses the body font.',
     control: { kind: 'font', family: 'heading' },
@@ -53,6 +60,7 @@ export const SETTING_ROWS: readonly SettingRowSpec[] = [
   {
     key: 'fonts.body',
     category: 'appearance',
+    group: 'Fonts',
     label: 'Body font',
     description: 'The font of the document text. Empty uses the built-in font.',
     control: { kind: 'font', family: 'body' },
@@ -60,6 +68,7 @@ export const SETTING_ROWS: readonly SettingRowSpec[] = [
   {
     key: 'fonts.code',
     category: 'appearance',
+    group: 'Fonts',
     label: 'Code font',
     description: 'The font of code, inline and in blocks. Empty uses the built-in code font.',
     control: { kind: 'font', family: 'code' },
@@ -67,6 +76,7 @@ export const SETTING_ROWS: readonly SettingRowSpec[] = [
   {
     key: 'fonts.size',
     category: 'appearance',
+    group: 'Fonts',
     label: 'Text size',
     description: 'The size of the document text, in pixels.',
     control: { kind: 'number' },
@@ -74,6 +84,7 @@ export const SETTING_ROWS: readonly SettingRowSpec[] = [
   {
     key: 'fonts.codeSize',
     category: 'appearance',
+    group: 'Fonts',
     label: 'Code size',
     description: 'The size of code, inline and in blocks, in pixels.',
     control: { kind: 'number' },
@@ -81,9 +92,33 @@ export const SETTING_ROWS: readonly SettingRowSpec[] = [
   {
     key: 'fonts.headingScale',
     category: 'appearance',
+    group: 'Fonts',
     label: 'Heading sizes',
     description: 'How big each heading level is, as a multiple of the text size, H1 to H6.',
     control: { kind: 'scale' },
+  },
+  {
+    key: 'themes.hideContrastWarnings',
+    category: 'appearance',
+    group: 'Theme colors',
+    label: 'Hide contrast warnings',
+    description:
+      'Leave out the lines in the color editor about text that is hard to read on its background.',
+    control: { kind: 'switch' },
+  },
+  {
+    key: 'themes.colorFormat',
+    category: 'appearance',
+    group: 'Theme colors',
+    label: 'Show colors as',
+    description: 'How the color editor shows every color. A color you change is written this way.',
+    control: {
+      kind: 'choice',
+      options: [
+        { value: 'hex', label: 'Hex (#rrggbb)' },
+        { value: 'oklch', label: 'OKLCH' },
+      ],
+    },
   },
   {
     key: 'editor.wordWrap',

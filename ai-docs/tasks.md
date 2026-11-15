@@ -105,6 +105,9 @@ Phase 9 runs before this phase (owner's decision, 2026-11-13): image paste ships
 - [x] P8-T2: Keybindings: the file, the rebind API, the on-screen recorder — closes ISC-149, ISC-372, ISC-373, ISC-374, ISC-375, ISC-376 and the new ISC-402 to ISC-411
 - [x] P8-T3: Themes: Dark, Light, Sepia and System, user theme files, Customize, the colour editor — closes ISC-145, ISC-150, ISC-151, ISC-173, ISC-377, ISC-378, ISC-379, ISC-380, ISC-381, ISC-382, ISC-383, ISC-385, ISC-358, ISC-371 and the new ISC-445 to ISC-458; ISC-146 (no SublimeText assets) stays open for the owner to review
 - [x] P8-T4: Portable mode — closes ISC-152 and the new ISC-459 to ISC-461
+- [x] P8-T5: Settings polish: sub-group headings in `--primary`, hide-contrast-warnings (on by default), colors shown as hex or OKLCH — the new ISC-462 to ISC-470 (owner request after P8-T3)
+- [ ] P8-T6: Managing themes: names, a list, New theme, rename, duplicate, delete to the Recycle Bin, dark/light switch, per-color reset, scroll to the editor (owner request; plan in the plans folder)
+- [ ] P8-T7: Theme preview tab beside Settings: a small real app and a rich sample note with a checkbox list (owner request)
 
 ## Phase 9: Image authoring ([plan](phases/phase-09/plan.md))
 

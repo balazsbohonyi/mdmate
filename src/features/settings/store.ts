@@ -111,6 +111,7 @@ function assignSettings(next: typeof settings): void {
   Object.assign(settings.links, next.links)
   Object.assign(settings.files, next.files)
   Object.assign(settings.recent, next.recent)
+  Object.assign(settings.themes, next.themes)
   settings.workspace.excludedFolders = next.workspace.excludedFolders
   settings.devtools = next.devtools
 }

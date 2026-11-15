@@ -12,6 +12,12 @@ export type LinksOnRename = 'ask' | 'update' | 'never'
 /** The values, for checking what comes from outside the page. */
 export const LINKS_ON_RENAME: readonly LinksOnRename[] = ['ask', 'update', 'never']
 
+/** How the theme color editor writes and shows a color. */
+export type ColorFormat = 'hex' | 'oklch'
+
+/** The values, for checking what comes from outside the page. */
+export const COLOR_FORMATS: readonly ColorFormat[] = ['hex', 'oklch']
+
 /**
  * The folder names the workspace index, folder search and link scans leave out until the user
  * changes the list. Rust holds the same list (`fs/exclude.rs`, `EXCLUDED_DIRS`) and a test keeps
@@ -127,6 +133,12 @@ export interface Settings {
     /** The folder names the workspace index leaves out. */
     excludedFolders: readonly string[]
   }
+  themes: {
+    /** Whether the color editor leaves out its lines about a pair of colors that is hard to read. */
+    hideContrastWarnings: boolean
+    /** The format the color editor shows every color in, and writes a changed one in. */
+    colorFormat: ColorFormat
+  }
   devtools: boolean
 }
 
@@ -154,6 +166,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = {
   files: { largeFileMB: 3 },
   recent: { files: 10, folders: 5 },
   workspace: { excludedFolders: BUILT_IN_EXCLUDED_FOLDERS },
+  themes: { hideContrastWarnings: true, colorFormat: 'hex' },
   devtools: false,
 }
 
@@ -168,6 +181,7 @@ export function cloneSettings(from: Readonly<Settings>): Settings {
     files: { ...from.files },
     recent: { ...from.recent },
     workspace: { excludedFolders: [...from.workspace.excludedFolders] },
+    themes: { ...from.themes },
     devtools: from.devtools,
   }
 }

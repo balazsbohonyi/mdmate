@@ -3,10 +3,12 @@ import { computed, reactive } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { BUILT_IN_THEMES } from '@/lib/builtinThemes'
-import { contrast, toHex, tryParseColor } from '@/lib/color'
+import { contrast, formatColor, toHex, tryParseColor } from '@/lib/color'
+import { settings } from '@/lib/settings'
 import { checkThemeColor } from '@/lib/themeFile'
 import { effectiveTokens } from '@/lib/themes'
 import { CONTRAST_PAIRS, THEME_GROUPS, THEME_TOKENS, tokensOf } from '@/lib/themeTokens'
+import SubGroupHeading from '@/features/settings/SubGroupHeading.vue'
 import { changeThemeColor, customizeTheme } from './customize'
 import { currentTheme } from './store'
 
@@ -34,8 +36,16 @@ function valueOf(token: string): string {
   return colors.value.get(token) ?? ''
 }
 
+/** The format every color is shown in, and a changed one is written in. */
+const format = computed(() => settings.themes.colorFormat)
+
+/** A color as the field shows it: in the chosen format, as written when it already is in it. */
+function displayed(token: string): string {
+  return formatColor(valueOf(token), format.value)
+}
+
 function shownText(token: string): string {
-  return drafts[token] ?? valueOf(token)
+  return drafts[token] ?? displayed(token)
 }
 
 /** The picker holds `#rrggbb`: only a color with no alpha fits it, or the alpha would be lost. */
@@ -48,7 +58,7 @@ function onPick(token: string, event: Event): void {
   const value = (event.target as HTMLInputElement).value
   delete drafts[token]
   delete refused[token]
-  void changeThemeColor(token, value)
+  void changeThemeColor(token, formatColor(value, format.value))
 }
 
 function onType(token: string, text: string | number): void {
@@ -66,7 +76,9 @@ function accept(token: string): void {
   }
   delete drafts[token]
   delete refused[token]
-  if (checked.value !== valueOf(token)) void changeThemeColor(token, checked.value, true)
+  // Written in the chosen format, and not at all when it is what the field already showed.
+  const written = formatColor(checked.value, format.value)
+  if (written !== displayed(token)) void changeThemeColor(token, written, true)
 }
 
 function revert(token: string): void {
@@ -77,6 +89,7 @@ function revert(token: string): void {
 /** The pairs of text and surface that are under their floor, as a line for each token in them. */
 const warnings = computed(() => {
   const found = new Map<string, string[]>()
+  if (settings.themes.hideContrastWarnings) return found
   for (const [text, surface, floor] of CONTRAST_PAIRS) {
     const a = tryParseColor(valueOf(text))
     const b = tryParseColor(valueOf(surface))
@@ -99,10 +112,9 @@ function customize(): void {
 <template>
   <section
     aria-label="Theme colors"
-    class="mt-10"
+    class="mt-4"
     data-theme-colors
   >
-    <h2 class="text-base font-semibold text-foreground">Theme colors</h2>
     <div
       v-if="user === null"
       class="mt-2 flex flex-wrap items-center gap-3"
@@ -148,11 +160,11 @@ function customize(): void {
         class="mt-6"
         :data-theme-group="group.id"
       >
-        <h3 class="text-sm font-medium text-foreground">{{ group.label }}</h3>
+        <SubGroupHeading :level="3">{{ group.label }}</SubGroupHeading>
         <div
           v-for="token in tokensOf(group.id)"
           :key="token.name"
-          class="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,14rem)] items-center gap-x-3 border-b border-border py-1.5"
+          class="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,19rem)] items-center gap-x-3 border-b border-border py-1.5"
           :data-theme-token="token.name"
         >
           <div class="min-w-0">
