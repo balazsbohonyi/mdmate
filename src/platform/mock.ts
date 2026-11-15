@@ -295,6 +295,8 @@ export interface MockHostOptions {
    * to load.
    */
   readonly images?: Readonly<Record<string, { readonly url: string; readonly bytes: number }>>
+  /** Makes the Recycle Bin unavailable, as on a drive without one: deleting a theme fails and the file stays. */
+  readonly noRecycleBin?: boolean
 }
 
 /** What a file opens as, by name. Like Rust's `fs::kind`, and just as small. */
@@ -1132,6 +1134,26 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
         if (create && exists) throw hostError('exists', `${name}.json already exists`)
         if (!create && !exists) throw hostError('not-found', `${name}.json was not found`)
         files.write(path, text)
+      })
+    },
+    themeRename(from, to) {
+      return attempt(() => {
+        const source = themePath(requireThemeName(from))
+        const target = themePath(requireThemeName(to))
+        if (!files.has(source)) throw hostError('not-found', `${from}.json was not found`)
+        if (from === to) return
+        if (files.has(target) && from.toLowerCase() !== to.toLowerCase())
+          throw hostError('exists', `${to}.json already exists`)
+        files.move(source, target)
+      })
+    },
+    themeDelete(name) {
+      return attempt(() => {
+        const path = themePath(requireThemeName(name))
+        if (!files.has(path)) throw hostError('not-found', `${name}.json was not found`)
+        if (options.noRecycleBin === true)
+          throw hostError('io', 'There is no Recycle Bin for this drive.')
+        recycled.push(...files.remove(path))
       })
     },
     watchThemes(onChange) {

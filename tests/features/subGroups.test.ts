@@ -114,6 +114,7 @@ describe('ISC-462: every sub-group heading is drawn in the primary color', () =>
     expect(texts()).toEqual([
       'Theme',
       'Fonts',
+      'Themes',
       'Theme colors',
       'Core',
       'Sidebar',
@@ -188,6 +189,7 @@ describe('ISC-464: the Appearance rows sit under their headings', () => {
       'fonts.size',
       'fonts.codeSize',
       'fonts.headingScale',
+      '# Themes',
       '# Theme colors',
       'themes.colorFormat',
     ])

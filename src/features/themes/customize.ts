@@ -1,17 +1,25 @@
 import { describe, errorKind } from '@/documents/store'
 import { requestSettingChange } from '@/features/settings/store'
-import { BUILT_IN_THEMES, builtInFor } from '@/lib/builtinThemes'
-import { editThemeColor, newThemeText } from '@/lib/themeFile'
-import { checkThemeName } from '@/lib/themeNames'
+import { BUILT_IN_THEMES, builtInFor, type BuiltInId } from '@/lib/builtinThemes'
+import { settings } from '@/lib/settings'
+import type { Checked } from '@/lib/settingsFile'
+import { editThemeColor, editThemeField, newThemeText } from '@/lib/themeFile'
+import { checkThemeLabel, copyLabel, themeStem } from '@/lib/themeNames'
+import { THEME_TOKENS } from '@/lib/themeTokens'
 import { effectiveTokens, slotKey, SYSTEM_THEME } from '@/lib/themes'
 import { getHost } from '@/platform'
-import { reportError } from '@/shell/toasts'
+import { reportError, reportWarning } from '@/shell/toasts'
 import {
   currentTheme,
+  dropThemeText,
   enqueueThemeJob,
+  holdThemeNotices,
   noteThemeText,
   previewThemeColor,
+  requestEditorScroll,
+  systemIsDark,
   themeFileNames,
+  themeSlots,
 } from './store'
 
 /**
@@ -21,63 +29,271 @@ import {
  * lives in `themes/` of the data folder.
  */
 
-/** A copy keeps the stem short enough to hold " copy 99" and stay a valid name. */
-const STEM_MAX = 50
+/** What a new theme starts from: a palette, and the color of every token. */
+interface Source {
+  readonly label: string
+  readonly palette: BuiltInId
+  readonly colors: Map<string, string>
+}
 
-const shortened = (text: string): string => [...text].slice(0, STEM_MAX).join('').trim()
-
-/** The ending that makes the first name no file has: ` copy`, then ` copy 2`, and so on. */
-function freeSuffix(stem: string, taken: ReadonlySet<string>): string {
-  const short = shortened(stem)
-  for (let number = 1; number < 1000; number++) {
-    const suffix = number === 1 ? ' copy' : ` copy ${String(number)}`
-    const key = slotKey(short + suffix)
-    if (!taken.has(key) && key !== SYSTEM_THEME && builtInFor(key) === undefined) return suffix
+/** The names of the user themes, leaving out the one with this file name. */
+function userLabels(exceptId?: string): string[] {
+  const labels: string[] = []
+  for (const slot of themeSlots.value) {
+    if (!slot.ok) continue
+    if (exceptId !== undefined && slotKey(slot.theme.id) === slotKey(exceptId)) continue
+    labels.push(slot.theme.label)
   }
-  return ` copy ${String(Date.now())}`
+  return labels
 }
 
 /**
- * Copies the theme in force into a new file in `themes/` and selects the copy: the base palette
- * and a literal color for every token of what is shown now (System's current Dark or Light, a
- * user theme's own colors). A file that is already there is never replaced; the next free name is
- * used. Resolves to the new theme's name, or null when nothing was made (a notice says why).
+ * What a theme in the list stands for, as data to start a new theme from: a built-in's palette, a
+ * user theme's own colors on its base, or what System shows right now. Null for a name that is
+ * nothing (or a file that could not be read).
  */
-export async function customizeTheme(): Promise<string | null> {
-  const shown = currentTheme.value
-  const stem = shown.user?.id ?? shown.label
-  const label = shown.user?.label ?? shown.label
-  const colors = effectiveTokens(shown)
-  const made = await enqueueThemeJob(async () => {
+function sourceOf(value: string): Source | null {
+  const key = slotKey(value)
+  if (key === SYSTEM_THEME) {
+    const palette: BuiltInId = systemIsDark() ? 'dark' : 'light'
+    return { label: 'System', palette, colors: effectiveTokens({ palette, overrides: new Map() }) }
+  }
+  const builtIn = builtInFor(key)
+  if (builtIn !== undefined) {
+    return {
+      label: builtIn.label,
+      palette: builtIn.id,
+      colors: effectiveTokens({ palette: builtIn.id, overrides: new Map() }),
+    }
+  }
+  for (const slot of themeSlots.value) {
+    if (!slot.ok || slotKey(slot.theme.id) !== key) continue
+    const { label, base, colors } = slot.theme
+    return { label, palette: base, colors: effectiveTokens({ palette: base, overrides: colors }) }
+  }
+  return null
+}
+
+/**
+ * Writes a new theme file and tells the page about it. A name no file has is found for it; a file
+ * that appears between the check and the write is never replaced, the next name is tried. Resolves
+ * to the file's name without `.json`, or null after a notice says why nothing was made.
+ */
+function writeNewTheme(
+  label: string,
+  palette: BuiltInId,
+  colors: ReadonlyMap<string, string>,
+): Promise<string | null> {
+  return enqueueThemeJob(async () => {
     try {
       const host = await getHost()
       const taken = new Set(themeFileNames().map(slotKey))
       for (let attempt = 0; attempt < 5; attempt++) {
-        const suffix = freeSuffix(stem, taken)
-        const name = shortened(stem) + suffix
-        if (!checkThemeName(name).ok) throw new Error('that name is not allowed')
-        const display = shortened(label) + suffix
-        const text = newThemeText(display, shown.palette, colors)
+        const stem = themeStem(label, taken)
+        const text = newThemeText(label, palette, colors)
         try {
-          await host.themeWrite(name, text, true)
-          noteThemeText(name, text)
-          return name
+          await host.themeWrite(stem, text, true)
+          noteThemeText(stem, text)
+          return stem
         } catch (error) {
-          // A file with that name appeared since the folder was read: take the next free name.
           if (errorKind(error) !== 'exists') throw error
-          taken.add(slotKey(name))
+          taken.add(slotKey(stem))
         }
       }
-      throw new Error('no free name was found')
+      throw new Error('no free file name was found')
     } catch (error) {
-      reportError(`Could not make a copy of the theme: ${describe(error)}`)
+      reportError(`Could not make the theme: ${describe(error)}`)
       return null
     }
   })
-  if (made === null) return null
+}
+
+/** Makes a theme selected and the color editor come into view: what every way of making one ends with. */
+async function selectAndShow(id: string): Promise<void> {
   // Selecting goes through the settings screen's path, so unsaved edits in settings.json are asked about.
-  await requestSettingChange('theme', made)
-  return made
+  await requestSettingChange('theme', id)
+  requestEditorScroll()
+}
+
+/** What a new theme can start from: a built-in palette, or what is shown now. */
+export type StartFrom = BuiltInId | 'current'
+
+/**
+ * Makes a new theme from nothing the user has to copy: a name, and a palette to start from (every
+ * color is written out, so the file is complete and nothing depends on the base staying as it is).
+ * The new theme is selected and the editor scrolled into view. Resolves to the new theme's file
+ * name, or why the name was refused.
+ */
+export async function createTheme(rawName: string, from: StartFrom): Promise<Checked<string>> {
+  const checked = checkThemeLabel(rawName, userLabels())
+  if (!checked.ok) return checked
+  const source = sourceOf(from === 'current' ? currentTheme.value.setting : from)
+  const shown = currentTheme.value
+  const start: Source =
+    from === 'current' && source === null
+      ? { label: shown.label, palette: shown.palette, colors: effectiveTokens(shown) }
+      : (source ?? {
+          label: 'Dark',
+          palette: 'dark',
+          colors: effectiveTokens({ palette: 'dark', overrides: new Map() }),
+        })
+  const id = await writeNewTheme(checked.value, start.palette, start.colors)
+  if (id === null) return { ok: false, why: 'The theme could not be made.' }
+  await selectAndShow(id)
+  return { ok: true, value: id }
+}
+
+/**
+ * Copies a theme (the one in force unless one is named) into a new file called "<name> copy", with
+ * its colors written out as they are, and selects the copy. Built-in CSS is never written. Resolves
+ * to the copy's file name, or null when nothing was made (a notice says why).
+ */
+export async function duplicateTheme(value?: string): Promise<string | null> {
+  const from = value ?? currentTheme.value.setting
+  const source = sourceOf(from)
+  const shown = currentTheme.value
+  const start: Source =
+    source ??
+    (shown.user === null
+      ? { label: shown.label, palette: shown.palette, colors: effectiveTokens(shown) }
+      : { label: shown.user.label, palette: shown.palette, colors: effectiveTokens(shown) })
+  const id = await writeNewTheme(copyLabel(start.label, userLabels()), start.palette, start.colors)
+  if (id === null) return null
+  await selectAndShow(id)
+  return id
+}
+
+/** Customize and Duplicate are one thing: a copy of the theme in force, selected and ready to edit. */
+export const customizeTheme = (): Promise<string | null> => duplicateTheme()
+
+/** Dark, Light, Sepia and System are built in: no function here renames, deletes or writes one. */
+export const isBuiltInTheme = (id: string): boolean =>
+  slotKey(id) === SYSTEM_THEME || builtInFor(slotKey(id)) !== undefined
+
+/** Picks a theme to edit: it is selected and the color editor comes into view. A built-in theme has no colors to edit, so nothing happens. */
+export async function editTheme(id: string): Promise<void> {
+  if (isBuiltInTheme(id)) return
+  await selectAndShow(id)
+}
+
+/**
+ * Gives a user theme another name: the `name` in its file changes and so does the file, so the two
+ * agree. A theme in use stays in use. Resolves to the new file name, or why the name was refused
+ * (a notice says why for any other failure).
+ */
+export async function renameTheme(id: string, rawName: string): Promise<Checked<string>> {
+  if (isBuiltInTheme(id)) return { ok: false, why: 'A built-in theme cannot be renamed.' }
+  const checked = checkThemeLabel(rawName, userLabels(id))
+  if (!checked.ok) return checked
+  const label = checked.value
+  const inUse = slotKey(settings.theme) === slotKey(id)
+  const outcome = await holdThemeNotices(async () => {
+    const stem = await enqueueThemeJob(async (): Promise<string | null> => {
+      try {
+        const host = await getHost()
+        const text = await host.themeRead(id)
+        if (text === null) throw new Error(`${id}.json is not in the themes folder any more`)
+        const edited = editThemeField(text, 'name', label, `${id}.json`)
+        if (!edited.ok) {
+          reportError(edited.message)
+          return null
+        }
+        const others = new Set(themeFileNames().map(slotKey))
+        others.delete(slotKey(id))
+        const target = themeStem(label, others)
+        await host.themeWrite(id, edited.text, false)
+        if (target !== id) {
+          await host.themeRename(id, target)
+          dropThemeText(id)
+        }
+        noteThemeText(target, edited.text)
+        return target
+      } catch (error) {
+        reportError(`Could not rename the theme: ${describe(error)}`)
+        return null
+      }
+    })
+    if (stem !== null && inUse && stem !== id) await requestSettingChange('theme', stem)
+    return stem
+  })
+  return outcome === null
+    ? { ok: false, why: 'The theme could not be renamed.' }
+    : { ok: true, value: outcome }
+}
+
+/**
+ * Moves a user theme's file to the Recycle Bin. With no bin the file stays and a notice says so. A
+ * theme that was in use gives way to Dark, and the notice says that too. Resolves to whether the
+ * file is gone.
+ */
+export async function deleteTheme(id: string): Promise<boolean> {
+  if (isBuiltInTheme(id)) return false
+  const label = userLabelOf(id)
+  const gone = await holdThemeNotices(async () => {
+    const done = await enqueueThemeJob(async () => {
+      try {
+        await (await getHost()).themeDelete(id)
+        dropThemeText(id)
+        return true
+      } catch (error) {
+        reportError(`Could not move ${label} to the Recycle Bin: ${describe(error)}`)
+        return false
+      }
+    })
+    if (done && slotKey(settings.theme) === slotKey(id)) await requestSettingChange('theme', 'dark')
+    return done
+  })
+  if (gone)
+    reportWarning(
+      `${label} is in the Recycle Bin.${slotKey(settings.theme) === 'dark' ? ' The theme is Dark now.' : ''}`,
+    )
+  return gone
+}
+
+function userLabelOf(id: string): string {
+  for (const slot of themeSlots.value)
+    if (slot.ok && slotKey(slot.theme.id) === slotKey(id)) return slot.theme.label
+  return id
+}
+
+/** The palette's own color for a token: what a user theme shows when its file leaves the token out. */
+export function baseColorOf(base: BuiltInId, token: string): string | undefined {
+  return effectiveTokens({ palette: base, overrides: new Map() }).get(token)
+}
+
+/**
+ * Changes the palette a user theme is based on (Dark, Light or Sepia). Every color the file leaves
+ * out is first written as the old palette showed it, so the theme keeps its look and only what
+ * "dark" and "light" mean for new colors changes. Resolves to whether the file now holds it.
+ */
+export function setThemeBase(base: BuiltInId): Promise<boolean> {
+  const user = currentTheme.value.user
+  if (user === null || user.base === base) return Promise.resolve(true)
+  const old = effectiveTokens({ palette: user.base, overrides: user.colors })
+  const id = user.id
+  return enqueueThemeJob(async () => {
+    try {
+      const host = await getHost()
+      const text = await host.themeRead(id)
+      if (text === null) throw new Error(`${id}.json is not in the themes folder any more`)
+      let next = text
+      for (const { name } of THEME_TOKENS) {
+        const held = old.get(name)
+        if (held === undefined || user.colors.has(name)) continue
+        const edited = editThemeColor(next, name, held, `${id}.json`)
+        if (!edited.ok) throw new Error(edited.message)
+        next = edited.text
+      }
+      const switched = editThemeField(next, 'base', base, `${id}.json`)
+      if (!switched.ok) throw new Error(switched.message)
+      if (switched.text !== text) await host.themeWrite(id, switched.text, false)
+      noteThemeText(id, switched.text)
+      return true
+    } catch (error) {
+      reportError(`Could not change the base of the theme: ${describe(error)}`)
+      return false
+    }
+  })
 }
 
 /**

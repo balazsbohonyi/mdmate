@@ -6,7 +6,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { nextTick, type App } from 'vue'
-import { flushThemeColors } from '@/features/themes/customize'
+import { baseColorOf, flushThemeColors } from '@/features/themes/customize'
 import { loadSettings, resetSettingsState } from '@/features/settings/store'
 import {
   loadThemes,
@@ -379,5 +379,88 @@ describe('ISC-465: the warnings are hidden by default', () => {
     await type('foreground', '#111418')
     await settledThemes()
     expect(fileColors('mine').foreground).toBe('#111418')
+  })
+})
+
+describe('ISC-480: Reset a color to its palette', () => {
+  const resetOf = (token: string): HTMLElement | null =>
+    rowOf(token).querySelector<HTMLElement>('[data-theme-reset]')
+
+  it('shows a reset button on a color that differs from the base, and none on one that equals it or is left out', async () => {
+    const equal = baseColorOf('dark', 'foreground') ?? ''
+    await mount({
+      [MOCK_SETTINGS_FILE]: '{ "theme": "mine" }',
+      [themeFile('mine')]: JSON.stringify({
+        base: 'dark',
+        colors: { background: '#101418', foreground: equal },
+      }),
+    })
+    expect(resetOf('background')).not.toBeNull()
+    expect(resetOf('foreground')).toBeNull()
+    expect(resetOf('primary')).toBeNull()
+  })
+
+  it('takes a color that is the same one in another format as equal', async () => {
+    const hex = formatColor(baseColorOf('dark', 'primary') ?? '', 'hex')
+    await mount({
+      [MOCK_SETTINGS_FILE]: '{ "theme": "mine" }',
+      [themeFile('mine')]: JSON.stringify({ base: 'dark', colors: { primary: hex } }),
+    })
+    expect(resetOf('primary')).toBeNull()
+  })
+
+  it('writes the palette color back, in the chosen format, and the button goes', async () => {
+    await mount(withThemes({ colorFormat: 'oklch' }))
+    expect(resetOf('background')).not.toBeNull()
+    resetOf('background')?.click()
+    await flush()
+    await settledThemes()
+    await flush()
+    expect(fileColors('mine').background).toBe(
+      formatColor(baseColorOf('dark', 'background') ?? '', 'oklch'),
+    )
+    expect(resetOf('background')).toBeNull()
+  })
+
+  it('shows the button on a color just typed, and it undoes it', async () => {
+    await mount(SELECT_MINE)
+    await type('primary', '#ff8800')
+    await settledThemes()
+    await flush()
+    expect(resetOf('primary')).not.toBeNull()
+    resetOf('primary')?.click()
+    await flush()
+    await settledThemes()
+    await flush()
+    expect(resetOf('primary')).toBeNull()
+  })
+})
+
+describe('ISC-479: the Based on switch', () => {
+  it('shows Dark, Light and Sepia with the base pressed, and changes it keeping the colors', async () => {
+    await mount(SELECT_MINE)
+    const buttons = [...document.querySelectorAll<HTMLElement>('[data-theme-base]')]
+    expect(buttons.map((one) => one.dataset.themeBase)).toEqual(['dark', 'light', 'sepia'])
+    expect(
+      buttons
+        .filter((one) => one.getAttribute('aria-pressed') === 'true')
+        .map((one) => one.dataset.themeBase),
+    ).toEqual(['dark'])
+    const before = fieldOf('foreground').value
+    document.querySelector<HTMLElement>('[data-theme-base="light"]')?.click()
+    await flush()
+    await settledThemes()
+    await flush()
+    expect(document.querySelector('[data-theme-base="light"]')?.getAttribute('aria-pressed')).toBe(
+      'true',
+    )
+    expect(fieldOf('foreground').value).toBe(before)
+    expect(fileColors('mine').foreground).toBeDefined()
+    expect(document.documentElement.dataset.theme).toBe('light')
+  })
+
+  it('is not there for a built-in theme', async () => {
+    await mount()
+    expect(document.querySelector('[data-theme-base-switch]')).toBeNull()
   })
 })

@@ -1,15 +1,17 @@
 <script setup lang="ts">
+import { RotateCcw } from '@lucide/vue'
 import { computed, reactive } from 'vue'
+import HoverHint from '@/components/HoverHint.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { BUILT_IN_THEMES } from '@/lib/builtinThemes'
-import { contrast, formatColor, toHex, tryParseColor } from '@/lib/color'
+import { BUILT_IN_IDS, BUILT_IN_THEMES, type BuiltInId } from '@/lib/builtinThemes'
+import { contrast, formatColor, toHex, toHexString, tryParseColor } from '@/lib/color'
 import { settings } from '@/lib/settings'
 import { checkThemeColor } from '@/lib/themeFile'
 import { effectiveTokens } from '@/lib/themes'
 import { CONTRAST_PAIRS, THEME_GROUPS, THEME_TOKENS, tokensOf } from '@/lib/themeTokens'
 import SubGroupHeading from '@/features/settings/SubGroupHeading.vue'
-import { changeThemeColor, customizeTheme } from './customize'
+import { baseColorOf, changeThemeColor, customizeTheme, setThemeBase } from './customize'
 import { currentTheme } from './store'
 
 /**
@@ -79,6 +81,34 @@ function accept(token: string): void {
   // Written in the chosen format, and not at all when it is what the field already showed.
   const written = formatColor(checked.value, format.value)
   if (written !== displayed(token)) void changeThemeColor(token, written, true)
+}
+
+/** Whether two colors are the same one, whatever format each is written in. */
+function sameColor(a: string, b: string): boolean {
+  const first = tryParseColor(a)
+  const second = tryParseColor(b)
+  if (first === null || second === null) return a === b
+  return toHexString(first) === toHexString(second)
+}
+
+/** The palette's color for a token, when the file holds a different one: what Reset goes back to. */
+function resetTarget(token: string): string | null {
+  const own = user.value?.colors.get(token)
+  const base = user.value === null ? undefined : baseColorOf(user.value.base, token)
+  if (own === undefined || base === undefined || sameColor(own, base)) return null
+  return base
+}
+
+function reset(token: string): void {
+  const target = resetTarget(token)
+  if (target === null) return
+  delete drafts[token]
+  delete refused[token]
+  void changeThemeColor(token, formatColor(target, format.value), true)
+}
+
+function setBase(base: BuiltInId): void {
+  void setThemeBase(base)
 }
 
 function revert(token: string): void {
@@ -154,6 +184,29 @@ function customize(): void {
           Duplicate
         </Button>
       </div>
+      <div
+        class="mt-3 flex flex-wrap items-center gap-2"
+        role="group"
+        aria-label="Based on"
+        data-theme-base-switch
+      >
+        <span class="text-sm text-foreground">Based on</span>
+        <Button
+          v-for="id in BUILT_IN_IDS"
+          :key="id"
+          type="button"
+          size="xs"
+          :variant="user.base === id ? 'secondary' : 'outline'"
+          :aria-pressed="user.base === id"
+          :data-theme-base="id"
+          @click="setBase(id)"
+        >
+          {{ BUILT_IN_THEMES[id].label }}
+        </Button>
+        <span class="text-xs text-muted-foreground">
+          A color the file leaves out comes from it; changing it keeps the colors you see now.
+        </span>
+      </div>
       <!-- What the Settings screen puts above the colors of a theme being edited. -->
       <slot name="user-options" />
       <div
@@ -172,6 +225,22 @@ function customize(): void {
           <div class="min-w-0">
             <span class="text-sm text-foreground">{{ token.label }}</span>
             <code class="ml-2 text-xs text-muted-foreground/80">--{{ token.name }}</code>
+            <HoverHint
+              v-if="resetTarget(token.name) !== null"
+              :text="`Reset to ${baseName}'s color`"
+            >
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                class="ml-1 align-middle"
+                :aria-label="`Reset ${token.label}`"
+                data-theme-reset
+                @click="reset(token.name)"
+              >
+                <RotateCcw />
+              </Button>
+            </HoverHint>
           </div>
           <div class="relative size-7 shrink-0">
             <span

@@ -206,6 +206,61 @@ impl ThemeStore {
         })
     }
 
+    /// Gives a theme file another name. The old file must be a plain file; the new name must pass
+    /// the same rules and be free (a link or folder of that name counts), so a rename never replaces
+    /// anything. A change of letter case alone is allowed where the file system treats both names as
+    /// one file, which is how a case-insensitive system sees it.
+    pub(crate) fn rename(&self, from: &str, to: &str) -> Result<(), AppError> {
+        let source = self.file(from)?;
+        let target = self.file(to)?;
+        match std::fs::symlink_metadata(&source) {
+            Ok(meta) if meta.is_file() => {}
+            Ok(_) => {
+                return Err(AppError::NotAllowed(format!(
+                    "{from}.json, not a plain file"
+                )));
+            }
+            Err(error) => return Err(error.into()),
+        }
+        if from == to {
+            return Ok(());
+        }
+        if std::fs::symlink_metadata(&target).is_ok() {
+            let same_file = from.eq_ignore_ascii_case(to)
+                && matches!(
+                    (std::fs::canonicalize(&source), std::fs::canonicalize(&target)),
+                    (Ok(a), Ok(b)) if a == b
+                );
+            if !same_file {
+                return Err(AppError::Exists(format!("{to}.json")));
+            }
+        }
+        std::fs::rename(&source, &target)?;
+        Ok(())
+    }
+
+    /// Takes a theme file out of the folder by handing it to `trash`, which the caller makes the
+    /// Recycle Bin. A file that is not a plain file is refused, a missing one is `not-found`, and
+    /// when `trash` fails (no bin on that drive) the file stays where it is.
+    pub(crate) fn delete(
+        &self,
+        name: &str,
+        trash: impl FnOnce(&Path) -> std::io::Result<()>,
+    ) -> Result<(), AppError> {
+        let path = self.file(name)?;
+        match std::fs::symlink_metadata(&path) {
+            Ok(meta) if meta.is_file() => {}
+            Ok(_) => {
+                return Err(AppError::NotAllowed(format!(
+                    "{name}.json, not a plain file"
+                )));
+            }
+            Err(error) => return Err(error.into()),
+        }
+        trash(&path)?;
+        Ok(())
+    }
+
     /// Tells `sink` each time a theme file is added, changed or removed, whoever did it, the app's
     /// own writes included (the page compares text). The folder is made first, since a missing
     /// folder cannot be watched. A second call replaces the sink.
@@ -540,5 +595,123 @@ mod tests {
         std::fs::remove_file(store.folder().join("a.json")).expect("removed");
         std::thread::sleep(Duration::from_millis(600));
         assert_eq!(heard.load(Ordering::SeqCst), 2, "a removal is heard too");
+    }
+
+    #[test]
+    fn a_rename_moves_the_file_and_never_replaces_another() {
+        let (_dir, store) = store();
+        store.write("old", "{\"a\": 1}", true).expect("created");
+        store.write("taken", "{\"b\": 2}", true).expect("created");
+        store.rename("old", "new name").expect("renamed");
+        assert_eq!(store.read("old").expect("read"), None);
+        assert_eq!(
+            store.read("new name").expect("read").as_deref(),
+            Some("{\"a\": 1}")
+        );
+        let error = store
+            .rename("new name", "taken")
+            .expect_err("target exists");
+        assert_eq!(error.kind(), "exists");
+        assert_eq!(
+            store.read("taken").expect("read").as_deref(),
+            Some("{\"b\": 2}"),
+            "the other theme is untouched"
+        );
+        assert!(
+            store.read("new name").expect("read").is_some(),
+            "and so is the source"
+        );
+    }
+
+    #[test]
+    fn a_rename_checks_both_names_and_the_source() {
+        let (_dir, store) = store();
+        store.write("a", "{}", true).expect("created");
+        for bad in ["", "../x", "a/b", "con", " lead", "x..y"] {
+            assert_eq!(
+                store.rename("a", bad).expect_err("bad target").kind(),
+                "invalid",
+                "{bad:?}"
+            );
+            assert_eq!(
+                store.rename(bad, "b").expect_err("bad source").kind(),
+                "invalid",
+                "{bad:?}"
+            );
+        }
+        assert_eq!(
+            store.rename("ghost", "b").expect_err("no such file").kind(),
+            "not-found"
+        );
+        assert!(store.read("a").expect("read").is_some());
+        // A folder named like a theme file is not a theme: it is never moved.
+        std::fs::create_dir_all(store.folder().join("dir.json")).expect("a folder");
+        assert_eq!(
+            store.rename("dir", "moved").expect_err("folder").kind(),
+            "not-allowed"
+        );
+        assert!(store.folder().join("dir.json").is_dir());
+        assert!(!store.folder().join("moved.json").exists());
+    }
+
+    #[test]
+    fn a_rename_to_the_same_name_changes_nothing_and_a_case_change_is_allowed() {
+        let (_dir, store) = store();
+        store.write("night", "{}", true).expect("created");
+        store.rename("night", "night").expect("same name");
+        store.rename("night", "Night").expect("case only");
+        let names: Vec<String> = store
+            .list()
+            .expect("listed")
+            .into_iter()
+            .map(|entry| entry.name)
+            .collect();
+        assert_eq!(names, ["Night"]);
+    }
+
+    #[test]
+    fn a_delete_hands_the_file_to_the_bin_and_a_failed_bin_leaves_it() {
+        let (_dir, store) = store();
+        store.write("gone", "{}", true).expect("created");
+        let mut handed = None;
+        store
+            .delete("gone", |path| {
+                handed = Some(path.to_path_buf());
+                std::fs::remove_file(path)
+            })
+            .expect("deleted");
+        assert_eq!(handed, Some(store.folder().join("gone.json")));
+        assert_eq!(store.read("gone").expect("read"), None);
+
+        store.write("stays", "{}", true).expect("created");
+        let error = store
+            .delete("stays", |_| {
+                Err(std::io::Error::other("no recycle bin on this drive"))
+            })
+            .expect_err("the bin failed");
+        assert!(!error.to_string().is_empty());
+        assert!(
+            store.read("stays").expect("read").is_some(),
+            "the file stays"
+        );
+    }
+
+    #[test]
+    fn a_delete_refuses_a_bad_name_a_missing_file_and_a_folder() {
+        let (_dir, store) = store();
+        let never = |_: &Path| -> std::io::Result<()> { panic!("must not be called") };
+        assert_eq!(
+            store.delete("../x", never).expect_err("bad").kind(),
+            "invalid"
+        );
+        assert_eq!(
+            store.delete("ghost", never).expect_err("missing").kind(),
+            "not-found"
+        );
+        std::fs::create_dir_all(store.folder().join("dir.json")).expect("a folder");
+        assert_eq!(
+            store.delete("dir", never).expect_err("folder").kind(),
+            "not-allowed"
+        );
     }
 }

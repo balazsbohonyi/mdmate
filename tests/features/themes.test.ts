@@ -384,8 +384,8 @@ describe('ISC-453: Customize', () => {
       [themeFile('mine')]:
         '{ "name": "Mine", "base": "light", "colors": { "background": "#abcdef" } }',
     })
-    expect(await customizeTheme()).toBe('mine copy')
-    const copy = made('mine copy')
+    expect(await customizeTheme()).toBe('Mine copy')
+    const copy = made('Mine copy')
     expect(copy.ok && copy.theme.name).toBe('Mine copy')
     expect(copy.ok && copy.theme.base).toBe('light')
     expect(copy.ok && copy.theme.colors.get('background')).toBe('#abcdef')

@@ -291,6 +291,12 @@ export const tauriHost: Host = {
   async themeWrite(name, text, create) {
     await invoke('theme_write', { name, text, create })
   },
+  async themeRename(from, to) {
+    await invoke('theme_rename', { from, to })
+  },
+  async themeDelete(name) {
+    await invoke('theme_delete', { name })
+  },
   async watchThemes(onChange) {
     const channel = new Channel<null>()
     channel.onmessage = onChange

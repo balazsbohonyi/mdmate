@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Check, ChevronsUpDown, Search, X } from '@lucide/vue'
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { docMeta } from '@/documents/meta'
 import { languageChoices, type LanguageChoice } from '@/editor/codeLanguages'
 import { familyStack } from '@/editor/documentFonts'
@@ -44,6 +44,8 @@ import { runCommand } from '@/workbench/commands'
 import { COMMAND_IDS } from '@/workbench/defaultCommands'
 import SubGroupHeading from './SubGroupHeading.vue'
 import ThemeColors from '@/features/themes/ThemeColors.vue'
+import ThemeList from '@/features/themes/ThemeList.vue'
+import { editorScrollRequests } from '@/features/themes/store'
 import { openThemesFolder } from '@/features/themes/customize'
 import { themeChoices, themeProblem } from '@/features/themes/store'
 import { setSettingsCategory, settingsCategoryOf } from '@/workbench/store'
@@ -157,6 +159,25 @@ function optionsOf(spec: SettingRowSpec): readonly { value: string; label: strin
     ? known
     : [...known, { value: current, label: current }]
 }
+
+/**
+ * Brings the color editor to the top of the screen when a theme was made, copied or picked to edit:
+ * the "Theme colors" heading goes to the top edge, so what follows it is what is in view.
+ */
+watch(editorScrollRequests, async () => {
+  await nextTick()
+  // One more turn: a form that closes right after the request moves what is below it, and the
+  // heading has to be measured once that has happened.
+  await new Promise<void>((resolve) => setTimeout(resolve, 0))
+  await nextTick()
+  const heading = document.querySelector(
+    '[data-settings-view] [data-settings-group-heading="Theme colors"]',
+  )
+  const calm =
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  heading?.scrollIntoView({ block: 'start', behavior: calm ? 'auto' : 'smooth' })
+})
 
 /**
  * The heading a row starts a sub-group with, or null: the row's group when it differs from the row
@@ -586,10 +607,14 @@ function openFile(): void {
             v-for="(spec, at) in shown"
             :key="spec.key"
           >
+            <template v-if="headingBefore(spec, at) === 'Theme colors'">
+              <SubGroupHeading data-settings-themes-heading>Themes</SubGroupHeading>
+              <ThemeList />
+            </template>
             <SubGroupHeading
               v-if="headingBefore(spec, at) !== null"
               :first="at === 0"
-              data-settings-group-heading
+              :data-settings-group-heading="headingBefore(spec, at)"
             >
               {{ headingBefore(spec, at) }}
             </SubGroupHeading>

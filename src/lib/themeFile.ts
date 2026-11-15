@@ -196,3 +196,23 @@ export function editThemeColor(
   })
   return { ok: true, text: applyEdits(body, edits) }
 }
+
+/**
+ * Changes the `name` or the `base` of a theme file's text, leaving every comment, every color and
+ * the layout as they were. A file that is not valid JSON is refused, never rewritten.
+ */
+export function editThemeField(
+  text: string,
+  field: 'name' | 'base',
+  value: string,
+  fileName = 'The theme file',
+): EditResult {
+  const read = readRoot(text, fileName)
+  if (!read.ok) return read
+  const body = read.text
+  const eol = body.includes('\r\n') ? '\r\n' : '\n'
+  const edits = modify(body, [field], value, {
+    formattingOptions: { insertSpaces: true, tabSize: 2, eol },
+  })
+  return { ok: true, text: applyEdits(body, edits) }
+}

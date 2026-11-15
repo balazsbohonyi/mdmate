@@ -1060,6 +1060,35 @@ pub(crate) async fn theme_write(
         .map_err(|error| AppError::Task(error.to_string()))?
 }
 
+/// Gives a theme file another name. Both names are plain names, checked again here; the new name
+/// must be free, so nothing is ever replaced.
+#[tauri::command]
+pub(crate) async fn theme_rename(
+    store: State<'_, Arc<ThemeStore>>,
+    from: String,
+    to: String,
+) -> Result<(), AppError> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || store.rename(&from, &to))
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Moves a theme file to the Recycle Bin (the Trash). It never deletes for good: where there is no
+/// bin the call fails and the file stays.
+#[tauri::command]
+pub(crate) async fn theme_delete(
+    store: State<'_, Arc<ThemeStore>>,
+    name: String,
+) -> Result<(), AppError> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        store.delete(&name, |path| platform::current().move_to_trash(path))
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
 /// Tells the page each time a theme file is added, changed or removed, whoever did it.
 #[tauri::command]
 pub(crate) fn watch_themes(

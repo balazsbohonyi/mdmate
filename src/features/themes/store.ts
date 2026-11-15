@@ -58,6 +58,22 @@ export const themeChoices = computed<readonly ThemeChoice[]>(() => {
   return [...BUILT_IN_CHOICES, ...user]
 })
 
+/** Every theme file that was read, usable or not, in no particular order. */
+export const themeSlots = computed<readonly UserThemeSlot[]>(() => [...slots.value.values()])
+
+/** Whether the operating system is using a dark appearance (what the System theme shows now). */
+export function systemIsDark(): boolean {
+  return systemDark.value
+}
+
+/** Counts how many times the color editor was asked to come to the top of the Settings screen. */
+export const editorScrollRequests = shallowRef(0)
+
+/** Asks the color editor to scroll to the top of the screen: a theme was made, copied or picked to edit. */
+export function requestEditorScroll(): void {
+  editorScrollRequests.value++
+}
+
 /** The names of the files in the folder, in any case, for picking a name no file has. */
 export function themeFileNames(): string[] {
   return [...known.keys()]
@@ -115,6 +131,24 @@ function buildSlots(entries: ReadonlyMap<string, { text: string | null; error: s
   return { slots: out, notes }
 }
 
+/** While above zero, a change of theme says nothing: a rename passes through a moment with no file. */
+let heldNotices = 0
+
+/**
+ * Runs `work` with the theme notices held back, then applies the theme once more. A rename or a
+ * delete moves the file and the `theme` setting in two steps; the notice for the step in between
+ * ("no file for that theme") would be wrong by the time it is read.
+ */
+export async function holdThemeNotices<T>(work: () => Promise<T>): Promise<T> {
+  heldNotices++
+  try {
+    return await work()
+  } finally {
+    heldNotices--
+    applyCurrentTheme()
+  }
+}
+
 /** The last notices shown, so one thing wrong is one toast and not one per re-read. */
 let lastNotice = ''
 
@@ -129,7 +163,7 @@ export function applyCurrentTheme(): void {
   const notice = themeProblem.value
   if (notice === null) {
     lastNotice = ''
-  } else if (notice !== lastNotice) {
+  } else if (heldNotices === 0 && notice !== lastNotice) {
     lastNotice = notice
     reportWarning(notice)
   }
@@ -170,6 +204,13 @@ export function noteThemeText(name: string, text: string): void {
   known = new Map(known)
   for (const file of known.keys()) if (slotKey(file) === slotKey(name)) known.delete(file)
   known.set(name, { text, error: null })
+  rebuild()
+}
+
+/** Forgets one file, as if the folder had just been read without it (it was renamed or deleted). */
+export function dropThemeText(name: string): void {
+  known = new Map(known)
+  for (const file of known.keys()) if (slotKey(file) === slotKey(name)) known.delete(file)
   rebuild()
 }
 
@@ -261,5 +302,7 @@ export function resetThemesState(): void {
   systemDark.value = false
   queue = Promise.resolve()
   lastNotice = ''
+  heldNotices = 0
+  editorScrollRequests.value = 0
   currentTheme.value = resolveTheme(settings.theme, new Map(), { systemDark: false, loaded: false })
 }

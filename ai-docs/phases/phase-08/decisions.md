@@ -133,3 +133,17 @@ Choices made while building, in the order they were made. The settled design is 
 - **Color formats.** `toHexString`, `toOklchString` and `formatColor` in `lib/color.ts`. A color already in the chosen format is shown as written. Hex to oklch to hex is exact on a 4,913-color grid and the oklch round trip is within one 8-bit step. A converted color is never written until it is edited, so changing the format changes no file.
 - **Seen in the real window.** Long OKLCH text was cut in the field; the field column is wider.
 - **Left for P8-T6 and P8-T7.** Names, the list, New theme, rename, duplicate, delete, dark/light, per-color reset and the scroll are P8-T6; the preview tab is P8-T7 (plan: `C:\Users\Balazs\.claude\plans\steady-beaming-sedgewick.md`).
+
+## P8-T6: managing themes
+
+- **Names.** A theme has a display name in its file (`name`, 1 to 60 characters, unique ignoring case, not a built-in name) and a file name derived from it. The file name is the theme's identity and is never shown. A Duplicate of "Mine" is "Mine copy".
+- **One list.** Built-ins first, then the user's themes by name. Each row: name, base, five swatches (background, card, foreground, primary, accent; none for System), "In use". Built-ins get Select and Duplicate; a user theme also gets Edit colors, Rename and Delete. A file that cannot be read is listed with its reason and a Delete.
+- **New theme is an inline form.** The project has no Dialog component, only alert-dialog (kept for the delete question). The form asks for a name and a starting palette (Dark, Light, Sepia or the theme in use), writes every color as that palette has it and selects the theme. Customize is now Duplicate of the theme in use.
+- **Rename and Delete in Rust.** `ThemeStore::rename` never replaces a file and accepts a change of case alone; `ThemeStore::delete` hands the file to `Platform::move_to_trash` and keeps it when the bin fails. No permanent delete exists.
+- **Theme in use.** Rename keeps it selected with no "theme not found" notice (`holdThemeNotices`); Delete of it falls back to Dark and says so.
+- **Based on** is a Dark, Light, Sepia group. Changing it first writes the colors the file leaves out, so the look does not change. A color that differs from the base shows a reset button.
+- **Scroll.** New theme, Duplicate and Edit colors bring the Theme colors heading to the top; Select does not. The scroll waits one turn so a form that closes does not move the heading afterwards.
+- **Seen in the real window.** Before that wait the heading ended 206 px above the top after New theme. A raw key event with no character does not submit a form, so the rig sends Enter with a character.
+- **Built-in guard.** `isBuiltInTheme`: rename, delete and Edit refuse Dark, Light, Sepia and System on their own, not through a Rust `not-found`.
+- **Deviations from the plan.** No per-row "Show in folder" (the host only opens the themes folder, which the Appearance page already has as the "Open themes folder" button); no dot beside the reset icon.
+- **Left.** P8-T7, the preview tab. Two "Sepia copy" test files are in this machine's Recycle Bin from the real runs.

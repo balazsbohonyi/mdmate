@@ -461,6 +461,16 @@ export interface Host {
    * rather than replace one; without it, it replaces a file that is there and never makes one.
    */
   themeWrite(name: string, text: string, create: boolean): Promise<void>
+  /**
+   * Gives a theme file another name. Rejects with `exists` when the new name is taken (nothing is
+   * replaced), `not-found` when the old file is gone and `invalid` for a name that is not allowed.
+   */
+  themeRename(from: string, to: string): Promise<void>
+  /**
+   * Moves a theme file to the Recycle Bin. It never deletes for good: with no bin it rejects and the
+   * file stays. `not-found` when the file is gone.
+   */
+  themeDelete(name: string): Promise<void>
   /** Calls `onChange` each time a theme file is added, changed or removed, whoever did it. */
   watchThemes(onChange: () => void): Promise<() => void>
   /** Makes the themes folder when it is missing and shows it in the file manager. */
