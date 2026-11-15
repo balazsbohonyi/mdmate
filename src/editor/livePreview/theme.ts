@@ -47,6 +47,11 @@ export const previewTheme = EditorView.baseTheme({
     backgroundColor: 'var(--syntax-code-background)',
     borderRadius: 'var(--radius)',
   },
+  // Selected code reads as selected text: the span's background would hide the selection behind it.
+  '.cm-md-code.cm-md-code-selected': {
+    color: 'var(--foreground)',
+    backgroundColor: 'transparent',
+  },
   // The default highlight style colors and underlines the pieces of a link itself, so the span
   // sets both on its children too.
   '.cm-md-link, .cm-md-link span': {
