@@ -11,6 +11,7 @@ import {
   toHexString,
   toOklchString,
   tryParseColor,
+  withOpacity,
 } from '@/lib/color'
 import { checkThemeColor } from '@/lib/themeFile'
 
@@ -119,5 +120,31 @@ describe('formatColor shows a color in the format asked for', () => {
     expect(formatColor('red', 'hex')).toBe('red')
     expect(formatColor('var(--x)', 'oklch')).toBe('var(--x)')
     expect(formatColor('', 'hex')).toBe('')
+  })
+})
+
+describe('ISC-490: withOpacity changes only the opacity', () => {
+  it.each(['hex', 'oklch'] as const)('keeps the color and sets the opacity in %s', (format) => {
+    const color = parseColor('#336699')
+    const text = withOpacity(color, 0.4, format)
+    const back = parseColor(text)
+    expect(toHex(back)).toBe('#336699')
+    expect(back.alpha).toBeCloseTo(0.4, 2)
+  })
+
+  it('writes a fully opaque color with no alpha part', () => {
+    expect(withOpacity(parseColor('#33669980'), 1, 'hex')).toBe('#336699')
+    expect(withOpacity(parseColor('#33669980'), 1, 'oklch')).not.toContain('/')
+  })
+
+  it('keeps the opacity of an oklch color through a hex round trip, within a step', () => {
+    const source = parseColor('oklch(0.6 0.014 262 / 38%)')
+    const text = withOpacity(source, source.alpha, 'hex')
+    expect(parseColor(text).alpha).toBeCloseTo(0.38, 2)
+  })
+
+  it('clamps an opacity outside 0 to 1', () => {
+    expect(parseColor(withOpacity(parseColor('#336699'), 7, 'hex')).alpha).toBe(1)
+    expect(parseColor(withOpacity(parseColor('#336699'), -2, 'hex')).alpha).toBe(0)
   })
 })

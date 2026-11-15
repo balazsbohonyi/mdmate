@@ -1,6 +1,7 @@
 import { describe, errorKind } from '@/documents/store'
 import { requestSettingChange } from '@/features/settings/store'
 import { BUILT_IN_THEMES, builtInFor, type BuiltInId } from '@/lib/builtinThemes'
+import { formatColor } from '@/lib/color'
 import { settings } from '@/lib/settings'
 import type { Checked } from '@/lib/settingsFile'
 import { editThemeColor, editThemeField, newThemeText } from '@/lib/themeFile'
@@ -74,6 +75,12 @@ function sourceOf(value: string): Source | null {
   return null
 }
 
+/** Colors as the file should hold them: in the format chosen in Settings, converted where they were in the other. */
+function inChosenFormat(colors: ReadonlyMap<string, string>): Map<string, string> {
+  const format = settings.themes.colorFormat
+  return new Map([...colors].map(([name, value]) => [name, formatColor(value, format)]))
+}
+
 /**
  * Writes a new theme file and tells the page about it. A name no file has is found for it; a file
  * that appears between the check and the write is never replaced, the next name is tried. Resolves
@@ -90,7 +97,7 @@ function writeNewTheme(
       const taken = new Set(themeFileNames().map(slotKey))
       for (let attempt = 0; attempt < 5; attempt++) {
         const stem = themeStem(label, taken)
-        const text = newThemeText(label, palette, colors)
+        const text = newThemeText(label, palette, inChosenFormat(colors))
         try {
           await host.themeWrite(stem, text, true)
           noteThemeText(stem, text)
@@ -161,7 +168,7 @@ export const suggestCopyName = (value?: string): string =>
 
 /**
  * Copies a theme (the one in force unless one is named) into a new file called by the name given,
- * with its colors written out as they are, and selects the copy. Built-in CSS is never written.
+ * with its colors written out in the chosen format, and selects the copy. Built-in CSS is never written.
  * Resolves to the copy's file name, or why the name was refused (a notice says why for any other
  * failure).
  */
@@ -301,7 +308,12 @@ export function setThemeBase(base: BuiltInId): Promise<boolean> {
       for (const { name } of THEME_TOKENS) {
         const held = old.get(name)
         if (held === undefined || user.colors.has(name)) continue
-        const edited = editThemeColor(next, name, held, `${id}.json`)
+        const edited = editThemeColor(
+          next,
+          name,
+          formatColor(held, settings.themes.colorFormat),
+          `${id}.json`,
+        )
         if (!edited.ok) throw new Error(edited.message)
         next = edited.text
       }

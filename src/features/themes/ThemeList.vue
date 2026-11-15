@@ -33,6 +33,7 @@ import {
   suggestCopyName,
   type StartFrom,
 } from './customize'
+import ChoiceGroup from './ChoiceGroup.vue'
 import { closeThemeForm, openThemeForm, themeForm, themeSlots } from './store'
 
 /**
@@ -285,8 +286,8 @@ const select = (row: Row): void => {
       @submit.prevent="create"
       @keydown.escape="closeThemeForm"
     >
-      <label class="grid gap-1 text-sm text-foreground">
-        {{ themeForm.kind === 'copy' ? 'Name of the copy' : 'Name' }}
+      <label class="flex items-center gap-3 text-sm text-foreground">
+        <span class="shrink-0">Name</span>
         <Input
           v-model="newName"
           placeholder="My theme"
@@ -304,24 +305,15 @@ const select = (row: Row): void => {
       </p>
       <div
         v-else
-        class="grid gap-1 text-sm text-foreground"
-        role="group"
-        aria-label="Start from"
+        class="flex flex-wrap items-center gap-3 text-sm text-foreground"
       >
         <span>Start from</span>
-        <div class="flex flex-wrap gap-2">
-          <Button
-            v-for="choice in FROM_CHOICES"
-            :key="choice.value"
-            type="button"
-            :variant="newFrom === choice.value ? 'secondary' : 'outline'"
-            :aria-pressed="newFrom === choice.value"
-            :data-theme-new-from="choice.value"
-            @click="newFrom = choice.value"
-          >
-            {{ choice.label }}
-          </Button>
-        </div>
+        <ChoiceGroup
+          v-model="newFrom"
+          :options="FROM_CHOICES"
+          label="Start from"
+          item-attr="data-theme-new-from"
+        />
       </div>
       <p
         v-if="newError !== null"

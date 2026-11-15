@@ -5,18 +5,27 @@ import HoverHint from '@/components/HoverHint.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { BUILT_IN_IDS, BUILT_IN_THEMES, type BuiltInId } from '@/lib/builtinThemes'
-import { contrast, formatColor, toHex, toHexString, tryParseColor } from '@/lib/color'
+import {
+  contrast,
+  formatColor,
+  parseColor,
+  toHex,
+  toHexString,
+  tryParseColor,
+  withOpacity,
+} from '@/lib/color'
 import { settings } from '@/lib/settings'
 import { checkThemeColor } from '@/lib/themeFile'
 import { effectiveTokens } from '@/lib/themes'
 import { CONTRAST_PAIRS, THEME_GROUPS, THEME_TOKENS, tokensOf } from '@/lib/themeTokens'
 import SubGroupHeading from '@/features/settings/SubGroupHeading.vue'
 import { baseColorOf, changeThemeColor, setThemeBase } from './customize'
+import ChoiceGroup from './ChoiceGroup.vue'
 import { currentTheme, openThemeForm } from './store'
 
 /**
  * The color editor on the Appearance page: every token of the theme in force, in groups, each with
- * a swatch (a color picker where it can hold the color), a text field, and a warning when the color
+ * a swatch (a color picker, and an opacity field for a translucent color), a text field, and a warning when the color
  * brings a required pair of text and surface under its contrast floor. A built-in theme has no
  * editor, only Customize, which copies it into a file you can edit; a color changed here is written
  * to the theme's file as it changes. Loaded with the Settings screen (settings-lazy).
@@ -26,6 +35,8 @@ const shown = computed(() => currentTheme.value)
 const user = computed(() => shown.value.user)
 const colors = computed(() => effectiveTokens(shown.value))
 const baseName = computed(() => (user.value === null ? '' : BUILT_IN_THEMES[user.value.base].label))
+
+const BASE_CHOICES = BUILT_IN_IDS.map((id) => ({ value: id, label: BUILT_IN_THEMES[id].label }))
 
 const labels = new Map(THEME_TOKENS.map((token) => [token.name, token.label]))
 
@@ -50,17 +61,57 @@ function shownText(token: string): string {
   return drafts[token] ?? displayed(token)
 }
 
-/** The picker holds `#rrggbb`: only a color with no alpha fits it, or the alpha would be lost. */
+/** The picker holds `#rrggbb`; the opacity of a translucent color is the field beside it, so it is not lost. */
 function pickerValue(token: string): string | null {
   const parsed = tryParseColor(valueOf(token))
-  return parsed === null || parsed.alpha < 1 ? null : toHex(parsed)
+  return parsed === null ? null : toHex(parsed)
+}
+
+/** The tokens some built-in theme makes translucent: they get an opacity field. */
+const TRANSLUCENT = new Set(
+  BUILT_IN_IDS.flatMap((id) => {
+    const palette = effectiveTokens({ palette: id, overrides: new Map() })
+    return THEME_TOKENS.filter(
+      ({ name }) => (tryParseColor(palette.get(name) ?? '')?.alpha ?? 1) < 1,
+    ).map(({ name }) => name)
+  }),
+)
+
+function hasOpacity(token: string): boolean {
+  return TRANSLUCENT.has(token) || (tryParseColor(valueOf(token))?.alpha ?? 1) < 1
+}
+
+/** The opacity of a color in percent, as the opacity field shows it. */
+function opacityOf(token: string): number {
+  return Math.round((tryParseColor(valueOf(token))?.alpha ?? 1) * 100)
 }
 
 function onPick(token: string, event: Event): void {
   const value = (event.target as HTMLInputElement).value
   delete drafts[token]
   delete refused[token]
-  void changeThemeColor(token, formatColor(value, format.value))
+  const alpha = tryParseColor(valueOf(token))?.alpha ?? 1
+  void changeThemeColor(token, withOpacity(parseColor(value), alpha, format.value))
+}
+
+/** Accepts an opacity typed in percent (0 to 100); anything else puts the shown one back. */
+function onOpacity(token: string, event: Event): void {
+  const field = event.target as HTMLInputElement
+  const percent = Number(field.value)
+  const current = tryParseColor(valueOf(token))
+  if (
+    current === null ||
+    field.value.trim() === '' ||
+    !Number.isFinite(percent) ||
+    percent < 0 ||
+    percent > 100
+  ) {
+    field.value = String(opacityOf(token))
+    return
+  }
+  delete drafts[token]
+  delete refused[token]
+  void changeThemeColor(token, withOpacity(current, percent / 100, format.value), true)
 }
 
 function onType(token: string, text: string | number): void {
@@ -185,23 +236,16 @@ function customize(): void {
       </div>
       <div
         class="mt-3 flex flex-wrap items-center gap-2"
-        role="group"
-        aria-label="Based on"
         data-theme-base-switch
       >
         <span class="text-sm text-foreground">Based on</span>
-        <Button
-          v-for="id in BUILT_IN_IDS"
-          :key="id"
-          type="button"
-          size="xs"
-          :variant="user.base === id ? 'secondary' : 'outline'"
-          :aria-pressed="user.base === id"
-          :data-theme-base="id"
-          @click="setBase(id)"
-        >
-          {{ BUILT_IN_THEMES[id].label }}
-        </Button>
+        <ChoiceGroup
+          :model-value="user.base"
+          :options="BASE_CHOICES"
+          label="Based on"
+          item-attr="data-theme-base"
+          @update:model-value="setBase"
+        />
         <span class="text-xs text-muted-foreground">
           A color the file leaves out comes from it; changing it keeps the colors you see now.
         </span>
@@ -241,22 +285,42 @@ function customize(): void {
               </Button>
             </HoverHint>
           </div>
-          <div class="relative size-7 shrink-0">
-            <span
-              class="absolute inset-0 rounded-md border border-border"
-              :style="{ backgroundColor: `var(--${token.name})` }"
-              aria-hidden="true"
-              data-theme-swatch
-            />
-            <input
-              v-if="pickerValue(token.name) !== null"
-              type="color"
-              class="absolute inset-0 size-full cursor-default opacity-0"
-              :value="pickerValue(token.name) ?? undefined"
-              :aria-label="`${token.label} color picker`"
-              data-theme-picker
-              @input="onPick(token.name, $event)"
-            />
+          <div class="flex items-center gap-2">
+            <label
+              v-if="hasOpacity(token.name)"
+              class="flex items-center gap-1 text-xs text-muted-foreground"
+            >
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                step="1"
+                :model-value="opacityOf(token.name)"
+                :aria-label="`${token.label} opacity in percent`"
+                class="h-7 w-16 px-1.5 text-xs"
+                data-theme-opacity
+                @change="onOpacity(token.name, $event)"
+                @keydown.enter="onOpacity(token.name, $event)"
+              />
+              %
+            </label>
+            <div class="relative size-7 shrink-0">
+              <span
+                class="absolute inset-0 rounded-md border border-border"
+                :style="{ backgroundColor: `var(--${token.name})` }"
+                aria-hidden="true"
+                data-theme-swatch
+              />
+              <input
+                v-if="pickerValue(token.name) !== null"
+                type="color"
+                class="absolute inset-0 size-full cursor-default opacity-0"
+                :value="pickerValue(token.name) ?? undefined"
+                :aria-label="`${token.label} color picker`"
+                data-theme-picker
+                @input="onPick(token.name, $event)"
+              />
+            </div>
           </div>
           <Input
             :model-value="shownText(token.name)"

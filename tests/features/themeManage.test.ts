@@ -25,6 +25,7 @@ import {
 } from '@/features/themes/store'
 import { loadSettings, resetSettingsState } from '@/features/settings/store'
 import { BUILT_IN_IDS } from '@/lib/builtinThemes'
+import { formatColor, parseColor, toHex } from '@/lib/color'
 import { resetSettings, settings } from '@/lib/settings'
 import { parseThemeText } from '@/lib/themeFile'
 import { effectiveTokens } from '@/lib/themes'
@@ -89,7 +90,7 @@ const SELECT_MINE = {
 
 describe('ISC-474: New theme', () => {
   it.each(BUILT_IN_IDS)(
-    'from %s: the name, the base and every color as the palette has them, selected, editor asked for',
+    'from %s: the name, the base and every color of the palette in the chosen format, selected, editor asked for',
     async (id) => {
       await start()
       const asked = editorScrollRequests.value
@@ -100,7 +101,8 @@ describe('ISC-474: New theme', () => {
       expect(file.base).toBe(id)
       expect(file.colors.size).toBe(THEME_TOKENS.length)
       const palette = effectiveTokens({ palette: id, overrides: new Map() })
-      for (const [token, value] of palette) expect(file.colors.get(token), token).toBe(value)
+      for (const [token, value] of palette)
+        expect(file.colors.get(token), token).toBe(formatColor(value, 'hex'))
       expect(settings.theme).toBe(`My ${id}`)
       expect(editorScrollRequests.value).toBe(asked + 1)
       expect(currentTheme.value.user?.label).toBe(`My ${id}`)
@@ -158,14 +160,14 @@ describe('ISC-474: New theme', () => {
 })
 
 describe('ISC-475: Duplicate', () => {
-  it('copies a built-in theme verbatim into "<name> copy" and selects it', async () => {
+  it('copies a built-in theme into "<name> copy", colors in the chosen format, and selects it', async () => {
     await start()
     expect(await duplicateTheme('sepia')).toBe('Sepia copy')
     const file = parsed('Sepia copy').theme
     expect(file.name).toBe('Sepia copy')
     expect(file.base).toBe('sepia')
     for (const [token, value] of effectiveTokens({ palette: 'sepia', overrides: new Map() }))
-      expect(file.colors.get(token), token).toBe(value)
+      expect(file.colors.get(token), token).toBe(formatColor(value, 'hex'))
     expect(settings.theme).toBe('Sepia copy')
   })
 
@@ -282,6 +284,9 @@ describe('ISC-477: Delete', () => {
   })
 })
 
+/** The 8-bit color a value paints, whatever format it is written in. */
+const seen = (value: string): string => toHex(parseColor(value))
+
 describe('ISC-479: the base of a theme', () => {
   const colorsOf = (): Map<string, string> => effectiveTokens(currentTheme.value)
 
@@ -299,7 +304,10 @@ describe('ISC-479: the base of a theme', () => {
     expect(file.colors.size).toBe(THEME_TOKENS.length)
     expect(currentTheme.value.palette).toBe('light')
     const after = colorsOf()
-    expect([...after]).toEqual([...before])
+    expect([...after.keys()]).toEqual([...before.keys()])
+    // Written out in the chosen format, so the text may differ; the color shown may not.
+    for (const [token, value] of before)
+      expect(seen(after.get(token) ?? ''), token).toEqual(seen(value))
   })
 
   it('does nothing for the base it already has', async () => {
@@ -308,6 +316,57 @@ describe('ISC-479: the base of a theme', () => {
     expect(await setThemeBase('light')).toBe(true)
     expect(host.files.read(themeFile('Mine'))).toBe(before)
   })
+})
+
+/** True when every color of the file is written in this format. */
+function allIn(stem: string, format: 'hex' | 'oklch'): string[] {
+  return [...parsed(stem).theme.colors]
+    .filter(([, value]) => (format === 'hex' ? !value.startsWith('#') : !/^oklch\(/i.test(value)))
+    .map(([token, value]) => `${token}=${value}`)
+}
+
+describe('ISC-491: a made theme holds its colors in the chosen format', () => {
+  it.each(['hex', 'oklch'] as const)('New theme in %s mode, from every palette', async (format) => {
+    await start({ [MOCK_SETTINGS_FILE]: `{ "themes": { "colorFormat": "${format}" } }` })
+    for (const id of BUILT_IN_IDS) {
+      await createTheme(`Made ${id}`, id)
+      expect(allIn(`Made ${id}`, format), id).toEqual([])
+      const palette = effectiveTokens({ palette: id, overrides: new Map() })
+      for (const [token, value] of palette)
+        expect(seen(parsed(`Made ${id}`).theme.colors.get(token) ?? ''), token).toEqual(seen(value))
+    }
+  })
+
+  it.each(['hex', 'oklch'] as const)(
+    'Duplicate in %s mode, of a built-in (oklch sources) and of a file written in hex',
+    async (format) => {
+      await start({
+        [MOCK_SETTINGS_FILE]: `{ "theme": "Mine", "themes": { "colorFormat": "${format}" } }`,
+        [themeFile('Mine')]: MINE,
+      })
+      expect(await duplicateTheme('dark')).toBe('Dark copy')
+      expect(await duplicateTheme('Mine')).toBe('Mine copy')
+      expect(allIn('Dark copy', format)).toEqual([])
+      expect(allIn('Mine copy', format)).toEqual([])
+      expect(seen(parsed('Mine copy').theme.colors.get('background') ?? '')).toBe('#abcdef')
+    },
+  )
+
+  it.each(['hex', 'oklch'] as const)(
+    'a base switch in %s mode writes what the file left out in it',
+    async (format) => {
+      await start({
+        [MOCK_SETTINGS_FILE]: `{ "theme": "Mine", "themes": { "colorFormat": "${format}" } }`,
+        [themeFile('Mine')]:
+          '{ "name": "Mine", "base": "dark", "colors": { "background": "#abcdef" } }',
+      })
+      expect(await setThemeBase('light')).toBe(true)
+      await settledThemes()
+      // The color the user set stays as it was; every color written out for them is in the format.
+      expect(parsed('Mine').theme.colors.get('background')).toBe('#abcdef')
+      expect(allIn('Mine', format)).toEqual(format === 'hex' ? [] : ['background=#abcdef'])
+    },
+  )
 })
 
 describe('ISC-481: choosing a theme to edit', () => {
@@ -367,7 +426,7 @@ describe('ISC-486: a copy takes the name it is given', () => {
     expect(suggestCopyName('Mine')).toBe('Mine copy 2')
   })
 
-  it('writes the name given as the theme name and file, with the colors of the source verbatim', async () => {
+  it('writes the name given as the theme name and file, with the colors of the source in the chosen format', async () => {
     await start(SELECT_MINE)
     expect(await copyTheme('Mine', 'My brighter one')).toEqual({
       ok: true,

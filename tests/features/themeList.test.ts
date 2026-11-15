@@ -552,3 +552,52 @@ describe('ISC-477: Delete in the list', () => {
     expect(toasts.last).toContain('Recycle Bin')
   })
 })
+
+describe('ISC-488 and ISC-489: the form for a new theme or a copy', () => {
+  async function openNew(): Promise<HTMLElement> {
+    await mountScreen()
+    await press(document.querySelector<HTMLElement>('[data-theme-new]'))
+    const form = document.querySelector<HTMLElement>('[data-theme-new-form]')
+    if (form === null) throw new Error('no form')
+    return form
+  }
+
+  it('has "Start from" as one toggle group with Dark on, and moving it moves the one on', async () => {
+    const form = await openNew()
+    const group = form.querySelector('[data-slot="toggle-group"]')
+    expect(group?.getAttribute('aria-label')).toBe('Start from')
+    const states = (): string[] =>
+      [...form.querySelectorAll<HTMLElement>('[data-theme-new-from]')].map(
+        (one) => `${one.dataset.themeNewFrom ?? ''}:${one.dataset.state ?? ''}`,
+      )
+    expect(states()).toEqual(['dark:on', 'light:off', 'sepia:off', 'current:off'])
+    const dark = form.querySelector<HTMLElement>('[data-theme-new-from="dark"]')
+    expect(dark?.className).toContain('data-[state=on]:bg-primary')
+    await press(form.querySelector<HTMLElement>('[data-theme-new-from="sepia"]'))
+    expect(states()).toEqual(['dark:off', 'light:off', 'sepia:on', 'current:off'])
+    await press(form.querySelector<HTMLElement>('[data-theme-new-from="sepia"]'))
+    expect(states()).toEqual(['dark:off', 'light:off', 'sepia:on', 'current:off'])
+  })
+
+  it('puts the field right after the label "Name", on the same line, in New theme', async () => {
+    const form = await openNew()
+    const label = form.querySelector('label')
+    expect(label?.firstElementChild?.textContent).toBe('Name')
+    expect(label?.textContent?.trim()).toBe('Name')
+    expect(label?.children[1]).toBe(form.querySelector('[data-theme-new-name]'))
+    expect(label?.className).toContain('flex')
+    expect(label?.className).not.toContain('grid')
+  })
+
+  it('says "Name", not "Name of the copy", for a copy too', async () => {
+    await mountScreen(TWO)
+    await openMenu('light')
+    await press(
+      document.querySelector<HTMLElement>('[data-theme-menu-content] [data-theme-duplicate]'),
+    )
+    const label = document.querySelector('[data-theme-new-form] label')
+    expect(label?.textContent?.trim()).toBe('Name')
+    expect(label?.children[1]).toBe(document.querySelector('[data-theme-new-name]'))
+    expect(document.body.textContent).not.toContain('Name of the copy')
+  })
+})

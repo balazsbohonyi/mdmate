@@ -164,3 +164,13 @@ export function formatColor(value: string, format: 'hex' | 'oklch'): string {
   if (parsed === null) return value
   return format === 'hex' ? toHexString(parsed) : toOklchString(parsed)
 }
+
+/**
+ * The same color with another opacity (0 to 1), written in `format`. What the color editor writes
+ * when the picker moves the color of a translucent token, or its opacity field moves the opacity:
+ * each keeps what the other set.
+ */
+export function withOpacity(color: Rgb, alpha: number, format: 'hex' | 'oklch'): string {
+  const next = { linear: color.linear, alpha }
+  return format === 'hex' ? toHexString(next) : toOklchString(next)
+}

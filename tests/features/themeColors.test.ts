@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * The color editor on the Appearance page (ISC-454 to ISC-456): every token of the theme in force,
- * in groups; a text field that checks what is typed; a picker only where it can hold the color; a
+ * in groups; a text field that checks what is typed; a picker for every color, and an opacity field for a translucent one; a
  * warning when a required pair falls under its floor. Customize is what a built-in theme offers.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -16,7 +16,7 @@ import {
   watchThemesFolder,
 } from '@/features/themes/store'
 import ThemeColors from '@/features/themes/ThemeColors.vue'
-import { formatColor } from '@/lib/color'
+import { formatColor, parseColor, toHex, tryParseColor } from '@/lib/color'
 import { resetSettings, settings } from '@/lib/settings'
 import { THEME_GROUPS, THEME_TOKENS, tokensOf } from '@/lib/themeTokens'
 import { setHost } from '@/platform'
@@ -217,14 +217,15 @@ describe('ISC-455: typing a color', () => {
     expect(host.files.read(themeFile('mine'))).toBe(MINE)
   })
 
-  it('has a picker for an opaque color and none for a color with alpha', async () => {
+  it('has a picker for every color, and an opacity field only for a translucent one', async () => {
     await mount({
       [MOCK_SETTINGS_FILE]: '{ "theme": "mine" }',
       [themeFile('mine')]: '{ "colors": { "background": "#101418", "border": "#ffffff80" } }',
     })
     expect(rowOf('background').querySelector('[data-theme-picker]')).not.toBeNull()
-    expect(rowOf('border').querySelector('[data-theme-picker]')).toBeNull()
-    expect(rowOf('border').querySelector('[data-theme-text]')).not.toBeNull()
+    expect(rowOf('border').querySelector('[data-theme-picker]')).not.toBeNull()
+    expect(rowOf('background').querySelector('[data-theme-opacity]')).toBeNull()
+    expect(rowOf('border').querySelector('[data-theme-opacity]')).not.toBeNull()
     const picker = rowOf('background').querySelector<HTMLInputElement>('[data-theme-picker]')
     expect(picker?.value).toBe('#101418')
   })
@@ -467,5 +468,134 @@ describe('ISC-479: the Based on switch', () => {
   it('is not there for a built-in theme', async () => {
     await mount()
     expect(document.querySelector('[data-theme-base-switch]')).toBeNull()
+  })
+})
+
+describe('ISC-488: the Based on toggle group', () => {
+  it('is one group with the base on in the primary color and the others plain', async () => {
+    await mount(SELECT_MINE)
+    const group = document.querySelector('[data-theme-base-switch] [data-slot="toggle-group"]')
+    expect(group).not.toBeNull()
+    expect(group?.getAttribute('aria-label')).toBe('Based on')
+    const items = [...(group?.querySelectorAll<HTMLElement>('[data-theme-base]') ?? [])]
+    expect(items.map((one) => one.dataset.state)).toEqual(['on', 'off', 'off'])
+    const className = items[0]?.className ?? ''
+    expect(className).toContain('data-[state=on]:bg-primary')
+    expect(className).toContain('data-[state=on]:text-primary-foreground')
+    expect(className).not.toContain('data-[state=on]:bg-muted')
+  })
+
+  it('keeps the base when the one that is on is pressed again', async () => {
+    await mount(SELECT_MINE)
+    const before = host.files.read(themeFile('mine'))
+    document.querySelector<HTMLElement>('[data-theme-base="dark"]')?.click()
+    await flush()
+    await settledThemes()
+    expect(document.querySelector('[data-theme-base="dark"]')?.getAttribute('data-state')).toBe(
+      'on',
+    )
+    expect(host.files.read(themeFile('mine'))).toBe(before)
+  })
+})
+
+describe('ISC-490: the opacity of a translucent color', () => {
+  const SCROLL = '"scrollbar-thumb": "oklch(0.6 0.014 262 / 38%)"'
+  const files = (extra: Record<string, unknown> = {}): Record<string, string> => ({
+    [MOCK_SETTINGS_FILE]: JSON.stringify({ theme: 'mine', ...extra }),
+    [themeFile('mine')]: `{ "base": "dark", "colors": { ${SCROLL} } }`,
+  })
+  const opacityField = (token: string): HTMLInputElement => {
+    const field = rowOf(token).querySelector<HTMLInputElement>('[data-theme-opacity]')
+    if (field === null) throw new Error(`no opacity field for ${token}`)
+    return field
+  }
+  const setOpacity = async (token: string, text: string): Promise<void> => {
+    const field = opacityField(token)
+    field.value = text
+    field.dispatchEvent(new Event('change', { bubbles: true }))
+    await flush()
+    await settledThemes()
+  }
+  const pick = async (token: string, value: string): Promise<void> => {
+    const picker = rowOf(token).querySelector<HTMLInputElement>('[data-theme-picker]')
+    if (picker === null) throw new Error(`no picker for ${token}`)
+    picker.value = value
+    picker.dispatchEvent(new Event('input', { bubbles: true }))
+    await nextTick()
+    await flushThemeColors()
+    await settledThemes()
+  }
+
+  it('shows a picker and the opacity in percent for each of the three translucent tokens', async () => {
+    await mount(files())
+    for (const token of ['scrollbar-thumb', 'scrollbar-thumb-hover', 'drop-preview']) {
+      expect(rowOf(token).querySelector('[data-theme-picker]'), token).not.toBeNull()
+      expect(rowOf(token).querySelector('[data-theme-opacity]'), token).not.toBeNull()
+    }
+    expect(opacityField('scrollbar-thumb').value).toBe('38')
+    expect(
+      rowOf('scrollbar-thumb').querySelector<HTMLInputElement>('[data-theme-picker]')?.value,
+    ).toMatch(/^#[0-9a-f]{6}$/)
+  })
+
+  it('keeps the opacity field on a translucent token the file made opaque, so it can come back', async () => {
+    await mount({
+      [MOCK_SETTINGS_FILE]: '{ "theme": "mine" }',
+      [themeFile('mine')]: '{ "base": "dark", "colors": { "drop-preview": "#57cebd" } }',
+    })
+    expect(opacityField('drop-preview').value).toBe('100')
+    await setOpacity('drop-preview', '22')
+    expect(parseColor(fileColors('mine')['drop-preview'] ?? '').alpha).toBeCloseTo(0.22, 2)
+  })
+
+  it('has no opacity field for a color no built-in theme makes translucent', async () => {
+    await mount(files())
+    expect(rowOf('background').querySelector('[data-theme-opacity]')).toBeNull()
+    expect(rowOf('primary').querySelector('[data-theme-opacity]')).toBeNull()
+  })
+
+  it('keeps the color and writes the new opacity, in hex', async () => {
+    await mount(files())
+    const before = tryParseColor(fileColors('mine')['scrollbar-thumb'] ?? '')
+    await setOpacity('scrollbar-thumb', '50')
+    const text = fileColors('mine')['scrollbar-thumb'] ?? ''
+    expect(text).toMatch(/^#[0-9a-f]{6}80$/)
+    expect(toHex(tryParseColor(text) ?? parseColor('#000'))).toBe(
+      toHex(before ?? parseColor('#fff')),
+    )
+    expect(opacityField('scrollbar-thumb').value).toBe('50')
+  })
+
+  it('writes the new opacity in oklch when that is the format', async () => {
+    await mount(files({ themes: { colorFormat: 'oklch' } }))
+    await setOpacity('scrollbar-thumb', '50')
+    expect(fileColors('mine')['scrollbar-thumb']).toMatch(/^oklch\(.* \/ 0\.5\)$/)
+  })
+
+  it('keeps the opacity when the picker moves the color', async () => {
+    await mount(files())
+    await pick('scrollbar-thumb', '#224466')
+    const text = fileColors('mine')['scrollbar-thumb'] ?? ''
+    const written = parseColor(text)
+    expect(toHex(written)).toBe('#224466')
+    expect(written.alpha).toBeCloseTo(0.38, 2)
+  })
+
+  it('refuses an opacity outside 0 to 100, or not a number, and puts the shown one back', async () => {
+    await mount(files())
+    const before = host.files.read(themeFile('mine'))
+    for (const bad of ['150', '-5', 'abc', '']) {
+      await setOpacity('scrollbar-thumb', bad)
+      expect(opacityField('scrollbar-thumb').value, bad).toBe('38')
+    }
+    expect(host.files.read(themeFile('mine'))).toBe(before)
+  })
+
+  it('writes 0 and 100 as the edges', async () => {
+    await mount(files())
+    await setOpacity('scrollbar-thumb', '0')
+    expect(parseColor(fileColors('mine')['scrollbar-thumb'] ?? '').alpha).toBe(0)
+    await setOpacity('scrollbar-thumb', '100')
+    expect(fileColors('mine')['scrollbar-thumb']).toMatch(/^#[0-9a-f]{6}$/)
   })
 })
