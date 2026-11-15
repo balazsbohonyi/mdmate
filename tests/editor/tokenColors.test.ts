@@ -93,15 +93,22 @@ describe('the selection and the caret are drawn, in the theme colors (ISC-500, I
   })
 })
 
-describe('the image resize handle uses the handle colors (ISC-502)', () => {
-  it('is --handle at rest and --handle-active under the pointer or while it is dragged', () => {
+describe('a selected image: its outline and its resize handle are --handle-active (ISC-509)', () => {
+  it('draws the outline and the handle in --handle-active, in one state', () => {
     open(createState(DOC, [], { preview: true }))
-    expect(sets('.cm-md-image-handle', 'background-color:var(--handle)')).toBe(true)
-    const active = rules().find(
-      (rule) =>
-        rule.selector.includes('.cm-md-image-handle:hover') &&
-        rule.selector.includes('.cm-md-image-handle:active'),
-    )
-    expect(active?.body).toContain('background-color:var(--handle-active)')
+    expect(
+      sets('.cm-md-image-selected > .cm-md-image-frame', 'outline:2pxsolidvar(--handle-active)'),
+    ).toBe(true)
+    expect(sets('.cm-md-image-handle', 'background-color:var(--handle-active)')).toBe(true)
+  })
+
+  it('has no other color for the handle: not at rest, not under the pointer or pressed', () => {
+    open(createState(DOC, [], { preview: true }))
+    const handle = rules().filter((rule) => rule.selector.includes('.cm-md-image-handle'))
+    expect(handle.length).toBeGreaterThan(0)
+    for (const rule of handle) {
+      expect(rule.selector).not.toMatch(/:hover|:active/)
+      expect(rule.body).not.toMatch(/var\(--(handle|primary|ring)\)/)
+    }
   })
 })

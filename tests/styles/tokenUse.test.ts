@@ -55,7 +55,7 @@ describe('every theme token is used (ISC-499)', () => {
   })
 
   it('has the split handle at --handle at rest and --handle-active under the pointer or dragged (ISC-502)', () => {
-    // Another use of --handle (the image handle) would hide this one from the scan above.
+    // The scan above only needs one use of --handle somewhere; the classes themselves are read here.
     const view = readFileSync(resolve(root, 'src/workbench/SplitNodeView.vue'), 'utf8')
     const classes = /<ResizableHandle[\s\S]*?class="([^"]*)"/.exec(view)?.[1]?.split(/\s+/) ?? []
     expect(classes).toContain('bg-handle')

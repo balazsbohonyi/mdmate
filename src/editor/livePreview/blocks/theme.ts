@@ -74,9 +74,10 @@ export const blockTheme = EditorView.baseTheme({
     overflow: 'hidden',
   },
   '.cm-md-image-label': { overflowWrap: 'anywhere' },
-  // A selected image: an outline on the picture and, once it has loaded, a handle at its corner.
+  // A selected image: an outline on the picture and, once it has loaded, a handle at its corner, both
+  // in --handle-active (one color whether or not the pointer is on the handle).
   '.cm-md-image-selected > .cm-md-image-frame': {
-    outline: '2px solid var(--primary)',
+    outline: '2px solid var(--handle-active)',
     outlineOffset: '1px',
   },
   '.cm-md-image-handle': {
@@ -88,13 +89,9 @@ export const blockTheme = EditorView.baseTheme({
     boxSizing: 'border-box',
     border: '2px solid var(--background)',
     borderRadius: '3px',
-    backgroundColor: 'var(--handle)',
+    backgroundColor: 'var(--handle-active)',
     cursor: 'nwse-resize',
     touchAction: 'none',
-  },
-  // The split handle's colors: at rest, and under the pointer or while it is dragged (`:active`).
-  '.cm-md-image-handle:hover, .cm-md-image-handle:active': {
-    backgroundColor: 'var(--handle-active)',
   },
   // The caret is somewhere else while an image is selected, so it is not drawn.
   '&.cm-image-selected .cm-content': { caretColor: 'transparent' },
