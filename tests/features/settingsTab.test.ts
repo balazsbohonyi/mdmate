@@ -86,6 +86,29 @@ describe('the Settings screen in its tab', () => {
     expect(heading()).toBe('Editor')
   })
 
+  it('sets --accent-foreground wherever it fills a category with --accent (ISC-532)', async () => {
+    await mount()
+    openSettingsTab('editor')
+    await flush()
+    const current = groups().find((group) => group.dataset.settingsCategory === 'editor')
+    const others = groups().filter((group) => group.dataset.settingsCategory !== 'editor')
+    if (current === undefined) throw new Error('no current category')
+    expect(current.classList.contains('bg-accent')).toBe(true)
+    expect(current.classList.contains('text-accent-foreground')).toBe(true)
+    expect(current.classList.contains('text-foreground')).toBe(false)
+    for (const group of others) {
+      expect(group.classList.contains('text-muted-foreground')).toBe(true)
+      expect(group.classList.contains('bg-accent')).toBe(false)
+    }
+    // Hover and keyboard focus fill the button too, so they set the text as well.
+    for (const group of groups()) {
+      expect(group.classList.contains('hover:bg-accent')).toBe(true)
+      expect(group.classList.contains('hover:text-accent-foreground')).toBe(true)
+      expect(group.classList.contains('focus-visible:bg-accent')).toBe(true)
+      expect(group.classList.contains('focus-visible:text-accent-foreground')).toBe(true)
+    }
+  })
+
   it('remembers the group a click chose in the tab, and shows it', async () => {
     await mount()
     const tab = openSettingsTab()

@@ -566,10 +566,10 @@ function openFile(): void {
           type="button"
           :data-settings-category="item.id"
           :aria-current="category === item.id && !searching ? 'page' : undefined"
-          class="cursor-default rounded-sm px-3 py-1.5 text-left text-sm outline-none hover:bg-accent focus-visible:bg-accent"
+          class="cursor-default rounded-sm px-3 py-1.5 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground"
           :class="
             category === item.id && !searching
-              ? 'bg-accent text-foreground'
+              ? 'bg-accent text-accent-foreground'
               : 'text-muted-foreground'
           "
           @click="choose(item.id)"
