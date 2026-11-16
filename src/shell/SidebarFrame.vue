@@ -117,7 +117,7 @@ function onKeydown(event: KeyboardEvent): void {
         <button
           type="button"
           aria-label="Close references"
-          class="ml-auto flex size-5 cursor-default items-center justify-center rounded-sm hover:bg-accent"
+          class="ml-auto flex size-5 cursor-default items-center justify-center rounded-sm hover:bg-accent hover:text-accent-foreground"
           @click="closeReferences"
         >
           <X

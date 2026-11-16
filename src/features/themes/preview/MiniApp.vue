@@ -61,7 +61,9 @@ const rows: Row[] = [
           :stroke-width="1.5"
         />
       </span>
-      <span class="flex w-11 items-center justify-center hover:bg-accent">
+      <span
+        class="flex w-11 items-center justify-center hover:bg-accent hover:text-accent-foreground"
+      >
         <Minus
           class="size-4"
           :stroke-width="1.5"
@@ -135,7 +137,7 @@ const rows: Row[] = [
       </aside>
       <main class="flex min-w-0 flex-1 flex-col">
         <div
-          class="flex h-tabstrip shrink-0 items-stretch border-b border-border bg-tabstrip select-none"
+          class="flex h-tabstrip shrink-0 items-stretch border-b border-border bg-tabstrip text-tab-foreground select-none"
         >
           <TabStripItem
             v-for="(tab, at) in tabs"

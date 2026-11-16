@@ -29,7 +29,7 @@ function opened(open: boolean): void {
       <button
         type="button"
         aria-label="Menu"
-        class="flex w-titlebar shrink-0 items-center justify-center text-titlebar-foreground outline-none hover:bg-accent focus-visible:bg-accent data-[state=open]:bg-accent"
+        class="flex w-titlebar shrink-0 items-center justify-center text-titlebar-foreground outline-none hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
       >
         <Menu
           class="size-4"

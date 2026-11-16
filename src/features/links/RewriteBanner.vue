@@ -61,7 +61,7 @@ watch(
       <div class="flex gap-1.5">
         <button
           type="button"
-          class="rounded border border-sidebar-border bg-sidebar px-2 py-1 hover:bg-sidebar-accent"
+          class="rounded border border-sidebar-border bg-sidebar px-2 py-1 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           data-answer="stop"
           @click="cancelRewriteScan()"
         >
@@ -92,7 +92,7 @@ watch(
         <!-- Yes comes first, so it is the button that has the keyboard and Enter picks it. -->
         <button
           type="button"
-          class="rounded border border-sidebar-border bg-sidebar px-2 py-1 hover:bg-sidebar-accent"
+          class="rounded border border-sidebar-border bg-sidebar px-2 py-1 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           data-answer="update"
           @click="answerRewrite('update')"
         >
@@ -100,7 +100,7 @@ watch(
         </button>
         <button
           type="button"
-          class="rounded border border-sidebar-border bg-sidebar px-2 py-1 hover:bg-sidebar-accent"
+          class="rounded border border-sidebar-border bg-sidebar px-2 py-1 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           data-answer="move-only"
           @click="answerRewrite('move-only')"
         >
@@ -108,7 +108,7 @@ watch(
         </button>
         <button
           type="button"
-          class="rounded border border-sidebar-border bg-sidebar px-2 py-1 hover:bg-sidebar-accent"
+          class="rounded border border-sidebar-border bg-sidebar px-2 py-1 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           data-answer="cancel"
           @click="answerRewrite('cancel')"
         >
@@ -139,7 +139,7 @@ watch(
       <div class="flex gap-1.5">
         <button
           type="button"
-          class="rounded border border-sidebar-border bg-sidebar px-2 py-1 hover:bg-sidebar-accent"
+          class="rounded border border-sidebar-border bg-sidebar px-2 py-1 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           data-answer="dismiss"
           @click="dismissRewriteReport()"
         >

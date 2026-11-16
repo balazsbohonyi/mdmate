@@ -56,7 +56,7 @@ function openSettings(): void {
         aria-label="Settings"
         data-settings-gear
         tabindex="-1"
-        class="flex w-titlebar shrink-0 items-center justify-center text-titlebar-foreground outline-none hover:bg-accent focus-visible:bg-accent"
+        class="flex w-titlebar shrink-0 items-center justify-center text-titlebar-foreground outline-none hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground"
         @click="openSettings"
       >
         <Settings

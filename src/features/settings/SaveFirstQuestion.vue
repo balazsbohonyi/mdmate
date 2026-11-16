@@ -19,7 +19,7 @@ const emit = defineEmits<{ answer: [choice: 'save' | 'discard' | 'cancel'] }>()
 <template>
   <div
     role="alert"
-    class="flex shrink-0 items-center gap-3 border-b border-border bg-muted px-3 py-1.5 text-chrome"
+    class="flex shrink-0 items-center gap-3 border-b border-border bg-muted px-3 py-1.5 text-chrome text-muted-foreground"
   >
     <span class="min-w-0 flex-1">
       {{ file }} has changes you have not saved. Save them before changing {{ label }}?

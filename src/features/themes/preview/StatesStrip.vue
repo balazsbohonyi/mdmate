@@ -50,7 +50,7 @@ const cell = 'flex min-h-10 items-center'
         <Button
           variant="outline"
           size="sm"
-          class="bg-muted text-foreground"
+          class="bg-accent text-accent-foreground"
           >Button</Button
         >
       </div>

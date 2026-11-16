@@ -510,7 +510,7 @@ function openFile(): void {
     <div
       v-if="bannerHint !== null"
       role="alert"
-      class="flex shrink-0 items-center gap-3 border-b border-border bg-muted px-3 py-1.5 text-chrome"
+      class="flex shrink-0 items-center gap-3 border-b border-border bg-muted px-3 py-1.5 text-chrome text-muted-foreground"
       data-settings-banner
     >
       <span class="min-w-0 flex-1">
@@ -768,7 +768,7 @@ function openFile(): void {
                   <li
                     v-for="name in sortedFolders"
                     :key="name"
-                    class="flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs"
+                    class="flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground"
                     data-excluded-chip
                   >
                     {{ name }}
@@ -820,7 +820,7 @@ function openFile(): void {
                     :text="tag.hint"
                   >
                     <li
-                      class="flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs"
+                      class="flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground"
                       data-extension-chip
                       :data-language-chip="tag.language ? 'true' : undefined"
                     >

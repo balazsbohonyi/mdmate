@@ -135,7 +135,7 @@ const box =
     label="Find bar"
   >
     <div
-      class="grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto_auto] items-center gap-x-1 gap-y-1 rounded-md border border-border bg-muted px-2 py-1.5 text-chrome"
+      class="grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto_auto] items-center gap-x-1 gap-y-1 rounded-md border border-border bg-muted px-2 py-1.5 text-chrome text-muted-foreground"
       data-gallery-find-bar
     >
       <Button

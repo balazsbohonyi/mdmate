@@ -499,7 +499,9 @@ function rowHint(row: TreeRow): string | null {
                 isSelectedRow(row)
                   ? 'bg-sidebar-accent/60 text-sidebar-accent-foreground group-focus-within/tree:bg-sidebar-accent'
                   : 'hover:bg-sidebar-accent/50',
-                isDropTarget(row) ? 'bg-sidebar-accent ring-1 ring-ring ring-inset' : '',
+                isDropTarget(row)
+                  ? 'bg-sidebar-accent text-sidebar-accent-foreground ring-1 ring-ring ring-inset'
+                  : '',
                 isDragged(row) ? 'opacity-50' : '',
                 row.kind === 'file' && !row.markdown ? 'text-muted-foreground' : '',
                 row.kind === 'note'

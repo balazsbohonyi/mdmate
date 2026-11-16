@@ -154,7 +154,7 @@ function buttonText(command: Command): string {
     <div
       v-if="broken !== null"
       role="alert"
-      class="mt-2 flex items-center gap-3 rounded-md bg-muted px-3 py-1.5 text-chrome"
+      class="mt-2 flex items-center gap-3 rounded-md bg-muted px-3 py-1.5 text-chrome text-muted-foreground"
       data-keyboard-banner
     >
       <span class="min-w-0 flex-1">
@@ -173,7 +173,7 @@ function buttonText(command: Command): string {
     </div>
     <ul
       v-if="problems.length > 0"
-      class="mt-2 flex flex-col gap-1 rounded-md bg-muted px-3 py-1.5 text-chrome"
+      class="mt-2 flex flex-col gap-1 rounded-md bg-muted px-3 py-1.5 text-chrome text-muted-foreground"
       data-keyboard-problems
     >
       <li

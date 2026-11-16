@@ -179,7 +179,7 @@ describe('the gallery has every control and floating surface of the app (ISC-526
       default: 'bg-primary',
       outline: 'bg-background',
       secondary: 'bg-secondary',
-      ghost: 'hover:bg-muted',
+      ghost: 'hover:bg-accent',
       destructive: 'text-destructive',
       link: 'underline-offset-4',
     }
@@ -314,7 +314,7 @@ describe('the states strip (ISC-527)', () => {
 
   it('gives hover and focus the classes the control uses for them', async () => {
     const root = await mountPreview()
-    expect(must(cell(root, 'button', 'hover'), 'button').className).toContain('bg-muted')
+    expect(must(cell(root, 'button', 'hover'), 'button').className).toContain('bg-accent')
     for (const sample of ['button', 'field', 'switch']) {
       const focused = must(cell(root, sample, 'focus'), 'button, input')
       expect(focused.className, sample).toContain('border-ring')
