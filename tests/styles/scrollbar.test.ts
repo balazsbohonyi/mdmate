@@ -54,3 +54,39 @@ describe('thin scrollbars everywhere (ISC-248)', () => {
     expect(strip).toContain('[&::-webkit-scrollbar]:hidden')
   })
 })
+
+/**
+ * Only the focused pane shows scrollbar thumbs (ISC-546). The rule is CSS on a pseudo-element, which
+ * jsdom does not compute, so these read the rule and the markup it hangs on; the real window
+ * is the check that it works (ISC-547).
+ */
+describe('scrollbars of panes that are not focused (ISC-546)', () => {
+  const css = read('src/styles/tokens.css')
+  const rule = /(\[data-pane-id\][^{]*::-webkit-scrollbar-thumb)\s*\{([^}]*)\}/.exec(css)
+
+  it('clears the thumb of a pane that is not active, unless the pointer is over its body', () => {
+    expect(rule).not.toBeNull()
+    const selector = rule?.[1] ?? ''
+    expect(selector).toContain("[data-active='false']")
+    expect(selector).toContain('[data-pane-body]')
+    expect(selector).toMatch(/:not\([^)]*:hover/)
+    expect(rule?.[2]).toMatch(/background-color:\s*transparent/)
+  })
+
+  it('leaves the Theme preview with its thumb, so a thumb color can be judged there', () => {
+    expect(rule?.[1]).toMatch(/:not\([^)]*:has\(\[data-theme-preview\]\)/)
+  })
+
+  it('does not touch the focused pane or the track', () => {
+    expect(rule?.[1]).not.toContain("[data-active='true']")
+    expect(rule?.[1]).not.toContain('::-webkit-scrollbar-track')
+  })
+
+  it('hangs on markup that exists: the pane section carries data-active and the body is marked', () => {
+    const pane = read('src/workbench/PaneView.vue')
+    expect(pane).toContain(':data-active="active"')
+    expect(pane).toContain('data-pane-body')
+    expect(pane).toContain(':data-pane-id="pane.id"')
+    expect(read('src/features/themes/preview/ThemePreview.vue')).toContain('data-theme-preview')
+  })
+})

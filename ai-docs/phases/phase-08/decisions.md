@@ -210,3 +210,10 @@ Choices made while building, in the order they were made. The settled design is 
 
 - **Bubble.** The refusal under a name box hangs from the row and is capped at the row width, so it wraps inside the sidebar instead of being cut at its edge. It used to hang from the box, which is narrower than the row and sits behind a clipping scroller. Open: on the last visible row it still hangs below and can be out of view.
 - **Drop preview.** No border; a 75 ms transition on left, top, width and height (VS Code uses 70 ms), off under reduced motion. A change of target animates; the first appearance does not. Revert: `git revert` the commit.
+
+## P8-T6: scrollbars follow the focused pane (thirteenth follow-up)
+
+- **Rule.** With several panes, only the focused pane shows scrollbar thumbs; another pane shows them while the pointer is over its body. One CSS rule in `tokens.css` after the thumb rules; the thumb goes clear, the gutter stays, so nothing shifts. A single pane is unchanged.
+- **Preview exempt.** The Theme preview keeps its thumb, because it sits in an unfocused pane while its theme is edited, to show those colors.
+- **Not changed.** The find ticks along the scrollbar and the tab strip. No fade. Revert: `git revert` the commit.
+- **Reading.** "Active tab" is read as the pane the focus is in, since every pane has one visible tab. If the owner meant something else (for example every pane's own tab), the rule is one selector.

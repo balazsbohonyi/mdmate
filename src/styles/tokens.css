@@ -190,6 +190,18 @@ html[data-tree-drag='blocked'] * {
 ::-webkit-scrollbar-thumb:hover {
   background-color: var(--scrollbar-thumb-hover);
 }
+/*
+ * With several panes open, only the focused one shows scrollbar thumbs, so the bars do not
+ * line up along every pane's edge. Another pane shows them while the pointer is over its body
+ * (the scrollbar is part of the element, so pointing at the bar counts). The Theme preview is
+ * left alone: it sits in an unfocused pane while its theme is edited, to show these very colors.
+ * The find ticks and the tab strip are not part of this.
+ */
+[data-pane-id][data-active='false']
+  [data-pane-body]:not(:hover, :has([data-theme-preview]))
+  ::-webkit-scrollbar-thumb {
+  background-color: transparent;
+}
 ::-webkit-scrollbar-button {
   display: none;
 }
