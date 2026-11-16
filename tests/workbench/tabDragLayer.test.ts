@@ -5,7 +5,7 @@ import TabDragLayer from '@/workbench/TabDragLayer.vue'
 import { tabDrag } from '@/workbench/tabDrag'
 import type { DropTarget } from '@/workbench/tabDropTarget'
 
-/** The drop preview drawn while a tab is dragged (ISC-544). */
+/** The drop preview drawn while a tab is dragged (ISC-544, ISC-548). */
 
 const PANE: DropTarget = {
   kind: 'pane',
@@ -50,25 +50,22 @@ describe('ISC-544: the drop preview', () => {
     expect(preview?.style.width).toBe('400px')
   })
 
-  it('moves with a short transition of its position and size, off under reduced motion', async () => {
+  it('has no transition: it jumps from one target to the next', async () => {
     const host = await show(PANE)
     const classes = host.querySelector('[data-drop-preview]')?.className ?? ''
-    expect(classes).toContain('transition-[left,top,width,height]')
-    expect(classes).toContain('duration-75')
-    expect(classes).toContain('motion-reduce:transition-none')
+    expect(classes).not.toMatch(/transition|duration|ease-|animate/)
   })
 
-  it('keeps the solid insertion bar in a tab strip, with the same transition', async () => {
+  it('keeps the solid insertion bar in a tab strip', async () => {
     const host = await show(BAR)
     const classes = host.querySelector('[data-drop-preview]')?.className ?? ''
     expect(classes).toContain('bg-primary')
     expect(classes).not.toContain('bg-drop-preview')
-    expect(classes).toContain('transition-[left,top,width,height]')
+    expect(classes).not.toMatch(/transition|duration|ease-|animate/)
   })
 
-  it('stays the same element when the target changes, so the change can be animated', async () => {
+  it('follows the target when it changes', async () => {
     const host = await show(PANE)
-    const before = host.querySelector('[data-drop-preview]')
     tabDrag.value = {
       tabId: 'a',
       title: 'a.md',
@@ -78,7 +75,6 @@ describe('ISC-544: the drop preview', () => {
     }
     await nextTick()
     const after = host.querySelector<HTMLElement>('[data-drop-preview]')
-    expect(after).toBe(before)
     expect(after?.style.left).toBe('200px')
     expect(after?.style.width).toBe('200px')
   })

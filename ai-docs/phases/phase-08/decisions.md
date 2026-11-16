@@ -209,7 +209,7 @@ Choices made while building, in the order they were made. The settled design is 
 ## P8-T6: name bubble and drop preview (twelfth follow-up)
 
 - **Bubble.** The refusal under a name box hangs from the row and is capped at the row width, so it wraps inside the sidebar instead of being cut at its edge. It used to hang from the box, which is narrower than the row and sits behind a clipping scroller. Open: on the last visible row it still hangs below and can be out of view.
-- **Drop preview.** No border; a 75 ms transition on left, top, width and height (VS Code uses 70 ms), off under reduced motion. A change of target animates; the first appearance does not. Revert: `git revert` the commit.
+- **Drop preview.** No border. It first got a 75 ms glide between targets (VS Code uses 70 ms); the owner did not like it and it was taken out the same day, so the preview jumps. A test fails if a transition or animation class returns. Revert: `git revert` the commit.
 
 ## P8-T6: scrollbars follow the focused pane (thirteenth follow-up)
 
