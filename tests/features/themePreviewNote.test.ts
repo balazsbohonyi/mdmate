@@ -2,7 +2,6 @@
  * The sample note of the Theme preview (ISC-518): one of everything the editor draws, so a color
  * has something to land on wherever it is used. The tree is the app's own Markdown parse.
  */
-import { syntaxTree } from '@codemirror/language'
 import { Text } from '@codemirror/state'
 import { describe, expect, it } from 'vitest'
 import { frontmatterEnd } from '@/editor/livePreview/frontmatter'
@@ -12,14 +11,14 @@ import {
   PREVIEW_NOTE,
   previewSelection,
 } from '@/features/themes/preview/previewNote'
-import { stateOf } from '../helpers/preview'
+import { stateOf, wholeTree } from '../helpers/preview'
 
 const state = stateOf(PREVIEW_NOTE, 0)
 
 /** How many nodes of each name the note's tree has, and the text of each. */
 function nodes(): Map<string, string[]> {
   const found = new Map<string, string[]>()
-  syntaxTree(state).iterate({
+  wholeTree(state).iterate({
     enter: (node) => {
       const list = found.get(node.name) ?? []
       list.push(state.doc.sliceString(node.from, node.to))

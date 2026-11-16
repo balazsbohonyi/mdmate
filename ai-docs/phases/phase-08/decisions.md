@@ -171,3 +171,15 @@ Choices made while building, in the order they were made. The settled design is 
 - **Redundant, kept.** CodeMirror's `search()` takes the main selection's text as its first query, so the explicit query in the preview editor changes nothing today.
 - **Test timing.** The repository-wide arch case takes about 2 s alone and ran past the 5 s default beside the full suite; it has a 30 s timeout.
 - **Left.** Part 2: the gallery (buttons, field, switch, dropdown, tooltip, dialog, context menu, toasts, find bar, palette, scrollbar) and the states strip. Two "Sepia copy" and one "Custom Dark" test files are in this machine's Recycle Bin from the real runs.
+
+## P8-T7: theme preview tab (part 2: gallery and states strip)
+
+- **Live and pictured.** Under the miniature, the controls are the real components with local state (buttons, text field, switches, the dropdown with its real popup, a button with the real tooltip, a scroll box). The floating surfaces (tooltip, dialog, context menu, toasts, command palette) are `inert` pictures, because the real ones live in a portal or a store and open on an action. The find bar is markup with live boxes.
+- **The cost of pictures.** The picture classes are copied from `components/ui/{tooltip,alert-dialog,context-menu}`, `FindBar.vue` and `PaletteHost.vue`. A class change in the app's component is a change to make in `GalleryPanels.vue` too; it says so in its header. Nothing checks the copy against the original.
+- **Toasts.** Two kinds, error and warning, because the app raises no others, with the icon colors from `styles/toasts.css`.
+- **The states strip.** A fixed grid of six samples by five states. Disabled, error and selected are real states (`disabled`, `aria-invalid`, pressed, checked, selected). Hover and focus carry the classes the control uses, since a pointer and a focus ring cannot be held on a dozen things at once. A cell stays empty where the control has no such look. The strip is `inert`: a real Tab walk showed its controls as Tab stops.
+- **Headings.** `SubGroupHeading` for "Components" and "States", a `figcaption` for the caption of an item; the item prop is `label` because the native-title scan reads `title=`.
+- **Layout.** Two columns from 42 rem of pane, one below; the strip scrolls sideways inside its own box in a narrow pane and its cells truncate.
+- **Found by the suite.** The closed dropdown leaves an empty placeholder `div` in the body for as long as the tab is open (removed with the tab); the old "nothing outside the root" test now allows exactly that: one bare `div` with the two teleport comments and nothing else. The part 1 note tests read `syntaxTree(state)`, which can stop early under load; they now finish the parse first.
+- **Seen, not changed.** With Settings and the preview side by side each pane is 430 px and the Settings rows stack into a column of one word a line. That is the Settings layout at that width.
+- **Left.** The Recycle Bin question (two "Sepia copy" files and one "Custom Dark" from earlier real runs). Clicking a color to find where it is used stays a follow-up.

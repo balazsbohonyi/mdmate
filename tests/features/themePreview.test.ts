@@ -4,7 +4,6 @@
  * which nothing can change (ISC-520), a miniature with no effect outside the tab (ISC-522), and a
  * view that follows a color change at once with no copy of any token (ISC-523).
  */
-import { syntaxTree } from '@codemirror/language'
 import { EditorView } from '@codemirror/view'
 import { highlightTree } from '@lezer/highlight'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -35,7 +34,7 @@ import { findCounts } from '@/workbench/find'
 import { tabDrag } from '@/workbench/tabDrag'
 import { allTabs } from '@/workbench/splitTree'
 import { resetWorkbench, workbenchLayout } from '@/workbench/store'
-import { scanAll, stateOf } from '../helpers/preview'
+import { scanAll, stateOf, strangersOf, wholeTree } from '../helpers/preview'
 import { tooltipApp } from '../helpers/tooltips'
 
 // jsdom has no layout: the editor measures text with ranges, so they answer with nothing.
@@ -159,7 +158,7 @@ async function classesOfNote(): Promise<Set<string>> {
       for (const name of item.class.split(' ')) classes.add(name)
   }
   const blocks: { info: string; text: string }[] = []
-  syntaxTree(state).iterate({
+  wholeTree(state).iterate({
     enter: (node) => {
       if (node.name !== 'FencedCode') return
       const info = node.node.getChild('CodeInfo')
@@ -325,7 +324,7 @@ describe('the miniature has no effect outside the tab (ISC-522)', () => {
   it('adds nothing to the page outside its own root', async () => {
     const root = await mountPreview()
     await until(() => root.querySelector('.cm-md-link-broken') !== null)
-    expect([...document.body.children]).toEqual([root])
+    expect(strangersOf(root)).toEqual([])
   })
 
   it('has no window-drag region and no window controls', async () => {

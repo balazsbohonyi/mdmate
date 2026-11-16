@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import PreviewGallery from './PreviewGallery.vue'
 import MiniApp from './MiniApp.vue'
+import StatesStrip from './StatesStrip.vue'
 
 /**
  * The Theme preview tab: the theme in force drawn as a small copy of the app. It holds nothing of
@@ -31,5 +33,7 @@ import MiniApp from './MiniApp.vue'
     >
       <MiniApp />
     </section>
+    <PreviewGallery />
+    <StatesStrip />
   </div>
 </template>
