@@ -6,7 +6,6 @@ import { settings } from '@/lib/settings'
 import type { Checked } from '@/lib/settingsFile'
 import { editThemeColor, editThemeField, newThemeText } from '@/lib/themeFile'
 import { checkThemeLabel, copyLabel, themeStem } from '@/lib/themeNames'
-import { THEME_TOKENS } from '@/lib/themeTokens'
 import { effectiveTokens, slotKey, SYSTEM_THEME } from '@/lib/themes'
 import { getHost } from '@/platform'
 import { reportError, reportWarning } from '@/shell/toasts'
@@ -287,46 +286,6 @@ function userLabelOf(id: string): string {
 /** The palette's own color for a token: what a user theme shows when its file leaves the token out. */
 export function baseColorOf(base: BuiltInId, token: string): string | undefined {
   return effectiveTokens({ palette: base, overrides: new Map() }).get(token)
-}
-
-/**
- * Changes the palette a user theme is based on (Dark, Light or Sepia). Every color the file leaves
- * out is first written as the old palette showed it, so the theme keeps its look and only what
- * "dark" and "light" mean for new colors changes. Resolves to whether the file now holds it.
- */
-export function setThemeBase(base: BuiltInId): Promise<boolean> {
-  const user = currentTheme.value.user
-  if (user === null || user.base === base) return Promise.resolve(true)
-  const old = effectiveTokens({ palette: user.base, overrides: user.colors })
-  const id = user.id
-  return enqueueThemeJob(async () => {
-    try {
-      const host = await getHost()
-      const text = await host.themeRead(id)
-      if (text === null) throw new Error(`${id}.json is not in the themes folder any more`)
-      let next = text
-      for (const { name } of THEME_TOKENS) {
-        const held = old.get(name)
-        if (held === undefined || user.colors.has(name)) continue
-        const edited = editThemeColor(
-          next,
-          name,
-          formatColor(held, settings.themes.colorFormat),
-          `${id}.json`,
-        )
-        if (!edited.ok) throw new Error(edited.message)
-        next = edited.text
-      }
-      const switched = editThemeField(next, 'base', base, `${id}.json`)
-      if (!switched.ok) throw new Error(switched.message)
-      if (switched.text !== text) await host.themeWrite(id, switched.text, false)
-      noteThemeText(id, switched.text)
-      return true
-    } catch (error) {
-      reportError(`Could not change the base of the theme: ${describe(error)}`)
-      return false
-    }
-  })
 }
 
 /**

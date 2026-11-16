@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * Managing themes (P8-T6): making one from a palette (ISC-474), copying (ISC-475), renaming
- * (ISC-476), deleting to the Recycle Bin (ISC-477) and changing the base (ISC-479). The page runs
+ * (ISC-476), deleting to the Recycle Bin (ISC-477). The page runs
  * on the mock host, whose files stand in for the themes folder and whose `recycled` list stands in
  * for the bin.
  */
@@ -13,7 +13,6 @@ import {
   duplicateTheme,
   editTheme,
   renameTheme,
-  setThemeBase,
   suggestCopyName,
 } from '@/features/themes/customize'
 import {
@@ -287,37 +286,6 @@ describe('ISC-477: Delete', () => {
 /** The 8-bit color a value paints, whatever format it is written in. */
 const seen = (value: string): string => toHex(parseColor(value))
 
-describe('ISC-479: the base of a theme', () => {
-  const colorsOf = (): Map<string, string> => effectiveTokens(currentTheme.value)
-
-  it('keeps every color shown when the base changes, writing what the file left out first', async () => {
-    await start({
-      [MOCK_SETTINGS_FILE]: '{ "theme": "Mine" }',
-      [themeFile('Mine')]:
-        '{ "name": "Mine", "base": "dark", "colors": { "background": "#abcdef" } }',
-    })
-    const before = colorsOf()
-    expect(await setThemeBase('light')).toBe(true)
-    await settledThemes()
-    const file = parsed('Mine').theme
-    expect(file.base).toBe('light')
-    expect(file.colors.size).toBe(THEME_TOKENS.length)
-    expect(currentTheme.value.palette).toBe('light')
-    const after = colorsOf()
-    expect([...after.keys()]).toEqual([...before.keys()])
-    // Written out in the chosen format, so the text may differ; the color shown may not.
-    for (const [token, value] of before)
-      expect(seen(after.get(token) ?? ''), token).toEqual(seen(value))
-  })
-
-  it('does nothing for the base it already has', async () => {
-    await start(SELECT_MINE)
-    const before = host.files.read(themeFile('Mine'))
-    expect(await setThemeBase('light')).toBe(true)
-    expect(host.files.read(themeFile('Mine'))).toBe(before)
-  })
-})
-
 /** True when every color of the file is written in this format. */
 function allIn(stem: string, format: 'hex' | 'oklch'): string[] {
   return [...parsed(stem).theme.colors]
@@ -349,22 +317,6 @@ describe('ISC-491: a made theme holds its colors in the chosen format', () => {
       expect(allIn('Dark copy', format)).toEqual([])
       expect(allIn('Mine copy', format)).toEqual([])
       expect(seen(parsed('Mine copy').theme.colors.get('background') ?? '')).toBe('#abcdef')
-    },
-  )
-
-  it.each(['hex', 'oklch'] as const)(
-    'a base switch in %s mode writes what the file left out in it',
-    async (format) => {
-      await start({
-        [MOCK_SETTINGS_FILE]: `{ "theme": "Mine", "themes": { "colorFormat": "${format}" } }`,
-        [themeFile('Mine')]:
-          '{ "name": "Mine", "base": "dark", "colors": { "background": "#abcdef" } }',
-      })
-      expect(await setThemeBase('light')).toBe(true)
-      await settledThemes()
-      // The color the user set stays as it was; every color written out for them is in the format.
-      expect(parsed('Mine').theme.colors.get('background')).toBe('#abcdef')
-      expect(allIn('Mine', format)).toEqual(format === 'hex' ? [] : ['background=#abcdef'])
     },
   )
 })
@@ -400,17 +352,6 @@ describe('ISC-482: a built-in theme is never renamed, deleted or written', () =>
       expect(settings.theme).toBe('Mine')
       expect(editorScrollRequests.value).toBe(asked)
       expect(toasts.all).toEqual([])
-    },
-  )
-
-  it.each(['dark', 'light', 'sepia', 'system'])(
-    'writes nothing for a base change while %s is in use',
-    async (id) => {
-      await start({ [MOCK_SETTINGS_FILE]: JSON.stringify({ theme: id }) })
-      expect(await setThemeBase('sepia')).toBe(true)
-      await settledThemes()
-      expect(stems()).toEqual([])
-      expect(settings.theme).toBe(id)
     },
   )
 })

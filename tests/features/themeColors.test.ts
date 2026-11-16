@@ -19,6 +19,7 @@ import ThemeColors from '@/features/themes/ThemeColors.vue'
 import { formatColor, fromHsv, parseColor, toHexString, toHsv, tryParseColor } from '@/lib/color'
 import { resetSettings, settings } from '@/lib/settings'
 import { THEME_GROUPS, THEME_TOKENS, tokensOf } from '@/lib/themeTokens'
+import { usageOf } from '@/lib/themeTokenUsage'
 import { setHost } from '@/platform'
 import {
   createMockHost,
@@ -156,7 +157,7 @@ describe('a user theme: every token, in groups', () => {
     await mount(SELECT_MINE)
     expect(fieldOf('background').value).toBe('#101418')
     expect(fieldOf('foreground').value).not.toBe('')
-    expect(document.querySelector('[data-theme-editing]')?.textContent).toContain('based on Dark')
+    expect(document.querySelector('[data-theme-base-name]')?.textContent?.trim()).toBe('Dark')
   })
 })
 
@@ -403,62 +404,66 @@ describe('ISC-480: Reset a color to its palette', () => {
   })
 })
 
-describe('ISC-479: the Based on switch', () => {
-  it('shows Dark, Light and Sepia with the base pressed, and changes it keeping the colors', async () => {
+describe('ISC-541: the base of a theme is a name', () => {
+  it('reads "Based on Dark" with no control that changes it', async () => {
     await mount(SELECT_MINE)
-    const buttons = [...document.querySelectorAll<HTMLElement>('[data-theme-base]')]
-    expect(buttons.map((one) => one.dataset.themeBase)).toEqual(['dark', 'light', 'sepia'])
-    expect(
-      buttons
-        .filter((one) => one.getAttribute('aria-pressed') === 'true')
-        .map((one) => one.dataset.themeBase),
-    ).toEqual(['dark'])
-    const before = fieldOf('foreground').value
-    document.querySelector<HTMLElement>('[data-theme-base="light"]')?.click()
-    await flush()
-    await settledThemes()
-    await flush()
-    expect(document.querySelector('[data-theme-base="light"]')?.getAttribute('aria-pressed')).toBe(
-      'true',
-    )
-    expect(fieldOf('foreground').value).toBe(before)
-    expect(fileColors('mine').foreground).toBeDefined()
-    expect(document.documentElement.dataset.theme).toBe('light')
+    const line = document.querySelector('[data-theme-base]')
+    expect(line).not.toBeNull()
+    expect(line?.textContent).toContain('Based on')
+    expect(document.querySelector('[data-theme-base-name]')?.textContent?.trim()).toBe('Dark')
+    expect(line?.querySelector('button, [role="radio"], [data-slot="toggle-group"]')).toBeNull()
+  })
+
+  it('names the base the file has, whatever it is', async () => {
+    await mount({
+      [MOCK_SETTINGS_FILE]: '{ "theme": "mine" }',
+      [themeFile('mine')]: '{ "name": "Mine", "base": "sepia", "colors": {} }',
+    })
+    expect(document.querySelector('[data-theme-base-name]')?.textContent?.trim()).toBe('Sepia')
   })
 
   it('is not there for a built-in theme', async () => {
     await mount()
-    expect(document.querySelector('[data-theme-base-switch]')).toBeNull()
+    expect(document.querySelector('[data-theme-base]')).toBeNull()
   })
 })
 
-describe('ISC-488: the Based on toggle group', () => {
-  it('is one group with the base on in the primary color and the others plain', async () => {
-    await mount(SELECT_MINE)
-    const group = document.querySelector('[data-theme-base-switch] [data-slot="toggle-group"]')
-    expect(group).not.toBeNull()
-    expect(group?.getAttribute('aria-label')).toBe('Based on')
-    const items = [...(group?.querySelectorAll<HTMLElement>('[data-theme-base]') ?? [])]
-    expect(items.map((one) => one.dataset.state)).toEqual(['on', 'off', 'off'])
-    const className = items[0]?.className ?? ''
-    expect(className).toContain('data-[state=on]:bg-primary')
-    expect(className).toContain('data-[state=on]:text-primary-foreground')
-    expect(className).not.toContain('data-[state=on]:bg-muted')
-  })
-
-  it('keeps the base when the one that is on is pressed again', async () => {
-    await mount(SELECT_MINE)
-    const before = host.files.read(themeFile('mine'))
-    document.querySelector<HTMLElement>('[data-theme-base="dark"]')?.click()
+describe('ISC-540: a token says where the app uses it', () => {
+  async function hover(element: Element | null | undefined): Promise<void> {
+    if (!element) throw new Error('nothing to hover')
+    element.dispatchEvent(new MouseEvent('pointermove', { bubbles: true }))
     await flush()
-    await settledThemes()
-    expect(document.querySelector('[data-theme-base="dark"]')?.getAttribute('data-state')).toBe(
-      'on',
-    )
-    expect(host.files.read(themeFile('mine'))).toBe(before)
+  }
+  const labelOf = (token: string): Element | null =>
+    document.querySelector(`[data-theme-token="${token}"] [data-theme-token-label]`)
+  const hint = (): string =>
+    document.body.querySelector('[data-hover-hint]')?.textContent?.trim() ?? ''
+
+  it('shows the sentence of --destructive-foreground when its name is hovered', async () => {
+    await mount(SELECT_MINE)
+    await hover(labelOf('destructive-foreground'))
+    expect(hint()).toContain(usageOf('destructive-foreground'))
+    expect(hint()).toContain('close-window button')
+  })
+
+  it.each(['background', 'primary', 'syntax-keyword', 'drop-preview'])(
+    'shows the sentence of %s',
+    async (token) => {
+      await mount(SELECT_MINE)
+      await hover(labelOf(token))
+      expect(hint()).toContain(usageOf(token))
+      expect(hint().length).toBeGreaterThan(10)
+    },
+  )
+
+  it('puts the hover on the name of every token, so each row has one', async () => {
+    await mount(SELECT_MINE)
+    const rows = [...document.querySelectorAll<HTMLElement>('[data-theme-token]')]
+    expect(rows.length).toBe(THEME_TOKENS.length)
+    for (const row of rows)
+      expect(row.querySelector('[data-theme-token-label]'), row.dataset.themeToken).not.toBeNull()
   })
 })
-
 describe('the color picker popover (ISC-492 to ISC-496)', () => {
   const COLORS: Record<string, string> = {
     background: '#101418',

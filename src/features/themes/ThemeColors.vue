@@ -4,15 +4,15 @@ import { computed, reactive } from 'vue'
 import HoverHint from '@/components/HoverHint.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { BUILT_IN_IDS, BUILT_IN_THEMES, type BuiltInId } from '@/lib/builtinThemes'
+import { BUILT_IN_THEMES } from '@/lib/builtinThemes'
 import { contrast, formatColor, toHexString, tryParseColor } from '@/lib/color'
 import { settings } from '@/lib/settings'
 import { checkThemeColor } from '@/lib/themeFile'
 import { effectiveTokens } from '@/lib/themes'
 import { CONTRAST_PAIRS, THEME_GROUPS, THEME_TOKENS, tokensOf } from '@/lib/themeTokens'
+import { usageOf } from '@/lib/themeTokenUsage'
 import SubGroupHeading from '@/features/settings/SubGroupHeading.vue'
-import { baseColorOf, changeThemeColor, flushThemeColors, setThemeBase } from './customize'
-import ChoiceGroup from './ChoiceGroup.vue'
+import { baseColorOf, changeThemeColor, flushThemeColors } from './customize'
 import ColorPicker from './ColorPicker.vue'
 import { currentTheme, openThemeForm } from './store'
 
@@ -28,8 +28,6 @@ const shown = computed(() => currentTheme.value)
 const user = computed(() => shown.value.user)
 const colors = computed(() => effectiveTokens(shown.value))
 const baseName = computed(() => (user.value === null ? '' : BUILT_IN_THEMES[user.value.base].label))
-
-const BASE_CHOICES = BUILT_IN_IDS.map((id) => ({ value: id, label: BUILT_IN_THEMES[id].label }))
 
 const labels = new Map(THEME_TOKENS.map((token) => [token.name, token.label]))
 
@@ -105,10 +103,6 @@ function reset(token: string): void {
   void changeThemeColor(token, formatColor(target, format.value), true)
 }
 
-function setBase(base: BuiltInId): void {
-  void setThemeBase(base)
-}
-
 function revert(token: string): void {
   delete drafts[token]
   delete refused[token]
@@ -167,9 +161,8 @@ function customize(): void {
           class="min-w-0 flex-1 text-chrome text-muted-foreground"
           data-theme-editing
         >
-          Editing {{ user.label }} (themes/{{ user.id }}.json), based on {{ baseName }}. A color is
-          written to the file as you change it, and a color the file leaves out comes from
-          {{ baseName }}.
+          Editing {{ user.label }} (themes/{{ user.id }}.json). A color is written to the file as
+          you change it.
         </p>
         <Button
           type="button"
@@ -181,22 +174,20 @@ function customize(): void {
           Duplicate
         </Button>
       </div>
-      <div
-        class="mt-3 flex flex-wrap items-center gap-2"
-        data-theme-base-switch
+      <p
+        class="mt-3 text-sm text-foreground"
+        data-theme-base
       >
-        <span class="text-sm text-foreground">Based on</span>
-        <ChoiceGroup
-          :model-value="user.base"
-          :options="BASE_CHOICES"
-          label="Based on"
-          item-attr="data-theme-base"
-          @update:model-value="setBase"
-        />
-        <span class="text-xs text-muted-foreground">
-          A color the file leaves out comes from it; changing it keeps the colors you see now.
-        </span>
-      </div>
+        Based on
+        <span
+          class="font-medium"
+          data-theme-base-name
+          >{{ baseName }}</span
+        >.
+        <span class="ml-1 text-xs text-muted-foreground"
+          >Fixed when the theme was made: a color the file leaves out comes from it.</span
+        >
+      </p>
       <!-- What the Settings screen puts above the colors of a theme being edited. -->
       <slot name="user-options" />
       <div
@@ -213,8 +204,18 @@ function customize(): void {
           :data-theme-token="token.name"
         >
           <div class="min-w-0">
-            <span class="text-sm text-foreground">{{ token.label }}</span>
-            <code class="ml-2 text-xs text-muted-foreground/80">--{{ token.name }}</code>
+            <HoverHint
+              :text="usageOf(token.name)"
+              side="top"
+            >
+              <span
+                class="inline-block max-w-full cursor-default"
+                data-theme-token-label
+              >
+                <span class="text-sm text-foreground">{{ token.label }}</span>
+                <code class="ml-2 text-xs text-muted-foreground/80">--{{ token.name }}</code>
+              </span>
+            </HoverHint>
             <HoverHint
               v-if="resetTarget(token.name) !== null"
               :text="`Reset to ${baseName}'s color`"

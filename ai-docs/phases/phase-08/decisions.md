@@ -197,3 +197,10 @@ Choices made while building, in the order they were made. The settled design is 
 - **Destructive.** `--destructive-foreground` is a theme token (owner: yes). It is in the color editor right after `--destructive`, mapped as `text-destructive-foreground`, `var(--background)` in all three themes (the text the two uses already had), and held to 4.5:1 on `--destructive`. The name-input error bubble and the title bar close button use it. Revert: remove the token from `themeTokens.ts` (list and contrast pair), `tokens.css`, the three theme files, put `text-background` back in `NameInput.vue` and `TitleBarControls.vue`, and drop `destructive` from `ENFORCED` in `colorPairs.test.ts`.
 - **Table headers.** The markdown table header cells stay `--muted` with `--foreground` text (owner: leave it).
 - **A hole closed.** Nothing required an enforced pair to be in `CONTRAST_PAIRS`; a test does now, for all 14.
+
+## P8-T6: token hints and a fixed base (eleventh follow-up)
+
+- **Hints.** Every token row in the color editor shows, on hover of its name, where the app uses the token. It is the themed tooltip (`HoverHint`), not the native `title`. The sentences are in `src/lib/themeTokenUsage.ts`, written from the code that uses each token; change a sentence when a token moves. A test checks every token has one.
+- **Hit area.** The hover target is an inline-block. A name that wraps onto two lines has a smaller hit area as an inline span than its box, and a pointer in the box center missed it in the real window.
+- **The base is a name.** "Based on Dark." with a note that it is fixed when the theme was made. Changing a base made every token the file leaves out look overridden, so it is not offered. `setThemeBase` and its tests are removed; ISC-479 is superseded. Revert: `git revert` the commit.
+- **Left.** The preview cannot show the close-window button hover or the name error bubble, so `--destructive-foreground` has no visible effect there; the hint says where it is used. Adding those two to the preview is a follow-up.
