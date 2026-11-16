@@ -275,3 +275,38 @@ describe('ISC-549: the content width limit has a toggle command', () => {
     })
   })
 })
+
+describe('ISC-552: the width command also turns word wrap on', () => {
+  const ID = COMMAND_IDS.toggleContentWidth
+
+  it('turns word wrap on with the limit, and the word wrap command shows it at once', async () => {
+    await start('{"editor": {"wordWrap": false, "limitContentWidth": false}}')
+    expect(commandState(COMMAND_IDS.toggleWordWrap)).toBe(false)
+    expect(await runCommand(ID)).toBe(true)
+    expect(settings.editor.limitContentWidth).toBe(true)
+    expect(commandState(ID)).toBe(true)
+    expect(commandState(COMMAND_IDS.toggleWordWrap)).toBe(true)
+    expect(paletteState(COMMAND_IDS.toggleWordWrap)).toBe(true)
+    expect(fileObject()).toEqual({})
+  })
+
+  it('turns only the limit off the next time, and leaves word wrap on', async () => {
+    await start()
+    await runCommand(ID)
+    expect(fileObject()).toEqual({ editor: { limitContentWidth: false } })
+    expect(commandState(COMMAND_IDS.toggleWordWrap)).toBe(true)
+  })
+
+  it('does it after the question about unsaved settings.json edits too', async () => {
+    await watchDisk()
+    await start('{"editor": {"wordWrap": false, "limitContentWidth": false}}')
+    const tab = await openPath(MOCK_SETTINGS_FILE)
+    followerOfTab(tab)?.dispatch({ changes: { from: 0, to: 0, insert: '// mine\n' } })
+    await runCommand(ID)
+    expect(settings.editor.wordWrap).toBe(false)
+    await resolvePendingSettingChange('save')
+    expect(settings.editor.limitContentWidth).toBe(true)
+    expect(settings.editor.wordWrap).toBe(true)
+    expect(host.files.read(MOCK_SETTINGS_FILE)).toContain('// mine')
+  })
+})

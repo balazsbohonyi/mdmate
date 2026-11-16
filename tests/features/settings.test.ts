@@ -211,6 +211,19 @@ describe('ISC-386: a write that fails changes nothing', () => {
     expect(toasts.lastLevel).toBe('error')
   })
 
+  it('refuses the content width limit, and the word wrap that goes with it, on a file that is not valid JSON (ISC-552)', async () => {
+    const broken = '{\n "editor": {"wordWrap": false}\n "devtools": true\n}'
+    await start({ [MOCK_SETTINGS_FILE]: broken })
+    toasts.clear()
+    expect(await changeSetting('editor.limitContentWidth', true)).toBe(false)
+    expect(host.files.read(MOCK_SETTINGS_FILE)).toBe(broken)
+    expect(settings.editor.wordWrap).toBe(true)
+    // One notice, and the same one a single key gives.
+    expect(toasts.all).toHaveLength(1)
+    expect(toasts.last).toContain('nothing was written')
+    expect(toasts.lastLevel).toBe('error')
+  })
+
   it('refuses a value the validator refuses, before the file is touched', async () => {
     await start()
     const write = vi.spyOn(host, 'settingsWrite')

@@ -774,7 +774,8 @@ describe('ISC-357: the search box filters the rows of every group', () => {
   it('matches a label, a description and a key, from any group', async () => {
     await mountScreen('appearance')
     await find('wrap')
-    expect(rowKeys()).toEqual(['editor.wordWrap'])
+    // The label of one row, and the description of the width limit, which needs word wrap.
+    expect(rowKeys()).toEqual(['editor.wordWrap', 'editor.limitContentWidth'])
     await find('pasteFolder')
     expect(rowKeys()).toEqual(['images.pasteFolder'])
     await find('PICTURES')
@@ -1099,5 +1100,84 @@ describe('the search field sits at the top of the sidebar', () => {
     expect(icon?.getAttribute('aria-hidden')).toBe('true')
     // The panel's heading row no longer holds a field.
     expect(document.querySelector('[data-settings-panel] [data-settings-search]')).toBeNull()
+  })
+})
+
+describe('ISC-552: turning the content width limit on turns word wrap on', () => {
+  const OFF = '{"editor": {"wordWrap": false, "limitContentWidth": false}}'
+
+  it('writes both in one go, and the key for word wrap leaves the file (on is the default)', async () => {
+    await start(OFF)
+    expect(settings.editor.wordWrap).toBe(false)
+    expect(await changeSetting('editor.limitContentWidth', true)).toBe(true)
+    expect(settings.editor.limitContentWidth).toBe(true)
+    expect(settings.editor.wordWrap).toBe(true)
+    expect(fileObject()).toEqual({})
+  })
+
+  it('keeps comments and every other key, known or not', async () => {
+    const file = [
+      '{',
+      '  // my notes',
+      '  "theme": "light",',
+      '  "note": "by hand",',
+      '  "editor": { "wordWrap": false, "limitContentWidth": false, "contentMaxWidth": 700 }',
+      '}',
+      '',
+    ].join('\n')
+    await start(file)
+    await changeSetting('editor.limitContentWidth', true)
+    const text = host.files.read(MOCK_SETTINGS_FILE) ?? ''
+    expect(text).toContain('// my notes')
+    expect(fileObject()).toEqual({
+      theme: 'light',
+      note: 'by hand',
+      editor: { contentMaxWidth: 700 },
+    })
+  })
+
+  it('writes nothing extra when word wrap is already on', async () => {
+    await start('{"editor": {"limitContentWidth": false}}')
+    await changeSetting('editor.limitContentWidth', true)
+    expect(fileObject()).toEqual({})
+    expect(settings.editor.wordWrap).toBe(true)
+  })
+
+  it('leaves word wrap alone when the limit is turned off, and when anything else changes', async () => {
+    await start('{"editor": {"wordWrap": false}}')
+    await changeSetting('editor.limitContentWidth', false)
+    expect(fileObject()).toEqual({ editor: { wordWrap: false, limitContentWidth: false } })
+    expect(settings.editor.wordWrap).toBe(false)
+    await changeSetting('editor.contentMaxWidth', 700)
+    expect(settings.editor.wordWrap).toBe(false)
+    expect(await changeSetting('editor.wordWrap', true)).toBe(true)
+    expect(settings.editor.limitContentWidth).toBe(false)
+  })
+
+  it('does the same when the row is reset to its default, which is on', async () => {
+    await start(OFF)
+    const { requestResetSetting } = await import('@/features/settings/store')
+    expect(await requestResetSetting('editor.limitContentWidth')).toBe(true)
+    expect(settings.editor.wordWrap).toBe(true)
+    expect(fileObject()).toEqual({})
+  })
+
+  it('does the same from the switch on the screen, and the word wrap switch follows', async () => {
+    await mountScreen('editor', OFF)
+    expect(switchOf('editor.wordWrap').getAttribute('aria-checked')).toBe('false')
+    expect(switchOf('editor.limitContentWidth').getAttribute('aria-checked')).toBe('false')
+    await click(switchOf('editor.limitContentWidth'))
+    expect(switchOf('editor.limitContentWidth').getAttribute('aria-checked')).toBe('true')
+    expect(switchOf('editor.wordWrap').getAttribute('aria-checked')).toBe('true')
+    expect(fileObject()).toEqual({})
+  })
+
+  it('does not touch the file for a hand edit that turns the limit on with wrap off', async () => {
+    await start('{}')
+    const { applySettingsText } = await import('@/features/settings/store')
+    applySettingsText('{"editor": {"wordWrap": false}}')
+    expect(settings.editor.limitContentWidth).toBe(true)
+    expect(settings.editor.wordWrap).toBe(false)
+    expect(host.files.read(MOCK_SETTINGS_FILE)).toBe('{}')
   })
 })

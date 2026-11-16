@@ -138,7 +138,7 @@ export const SETTING_ROWS: readonly SettingRowSpec[] = [
     category: 'editor',
     label: 'Limit content width',
     description:
-      'Keep the text of a tab to a readable column, centered. On a narrow window it uses the whole width. Not used while long lines scroll sideways.',
+      'Keep the text of a tab to a readable column, centered. On a narrow window it uses the whole width. It needs word wrap, so turning it on turns word wrap on too.',
     control: { kind: 'switch' },
   },
   {

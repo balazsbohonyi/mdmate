@@ -207,6 +207,12 @@ export function settledSettings(): Promise<void> {
  * it was read, and a value equal to the default takes the key out. The change is applied at once;
  * the file's watcher then finds the text it already holds. Resolves to false, with a notice and
  * nothing written, when the file is not valid JSON (fix it first) or cannot be written.
+ *
+ * One exception to "only that key": turning the content width limit on also turns word wrap on, in
+ * the same write. The limit is the width of wrapped text, so with wrap off it would change the
+ * setting and show nothing. Every way to change a setting comes through here (the Settings screen,
+ * the command, a row's reset, an answered question), so they agree. Turning the limit off, or
+ * changing anything else, leaves word wrap alone, and a hand edit of the file is never rewritten.
  */
 export function changeSetting<K extends SettingKey>(
   key: K,
@@ -218,15 +224,25 @@ export function changeSetting<K extends SettingKey>(
     reportWarning(`${key}: ${checked.why}`)
     return Promise.resolve(false)
   }
-  return writeSettings((current, template) =>
-    editSettingsText(
+  const needsWrap = key === 'editor.limitContentWidth' && checked.value === true
+  return writeSettings((current, template) => {
+    const edited = editSettingsText(
       current,
       def.path,
       def.equals(checked.value, def.default) ? undefined : checked.value,
       'settings.json',
       template,
-    ),
-  )
+    )
+    if (!needsWrap || !edited.ok) return edited
+    const wrap = SETTING_DEFS['editor.wordWrap']
+    return editSettingsText(
+      edited.text,
+      wrap.path,
+      wrap.equals(true, wrap.default) ? undefined : true,
+      'settings.json',
+      template,
+    )
+  })
 }
 
 /**

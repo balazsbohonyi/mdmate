@@ -226,3 +226,10 @@ Choices made while building, in the order they were made. The settled design is 
 - **Word wrap off.** The limit is the width of wrapped text, so with word wrap off the command changes the setting and nothing visible follows (the Settings switch has the same property). Alternative: enable the command only while wrap is on. Not done; say if wanted.
 - **Not added.** A hamburger menu entry; the owner named the palette and the key. Say if it should be there too.
 - **Revert.** `git revert` the commit.
+
+## P8-T6: the width limit turns word wrap on (sixteenth follow-up)
+
+- **Rule.** Setting `editor.limitContentWidth` to on also sets `editor.wordWrap` to on, in the same write. It lives in `changeSetting`, so the Settings switch, the command, a row reset and the unsaved-edits answer all do it. Wrap's key leaves the file (on is the default); comments and other keys stay.
+- **Not coupled.** Limit off, or any other setting, leaves wrap alone. Turning wrap off while the limit is on leaves the limit on. A hand edit of settings.json is never rewritten.
+- **No notice.** The Word wrap switch and the palette state show the change. The description of the limit setting says it. Because of that sentence, a search for "wrap" in Settings finds both rows.
+- **Revert.** `git revert` the commit.
