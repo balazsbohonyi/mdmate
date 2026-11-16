@@ -199,28 +199,28 @@ const dimensions = computed(() =>
       >
       <button
         type="button"
-        class="rounded-sm px-2 py-0.5 hover:bg-accent"
+        class="rounded-sm px-2 py-0.5 hover:bg-accent hover:text-accent-foreground"
         @click="zoom(0.8)"
       >
         −
       </button>
       <button
         type="button"
-        class="rounded-sm px-2 py-0.5 hover:bg-accent"
+        class="rounded-sm px-2 py-0.5 hover:bg-accent hover:text-accent-foreground"
         @click="zoom(1.25)"
       >
         +
       </button>
       <button
         type="button"
-        class="rounded-sm px-2 py-0.5 hover:bg-accent"
+        class="rounded-sm px-2 py-0.5 hover:bg-accent hover:text-accent-foreground"
         @click="fit()"
       >
         Fit
       </button>
       <button
         type="button"
-        class="rounded-sm px-2 py-0.5 hover:bg-accent"
+        class="rounded-sm px-2 py-0.5 hover:bg-accent hover:text-accent-foreground"
         @click="actual()"
       >
         100%

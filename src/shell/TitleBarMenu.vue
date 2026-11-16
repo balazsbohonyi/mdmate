@@ -29,7 +29,7 @@ function opened(open: boolean): void {
       <button
         type="button"
         aria-label="Menu"
-        class="flex w-titlebar shrink-0 items-center justify-center text-titlebar-foreground outline-none hover:bg-accent focus-visible:bg-accent data-[state=open]:bg-accent"
+        class="flex w-titlebar shrink-0 items-center justify-center text-titlebar-foreground outline-none hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
       >
         <Menu
           class="size-4"
@@ -89,7 +89,18 @@ function opened(open: boolean): void {
           @select="emit('select', entry.id)"
         >
           {{ entry.label }}
-          <DropdownMenuShortcut v-if="entry.shortcut">{{ entry.shortcut }}</DropdownMenuShortcut>
+          <DropdownMenuShortcut v-if="entry.shortcut || entry.state !== undefined">
+            <span
+              v-if="entry.state !== undefined"
+              data-menu-state
+              :class="entry.state ? 'font-medium text-foreground' : ''"
+              >{{ entry.state ? 'On' : 'Off' }}</span
+            >
+            <template v-if="entry.shortcut"
+              ><template v-if="entry.state !== undefined">&nbsp;&nbsp;</template
+              >{{ entry.shortcut }}</template
+            >
+          </DropdownMenuShortcut>
         </DropdownMenuItem>
       </template>
     </DropdownMenuContent>

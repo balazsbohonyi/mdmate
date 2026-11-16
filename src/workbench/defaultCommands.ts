@@ -14,9 +14,11 @@ import {
   canSaveActive,
   canSaveActiveAs,
   closeAllTabs,
+  describe,
   followerOfTab,
   activePaneHasTabs,
   openFromDialog,
+  openInActivePane,
   requestCloseTab,
   requestRevert,
   saveActiveDocument,
@@ -24,15 +26,20 @@ import {
 } from '@/documents/store'
 import { newUntitledTab } from '@/documents/untitled'
 import { canGoBack, canGoForward, goBack, goForward } from '@/documents/history'
-import { togglePalette } from '@/features/palette/state'
+import { openPicker, togglePalette } from '@/features/palette/state'
+import { ensureKeybindingsTemplate } from '@/features/keybindings/store'
+import { flipSetting, isToggleOn } from '@/features/settings/quick'
+import { ensureSettingsTemplate } from '@/features/settings/store'
 import { showOutline } from '@/features/outline/store'
 import { showSearch } from '@/features/search/store'
 import { focusTree, openFolderDialog } from '@/features/tree/store'
+import { settings } from '@/lib/settings'
 import { getHost } from '@/platform'
+import { reportError } from '@/shell/toasts'
 import { registerCommand, removeCommand } from './commands'
 import { canFind, openFind, stepFind } from './find'
 import { findPane } from './splitTree'
-import { splitActivePane, workbenchLayout } from './store'
+import { openSettingsTab, splitActivePane, workbenchLayout } from './store'
 import { toggleRaw } from './rawMode'
 import { showSidebar, toggleSidebar } from './sidebar'
 import { activeTabId, findTabReferences, renameTab, tabMenuState, tabPath } from './tabMenu'
@@ -62,6 +69,9 @@ export const COMMAND_IDS = {
   toggleSidebar: 'view.toggleSidebar',
   focusSidebar: 'view.focusSidebar',
   toggleRawSource: 'view.toggleRawSource',
+  toggleWordWrap: 'view.toggleWordWrap',
+  toggleContentWidth: 'view.toggleContentWidth',
+  switchTheme: 'view.switchTheme',
   back: 'navigate.back',
   forward: 'navigate.forward',
   bold: 'format.bold',
@@ -71,6 +81,11 @@ export const COMMAND_IDS = {
   strikethrough: 'format.strikethrough',
   headingUp: 'format.headingUp',
   headingDown: 'format.headingDown',
+  openDevtools: 'tools.openDevtools',
+  toggleDevtools: 'tools.toggleDevtools',
+  openSettings: 'tools.openSettings',
+  openSettingsFile: 'tools.openSettingsFile',
+  openKeybindingsFile: 'tools.openKeybindingsFile',
   exit: 'app.exit',
 } as const
 
@@ -148,24 +163,28 @@ export function registerDefaultCommands(): () => void {
   const disposers = [
     registerCommand({
       id: COMMAND_IDS.newFile,
+      group: 'File',
       title: 'New File',
       keybinding: 'Mod+N',
       run: newUntitledTab,
     }),
     registerCommand({
       id: COMMAND_IDS.open,
+      group: 'File',
       title: 'Open...',
       keybinding: 'Mod+O',
       run: openFromDialog,
     }),
     registerCommand({
       id: COMMAND_IDS.openFolder,
+      group: 'File',
       title: 'Open Folder...',
       keybinding: 'Mod+Shift+O',
       run: openFolderDialog,
     }),
     registerCommand({
       id: COMMAND_IDS.quickOpen,
+      group: 'File',
       title: 'Go to File...',
       keybinding: 'Mod+P',
       run: () => {
@@ -174,6 +193,7 @@ export function registerDefaultCommands(): () => void {
     }),
     registerCommand({
       id: COMMAND_IDS.commandPalette,
+      group: 'View',
       title: 'Show Command Palette...',
       keybinding: 'Mod+Shift+P',
       run: () => {
@@ -182,6 +202,7 @@ export function registerDefaultCommands(): () => void {
     }),
     registerCommand({
       id: COMMAND_IDS.save,
+      group: 'File',
       title: 'Save',
       keybinding: 'Mod+S',
       // Disabled when there is nothing to write, but the key is still taken from the page.
@@ -190,6 +211,7 @@ export function registerDefaultCommands(): () => void {
     }),
     registerCommand({
       id: COMMAND_IDS.saveAs,
+      group: 'File',
       title: 'Save As...',
       keybinding: 'Mod+Shift+S',
       enabled: canSaveActiveAs,
@@ -197,12 +219,14 @@ export function registerDefaultCommands(): () => void {
     }),
     registerCommand({
       id: COMMAND_IDS.revert,
+      group: 'File',
       title: 'Revert File',
       enabled: canRevertActive,
       run: requestRevert,
     }),
     registerCommand({
       id: COMMAND_IDS.rename,
+      group: 'File',
       title: 'Rename...',
       keybinding: 'F2',
       // A new file has no name to change, so naming it is Save As. A file on disk is renamed in its
@@ -217,7 +241,101 @@ export function registerDefaultCommands(): () => void {
       },
     }),
     registerCommand({
+      id: COMMAND_IDS.openSettings,
+      group: 'App',
+      title: 'Open Settings',
+      keybinding: 'Mod+,',
+      // There is one Settings tab; a second run shows that one (ISC-343).
+      run: () => {
+        openSettingsTab()
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.openSettingsFile,
+      group: 'App',
+      title: 'Open settings.json',
+      run: async () => {
+        try {
+          // Rust makes the file if it is missing and grants that one path; a file that holds
+          // nothing becomes the commented template first, so it shows what can be added.
+          const path = await (await getHost()).settingsFile()
+          await ensureSettingsTemplate()
+          await openInActivePane(path)
+        } catch (error) {
+          reportError(`Could not open settings.json: ${describe(error)}`)
+        }
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.openKeybindingsFile,
+      group: 'App',
+      title: 'Open keybindings.json',
+      keybinding: 'Mod+Shift+K',
+      run: async () => {
+        try {
+          // Rust makes the file if it is missing and grants that one path; a file that holds
+          // nothing becomes the commented template first, so it shows every command.
+          const path = await (await getHost()).keybindingsFile()
+          await ensureKeybindingsTemplate()
+          await openInActivePane(path)
+        } catch (error) {
+          reportError(`Could not open keybindings.json: ${describe(error)}`)
+        }
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.openDevtools,
+      group: 'App',
+      title: 'Open Developer Tools',
+      keybinding: 'F12',
+      // Off until the `devtools` setting turns it on; Rust refuses the call too while it is off.
+      enabled: () => settings.devtools,
+      run: async () => {
+        await (await getHost()).devtoolsOpen()
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.toggleDevtools,
+      group: 'App',
+      title: 'Toggle Developer Tools',
+      // The setting that lets F12 open the tools; the command that opens them is above.
+      state: () => isToggleOn('devtools'),
+      run: async () => {
+        await flipSetting('devtools')
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.toggleWordWrap,
+      group: 'View',
+      title: 'Toggle Word Wrap',
+      state: () => isToggleOn('editor.wordWrap'),
+      run: async () => {
+        await flipSetting('editor.wordWrap')
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.toggleContentWidth,
+      group: 'View',
+      title: 'Toggle Limit Content Width',
+      keybinding: 'Alt+Shift+W',
+      // `editor.limitContentWidth`: a readable centered column, or the whole width of the tab.
+      state: () => isToggleOn('editor.limitContentWidth'),
+      run: async () => {
+        await flipSetting('editor.limitContentWidth')
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.switchTheme,
+      group: 'View',
+      title: 'Switch Theme',
+      // A pick list of the themes there are; choosing one writes `theme` (features/palette).
+      run: () => {
+        openPicker('themes')
+      },
+    }),
+    registerCommand({
       id: COMMAND_IDS.findReferences,
+      group: 'File',
       title: 'Find File References',
       keybinding: 'Shift+F12',
       enabled: () => {
@@ -231,6 +349,7 @@ export function registerDefaultCommands(): () => void {
     }),
     registerCommand({
       id: COMMAND_IDS.find,
+      group: 'Find',
       title: 'Find...',
       keybinding: 'Mod+F',
       // The key is taken from the page even with nothing to search, so the browser's own find never opens.
@@ -241,6 +360,7 @@ export function registerDefaultCommands(): () => void {
     }),
     registerCommand({
       id: COMMAND_IDS.replace,
+      group: 'Find',
       title: 'Replace...',
       keybinding: 'Mod+H',
       enabled: canFind,
@@ -250,6 +370,7 @@ export function registerDefaultCommands(): () => void {
     }),
     registerCommand({
       id: COMMAND_IDS.findNext,
+      group: 'Find',
       title: 'Find Next',
       keybinding: 'F3',
       enabled: canFind,
@@ -259,6 +380,7 @@ export function registerDefaultCommands(): () => void {
     }),
     registerCommand({
       id: COMMAND_IDS.findPrevious,
+      group: 'Find',
       title: 'Find Previous',
       keybinding: 'Shift+F3',
       enabled: canFind,
@@ -268,11 +390,13 @@ export function registerDefaultCommands(): () => void {
     }),
     registerCommand({
       id: COMMAND_IDS.clearRecent,
+      group: 'File',
       title: 'Clear Recent',
       run: clearRecent,
     }),
     registerCommand({
       id: COMMAND_IDS.splitRight,
+      group: 'Tabs & Navigation',
       title: 'Split Right',
       keybinding: 'Alt+Shift+2',
       run: () => {
@@ -281,6 +405,7 @@ export function registerDefaultCommands(): () => void {
     }),
     registerCommand({
       id: COMMAND_IDS.splitDown,
+      group: 'Tabs & Navigation',
       title: 'Split Down',
       keybinding: 'Alt+Shift+8',
       run: () => {
@@ -289,6 +414,7 @@ export function registerDefaultCommands(): () => void {
     }),
     registerCommand({
       id: COMMAND_IDS.closeTab,
+      group: 'Tabs & Navigation',
       title: 'Close Tab',
       keybinding: 'Mod+W',
       enabled: () => activeTab() !== null,
@@ -299,6 +425,7 @@ export function registerDefaultCommands(): () => void {
     }),
     registerCommand({
       id: COMMAND_IDS.closeAll,
+      group: 'Tabs & Navigation',
       title: 'Close All',
       keybinding: 'Mod+Shift+W',
       enabled: activePaneHasTabs,
@@ -308,6 +435,7 @@ export function registerDefaultCommands(): () => void {
     }),
     registerCommand({
       id: COMMAND_IDS.findInFolders,
+      group: 'Find',
       title: 'Search in Folders...',
       keybinding: 'Mod+Shift+F',
       // The query box takes focus; the selected line of the editor, if any, is the query.
@@ -315,6 +443,7 @@ export function registerDefaultCommands(): () => void {
     }),
     registerCommand({
       id: COMMAND_IDS.showOutline,
+      group: 'View',
       title: 'Show Outline',
       keybinding: 'Mod+Shift+L',
       // The list takes focus, so the arrow keys move through the headings at once.
@@ -322,12 +451,14 @@ export function registerDefaultCommands(): () => void {
     }),
     registerCommand({
       id: COMMAND_IDS.toggleSidebar,
+      group: 'View',
       title: 'Toggle Sidebar',
       keybinding: 'Mod+Shift+B',
       run: toggleSidebar,
     }),
     registerCommand({
       id: COMMAND_IDS.focusSidebar,
+      group: 'View',
       title: 'Focus Sidebar',
       keybinding: 'Mod+Shift+E',
       // The tree is in the Folders panel; show that panel, and the sidebar if it was hidden.
@@ -338,6 +469,7 @@ export function registerDefaultCommands(): () => void {
     }),
     registerCommand({
       id: COMMAND_IDS.toggleRawSource,
+      group: 'View',
       title: 'Toggle Raw Source',
       keybinding: 'Mod+E',
       // The mode belongs to the active pane, so it needs a tab to look at.
@@ -348,6 +480,7 @@ export function registerDefaultCommands(): () => void {
     }),
     registerCommand({
       id: COMMAND_IDS.back,
+      group: 'Tabs & Navigation',
       title: 'Go Back',
       keybinding: 'Alt+ArrowLeft',
       enabled: canGoBack,
@@ -357,6 +490,7 @@ export function registerDefaultCommands(): () => void {
     }),
     registerCommand({
       id: COMMAND_IDS.forward,
+      group: 'Tabs & Navigation',
       title: 'Go Forward',
       keybinding: 'Alt+ArrowRight',
       enabled: canGoForward,
@@ -367,6 +501,7 @@ export function registerDefaultCommands(): () => void {
     ...FORMATS.map((format) =>
       registerCommand({
         id: format.id,
+        group: 'Formatting',
         title: format.title,
         keybinding: format.keybinding,
         enabled: hasTab,
@@ -375,6 +510,7 @@ export function registerDefaultCommands(): () => void {
     ),
     registerCommand({
       id: COMMAND_IDS.exit,
+      group: 'App',
       title: 'Exit',
       run: async () => {
         await (await getHost()).windowControls.close()

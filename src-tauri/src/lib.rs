@@ -51,6 +51,9 @@ pub fn run() {
                 platform::current().paths_ignore_case(),
             )));
             app.manage(Arc::new(workspace::roots::RootStore::new(dir.clone())));
+            app.manage(Arc::new(settings::SettingsStore::new(dir.clone())));
+            app.manage(Arc::new(settings::KeybindingsStore::new(dir.clone())));
+            app.manage(Arc::new(settings::themes::ThemeStore::new(dir.clone())));
             app.manage(Arc::new(session::SessionStore::new(dir)));
             Ok(())
         })
@@ -125,6 +128,23 @@ pub fn run() {
         commands::move_entry,
         commands::rewrite_check,
         commands::links_on_rename_override,
+        commands::settings_read,
+        commands::settings_write,
+        commands::watch_settings,
+        commands::settings_file,
+        commands::settings_apply,
+        commands::keybindings_read,
+        commands::keybindings_write,
+        commands::watch_keybindings,
+        commands::keybindings_file,
+        commands::themes_read,
+        commands::theme_read,
+        commands::theme_write,
+        commands::theme_rename,
+        commands::theme_delete,
+        commands::watch_themes,
+        commands::themes_folder_open,
+        commands::devtools_open,
         commands::rewrite_plan,
         commands::find_references,
         commands::search_folders,
@@ -199,6 +219,23 @@ pub fn run() {
         commands::move_entry,
         commands::rewrite_check,
         commands::links_on_rename_override,
+        commands::settings_read,
+        commands::settings_write,
+        commands::watch_settings,
+        commands::settings_file,
+        commands::settings_apply,
+        commands::keybindings_read,
+        commands::keybindings_write,
+        commands::watch_keybindings,
+        commands::keybindings_file,
+        commands::themes_read,
+        commands::theme_read,
+        commands::theme_write,
+        commands::theme_rename,
+        commands::theme_delete,
+        commands::watch_themes,
+        commands::themes_folder_open,
+        commands::devtools_open,
         commands::rewrite_plan,
         commands::find_references,
         commands::search_folders,

@@ -1,11 +1,11 @@
 /*
  * Design tokens. Every color, font and size the app uses starts here.
  *
- * - Colors live in themes/dark.css and themes/light.css, one value per token per theme. This file
- *   holds none, so a theme file is the only place a color can change.
+ * - Colors live in themes/dark.css, light.css and sepia.css, one value per token per theme. This
+ *   file holds none, so a theme file is the only place a color can change.
  * - The `@theme inline` block below maps each color token to a Tailwind utility (`bg-titlebar`,
- *   `text-syntax-heading`). Add a color token in both theme files and in this block together;
- *   tests/styles/themes.test.ts fails when one of the three is missed.
+ *   `text-syntax-heading`). Add a color token in every theme file, in this block and in
+ *   lib/themeTokens.ts together; tests/styles/themes.test.ts fails when one is missed.
  * - Sizes, fonts and radius are the same in every theme.
  *
  * shadcn-vue: run `add`, never `init`, because `init` rewrites this file.
@@ -15,8 +15,22 @@
 @import 'tw-animate-css';
 @import './themes/dark.css';
 @import './themes/light.css';
+@import './themes/sepia.css';
 
+/*
+ * Tailwind's `dark:` variant follows the theme's darkness, not its name: the root carries the
+ * `dark` class only while the palette in use is dark (`lib/themes.ts`), so Sepia and any theme
+ * based on a light palette leave it off. The palette itself is the root's `data-theme`.
+ */
 @custom-variant dark (&:is(.dark *));
+
+/*
+ * The generated Switch styles itself with data-checked: and data-unchecked:, which a Base UI
+ * switch sets. Reka UI, which this app uses, sets data-state instead, so without these two the
+ * switch is drawn with no track and no thumb. Only the switch uses them.
+ */
+@custom-variant data-checked (&:is([data-state='checked']));
+@custom-variant data-unchecked (&:is([data-state='unchecked']));
 
 /* Fonts, type scale and chrome sizes. Utilities: font-sans, text-chrome, h-titlebar, w-sidebar. */
 @theme {
@@ -56,6 +70,8 @@
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
+  --color-tooltip: var(--tooltip);
+  --color-tooltip-foreground: var(--tooltip-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
@@ -65,6 +81,9 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -120,13 +139,13 @@
 
 /* A hint drawn inside the editor (ISC-226): the shadcn tooltip's look, from the same tokens. */
 .editor-hint {
-  @apply fixed z-50 w-max max-w-xs rounded-md bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md ring-1 ring-foreground/10;
+  @apply fixed z-50 w-max max-w-xs rounded-md bg-tooltip px-3 py-1.5 text-xs text-tooltip-foreground shadow-md ring-1 ring-foreground/10;
   overflow-wrap: break-word;
   white-space: pre-line;
   pointer-events: none;
 }
 .editor-hint-arrow {
-  @apply absolute -ml-[5px] size-2.5 rotate-45 rounded-br-xs bg-popover;
+  @apply absolute -ml-[5px] size-2.5 rotate-45 rounded-br-xs bg-tooltip;
 }
 /* Only the two outer edges are outlined, as on the shadcn tooltip's arrow (ISC-225). */
 .editor-hint-arrow[data-side='above'] {
@@ -170,6 +189,18 @@ html[data-tree-drag='blocked'] * {
 }
 ::-webkit-scrollbar-thumb:hover {
   background-color: var(--scrollbar-thumb-hover);
+}
+/*
+ * With several panes open, only the focused one shows scrollbar thumbs, so the bars do not
+ * line up along every pane's edge. Another pane shows them while the pointer is over its body
+ * (the scrollbar is part of the element, so pointing at the bar counts). The Theme preview is
+ * left alone: it sits in an unfocused pane while its theme is edited, to show these very colors.
+ * The find ticks and the tab strip are not part of this.
+ */
+[data-pane-id][data-active='false']
+  [data-pane-body]:not(:hover, :has([data-theme-preview]))
+  ::-webkit-scrollbar-thumb {
+  background-color: transparent;
 }
 ::-webkit-scrollbar-button {
   display: none;

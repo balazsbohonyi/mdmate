@@ -136,7 +136,7 @@ const input =
     role="search"
     aria-label="Find and replace"
     data-find-bar
-    class="grid shrink-0 grid-cols-[auto_auto_minmax(0,1fr)_auto_auto_auto] items-center gap-x-1 gap-y-1 border-t border-border bg-muted px-2 py-1.5 text-chrome"
+    class="grid shrink-0 grid-cols-[auto_auto_minmax(0,1fr)_auto_auto_auto] items-center gap-x-1 gap-y-1 border-t border-border bg-muted px-2 py-1.5 text-chrome text-muted-foreground"
     @keydown.esc.prevent.stop="close"
   >
     <HoverHint :text="bar?.replace === true ? 'Hide replace' : 'Show replace'">

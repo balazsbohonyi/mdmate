@@ -1,7 +1,7 @@
 import { language } from '@codemirror/language'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Document } from '@/documents/document'
-import { LARGE_FILE_BYTES, LARGE_FILE_NOTICE, isLargeFile } from '@/documents/largeFile'
+import { LARGE_FILE_BYTES, largeFileNotice, isLargeFile } from '@/documents/largeFile'
 import { docMeta } from '@/documents/meta'
 import { flushSession, resetSession, restoreSession } from '@/documents/session'
 import {
@@ -81,7 +81,7 @@ describe('the size cutoff', () => {
     const tab = await openPath('/f/over.md')
     expect(hasParser(tab)).toBe(false)
     expect(docMeta(documentOfTab(tab)?.id ?? -1)?.plainSource).toBe(true)
-    expect(LARGE_FILE_NOTICE).toContain('3 MB')
+    expect(largeFileNotice()).toContain('3 MB')
   })
 
   it('opens a 5 MB file as plain source with every character of it', async () => {

@@ -1,0 +1,186 @@
+[
+  {
+    "input": "assets",
+    "folder": "assets"
+  },
+  {
+    "input": " assets ",
+    "folder": "assets"
+  },
+  {
+    "input": "media/img",
+    "folder": "media/img"
+  },
+  {
+    "input": "media\\img",
+    "folder": "media/img"
+  },
+  {
+    "input": "a.b",
+    "folder": "a.b"
+  },
+  {
+    "input": "img_2-x",
+    "folder": "img_2-x"
+  },
+  {
+    "input": "Docs/Images",
+    "folder": "Docs/Images"
+  },
+  {
+    "input": ".media",
+    "folder": ".media"
+  },
+  {
+    "input": "a/.b",
+    "folder": "a/.b"
+  },
+  {
+    "input": "é-ü/ñ",
+    "folder": "é-ü/ñ"
+  },
+  {
+    "input": "com10",
+    "folder": "com10"
+  },
+  {
+    "input": "a/b ",
+    "folder": "a/b"
+  },
+  {
+    "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "folder": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  {
+    "input": "",
+    "folder": null
+  },
+  {
+    "input": "   ",
+    "folder": null
+  },
+  {
+    "input": "C:/x",
+    "folder": null
+  },
+  {
+    "input": "c:\\x",
+    "folder": null
+  },
+  {
+    "input": "/x",
+    "folder": null
+  },
+  {
+    "input": "~/x",
+    "folder": null
+  },
+  {
+    "input": "~",
+    "folder": null
+  },
+  {
+    "input": "../x",
+    "folder": null
+  },
+  {
+    "input": "a/../b",
+    "folder": null
+  },
+  {
+    "input": "./x",
+    "folder": null
+  },
+  {
+    "input": "a//b",
+    "folder": null
+  },
+  {
+    "input": "a/",
+    "folder": null
+  },
+  {
+    "input": "/",
+    "folder": null
+  },
+  {
+    "input": "a b",
+    "folder": null
+  },
+  {
+    "input": "a /b",
+    "folder": null
+  },
+  {
+    "input": "a<b",
+    "folder": null
+  },
+  {
+    "input": "a:b",
+    "folder": null
+  },
+  {
+    "input": "a?b",
+    "folder": null
+  },
+  {
+    "input": "a*",
+    "folder": null
+  },
+  {
+    "input": "x.",
+    "folder": null
+  },
+  {
+    "input": "...",
+    "folder": null
+  },
+  {
+    "input": "con",
+    "folder": null
+  },
+  {
+    "input": "aux.x",
+    "folder": null
+  },
+  {
+    "input": "COM1",
+    "folder": null
+  },
+  {
+    "input": "lpt9",
+    "folder": null
+  },
+  {
+    "input": "nul",
+    "folder": null
+  },
+  {
+    "input": "a/NUL/b",
+    "folder": null
+  },
+  {
+    "input": "a#b",
+    "folder": null
+  },
+  {
+    "input": "a%b",
+    "folder": null
+  },
+  {
+    "input": "a(b)",
+    "folder": null
+  },
+  {
+    "input": "a[b]",
+    "folder": null
+  },
+  {
+    "input": "a\u0001b",
+    "folder": null
+  },
+  {
+    "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "folder": null
+  }
+]

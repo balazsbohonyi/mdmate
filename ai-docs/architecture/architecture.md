@@ -41,7 +41,7 @@ mdmate/
 │  ├─ features/       tree/ (model, store, ops, FileTree.vue, NameInput.vue, CopyBanner.vue), drop.ts, palette/ (state, rows, PaletteHost.vue); later search, outline, settings
 │  ├─ components/ui/  shadcn-vue, added only with `pnpm ui:add` (never edit by hand)
 │  ├─ lib/            shadcn-vue utilities
-│  └─ styles/         tokens.css (fonts, sizes, Tailwind map), themes/dark.css and light.css (every color)
+│  └─ styles/         tokens.css (fonts, sizes, Tailwind map), themes/dark.css, light.css and sepia.css (every color)
 ├─ src-tauri/src/
 │  ├─ commands/       Thin handlers, no logic
 │  ├─ access.rs       Which paths the page may read: files the user chose, plus workspace roots
@@ -53,7 +53,7 @@ mdmate/
 │  ├─ links/          Link guard (guard.rs), scanner (scan.rs), file walker (walk.rs), rewrite engine (rewrite.rs)
 │  ├─ session/        Hot-exit store
 │  ├─ settings/       Settings and keybinding files
-│  ├─ paths.rs        Installed or portable data folder
+│  ├─ paths.rs        Data folder: `MDMATE_DATA_DIR`, else `<exe dir>/data` beside an `mdmate.portable` file, else the app-data folder
 │  └─ platform/       Traits, windows/, macos/ and linux/ stubs
 ├─ scripts/           check-arch.mjs, check-isa.mjs, fixtures, perf
 └─ tests/             Vitest suites and fixtures
@@ -125,7 +125,7 @@ Built so far are the inline layer and the block layer (tables, images, frontmatt
 - Frontmatter (`src/editor/livePreview/frontmatter.ts`) is the third block kind. Where it is comes from the text, not the tree: `---` on line 1 and the first later line that is `---` or `...`, within 200 lines. A parser extension was rejected because CodeMirror reuses the parse of an unchanged first line, so typing the closing line far below would not have turned the block on. `scanBlocks` returns one pill item over the whole range and skips every node inside it; `scanPreview` skips the same nodes, and while a selection touches the block it puts `cm-md-frontmatter-line` on each line so the highlighter's heading style does not show through the plain YAML.
 - Checkboxes (`src/editor/livePreview/checkbox.ts`) are inline: `scanPreview` returns a `checkbox` item for a `TaskMarker` that no selection touches, and the widget is a native checkbox. A press changes the one character between the brackets through the view (`input.toggle`, its own undo step, nothing when `state.readOnly`). Line endings are not in the editor text, so the saved file differs in that one byte.
 - Fenced code languages (`src/editor/codeLanguages.ts`) are passed to `markdown()` as `codeLanguages`, a function from the fence word to a `LanguageDescription` whose `load` does `import('@codemirror/language-data')`, finds the language by name or alias, then by file extension (`py`, `rs`), and loads that one parser. Until it resolves the block is parsed as plain text; when it does CodeMirror reparses the block, which takes a fraction of a second to a second. A word the list does not know is plain text. Descriptions are kept per word (at most 128), so a language loads once however many blocks use it. The list is code too, so a document with no fence word never loads it. `scripts/check-arch.mjs languages-lazy` checks this in two ways: no static import of a parser package in `src/`, and, given a build with source maps (`--dist`, default `dist/`), no language package in the chunks the page loads first except the six that `@codemirror/lang-markdown` itself imports.
-- Syntax colors (`src/editor/highlight.ts`) are one `HighlightStyle` over the Lezer tags that every language package uses, so code in any language and the Markdown source in raw mode are colored by the same tokens. Every color is a `var(--syntax-*)` name and the test checks each exists in both theme files; a new theme has to define them.
+- Syntax colors (`src/editor/highlight.ts`) are one `HighlightStyle` over the Lezer tags that every language package uses, so code in any language and the Markdown source in raw mode are colored by the same tokens. Every color is a `var(--syntax-*)` name and the test checks each exists in every theme file; a new theme has to define them.
 - One filter is still needed, for a different reason: CodeMirror's vertical step lands on the line below a block widget and never inside it, because the widget has no line of text. `stepIntoBlock` (in `blocks/field.ts`) turns a keyboard step onto the line just past a drawn block into a step onto its first (down) or last (up) line. Clicks, searches and long jumps are left alone. jsdom has no layout, so the real behaviour is checked in a browser and in the real window.
 - Each pane shows live preview or raw Markdown by its own flag (`src/workbench/rawMode.ts`, Ctrl+E). `PaneEditor` (`src/workbench/paneEditor.ts`) owns the pane's view and applies the pane's mode every time a tab is shown, so a tab moved between panes follows the pane it is in. The switch is a `Compartment` (`src/editor/previewMode.ts`) holding the same constant extension, reconfigured through the follower so it is never an edit. A plain-source tab has no compartment, so the toggle does nothing there.
 
@@ -201,6 +201,22 @@ Ctrl+P lists files and Ctrl+Shift+P lists commands, in one picker (`src/features
 
 Files come from Rust. `workspace/quick.rs` keeps a list of every file under every root except `.git` (the link scan's walk), builds it on the first query and again in the background each time the picker opens, and answers `quick_open_query(query, limit)` with the best matches and the letters to mark, as UTF-16 offsets. The page never holds the file list. Commands come from the registry; their titles are ranked by `src/lib/fuzzy.ts`, which uses the same points as the Rust scorer. The browser host answers the same two calls from its in-memory files with `fuzzy.ts`.
 
+## Settings
+
+`settings.json` lives in the data folder next to `session.json` and is the source of truth: JSON with comments (`//` and block comments, trailing commas), two-space indent, nested by group (`{"fonts": {"size": 18}}`), unknown keys left alone. The page reads and edits it with `jsonc-parser` (`lib/settingsFile.ts`, `lib/settingsEdit.ts`); an edit changes only the key it was given and never a comment. A file that holds nothing is written as a commented template of every setting (`features/settings/templates.ts`) when `settings.json` is opened, and an entry taken out gets its commented example back, so a file at all defaults reads like that template. `keybindings.json` works the same way, with its template built from the command registry. Rust (`settings/mod.rs`) keeps only the file: read, atomic write, a watcher on the data folder filtered to that name, and `settings_file`, which makes the file if it is missing and grants that one file so the page can open it as a tab. No call takes a path from the page, so nothing in an opened folder can stand in for it.
+
+The page holds one validator, a table of every key with its file path, default and check (`src/lib/settingsFile.ts`). Data enters as `unknown`; a key with a bad value keeps its last good value and is flagged, a key the file lacks goes to its default, and a file that is not one JSON object changes nothing. `features/settings/store.ts` reads the file at start (before the session is restored) and again each time the watcher fires, puts the result in the reactive `settings` object (`src/lib/settings.ts`), and writes a change from the screen as an edit of one key of the file's text (`src/lib/settingsEdit.ts`): other keys stay, a value equal to the default takes its key out, and a file that is not valid JSON is never overwritten. Writes run one at a time, each on the file as it is when its turn comes. `MDMATE_LINKS_ON_RENAME` still wins over `links.onRename` for a run.
+
+Keys that Rust has to act on reach it through one command, `settings_apply` (`settings/runtime.rs`): the paste folder, the recent caps, the excluded folder names and `devtools`. The page validates and pushes only when the values changed; Rust checks them again and refuses the lot if one is wrong. `AppState.runtime` holds the paste folder and `devtools`, `RecentStore` holds its two caps, and `fs/exclude.rs` holds the excluded list that the walker, the watcher and the index read (a changed list rescans every root). A draft keeps the fixed `assets` folder; `images.pasteFolder` applies at Save As. The developer tools are a `tauri` feature plus a command that refuses while the setting is off.
+
+The Settings screen is a tab (`kind: 'settings'`, `workbench/tabs.ts`) that holds the group it shows. `openSettingsTab` in `workbench/store.ts` shows the one that exists, in whichever pane, or opens it in the active pane; a split never copies it, and a session that names two keeps the first. The tab is written to `session.json` with its group (`kind: "settings"`); a saved kind this version does not know is left out, never opened as a file. `SettingsView.vue` loads lazily from `PaneView.vue` (`settings-lazy`). Open Settings (Ctrl+,), Open settings.json, the menu and palette entries and the title bar gear are in `workbench/defaultCommands.ts`, `shell/menuEntries.ts` and `shell/TitleBar.vue`.
+
+The screen is `features/settings/SettingsView.vue`, with one `SettingRow.vue` shell for every row and the wording and grouping in `features/settings/rows.ts`; values, defaults and checking stay in `lib/settingsFile.ts`. Controls hold no value: a change goes through `requestSettingChange` in `features/settings/store.ts`, which writes one key (or asks first, through `pendingSettingChange`, when the `settings.json` tab has unsaved edits) and then shows what the file says. The screen's banner reads `settingsFileState.broken`, the row errors read `settingsFileState.problems`, and `MDMATE_LINKS_ON_RENAME` locks the Links row through `host.linksOnRenameOverride`.
+
+The document fonts (`fonts.*`) are applied by `editor/documentFonts.ts`: the store calls `updateDocumentFonts` after every applied file, which sets `--doc-*` custom properties on the root (the code size as a ratio of the text size) and asks each open editor view to measure again, and only when a value changed. The editor's theme (`create.ts`, `livePreview/theme.ts`, `blocks/theme.ts`, `box.ts`) is the only reader, with the defaults as `var()` fallbacks. A family field is turned into quoted names plus the built-in stack by `cssFamilyList`.
+
+A command may carry a `state()`, which the palette rows and the menu show as On or Off. Toggle Word Wrap and Toggle Developer Tools flip their setting through `features/settings/quick.ts`, which uses the Settings screen's change path and shows the Settings tab when unsaved settings.json edits hold the change. Switch Theme opens the palette in its `themes` mode, a pick list of `lib/themes.ts`.
+
 ## Security
 
 Markdown content is untrusted, and people will open files they did not write.
@@ -216,7 +232,7 @@ Markdown content is untrusted, and people will open files they did not write.
 - UNC and `file://host/` targets are refused for links and images, because reading one makes Windows contact that host over SMB.
 - SVG renders through `<img>`, so its scripts cannot run.
 - The CSP allows `https` for images only. The app makes no other network request.
-- Theme files load only from the settings folder and set token values.
+- User theme files load only from `themes/` in the app data folder, are read as data and never run, and set token values: each value must be a hex color or an `oklch()` with plain numbers, and is checked again before it reaches a style. A theme file in an opened workspace is never read.
 
 ## Startup
 

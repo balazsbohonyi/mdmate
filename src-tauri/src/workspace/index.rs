@@ -1453,6 +1453,16 @@ impl WorkspaceIndex {
         self.shared.refresh_watch();
     }
 
+    /// Walks every root again. The exclusion list changed, so the files each root holds may too:
+    /// the walk keeps what is now excluded out, and a root's old cache file (made with the old
+    /// list) is not trusted at the next start.
+    pub(crate) fn rescan_all(&self) {
+        let ids: Vec<u64> = self.shared.read().list.iter().map(|root| root.id).collect();
+        for id in ids {
+            self.shared.queue_scan(id);
+        }
+    }
+
     /// Records a root without reading it.
     fn register(&self, path: &Path) -> Option<u64> {
         let shared = &self.shared;

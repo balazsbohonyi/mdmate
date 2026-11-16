@@ -2,7 +2,12 @@ import { computed } from 'vue'
 import { docMeta } from '@/documents/meta'
 import { activeDocument } from '@/documents/store'
 import { findPane } from '@/workbench/splitTree'
-import { tabRecord, workbenchLayout } from '@/workbench/store'
+import {
+  SETTINGS_TAB_TITLE,
+  THEME_PREVIEW_TAB_TITLE,
+  tabRecord,
+  workbenchLayout,
+} from '@/workbench/store'
 
 /**
  * The shown file as the title bar names it: its path, or for a new file the name its tab carries
@@ -20,5 +25,7 @@ export const activeFileLabel = computed(() => {
   }
   const tab = findPane(layout, layout.activePane)?.activeTab
   const record = tab === null || tab === undefined ? undefined : tabRecord(tab)
+  if (record?.kind === 'settings') return SETTINGS_TAB_TITLE
+  if (record?.kind === 'themePreview') return THEME_PREVIEW_TAB_TITLE
   return record?.kind === 'image' ? record.path : 'No file open'
 })

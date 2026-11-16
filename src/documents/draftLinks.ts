@@ -78,26 +78,37 @@ export function draftLinkUses(text: string, names: Iterable<string>): LinkUse[] 
   }
 }
 
-/** The edits that point each use of a renamed image's link at its new name, in one pass. */
+/**
+ * The edits that point each use of a renamed image's link at its new name, in one pass. When the
+ * images went to a folder other than `assets` (`images.pasteFolder`), the whole link changes to
+ * `folder/name`, even where the name stayed.
+ */
 export function renameEdits(
   text: string,
   renames: ReadonlyMap<string, string>,
+  folder = 'assets',
 ): { from: number; to: number; insert: string }[] {
   if (renames.size === 0) return []
   const edits: { from: number; to: number; insert: string }[] = []
   for (const use of draftLinkUses(text, renames.keys())) {
     const to = renames.get(use.name)
-    if (to !== undefined && to !== use.name)
-      edits.push({ from: use.start, to: use.end, insert: to })
+    if (to === undefined) continue
+    if (to === use.name && folder === 'assets') continue
+    // The link starts at `assets/`, just before the name.
+    edits.push({ from: use.start - FOLDER.length, to: use.end, insert: `${folder}/${to}` })
   }
   return edits
 }
 
 /** `text` with the links of renamed images updated. */
-export function rewriteDraftLinks(text: string, renames: ReadonlyMap<string, string>): string {
+export function rewriteDraftLinks(
+  text: string,
+  renames: ReadonlyMap<string, string>,
+  folder = 'assets',
+): string {
   let out = ''
   let last = 0
-  for (const edit of renameEdits(text, renames)) {
+  for (const edit of renameEdits(text, renames, folder)) {
     out += text.slice(last, edit.from) + edit.insert
     last = edit.to
   }

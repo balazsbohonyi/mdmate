@@ -37,7 +37,7 @@ async function close(): Promise<void> {
       type="button"
       aria-label="Minimize"
       tabindex="-1"
-      class="flex w-11.5 items-center justify-center text-titlebar-foreground hover:bg-accent"
+      class="flex w-11.5 items-center justify-center text-titlebar-foreground hover:bg-accent hover:text-accent-foreground"
       @click="minimize"
     >
       <Minus
@@ -49,7 +49,7 @@ async function close(): Promise<void> {
       type="button"
       :aria-label="maximized ? 'Restore' : 'Maximize'"
       tabindex="-1"
-      class="flex w-11.5 items-center justify-center text-titlebar-foreground hover:bg-accent"
+      class="flex w-11.5 items-center justify-center text-titlebar-foreground hover:bg-accent hover:text-accent-foreground"
       @click="toggleMaximize"
     >
       <Copy
@@ -67,7 +67,7 @@ async function close(): Promise<void> {
       type="button"
       aria-label="Close"
       tabindex="-1"
-      class="flex w-11.5 items-center justify-center text-titlebar-foreground hover:bg-destructive hover:text-background"
+      class="flex w-11.5 items-center justify-center text-titlebar-foreground hover:bg-destructive hover:text-destructive-foreground"
       @click="close"
     >
       <X

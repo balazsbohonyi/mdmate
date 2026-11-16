@@ -74,9 +74,10 @@ export const blockTheme = EditorView.baseTheme({
     overflow: 'hidden',
   },
   '.cm-md-image-label': { overflowWrap: 'anywhere' },
-  // A selected image: an outline on the picture and, once it has loaded, a handle at its corner.
+  // A selected image: an outline on the picture and, once it has loaded, a handle at its corner, both
+  // in --handle-active (one color whether or not the pointer is on the handle).
   '.cm-md-image-selected > .cm-md-image-frame': {
-    outline: '2px solid var(--primary)',
+    outline: '2px solid var(--handle-active)',
     outlineOffset: '1px',
   },
   '.cm-md-image-handle': {
@@ -88,7 +89,7 @@ export const blockTheme = EditorView.baseTheme({
     boxSizing: 'border-box',
     border: '2px solid var(--background)',
     borderRadius: '3px',
-    backgroundColor: 'var(--primary)',
+    backgroundColor: 'var(--handle-active)',
     cursor: 'nwse-resize',
     touchAction: 'none',
   },
@@ -96,8 +97,8 @@ export const blockTheme = EditorView.baseTheme({
   '&.cm-image-selected .cm-content': { caretColor: 'transparent' },
   '&.cm-image-selected .cm-cursorLayer': { visibility: 'hidden' },
   '.cm-md-table code': {
-    fontFamily: 'var(--font-mono)',
-    fontSize: '0.92em',
+    fontFamily: 'var(--doc-font-code, var(--font-mono))',
+    fontSize: 'calc(var(--doc-code-ratio, calc(14 / 15)) * 1em)',
     color: 'var(--syntax-code)',
     backgroundColor: 'var(--syntax-code-background)',
     borderRadius: 'var(--radius)',

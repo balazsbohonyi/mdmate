@@ -18,6 +18,8 @@ import { renameEdits } from './draftLinks'
 import { isLargeFile } from './largeFile'
 import { endingsOf, lineEndingsFor } from '@/editor/lineEndings'
 import { sourceCopy } from '@/editor/sourceCopy'
+import { fullWidthFor, refreshFullWidth } from '@/editor/documentWidth'
+import { refreshSourceLanguages, sourceLanguage } from '@/editor/sourceLanguage'
 import { carriedAnnotations, followerSync } from '@/editor/sync'
 import { endingsEqual, type Endings } from '@/lib/endings'
 import type { OpenedFile, ReadOnlyReason, SavedAs, SavedFile } from '@/platform'
@@ -109,8 +111,8 @@ export interface DocumentOptions {
 }
 
 /** `doc` with the links of renamed images updated. */
-function renamedLinks(doc: Text, renames: ReadonlyMap<string, string>): Text {
-  const edits = renameEdits(doc.toString(), renames)
+function renamedLinks(doc: Text, renames: ReadonlyMap<string, string>, folder: string): Text {
+  const edits = renameEdits(doc.toString(), renames, folder)
   return edits.length === 0 ? doc : ChangeSet.of(edits, doc.length).apply(doc)
 }
 
@@ -143,6 +145,8 @@ export class Document implements FollowerHost {
   /** Hash of the bytes last read from or written to disk. */
   diskHash: string
   #master: EditorState
+  /** True for a non-Markdown file small enough to be colored by its extension. */
+  readonly #colorable: boolean
   #saved: { doc: Text; endings: Endings }
   #dirty = false
   readonly #followers = new Map<string, Follower>()
@@ -165,6 +169,8 @@ export class Document implements FollowerHost {
     this.kind = opened.kind === 'markdown' ? 'markdown' : 'text'
     const parser = options.parser ?? (this.kind === 'markdown' && !isLargeFile(opened.size))
     this.plainSource = !parser
+    // Colors for a file that is not Markdown, by its extension; a file above the size cutoff stays plain.
+    this.#colorable = this.kind === 'text' && !isLargeFile(opened.size)
     this.#options = { ...options, parser }
     this.#master = createMasterState(opened.text, [
       lineEndingsFor(opened.endings),
@@ -205,6 +211,10 @@ export class Document implements FollowerHost {
             followerSync(link),
             sourceCopy(() => link.endings()),
             readOnlyFacet(this.readOnly),
+            fullWidthFor(() => this.name),
+            this.#colorable && this.#options.parser === false
+              ? sourceLanguage(() => this.name)
+              : [],
             this.#imageSupport(),
             this.#imageSinkSupport(),
             this.#linkSupport(tabId),
@@ -417,10 +427,13 @@ export class Document implements FollowerHost {
    */
   relocate(snapshot: Snapshot, saved: SavedAs): void {
     const renames = new Map(saved.renamedImages.map((image) => [image.from, image.to]))
-    const baseline = renames.size === 0 ? snapshot.doc : renamedLinks(snapshot.doc, renames)
-    if (renames.size > 0) this.#renameImageLinks(renames)
+    const baseline =
+      renames.size === 0 ? snapshot.doc : renamedLinks(snapshot.doc, renames, saved.imagesFolder)
+    if (renames.size > 0) this.#renameImageLinks(renames, saved.imagesFolder)
     this.path = saved.path
     this.name = saved.name
+    refreshSourceLanguages() // a Save As to another extension changes the colors
+    refreshFullWidth() // and a Save As to or from settings.json changes the width
     this.untitledNumber = null
     this.#saved = { doc: baseline, endings: snapshot.endings }
     this.diskHash = saved.hash
@@ -435,9 +448,9 @@ export class Document implements FollowerHost {
    * Points the links of renamed images at their new names, in the master and every follower, as a
    * change history does not record: undo takes back typing, never a rename the disk already has.
    */
-  #renameImageLinks(renames: ReadonlyMap<string, string>): void {
+  #renameImageLinks(renames: ReadonlyMap<string, string>, folder: string): void {
     const master = this.#master
-    const edits = renameEdits(master.doc.toString(), renames)
+    const edits = renameEdits(master.doc.toString(), renames, folder)
     if (edits.length === 0) return
     const changes = ChangeSet.of(edits, master.doc.length, master.lineBreak)
     this.#master = master.update({

@@ -18,6 +18,7 @@ import { parseReferencesFound } from './references'
 import { parseLinksOnRename, parseRewriteDone, parseRewritePlanned } from './rewrite'
 import { parseOutlineAnswer } from './outline'
 import { parseSearchBatch, parseSearchSummary } from './search'
+import { parseThemeEntries } from './themes'
 import {
   parseCopyReport,
   parseDroppedItems,
@@ -239,6 +240,76 @@ export const tauriHost: Host = {
   },
   async linksOnRenameOverride() {
     return parseLinksOnRename(await invoke<unknown>('links_on_rename_override'))
+  },
+  async settingsRead() {
+    const text = await invoke<unknown>('settings_read')
+    return typeof text === 'string' ? text : null
+  },
+  async settingsWrite(text) {
+    await invoke('settings_write', { text })
+  },
+  async watchSettings(onChange) {
+    const channel = new Channel<null>()
+    channel.onmessage = onChange
+    await invoke('watch_settings', { onChange: channel })
+    // Rust keeps one channel, and subscribing again replaces it, so stopping only mutes this one.
+    return () => {
+      channel.onmessage = () => undefined
+    }
+  },
+  async settingsFile() {
+    return invoke<string>('settings_file')
+  },
+  async settingsApply(values) {
+    await invoke('settings_apply', { applied: values })
+  },
+  async keybindingsRead() {
+    const text = await invoke<unknown>('keybindings_read')
+    return typeof text === 'string' ? text : null
+  },
+  async keybindingsWrite(text) {
+    await invoke('keybindings_write', { text })
+  },
+  async watchKeybindings(onChange) {
+    const channel = new Channel<null>()
+    channel.onmessage = onChange
+    await invoke('watch_keybindings', { onChange: channel })
+    return () => {
+      channel.onmessage = () => undefined
+    }
+  },
+  async keybindingsFile() {
+    return invoke<string>('keybindings_file')
+  },
+  async themesRead() {
+    return parseThemeEntries(await invoke<unknown>('themes_read'))
+  },
+  async themeRead(name) {
+    const text = await invoke<unknown>('theme_read', { name })
+    return typeof text === 'string' ? text : null
+  },
+  async themeWrite(name, text, create) {
+    await invoke('theme_write', { name, text, create })
+  },
+  async themeRename(from, to) {
+    await invoke('theme_rename', { from, to })
+  },
+  async themeDelete(name) {
+    await invoke('theme_delete', { name })
+  },
+  async watchThemes(onChange) {
+    const channel = new Channel<null>()
+    channel.onmessage = onChange
+    await invoke('watch_themes', { onChange: channel })
+    return () => {
+      channel.onmessage = () => undefined
+    }
+  },
+  async themesFolderOpen() {
+    await invoke('themes_folder_open')
+  },
+  async devtoolsOpen() {
+    await invoke('devtools_open')
   },
   async rewritePlan(path, change, buffers, onProgress) {
     const channel = new Channel<number>()

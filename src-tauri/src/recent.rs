@@ -12,11 +12,13 @@ use crate::error::AppError;
 use crate::fs::atomic;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, PoisonError};
 
 const FILE: &str = "recent.json";
 const VERSION: u32 = 1;
-/// How many files and folders are kept.
+/// How many files and folders are kept until `recent.files` and `recent.folders` in settings.json say
+/// otherwise.
 pub(crate) const MAX_FILES: usize = 10;
 pub(crate) const MAX_FOLDERS: usize = 5;
 
@@ -43,6 +45,8 @@ pub(crate) struct RecentStore {
     ignore_case: bool,
     /// One change at a time: every change reads the file, edits the lists and writes them back.
     changing: Mutex<()>,
+    /// How many files and how many folders the lists keep, from the settings.
+    limits: (AtomicUsize, AtomicUsize),
 }
 
 /// Two spellings of one path are one entry where the file system ignores case.
@@ -67,7 +71,23 @@ impl RecentStore {
             dir,
             ignore_case,
             changing: Mutex::new(()),
+            limits: (AtomicUsize::new(MAX_FILES), AtomicUsize::new(MAX_FOLDERS)),
         }
+    }
+
+    /// Sets how many files and folders are kept. A list longer than its new limit is cut when it
+    /// is next read, so lowering a limit shows at once and raising it brings nothing back.
+    pub(crate) fn set_limits(&self, files: usize, folders: usize) {
+        self.limits.0.store(files, Ordering::Relaxed);
+        self.limits.1.store(folders, Ordering::Relaxed);
+    }
+
+    fn max_files(&self) -> usize {
+        self.limits.0.load(Ordering::Relaxed)
+    }
+
+    fn max_folders(&self) -> usize {
+        self.limits.1.load(Ordering::Relaxed)
     }
 
     fn file(&self) -> PathBuf {
@@ -87,8 +107,8 @@ impl RecentStore {
                     folders: envelope.folders,
                 };
                 // Whatever the file holds, the limits hold.
-                lists.files.truncate(MAX_FILES);
-                lists.folders.truncate(MAX_FOLDERS);
+                lists.files.truncate(self.max_files());
+                lists.folders.truncate(self.max_folders());
                 lists
             }
             _ => Lists::default(),
@@ -115,7 +135,7 @@ impl RecentStore {
         if lists.files.first().is_some_and(|first| first == &shown) {
             return Ok(());
         }
-        push_front(&mut lists.files, &shown, MAX_FILES, self.ignore_case);
+        push_front(&mut lists.files, &shown, self.max_files(), self.ignore_case);
         self.write(&lists)
     }
 
@@ -127,7 +147,12 @@ impl RecentStore {
         if lists.folders.first().is_some_and(|first| first == &shown) {
             return Ok(());
         }
-        push_front(&mut lists.folders, &shown, MAX_FOLDERS, self.ignore_case);
+        push_front(
+            &mut lists.folders,
+            &shown,
+            self.max_folders(),
+            self.ignore_case,
+        );
         self.write(&lists)
     }
 
@@ -379,6 +404,36 @@ mod tests {
         // A change after that writes a fresh, valid file.
         recent.record_file(&files[0]).expect("recorded");
         assert_eq!(recent.list().files, [display_path(&files[0])]);
+    }
+
+    #[test]
+    fn the_limits_from_settings_cap_what_is_kept_and_what_is_shown() {
+        let dir = temp();
+        let (files, folders) = make(&dir, 8);
+        let recent = store(&dir);
+        recent.set_limits(3, 2);
+        for path in &files {
+            recent.record_file(path).expect("recorded");
+        }
+        for path in &folders {
+            recent.record_folder(path).expect("recorded");
+        }
+        let lists = recent.list();
+        assert_eq!((lists.files.len(), lists.folders.len()), (3, 2));
+        assert_eq!(lists.files[0], display_path(&files[7]));
+
+        // Raising the limit again brings nothing back, and new entries fill the larger list.
+        recent.set_limits(10, 5);
+        assert_eq!(recent.list().files.len(), 3);
+        recent.record_file(&files[0]).expect("recorded");
+        assert_eq!(recent.list().files.len(), 4);
+
+        // Zero keeps nothing.
+        recent.set_limits(0, 0);
+        let none = recent.list();
+        assert!(none.files.is_empty() && none.folders.is_empty());
+        recent.record_file(&files[1]).expect("recorded");
+        assert!(recent.list().files.is_empty());
     }
 
     #[test]

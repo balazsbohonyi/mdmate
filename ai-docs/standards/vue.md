@@ -53,7 +53,7 @@ const input = useTemplateRef('input')
 ## Tooltips (project call)
 
 - A tooltip is the shadcn `Tooltip` from `components/ui/tooltip`, never the native `title` attribute. The owner ruled this on 2026-11-10.
-- Its content uses theme tokens (`bg-popover`, `text-popover-foreground`), so it follows dark and light with the menus. No hard-coded colors.
+- Its content uses the tooltip tokens (`bg-tooltip`, `text-tooltip-foreground`, from `--tooltip` and `--tooltip-foreground` in each theme file), so it follows dark and light and stands out from the page in dark (lighter than it); in light it is the popover color (`tests/styles/themes.test.ts` pins both). Menus and selects keep `bg-popover`. The in-editor `.editor-hint` uses the same tokens. No hard-coded colors.
 - Use `components/HoverHint.vue` (`<HoverHint :text="...">` around one element) for a hint on any element; it holds the shadcn parts, so a template stays short. An empty or null text turns it off, and newlines in the text become lines.
 - One `TooltipProvider` lives in `App.vue`. A component test that draws a hint mounts through `tests/helpers/tooltips.ts` (`tooltipApp`), which adds the provider and the `ResizeObserver` stub jsdom lacks.
 - `tests/shell/noNativeTitle.test.ts` fails the build on a native `title` in any template outside `components/ui/`. Markdown image titles drawn inside a document are document content and are not covered.
@@ -73,6 +73,10 @@ const input = useTemplateRef('input')
 ## Scrollbars (project call)
 
 - One global style in `styles/tokens.css` makes every scrollbar thin and rounded, from the `--scrollbar-thumb` tokens. Do not use a `ScrollArea` component (it would replace the editor's and the tree's scrolling elements) and never set `scrollbar-width` or `scrollbar-color` on an element, which makes Chromium ignore the global rule there. To hide a bar use `[scrollbar-width:none] [&::-webkit-scrollbar]:hidden`, as the tab strip does. `tests/styles/scrollbar.test.ts` checks it.
+
+## Buttons beside single-line inputs (project call)
+
+- A button next to a single-line input (an "Add" beside a text field) is as tall as the input: leave `Button` at its default size (`h-8`, the same as `Input`). The shadcn components do not enforce this: they only agree on `h-8` by default, and `size="sm"`, `xs`, `lg` or an `icon-*` size on the button breaks it. `tests/shell/inputButtonHeight.test.ts` scans the templates for it.
 
 ## Security
 

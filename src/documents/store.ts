@@ -1,6 +1,8 @@
 import { computed, shallowRef, watch } from 'vue'
 import { uniformEndings, type Endings } from '@/lib/endings'
 import { bumpImageEpoch, refreshPictures } from '@/editor/livePreview/blocks'
+import { refreshFullWidth } from '@/editor/documentWidth'
+import { refreshSourceLanguages } from '@/editor/sourceLanguage'
 import { getHost, type OpenedFile, type SaveAsHint } from '@/platform'
 import { isMarkdownName } from '@/features/tree/model'
 import { focusActiveEditor } from '@/workbench/focus'
@@ -16,7 +18,7 @@ import {
   workbenchLayout,
 } from '@/workbench/store'
 import type { PaneId, TabId } from '@/workbench/splitTree'
-import { docIdOf } from '@/workbench/tabs'
+import { docIdOf, isPanelTab } from '@/workbench/tabs'
 import { Document } from './document'
 import type { Follower } from './follower'
 import { clearDocMeta, docMeta, patchDocMeta, removeDocMeta, setDocMeta } from './meta'
@@ -60,6 +62,8 @@ export function documentMoved(id: number, path: string): void {
   if (doc === undefined) return
   doc.path = path
   doc.name = path.split(/[\\/]/).pop() ?? path
+  refreshSourceLanguages() // a rename to another extension changes the colors
+  refreshFullWidth() // and a rename to or from settings.json changes the width
   doc.imagesMoved()
   publish(doc)
   touched()
@@ -733,17 +737,28 @@ export async function resolvePendingRevert(choice: 'revert' | 'cancel'): Promise
   if (pending === null) return
   pendingRevert.value = null
   if (choice === 'cancel') return
-  const doc = documents.get(pending.docId)
-  if (doc === undefined) return
+  await revertDocument(pending.docId)
+}
+
+/**
+ * Reloads a document from its file and drops its edits, with no question: the caller has asked.
+ * Resolves to false, with a notice, when the file cannot be read. A document that is not open
+ * counts as done.
+ */
+export async function revertDocument(docId: number): Promise<boolean> {
+  const doc = documents.get(docId)
+  if (doc === undefined) return true
   try {
     const host = await getHost()
     const opened = await host.reloadDocument(doc.id)
-    if (documents.get(doc.id) !== doc) return
+    if (documents.get(doc.id) !== doc) return true
     doc.reload(opened)
     patchDocMeta(doc.id, { conflict: null, saveError: null, missing: false })
+    return true
   } catch (error) {
     if (errorKind(error) === 'not-found') patchDocMeta(doc.id, { missing: true })
     reportError(`Could not revert ${doc.name}: ${describe(error)}`)
+    return false
   }
 }
 
@@ -778,6 +793,8 @@ onTabClosed((tabId, record) => {
       })
     return
   }
+  // The Settings tab and the Theme preview hold no document and nothing in Rust.
+  if (isPanelTab(record)) return
   documents.get(record.docId)?.closeFollower(tabId)
   release(record.docId)
 })

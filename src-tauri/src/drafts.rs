@@ -28,7 +28,8 @@ pub(crate) struct Drafts {
 pub(crate) struct Adopted {
     /// The text with the links of renamed images updated.
     pub(crate) text: String,
-    /// Draft file name to the name it got beside the saved file, only where they differ.
+    /// Draft file name to the name it got beside the saved file: where they differ, and every used
+    /// image when the folder is not `assets`, since each link has to change.
     pub(crate) renames: BTreeMap<String, String>,
     /// The files that were created, so a failed save can remove them again.
     pub(crate) created: Vec<PathBuf>,
@@ -241,7 +242,19 @@ fn path_char(c: char) -> bool {
 
 /// `text` with each use of a renamed image's link pointing at its new name, all in one pass, so a
 /// name that is another's new name is not renamed twice.
+#[cfg(test)]
 pub(crate) fn rewrite_links(text: &str, renames: &BTreeMap<String, String>) -> String {
+    rewrite_links_into(text, renames, IMAGES_FOLDER)
+}
+
+/// [`rewrite_links`], with the folder of every link changed to `folder` too: a draft's pictures are
+/// in `assets/`, and where the document is saved the `images.pasteFolder` setting may say otherwise.
+/// Each name in `renames` that the text links to gets `folder/<its new name>`.
+pub(crate) fn rewrite_links_into(
+    text: &str,
+    renames: &BTreeMap<String, String>,
+    folder: &str,
+) -> String {
     if renames.is_empty() {
         return text.to_owned();
     }
@@ -249,7 +262,10 @@ pub(crate) fn rewrite_links(text: &str, renames: &BTreeMap<String, String>) -> S
     let mut out = String::with_capacity(text.len());
     let mut last = 0;
     for (start, end, name) in uses {
-        out.push_str(&text[last..start]);
+        // The use starts at `assets/`, which is just before the name.
+        out.push_str(&text[last..start - (IMAGES_FOLDER.len() + 1)]);
+        out.push_str(folder);
+        out.push('/');
         out.push_str(renames.get(name).map_or(name, String::as_str));
         last = end;
     }
@@ -274,9 +290,10 @@ fn plain_name(name: &str) -> bool {
         .all(|c| c.is_alphanumeric() || matches!(c, '-' | '_' | '.'))
 }
 
-/// Copies the images of draft `number` that `text` links to into `target_folder/assets`, under the
-/// names they had when those are free and `-2`, `-3` when they are not, and returns the text with
-/// the links of the renamed ones updated. An image whose bytes are already in that folder under
+/// Copies the images of draft `number` that `text` links to into `target_folder/images` (the
+/// `images.pasteFolder` setting, or `assets`), under the names they had when those are free and
+/// `-2`, `-3` when they are not, and returns the text with their links updated: to the new names,
+/// and to `images` when that is not `assets`. An image whose bytes are already in that folder under
 /// another name is not copied: the links go to the file that is there. Images the text does not
 /// use stay behind, so a picture that was pasted and then undone does not end up in the folder.
 /// Nothing is overwritten. If any copy fails, the ones this call made are removed again (never one
@@ -286,6 +303,7 @@ pub(crate) fn adopt(
     number: u32,
     text: &str,
     target_folder: &Path,
+    images_folder: &str,
     ignore_case: bool,
 ) -> Result<Adopted, AppError> {
     let mut adopted = Adopted {
@@ -318,9 +336,14 @@ pub(crate) fn adopt(
                 let stem = image_stem(name).unwrap_or_default();
                 // The links are rewritten as plain text, so an existing file under a name that
                 // would need `<...>` in a link is only reused when the link is to it already.
-                save_into_where(target_folder, ignore_case, stem, &bytes, |existing| {
-                    existing == name || plain_name(existing)
-                })
+                save_into_where(
+                    target_folder,
+                    images_folder,
+                    ignore_case,
+                    stem,
+                    &bytes,
+                    |existing| existing == name || plain_name(existing),
+                )
             });
         match copied {
             Ok(saved) => {
@@ -328,9 +351,10 @@ pub(crate) fn adopt(
                 if !saved.reused {
                     adopted
                         .created
-                        .push(target_folder.join(IMAGES_FOLDER).join(&saved.name));
+                        .push(target_folder.join(images_folder).join(&saved.name));
                 }
-                if saved.name != *name {
+                // A link is rewritten when its name or its folder differs from the draft's.
+                if saved.name != *name || images_folder != IMAGES_FOLDER {
                     adopted.renames.insert(name.clone(), saved.name);
                 }
             }
@@ -340,7 +364,7 @@ pub(crate) fn adopt(
             }
         }
     }
-    adopted.text = rewrite_links(text, &adopted.renames);
+    adopted.text = rewrite_links_into(text, &adopted.renames, images_folder);
     Ok(adopted)
 }
 
@@ -517,7 +541,7 @@ mod tests {
         let target = dir.path().join("notes");
         std::fs::create_dir(&target).expect("target");
         let text = "![a](assets/image-20261113-153000.png) <img src=\"assets/image-20261113-153002.png\" width=\"9\">";
-        let adopted = adopt(&drafts, 1, text, &target, false).expect("adopted");
+        let adopted = adopt(&drafts, 1, text, &target, IMAGES_FOLDER, false).expect("adopted");
         assert_eq!(adopted.text, text);
         assert!(adopted.renames.is_empty());
         let assets = target.join(IMAGES_FOLDER);
@@ -543,7 +567,7 @@ mod tests {
         .expect("taken");
         let text =
             "![a](assets/image-20261113-153000.png)\n![b](assets/image-20261113-153001.png)\n";
-        let adopted = adopt(&drafts, 1, text, &target, false).expect("adopted");
+        let adopted = adopt(&drafts, 1, text, &target, IMAGES_FOLDER, false).expect("adopted");
         assert_eq!(
             adopted.text,
             "![a](assets/image-20261113-153000-2.png)\n![b](assets/image-20261113-153001.png)\n"
@@ -583,7 +607,7 @@ mod tests {
         let target = dir.path().join("notes");
         std::fs::create_dir(&target).expect("target");
         let text = "![a](assets/image-20261113-153000.png) ![b](assets/image-20261113-153001.png)";
-        assert!(adopt(&drafts, 1, text, &target, false).is_err());
+        assert!(adopt(&drafts, 1, text, &target, IMAGES_FOLDER, false).is_err());
         assert!(
             !target
                 .join(IMAGES_FOLDER)
@@ -600,7 +624,8 @@ mod tests {
         let drafts = drafts_in(dir.path());
         let target = dir.path().join("notes");
         std::fs::create_dir(&target).expect("target");
-        let adopted = adopt(&drafts, 1, "just text", &target, false).expect("adopted");
+        let adopted =
+            adopt(&drafts, 1, "just text", &target, IMAGES_FOLDER, false).expect("adopted");
         assert_eq!(adopted.text, "just text");
         assert!(adopted.created.is_empty());
         assert!(!target.join(IMAGES_FOLDER).exists());
@@ -632,7 +657,7 @@ mod tests {
         let target = dir.path().join("notes");
         std::fs::create_dir(&target).expect("target");
         let text = "![](<assets/my cat (1).png>)";
-        let adopted = adopt(&drafts, 1, text, &target, false).expect("adopted");
+        let adopted = adopt(&drafts, 1, text, &target, IMAGES_FOLDER, false).expect("adopted");
         assert_eq!(adopted.text, text);
         assert!(adopted.renames.is_empty());
         assert_eq!(
@@ -651,7 +676,7 @@ mod tests {
         std::fs::create_dir_all(target.join(IMAGES_FOLDER)).expect("assets");
         std::fs::write(target.join(IMAGES_FOLDER).join("cat.png"), PNG).expect("theirs");
         let text = "![a](assets/image-20261113-153000.png) ![b](assets/image-20261113-153001.png)";
-        let adopted = adopt(&drafts, 1, text, &target, false).expect("adopted");
+        let adopted = adopt(&drafts, 1, text, &target, IMAGES_FOLDER, false).expect("adopted");
         assert_eq!(
             adopted.text,
             "![a](assets/cat.png) ![b](assets/image-20261113-153001.png)"
@@ -679,7 +704,7 @@ mod tests {
         let target = dir.path().join("notes");
         std::fs::create_dir(&target).expect("target");
         let text = "![](assets/a.png) ![](assets/b.png)";
-        let adopted = adopt(&drafts, 1, text, &target, false).expect("adopted");
+        let adopted = adopt(&drafts, 1, text, &target, IMAGES_FOLDER, false).expect("adopted");
         assert_eq!(adopted.text, "![](assets/a.png) ![](assets/a.png)");
         assert_eq!(adopted.created.len(), 1);
         assert_eq!(
@@ -698,7 +723,15 @@ mod tests {
         let target = dir.path().join("notes");
         std::fs::create_dir_all(target.join(IMAGES_FOLDER)).expect("assets");
         std::fs::write(target.join(IMAGES_FOLDER).join("my cat.png"), PNG).expect("theirs");
-        let adopted = adopt(&drafts, 1, "![](assets/a.png)", &target, false).expect("adopted");
+        let adopted = adopt(
+            &drafts,
+            1,
+            "![](assets/a.png)",
+            &target,
+            IMAGES_FOLDER,
+            false,
+        )
+        .expect("adopted");
         // A link `assets/my cat.png` without brackets would stop being a link, so the picture is
         // copied under its own name instead.
         assert_eq!(adopted.text, "![](assets/a.png)");
@@ -717,7 +750,7 @@ mod tests {
         let theirs = target.join(IMAGES_FOLDER).join("cat.png");
         std::fs::write(&theirs, PNG).expect("theirs");
         let text = "![](assets/a.png) ![](assets/b.png)";
-        assert!(adopt(&drafts, 1, text, &target, false).is_err());
+        assert!(adopt(&drafts, 1, text, &target, IMAGES_FOLDER, false).is_err());
         assert_eq!(std::fs::read(&theirs).expect("still there"), PNG);
         assert_eq!(
             std::fs::read_dir(target.join(IMAGES_FOLDER))

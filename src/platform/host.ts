@@ -142,6 +142,33 @@ export interface SavedAs {
    * that was written already links to the new names; the page makes the same change to its own.
    */
   readonly renamedImages: readonly RenamedImage[]
+  /**
+   * The folder those images are in beside the file: `assets`, or what `images.pasteFolder` said
+   * when the file was saved. Their links in the written text point there already.
+   */
+  readonly imagesFolder: string
+}
+
+/**
+ * The settings Rust acts on by itself. The page sends them after it has validated the file, and
+ * Rust checks them again before it uses one.
+ */
+export interface AppliedSettings {
+  /** Where a pasted or copied image goes, relative to its document's folder. */
+  readonly pasteFolder: string
+  readonly recentFiles: number
+  readonly recentFolders: number
+  /** The folder names the workspace index skips, in place of the built-in list. */
+  readonly excludedFolders: readonly string[]
+  /** Whether F12 may open the developer tools. */
+  readonly devtools: boolean
+}
+
+/** One file of the themes folder: its name without `.json`, and its text or why it has none. */
+export interface ThemeFileEntry {
+  readonly name: string
+  readonly text: string | null
+  readonly error: string | null
 }
 
 /** What the page suggests the save dialog shows. */
@@ -384,9 +411,72 @@ export interface Host {
   rewriteCheck(path: string, change: RewriteChange): Promise<boolean>
   /**
    * What the environment (`MDMATE_LINKS_ON_RENAME`) says a rename or move does about links, or null
-   * when it says nothing the page can use. Temporary, until `settings.json` arrives (P8-T1).
+   * when it says nothing the page can use. A launch-time override: while it is set it wins over
+   * `settings.json`, and the Links row of the settings screen shows it read-only.
    */
   linksOnRenameOverride(): Promise<LinksOnRename | null>
+  /**
+   * The text of `settings.json` in the app's data folder, or null when there is no file yet. The
+   * file is always that one: the page names no path, so nothing in an opened folder can stand in
+   * for it. Rejects with `invalid` for a file that is not UTF-8 text or is over 1 MB.
+   */
+  settingsRead(): Promise<string | null>
+  /** Replaces `settings.json` with the text, atomically: the old file stays whole until the new one is written. */
+  settingsWrite(text: string): Promise<void>
+  /**
+   * Calls `onChange` each time `settings.json` changes on disk, whoever changed it, this page's own
+   * writes included. Returns the function that stops listening; one listener is live at a time.
+   */
+  watchSettings(onChange: () => void): Promise<() => void>
+  /**
+   * Makes `settings.json` when it is missing, lets the page open it as a tab, and resolves to its
+   * path. It grants that one file and nothing else.
+   */
+  settingsFile(): Promise<string>
+  /**
+   * Tells Rust the settings it acts on itself (`AppliedSettings`). Rejects with `invalid`, and
+   * applies none of them, if Rust disagrees with the page about one. A changed exclusion list
+   * makes the open folders' indexes walk again.
+   */
+  settingsApply(values: AppliedSettings): Promise<void>
+  /**
+   * `keybindings.json`, the way `settings.json` is kept: its text in the app's data folder (null
+   * when there is no file yet), replaced atomically, heard when it changes, and made and granted so
+   * it can open as a tab. The page names no path for any of them.
+   */
+  keybindingsRead(): Promise<string | null>
+  keybindingsWrite(text: string): Promise<void>
+  watchKeybindings(onChange: () => void): Promise<() => void>
+  keybindingsFile(): Promise<string>
+  /**
+   * The user theme files, `themes/<name>.json` in the app's data folder, by name: each with its
+   * text, or the reason it has none (too big, not UTF-8, a name that is not allowed). The page names
+   * no folder, so a workspace cannot supply a theme. A missing folder is an empty list.
+   */
+  themesRead(): Promise<ThemeFileEntry[]>
+  /** The text of one theme file, or null when it is not there. Rejects with `invalid` for a name that is not allowed. */
+  themeRead(name: string): Promise<string | null>
+  /**
+   * Writes one theme file, atomically. With `create` it makes a new file and rejects with `exists`
+   * rather than replace one; without it, it replaces a file that is there and never makes one.
+   */
+  themeWrite(name: string, text: string, create: boolean): Promise<void>
+  /**
+   * Gives a theme file another name. Rejects with `exists` when the new name is taken (nothing is
+   * replaced), `not-found` when the old file is gone and `invalid` for a name that is not allowed.
+   */
+  themeRename(from: string, to: string): Promise<void>
+  /**
+   * Moves a theme file to the Recycle Bin. It never deletes for good: with no bin it rejects and the
+   * file stays. `not-found` when the file is gone.
+   */
+  themeDelete(name: string): Promise<void>
+  /** Calls `onChange` each time a theme file is added, changed or removed, whoever did it. */
+  watchThemes(onChange: () => void): Promise<() => void>
+  /** Makes the themes folder when it is missing and shows it in the file manager. */
+  themesFolderOpen(): Promise<void>
+  /** Opens the developer tools. Rejects with `not-allowed` while the `devtools` setting is off. */
+  devtoolsOpen(): Promise<void>
   /**
    * Checks a rename or move and reads the workspace for the links it would change, without
    * changing anything. `onProgress` hears how many files were read so far. `buffers` are the open

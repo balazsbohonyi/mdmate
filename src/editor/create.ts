@@ -1,7 +1,8 @@
 import { defaultKeymap, history, historyKeymap, indentLess, insertTab } from '@codemirror/commands'
 import { indentUnit, syntaxHighlighting } from '@codemirror/language'
 import { EditorState, type EditorSelection, type Extension, type Text } from '@codemirror/state'
-import { EditorView, keymap } from '@codemirror/view'
+import { drawSelection, EditorView, keymap } from '@codemirror/view'
+import { appKeys } from './appKeys'
 import { findSupport } from './find'
 import { matchTicks } from './matchTicks'
 import { revealMark } from './revealMark'
@@ -13,6 +14,15 @@ import { smartPaste } from './paste'
 import { livePreview } from './livePreview'
 import { previewSlot } from './previewMode'
 import { markdownSupport } from './markdownSupport'
+import { documentFonts } from './documentFonts'
+import {
+  contentWidthValue,
+  CONTENT_PADDING_X,
+  FULL_WIDTH_CLASS,
+  WIDTH_VARIABLE,
+} from './documentWidth'
+import { wordWrap } from './wordWrap'
+import { DEFAULT_SETTINGS } from '@/lib/settings'
 
 /** Fills its parent and scrolls inside itself, in the app's own colors. */
 const frame = EditorView.theme({
@@ -21,10 +31,35 @@ const frame = EditorView.theme({
     color: 'var(--foreground)',
     backgroundColor: 'var(--background)',
   },
+  // CodeMirror draws a dotted outline round a focused editor by default. The caret already shows
+  // where focus is, and the outline cuts across the top of the pane under the tab strip.
+  '&.cm-focused': { outline: 'none' },
   '.cm-scroller': { overflow: 'auto' },
   // Room between the text and the edges of the pane. Padding on the content, not margin: the
   // scrollbar stays at the pane's edge, and CodeMirror counts content padding in its heights.
-  '.cm-content': { caretColor: 'var(--foreground)', padding: '1.25rem 1.5rem' },
+  // The selection and the caret are drawn by CodeMirror (`drawSelection`, in `common` and
+  // `followerBase`), which hides the browser's own, so the theme's Selection and Caret colors apply
+  // here. The focused rule is as specific as CodeMirror's own, and wins by coming from the theme.
+  '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--caret)' },
+  '.cm-selectionBackground, &.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-content ::selection':
+    { background: 'var(--selection)' },
+  '.cm-content': {
+    padding: `1.25rem ${CONTENT_PADDING_X}`,
+    // The text column stops at the width from settings.json and sits in the middle (documentWidth.ts).
+    // The fallback is the default, for the moment before the file is read or when it cannot be.
+    maxWidth: `var(${WIDTH_VARIABLE}, ${contentWidthValue(DEFAULT_SETTINGS.editor)})`,
+    marginInline: 'auto',
+    // The document's body font and size, from settings.json (documentFonts.ts). The fallbacks are
+    // the defaults, for the moment before the file is read or when it cannot be (a test keeps them
+    // equal to DEFAULT_SETTINGS).
+    fontFamily: 'var(--doc-font-body, monospace)',
+    fontSize: 'var(--doc-size, 15px)',
+  },
+  // Without wrapping there is no column to keep: a long line runs out of it, so the limit waits for
+  // word wrap (documentWidth.ts).
+  '.cm-content:not(.cm-lineWrapping)': { maxWidth: 'none', marginInline: '0' },
+  // The app's own JSON files keep the whole width (documentWidth.ts).
+  [`&.${FULL_WIDTH_CLASS} .cm-content`]: { maxWidth: 'none', marginInline: '0' },
 })
 
 /**
@@ -58,10 +93,13 @@ const tabKeys: Extension = [
 
 /** What every document gets, with or without the Markdown parser. */
 const common: Extension = [
+  appKeys,
   history(),
   keymap.of([...editorKeymap, ...historyKeymap]),
-  EditorView.lineWrapping,
+  wordWrap,
+  documentFonts,
   frame,
+  drawSelection(),
   tabKeys,
   textDrag(),
   findSupport(),
@@ -110,9 +148,13 @@ export function createMasterState(doc: string, extensions: Extension = []): Edit
 
 /** What every follower gets: the default keys without history, which lives on the master. */
 const followerBase: Extension = [
+  // The app's own shortcuts first, so a rebinding wins over a key of the editor's own (ISC-402).
+  appKeys,
   keymap.of(editorKeymap),
-  EditorView.lineWrapping,
+  wordWrap,
+  documentFonts,
   frame,
+  drawSelection(),
   tabKeys,
   // Drag-to-move for selected text, on pointer events (P5-T7).
   textDrag(),

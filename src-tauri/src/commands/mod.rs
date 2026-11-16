@@ -15,6 +15,8 @@ use crate::recent::{self, RecentStore};
 use crate::save_as::{self, SaveRequest, SavedAs};
 use crate::search;
 use crate::session::{self, CloseHook, SessionStore};
+use crate::settings::themes::{ThemeEntry, ThemeStore};
+use crate::settings::{KeybindingsStore, SettingsStore};
 use crate::workspace::ops::{self, ClashAnswer, CopyReport, Moved};
 use crate::workspace::roots::{self, RootStore};
 use crate::workspace::tree::{self, TreeEntry};
@@ -869,10 +871,247 @@ pub(crate) fn rewrite_check(
 }
 
 /// What the environment says a rename or move does about links (`ask`, `update` or `never`), or
-/// None when it says nothing the page can use. Temporary, until `settings.json` (P8-T1).
+/// None when it says nothing the page can use. A launch-time override that wins over
+/// `settings.json` for that run.
 #[tauri::command]
 pub(crate) fn links_on_rename_override() -> Option<&'static str> {
     crate::settings::links_on_rename_from_env()
+}
+
+/// The text of `settings.json` in the data folder, or nothing when there is no file yet. A file
+/// that is not UTF-8 text or is too big is an error, never a guess. The page decides what it means.
+#[tauri::command]
+pub(crate) async fn settings_read(
+    store: State<'_, Arc<SettingsStore>>,
+) -> Result<Option<String>, AppError> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || store.read())
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Replaces `settings.json` with the text, atomically. The page names no path: the file is always
+/// the one in the data folder.
+#[tauri::command]
+pub(crate) async fn settings_write(
+    store: State<'_, Arc<SettingsStore>>,
+    text: String,
+) -> Result<(), AppError> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || store.write(&text))
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Tells the page each time `settings.json` changes, whoever changed it. Calling it again replaces
+/// the channel.
+#[tauri::command]
+pub(crate) fn watch_settings(
+    store: State<'_, Arc<SettingsStore>>,
+    on_change: Channel<()>,
+) -> Result<(), AppError> {
+    store.watch(Box::new(move || {
+        // A page that has gone away has nobody to tell; the next subscription replaces this one.
+        let _ = on_change.send(());
+    }))
+}
+
+/// Takes the settings Rust acts on from the page, which has validated the file: where a pasted
+/// image goes, how many recent files are kept, which folders the index skips, and whether the
+/// developer tools may open. Rust checks them again and refuses the lot if one is wrong. A changed
+/// exclusion list makes every open folder's index walk again.
+#[tauri::command]
+pub(crate) fn settings_apply(
+    state: State<'_, Arc<AppState>>,
+    recent: State<'_, Arc<RecentStore>>,
+    applied: crate::settings::runtime::Applied,
+) -> Result<(), AppError> {
+    let checked = crate::settings::runtime::check(&applied)?;
+    state.runtime().set_paste_folder(&checked.paste_folder);
+    state.runtime().set_devtools(checked.devtools);
+    recent.set_limits(checked.recent_files, checked.recent_folders);
+    if crate::fs::exclude::set(&checked.excluded_folders) {
+        state.index().rescan_all();
+    }
+    Ok(())
+}
+
+/// Opens the developer tools, only while the `devtools` setting is on. The page asks on F12; the
+/// check is here so a page that skips its own cannot open them.
+#[tauri::command]
+pub(crate) fn devtools_open(
+    state: State<'_, Arc<AppState>>,
+    window: tauri::WebviewWindow,
+) -> Result<(), AppError> {
+    if !state.runtime().devtools() {
+        return Err(AppError::NotAllowed(
+            "the developer tools while the setting is off".into(),
+        ));
+    }
+    window.open_devtools();
+    Ok(())
+}
+
+/// Makes `settings.json` if it is missing and lets the page open it as a tab. Returns its path.
+/// It is the one file this grants, and the page cannot name another.
+#[tauri::command]
+pub(crate) async fn settings_file(
+    state: State<'_, Arc<AppState>>,
+    store: State<'_, Arc<SettingsStore>>,
+) -> Result<String, AppError> {
+    let (state, store) = (state.inner().clone(), store.inner().clone());
+    tauri::async_runtime::spawn_blocking(move || {
+        let file = store.ensure_file()?;
+        let resolved = state.access().grant_file(&file)?;
+        Ok::<_, AppError>(display_path(&resolved.path))
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// The text of `keybindings.json` in the data folder, or nothing when there is no file yet. Like
+/// `settings.json`: the page names no path, and the page decides what the text means.
+#[tauri::command]
+pub(crate) async fn keybindings_read(
+    store: State<'_, Arc<KeybindingsStore>>,
+) -> Result<Option<String>, AppError> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || store.read())
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Replaces `keybindings.json` with the text, atomically.
+#[tauri::command]
+pub(crate) async fn keybindings_write(
+    store: State<'_, Arc<KeybindingsStore>>,
+    text: String,
+) -> Result<(), AppError> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || store.write(&text))
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Tells the page each time `keybindings.json` changes, whoever changed it.
+#[tauri::command]
+pub(crate) fn watch_keybindings(
+    store: State<'_, Arc<KeybindingsStore>>,
+    on_change: Channel<()>,
+) -> Result<(), AppError> {
+    store.watch(Box::new(move || {
+        let _ = on_change.send(());
+    }))
+}
+
+/// Makes `keybindings.json` if it is missing and lets the page open it as a tab. Returns its path.
+#[tauri::command]
+pub(crate) async fn keybindings_file(
+    state: State<'_, Arc<AppState>>,
+    store: State<'_, Arc<KeybindingsStore>>,
+) -> Result<String, AppError> {
+    let (state, store) = (state.inner().clone(), store.inner().clone());
+    tauri::async_runtime::spawn_blocking(move || {
+        let file = store.ensure_file()?;
+        let resolved = state.access().grant_file(&file)?;
+        Ok::<_, AppError>(display_path(&resolved.path))
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Every user theme file in the data folder's `themes` folder, by name, with its text or the reason
+/// it has none. The page names no path and decides what each file means.
+#[tauri::command]
+pub(crate) async fn themes_read(
+    store: State<'_, Arc<ThemeStore>>,
+) -> Result<Vec<ThemeEntry>, AppError> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || store.list())
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// The text of one theme file, or nothing when it is not there. The name is a plain name, checked
+/// again here.
+#[tauri::command]
+pub(crate) async fn theme_read(
+    store: State<'_, Arc<ThemeStore>>,
+    name: String,
+) -> Result<Option<String>, AppError> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || store.read(&name))
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Writes one theme file atomically. With `create` it makes a new file and refuses to replace one;
+/// without it, it replaces a file that is there and never makes one.
+#[tauri::command]
+pub(crate) async fn theme_write(
+    store: State<'_, Arc<ThemeStore>>,
+    name: String,
+    text: String,
+    create: bool,
+) -> Result<(), AppError> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || store.write(&name, &text, create))
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Gives a theme file another name. Both names are plain names, checked again here; the new name
+/// must be free, so nothing is ever replaced.
+#[tauri::command]
+pub(crate) async fn theme_rename(
+    store: State<'_, Arc<ThemeStore>>,
+    from: String,
+    to: String,
+) -> Result<(), AppError> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || store.rename(&from, &to))
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Moves a theme file to the Recycle Bin (the Trash). It never deletes for good: where there is no
+/// bin the call fails and the file stays.
+#[tauri::command]
+pub(crate) async fn theme_delete(
+    store: State<'_, Arc<ThemeStore>>,
+    name: String,
+) -> Result<(), AppError> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        store.delete(&name, |path| platform::current().move_to_trash(path))
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Tells the page each time a theme file is added, changed or removed, whoever did it.
+#[tauri::command]
+pub(crate) fn watch_themes(
+    store: State<'_, Arc<ThemeStore>>,
+    on_change: Channel<()>,
+) -> Result<(), AppError> {
+    store.watch(Box::new(move || {
+        let _ = on_change.send(());
+    }))
+}
+
+/// Makes the themes folder if it is missing and shows it in the system's file manager. The folder
+/// is always the one in the data folder; the page names no path.
+#[tauri::command]
+pub(crate) async fn themes_folder_open(store: State<'_, Arc<ThemeStore>>) -> Result<(), AppError> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let folder = store.ensure_folder()?;
+        platform::current().show_folder(&folder)?;
+        Ok::<_, AppError>(())
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
 }
 
 /// Checks a rename or move and reads the workspace for the links it would change, without

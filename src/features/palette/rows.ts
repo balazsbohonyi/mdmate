@@ -1,4 +1,6 @@
-import { listCommands, isCommandEnabled, shortcutLabel } from '@/workbench/commands'
+import { commandState, listCommands, isCommandEnabled, shortcutLabel } from '@/workbench/commands'
+import { settings } from '@/lib/settings'
+import { themeChoices } from '@/features/themes/store'
 import { detectPlatform } from '@/workbench/keybinding'
 import { rankByFuzzy } from '@/lib/fuzzy'
 import type { QuickOpenItem } from '@/platform/quickOpen'
@@ -13,6 +15,8 @@ export interface PickRow {
   readonly detailHits: readonly number[]
   /** Shown greyed and does nothing when chosen. */
   readonly disabled: boolean
+  /** For a toggle command: whether it is on, shown as On or Off. Null for every other row. */
+  readonly state: boolean | null
 }
 
 /** A file result as a line: its name first, then the folder it is in. */
@@ -26,6 +30,7 @@ export function fileRow(item: QuickOpenItem): PickRow {
     detail: folder.replace(/\/$/, ''),
     detailHits: item.matches.filter((at) => at < item.nameStart),
     disabled: false,
+    state: null,
   }
 }
 
@@ -40,6 +45,7 @@ export function commandRows(query: string): PickRow[] {
     detail: shortcutLabel(id, platform) ?? '',
     detailHits: [],
     disabled: !isCommandEnabled(id),
+    state: commandState(id) ?? null,
   })
   if (query.trim() === '') {
     return [...commands]
@@ -48,6 +54,24 @@ export function commandRows(query: string): PickRow[] {
   }
   return rankByFuzzy(commands, query, (command) => command.title).map(({ item, hit }) =>
     row(item.id, item.title, hit.matches),
+  )
+}
+
+/** The themes whose name holds what was typed; the one in use says so. */
+export function themeRows(query: string): PickRow[] {
+  const row = (value: string, label: string, hits: readonly number[]): PickRow => ({
+    key: value,
+    label,
+    labelHits: hits,
+    detail: settings.theme === value ? 'In use' : '',
+    detailHits: [],
+    disabled: false,
+    state: null,
+  })
+  const choices = themeChoices.value
+  if (query.trim() === '') return choices.map((theme) => row(theme.value, theme.label, []))
+  return rankByFuzzy([...choices], query, (theme) => theme.label).map(({ item, hit }) =>
+    row(item.value, item.label, hit.matches),
   )
 }
 

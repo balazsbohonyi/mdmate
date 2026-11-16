@@ -7,7 +7,8 @@ import type { QuickOpenAnswer } from '@/platform/quickOpen'
 import { commandForEvent, runCommand } from '@/workbench/commands'
 import { focusActiveEditor } from '@/workbench/focus'
 import { detectPlatform } from '@/workbench/keybinding'
-import { commandRows, fileRow, segments, type PickRow } from './rows'
+import { changeSettingFromCommand } from '@/features/settings/quick'
+import { commandRows, fileRow, segments, themeRows, type PickRow } from './rows'
 import { closePalette, PALETTE_COMMAND_IDS, type PaletteMode } from './state'
 
 // One list for both pickers: the file picker (Ctrl+P) and the command palette (Ctrl+Shift+P).
@@ -27,15 +28,25 @@ const failure = ref<string | null>(null)
 const platform = detectPlatform()
 
 const rows = computed<PickRow[]>(() =>
-  mode === 'files' ? (answer.value?.items ?? []).map(fileRow) : commandRows(query.value),
+  mode === 'files'
+    ? (answer.value?.items ?? []).map(fileRow)
+    : mode === 'themes'
+      ? themeRows(query.value)
+      : commandRows(query.value),
 )
 const searching = computed(
   () => mode === 'files' && answer.value === null && failure.value === null,
 )
 
-const title = computed(() => (mode === 'files' ? 'Go to file' : 'Command palette'))
+const title = computed(() =>
+  mode === 'files' ? 'Go to file' : mode === 'themes' ? 'Switch theme' : 'Command palette',
+)
 const placeholder = computed(() =>
-  mode === 'files' ? 'Type part of a file name' : 'Type the name of a command',
+  mode === 'files'
+    ? 'Type part of a file name'
+    : mode === 'themes'
+      ? 'Pick a theme'
+      : 'Type the name of a command',
 )
 const optionId = (index: number): string => `palette-option-${index}`
 
@@ -44,6 +55,7 @@ const summary = computed(() => {
   if (searching.value) return 'Reading the folders...'
   if (rows.value.length === 0) {
     if (mode === 'commands') return 'No command matches'
+    if (mode === 'themes') return 'No theme matches'
     if (answer.value !== null && answer.value.indexed === 0) return 'The open folders have no files'
     return 'No file matches'
   }
@@ -80,6 +92,12 @@ async function search(keep?: string): Promise<void> {
 onMounted(() => {
   input.value?.focus()
   if (mode === 'files') void search()
+  // The theme list opens on the theme in use.
+  if (mode === 'themes')
+    selected.value = Math.max(
+      0,
+      rows.value.findIndex((row) => row.detail !== ''),
+    )
 })
 
 // Opening the picker reads nothing: the index is already there. While a folder is being read for
@@ -113,7 +131,8 @@ async function accept(at: number): Promise<void> {
       await openInActivePane(row.key)
       // The tab may already have been the one shown, which wakes no editor (ISC-255).
       focusActiveEditor()
-    } else await runCommand(row.key)
+    } else if (mode === 'themes') await changeSettingFromCommand('theme', row.key)
+    else await runCommand(row.key)
   } catch (error) {
     if (mode === 'files') reportError(`Could not open ${row.key}: ${describe(error)}`)
     else console.error(`Command "${row.key}" failed`, error)
@@ -243,7 +262,7 @@ function onKeydown(event: KeyboardEvent): void {
           </span>
           <span
             class="min-w-0 flex-1 truncate text-muted-foreground"
-            :class="mode === 'commands' ? 'text-right' : ''"
+            :class="mode !== 'files' ? 'text-right' : ''"
           >
             <template
               v-for="(part, at) in segments(row.detail, row.detailHits)"
@@ -257,6 +276,13 @@ function onKeydown(event: KeyboardEvent): void {
               <template v-else>{{ part.text }}</template>
             </template>
           </span>
+          <span
+            v-if="row.state !== null"
+            data-palette-state
+            class="shrink-0 text-xs"
+            :class="row.state ? 'font-medium text-foreground' : 'text-muted-foreground'"
+            >{{ row.state ? 'On' : 'Off' }}</span
+          >
         </li>
       </ul>
       <p

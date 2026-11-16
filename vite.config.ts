@@ -13,6 +13,8 @@ export default defineConfig({
   test: {
     include: ['tests/**/*.test.ts'],
     setupFiles: ['tests/helpers/setupToasts.ts'],
+    // The theme stylesheets are read as text (`?raw`); without this vitest hands back an empty string.
+    css: { include: [/src\/styles\/themes\/.*\.css/] },
   },
   clearScreen: false,
   server: {

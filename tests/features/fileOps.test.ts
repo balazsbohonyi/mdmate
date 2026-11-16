@@ -529,6 +529,28 @@ describe('the drawn tree', () => {
     expect(root.querySelector('[data-name-error]')?.textContent).toContain('already exists')
   })
 
+  it('hangs the reason from the row and caps it at the row width, so the sidebar edge never cuts it (ISC-543)', async () => {
+    const root = await ready()
+    await renameRow('/work/notes/a.md')
+    await flush()
+    await commitNaming('b.md')
+    await flush()
+    const bubble = root.querySelector<HTMLElement>('[data-name-error]')
+    expect(bubble).not.toBeNull()
+    const classes = bubble?.className ?? ''
+    // Capped by the width of the row it hangs from, and never wider than 14rem.
+    expect(classes).toContain('max-w-[min(14rem,calc(100%-0.5rem))]')
+    expect(classes).toContain('absolute')
+    // No box between the bubble and the row: an ancestor that is itself positioned would make the
+    // box (the part of the row left after the indent and the icons) the width it is capped by.
+    const row = bubble?.closest('[data-kind]')
+    expect(row).not.toBeNull()
+    for (let at = bubble?.parentElement; at && at !== row; at = at.parentElement)
+      expect(at.className, at.outerHTML.slice(0, 80)).not.toMatch(
+        /(^|\s)(relative|absolute|fixed|sticky)(\s|$)/,
+      )
+  })
+
   it('the Delete key sends the selected row to the Recycle Bin', async () => {
     const root = await ready()
     row(root, '/work/Zeta.txt').click()

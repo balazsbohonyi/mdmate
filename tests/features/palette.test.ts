@@ -8,13 +8,22 @@ import PaletteHost from '@/features/palette/PaletteHost.vue'
 import { indexStatus } from '@/features/index/status'
 import { commandRows, fileRow, segments } from '@/features/palette/rows'
 import { closePalette, paletteMode } from '@/features/palette/state'
+import { resetSettingsState } from '@/features/settings/store'
+import { loadThemes, resetThemesState } from '@/features/themes/store'
+import { resetSettings, settings } from '@/lib/settings'
 import { setHost } from '@/platform'
 import { IDLE_INDEX } from '@/platform/indexStatus'
-import { createMockHost, type MockHost } from '@/platform/mock'
+import {
+  createMockHost,
+  MOCK_SETTINGS_FILE,
+  MOCK_THEMES_FOLDER,
+  type MockHost,
+} from '@/platform/mock'
 import { clearCommands, registerCommand } from '@/workbench/commands'
 import { COMMAND_IDS, registerDefaultCommands } from '@/workbench/defaultCommands'
 import { installKeybindings } from '@/workbench/keyboard'
 import { resetWorkbench } from '@/workbench/store'
+import { parseJsonc } from '../helpers/jsonc'
 
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
@@ -346,6 +355,7 @@ describe('Ctrl+Shift+P runs a command by name (ISC-131)', () => {
     registerCommand({
       id: 'test.probe',
       title: 'Probe Order',
+      group: 'App',
       run: () => {
         openWhenRun = paletteMode.value
       },
@@ -388,6 +398,7 @@ describe('Ctrl+Shift+P runs a command by name (ISC-131)', () => {
     registerCommand({
       id: 'test.boom',
       title: 'Boom',
+      group: 'App',
       run: () => {
         throw new Error('nope')
       },
@@ -435,7 +446,7 @@ describe('using both from the keyboard alone', () => {
   it('keeps every other shortcut from acting on the page behind it', async () => {
     await start()
     const ran = vi.fn()
-    registerCommand({ id: 'test.spy', title: 'Spy', keybinding: 'Mod+J', run: ran })
+    registerCommand({ id: 'test.spy', title: 'Spy', group: 'App', keybinding: 'Mod+J', run: ran })
     // Control: on the page the shortcut runs.
     press({ key: 'j', code: 'KeyJ', ctrlKey: true }, document.body)
     await flush()
@@ -501,7 +512,12 @@ describe('using both from the keyboard alone', () => {
     const before = document.createElement('button')
     const taken = document.createElement('textarea')
     document.body.append(before, taken)
-    registerCommand({ id: 'test.focus', title: 'Take Focus', run: () => taken.focus() })
+    registerCommand({
+      id: 'test.focus',
+      title: 'Take Focus',
+      group: 'App',
+      run: () => taken.focus(),
+    })
     before.focus()
     press(ctrlShiftP, before)
     await flush()
@@ -576,5 +592,203 @@ describe('the lines of a picker', () => {
     const titles = commandRows('').map((row) => row.label)
     expect(titles).toEqual([...titles].sort((a, b) => a.localeCompare(b)))
     expect(titles).toContain('Bold')
+  })
+})
+
+describe('toggles run from the palette and show their state (ISC-153, ISC-370)', () => {
+  const stateOf = (index = 0): string | undefined =>
+    document.querySelectorAll('[data-palette-row]')[index]?.querySelector('[data-palette-state]')
+      ?.textContent
+  const fileObject = (): unknown => {
+    const text = host.files.read(MOCK_SETTINGS_FILE)
+    return text === undefined ? undefined : parseJsonc(text)
+  }
+
+  beforeEach(() => {
+    resetSettings()
+    resetSettingsState()
+  })
+
+  it('shows On beside Toggle Word Wrap, runs it with Enter, and the file and the row follow', async () => {
+    await start()
+    press(ctrlShiftP, document.body)
+    await flush()
+    await type('toggle word wrap')
+    expect(rowsText()[0]).toBe('Toggle Word Wrap On')
+    expect(stateOf()).toBe('On')
+    press({ key: 'Enter' })
+    await flush()
+    expect(settings.editor.wordWrap).toBe(false)
+    expect(fileObject()).toEqual({ editor: { wordWrap: false } })
+    expect(paletteMode.value).toBeNull()
+
+    press(ctrlShiftP, document.body)
+    await flush()
+    await type('toggle word wrap')
+    expect(rowsText()[0]).toBe('Toggle Word Wrap Off')
+    expect(stateOf()).toBe('Off')
+  })
+
+  it('runs Toggle Developer Tools the same way, Off first', async () => {
+    await start()
+    press(ctrlShiftP, document.body)
+    await flush()
+    await type('developer')
+    const rows = rowsText()
+    expect(rows).toContain('Toggle Developer Tools Off')
+    expect(rows.find((row) => row.startsWith('Open Developer Tools'))).toBe(
+      'Open Developer Tools F12',
+    )
+    await type('toggle developer')
+    press({ key: 'Enter' })
+    await flush()
+    expect(fileObject()).toEqual({ devtools: true })
+    expect(settings.devtools).toBe(true)
+  })
+
+  it('marks no state on a row that is not a toggle', async () => {
+    await start()
+    press(ctrlShiftP, document.body)
+    await flush()
+    await type('toggle sidebar')
+    expect(stateOf()).toBeUndefined()
+  })
+})
+
+describe('Switch Theme opens a list of the themes there are (ISC-395)', () => {
+  const fileText = (): string | undefined => host.files.read(MOCK_SETTINGS_FILE)
+
+  beforeEach(() => {
+    resetSettings()
+    resetSettingsState()
+    resetThemesState()
+  })
+
+  async function openThemes(): Promise<void> {
+    press(ctrlShiftP, document.body)
+    await flush()
+    await type('switch theme')
+    press({ key: 'Enter' })
+    await flush()
+  }
+
+  it('opens a theme list from the command, with Dark marked as in use and selected', async () => {
+    await start()
+    await openThemes()
+    expect(paletteMode.value).toBe('themes')
+    expect(rowsText()).toEqual(['Dark In use', 'Light', 'Sepia', 'System'])
+    expect(selectedText()).toBe('Dark In use')
+    expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe(
+      'Switch theme',
+    )
+    expect(input()?.placeholder).toBe('Pick a theme')
+    expect(document.activeElement).toBe(input())
+  })
+
+  it('ISC-371: lists a user theme file after the built-ins, and choosing it applies it', async () => {
+    await start({
+      ...FILES,
+      [`${MOCK_THEMES_FOLDER}/mine.json`]:
+        '{ "name": "Mine", "base": "light", "colors": { "background": "#123456" } }',
+    })
+    await loadThemes()
+    await openThemes()
+    expect(rowsText()).toEqual(['Dark In use', 'Light', 'Sepia', 'System', 'Mine'])
+    for (let step = 0; step < 4; step++) press({ key: 'ArrowDown' })
+    await flush()
+    expect(selectedText()).toBe('Mine')
+    press({ key: 'Enter' })
+    await flush()
+    expect(paletteMode.value).toBeNull()
+    expect(settings.theme).toBe('mine')
+    expect(parseJsonc(fileText() ?? '{}')).toEqual({ theme: 'mine' })
+    expect(document.documentElement.dataset.theme).toBe('light')
+    expect(document.documentElement.style.getPropertyValue('--background')).toBe('#123456')
+  })
+
+  it('choosing a theme closes the list; Dark is already the setting, so the file stays', async () => {
+    await start()
+    await openThemes()
+    press({ key: 'Enter' })
+    await flush()
+    expect(paletteMode.value).toBeNull()
+    expect(settings.theme).toBe('dark')
+    expect(fileText()).toBeUndefined()
+  })
+
+  it('choosing a theme writes it: from a file that holds another value, Dark takes the key out', async () => {
+    await start()
+    const { changeSettingFromCommand } = await import('@/features/settings/quick')
+    await changeSettingFromCommand('theme', 'light')
+    expect(parseJsonc(fileText() ?? '{}')).toEqual({ theme: 'light' })
+    expect(settings.theme).toBe('light')
+    expect(document.documentElement.dataset.theme).toBe('light')
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
+    await openThemes()
+    expect(rowsText()).toEqual(['Dark', 'Light In use', 'Sepia', 'System'])
+    expect(selectedText()).toBe('Light In use')
+    press({ key: 'ArrowUp' })
+    await flush()
+    expect(selectedText()).toBe('Dark')
+    press({ key: 'Enter' })
+    await flush()
+    expect(paletteMode.value).toBeNull()
+    expect(settings.theme).toBe('dark')
+    expect(parseJsonc(fileText() ?? '{}')).toEqual({})
+  })
+
+  it('gives focus back to where it was when the list closes, as the command palette does', async () => {
+    await start()
+    const origin = document.createElement('textarea')
+    document.body.append(origin)
+    origin.focus()
+    expect(document.activeElement).toBe(origin)
+    press(ctrlShiftP, origin)
+    await flush()
+    await type('switch theme')
+    press({ key: 'Enter' })
+    await flush()
+    expect(paletteMode.value).toBe('themes')
+    press({ key: 'Escape' })
+    await flush()
+    expect(paletteMode.value).toBeNull()
+    expect(document.activeElement).toBe(origin)
+  })
+
+  it('gives focus back after choosing a theme too', async () => {
+    await start()
+    const origin = document.createElement('textarea')
+    document.body.append(origin)
+    origin.focus()
+    press(ctrlShiftP, origin)
+    await flush()
+    await type('switch theme')
+    press({ key: 'Enter' })
+    await flush()
+    press({ key: 'Enter' })
+    await flush()
+    expect(paletteMode.value).toBeNull()
+    expect(document.activeElement).toBe(origin)
+  })
+
+  it('Escape leaves the list and changes nothing', async () => {
+    await start()
+    await openThemes()
+    press({ key: 'Escape' })
+    await flush()
+    expect(paletteMode.value).toBeNull()
+    expect(fileText()).toBeUndefined()
+  })
+
+  it('narrows by typing and says so when no theme matches', async () => {
+    await start()
+    await openThemes()
+    await type('da')
+    expect(rowsText()).toEqual(['Dark In use'])
+    await type('zzz')
+    expect(rowsText()).toEqual([])
+    expect(document.querySelector('[data-palette-summary]')?.textContent).toContain(
+      'No theme matches',
+    )
   })
 })

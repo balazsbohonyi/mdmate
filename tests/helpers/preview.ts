@@ -58,3 +58,35 @@ export function markedText(state: EditorState, items: readonly PreviewItem[]): s
     .sort((a, b) => a.from - b.from || a.to - b.to)
     .map((item) => `${item.class}: ${state.doc.sliceString(item.from, item.to)}`)
 }
+
+/**
+ * What a mounted preview put on the page outside its own root, apart from the one placeholder the
+ * closed dropdown keeps in the body while the tab is open: a bare `div` whose only nodes are the
+ * two comments Vue leaves for a teleport. Anything else (a second placeholder, an empty wrapper, a
+ * popup left open) is returned.
+ */
+export function strangersOf(root: HTMLElement): Element[] {
+  const isPlaceholder = (child: Element): boolean =>
+    child.tagName === 'DIV' &&
+    child.attributes.length === 0 &&
+    child.childNodes.length === 2 &&
+    [...child.childNodes].every(
+      (node) =>
+        node.nodeType === Node.COMMENT_NODE &&
+        ['teleport start', 'teleport end'].includes((node as Comment).data),
+    )
+  const others = [...document.body.children].filter((child) => child !== root)
+  const placeholders = others.filter(isPlaceholder)
+  return others.filter((child) => !isPlaceholder(child) || child !== placeholders[0])
+}
+
+/**
+ * The whole syntax tree of a state. `syntaxTree` answers with what the first parse got done in its
+ * short time budget, which under a loaded machine can stop before the end of a long note; this one
+ * finishes the parse first.
+ */
+export function wholeTree(state: EditorState): NonNullable<ReturnType<typeof ensureSyntaxTree>> {
+  const tree = ensureSyntaxTree(state, state.doc.length, 5000)
+  if (tree === null) throw new Error('the parse did not finish')
+  return tree
+}

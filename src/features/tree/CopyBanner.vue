@@ -57,7 +57,7 @@ watch(
     <div class="flex flex-wrap gap-1.5">
       <button
         type="button"
-        class="rounded border border-sidebar-border bg-sidebar px-2 py-1 hover:bg-sidebar-accent"
+        class="rounded border border-sidebar-border bg-sidebar px-2 py-1 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         data-answer="replace"
         @click="answerClash('replace', applyToAll)"
       >
@@ -65,7 +65,7 @@ watch(
       </button>
       <button
         type="button"
-        class="rounded border border-sidebar-border bg-sidebar px-2 py-1 hover:bg-sidebar-accent"
+        class="rounded border border-sidebar-border bg-sidebar px-2 py-1 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         data-answer="keep-both"
         @click="answerClash('keep-both', applyToAll)"
       >
@@ -73,7 +73,7 @@ watch(
       </button>
       <button
         type="button"
-        class="rounded border border-sidebar-border bg-sidebar px-2 py-1 hover:bg-sidebar-accent"
+        class="rounded border border-sidebar-border bg-sidebar px-2 py-1 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         data-answer="skip"
         @click="answerClash('skip', applyToAll)"
       >
@@ -81,7 +81,7 @@ watch(
       </button>
       <button
         type="button"
-        class="rounded px-2 py-1 text-muted-foreground hover:bg-sidebar-accent"
+        class="rounded px-2 py-1 text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         data-answer="cancel"
         @click="cancelCopy()"
       >

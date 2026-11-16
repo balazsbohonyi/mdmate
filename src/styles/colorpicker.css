@@ -1,0 +1,49 @@
+/*
+ * The color picker popover of the theme editor (features/themes/ColorPicker.vue). The gradients
+ * are colors, so they live here and not in a component: the arch rule keeps color literals in
+ * src/styles/. The component sets two variables on the popover: --picker-hue-color (the hue at
+ * full saturation and brightness) and --picker-color (the color without its opacity).
+ */
+
+/* Saturation to the right over a hue color, brightness upward: white to the left, black below. */
+.color-area {
+  background-color: var(--picker-hue-color);
+  background-image:
+    linear-gradient(to top, #000000, transparent), linear-gradient(to right, #ffffff, transparent);
+}
+
+.color-hue-track {
+  background: linear-gradient(
+    to right,
+    #ff0000,
+    #ffff00,
+    #00ff00,
+    #00ffff,
+    #0000ff,
+    #ff00ff,
+    #ff0000
+  );
+}
+
+/* A checkerboard in two tokens of the theme, behind anything that can be translucent. */
+.color-checker {
+  background: conic-gradient(
+      var(--muted) 25%,
+      var(--background) 0 50%,
+      var(--muted) 0 75%,
+      var(--background) 0
+    )
+    0 0 / 8px 8px;
+}
+
+.color-alpha-track {
+  background:
+    linear-gradient(to right, transparent, var(--picker-color)),
+    conic-gradient(
+        var(--muted) 25%,
+        var(--background) 0 50%,
+        var(--muted) 0 75%,
+        var(--background) 0
+      )
+      0 0 / 8px 8px;
+}

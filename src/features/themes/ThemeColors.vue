@@ -1,0 +1,284 @@
+<script setup lang="ts">
+import { RotateCcw } from '@lucide/vue'
+import { computed, reactive } from 'vue'
+import HoverHint from '@/components/HoverHint.vue'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { BUILT_IN_THEMES } from '@/lib/builtinThemes'
+import { contrast, formatColor, toHexString, tryParseColor } from '@/lib/color'
+import { settings } from '@/lib/settings'
+import { checkThemeColor } from '@/lib/themeFile'
+import { effectiveTokens } from '@/lib/themes'
+import { CONTRAST_PAIRS, THEME_GROUPS, THEME_TOKENS, tokensOf } from '@/lib/themeTokens'
+import { usageOf } from '@/lib/themeTokenUsage'
+import SubGroupHeading from '@/features/settings/SubGroupHeading.vue'
+import { baseColorOf, changeThemeColor, flushThemeColors } from './customize'
+import ColorPicker from './ColorPicker.vue'
+import { currentTheme, openThemeForm } from './store'
+
+/**
+ * The color editor on the Appearance page: every token of the theme in force, in groups, each with
+ * a swatch (it opens a color picker with an opacity slider and field), a text field, and a warning when the color
+ * brings a required pair of text and surface under its contrast floor. A built-in theme has no
+ * editor, only Customize, which copies it into a file you can edit; a color changed here is written
+ * to the theme's file as it changes. Loaded with the Settings screen (settings-lazy).
+ */
+
+const shown = computed(() => currentTheme.value)
+const user = computed(() => shown.value.user)
+const colors = computed(() => effectiveTokens(shown.value))
+const baseName = computed(() => (user.value === null ? '' : BUILT_IN_THEMES[user.value.base].label))
+
+const labels = new Map(THEME_TOKENS.map((token) => [token.name, token.label]))
+
+/** Text typed into a field and not yet accepted, by token. The file's color shows when there is none. */
+const drafts = reactive<Record<string, string>>({})
+/** Why a typed color was refused, by token. The file keeps its color. */
+const refused = reactive<Record<string, string>>({})
+
+function valueOf(token: string): string {
+  return colors.value.get(token) ?? ''
+}
+
+/** The format every color is shown in, and a changed one is written in. */
+const format = computed(() => settings.themes.colorFormat)
+
+/** A color as the field shows it: in the chosen format, as written when it already is in it. */
+function displayed(token: string): string {
+  return formatColor(valueOf(token), format.value)
+}
+
+function shownText(token: string): string {
+  return drafts[token] ?? displayed(token)
+}
+
+/** What the popover sends: the color in the chosen format, written as it changes. */
+function onPick(token: string, text: string): void {
+  delete drafts[token]
+  delete refused[token]
+  void changeThemeColor(token, text)
+}
+
+function onType(token: string, text: string | number): void {
+  drafts[token] = String(text)
+}
+
+/** Accepts what was typed when the field is left or Enter is pressed: checked, then written. */
+function accept(token: string): void {
+  const text = drafts[token]
+  if (text === undefined) return
+  const checked = checkThemeColor(text)
+  if (!checked.ok) {
+    refused[token] = checked.why
+    return
+  }
+  delete drafts[token]
+  delete refused[token]
+  // Written in the chosen format, and not at all when it is what the field already showed.
+  const written = formatColor(checked.value, format.value)
+  if (written !== displayed(token)) void changeThemeColor(token, written, true)
+}
+
+/** Whether two colors are the same one, whatever format each is written in. */
+function sameColor(a: string, b: string): boolean {
+  const first = tryParseColor(a)
+  const second = tryParseColor(b)
+  if (first === null || second === null) return a === b
+  return toHexString(first) === toHexString(second)
+}
+
+/** The palette's color for a token, when the file holds a different one: what Reset goes back to. */
+function resetTarget(token: string): string | null {
+  const own = user.value?.colors.get(token)
+  const base = user.value === null ? undefined : baseColorOf(user.value.base, token)
+  if (own === undefined || base === undefined || sameColor(own, base)) return null
+  return base
+}
+
+function reset(token: string): void {
+  const target = resetTarget(token)
+  if (target === null) return
+  delete drafts[token]
+  delete refused[token]
+  void changeThemeColor(token, formatColor(target, format.value), true)
+}
+
+function revert(token: string): void {
+  delete drafts[token]
+  delete refused[token]
+}
+
+/** The pairs of text and surface that are under their floor, as a line for each token in them. */
+const warnings = computed(() => {
+  const found = new Map<string, string[]>()
+  if (settings.themes.hideContrastWarnings) return found
+  for (const [text, surface, floor] of CONTRAST_PAIRS) {
+    const a = tryParseColor(valueOf(text))
+    const b = tryParseColor(valueOf(surface))
+    if (a === null || b === null) continue
+    const ratio = contrast(a, b)
+    if (ratio >= floor) continue
+    const line = `${labels.get(text) ?? text} on ${labels.get(surface) ?? surface}: contrast ${ratio.toFixed(2)}, it should be at least ${String(floor)}.`
+    for (const token of [text, surface]) found.set(token, [...(found.get(token) ?? []), line])
+  }
+  return found
+})
+
+/** Customize and Duplicate ask for the copy's name in the Themes list, which comes into view. */
+function customize(): void {
+  openThemeForm({ kind: 'copy' })
+}
+</script>
+
+<template>
+  <section
+    aria-label="Theme colors"
+    class="mt-4"
+    data-theme-colors
+  >
+    <div
+      v-if="user === null"
+      class="mt-2 flex flex-wrap items-center gap-3"
+      data-theme-builtin
+    >
+      <p class="min-w-0 flex-1 text-chrome text-muted-foreground">
+        {{ shown.label }} is built in and cannot be changed. Customize makes a copy in your themes
+        folder, selects it, and lets you change its colors here or in the file.
+      </p>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        data-theme-customize
+        @click="customize"
+      >
+        Customize
+      </Button>
+    </div>
+    <template v-else>
+      <div class="mt-2 flex flex-wrap items-center gap-3">
+        <p
+          class="min-w-0 flex-1 text-chrome text-muted-foreground"
+          data-theme-editing
+        >
+          Editing {{ user.label }} (themes/{{ user.id }}.json). A color is written to the file as
+          you change it.
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          data-theme-customize
+          @click="customize"
+        >
+          Duplicate
+        </Button>
+      </div>
+      <p
+        class="mt-3 text-sm text-foreground"
+        data-theme-base
+      >
+        Based on
+        <span
+          class="font-medium"
+          data-theme-base-name
+          >{{ baseName }}</span
+        >.
+        <span class="ml-1 text-xs text-muted-foreground"
+          >Fixed when the theme was made: a color the file leaves out comes from it.</span
+        >
+      </p>
+      <!-- What the Settings screen puts above the colors of a theme being edited. -->
+      <slot name="user-options" />
+      <div
+        v-for="group in THEME_GROUPS"
+        :key="group.id"
+        class="mt-6"
+        :data-theme-group="group.id"
+      >
+        <SubGroupHeading :level="3">{{ group.label }}</SubGroupHeading>
+        <div
+          v-for="token in tokensOf(group.id)"
+          :key="token.name"
+          class="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,19rem)] items-center gap-x-3 border-b border-border py-1.5"
+          :data-theme-token="token.name"
+        >
+          <div class="min-w-0">
+            <HoverHint
+              :text="usageOf(token.name)"
+              side="top"
+            >
+              <span
+                class="inline-block max-w-full cursor-default"
+                data-theme-token-label
+              >
+                <span class="text-sm text-foreground">{{ token.label }}</span>
+                <code class="ml-2 text-xs text-muted-foreground/80">--{{ token.name }}</code>
+              </span>
+            </HoverHint>
+            <HoverHint
+              v-if="resetTarget(token.name) !== null"
+              :text="`Reset to ${baseName}'s color`"
+            >
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                class="ml-1 align-middle"
+                :aria-label="`Reset ${token.label}`"
+                data-theme-reset
+                @click="reset(token.name)"
+              >
+                <RotateCcw />
+              </Button>
+            </HoverHint>
+          </div>
+          <ColorPicker
+            v-if="tryParseColor(valueOf(token.name)) !== null"
+            :value="valueOf(token.name)"
+            :label="token.label"
+            :format="format"
+            :swatch="`var(--${token.name})`"
+            @pick="(text: string) => onPick(token.name, text)"
+            @close="flushThemeColors()"
+          />
+          <span
+            v-else
+            class="relative size-7 shrink-0 rounded-md border border-border"
+            :style="{ backgroundColor: `var(--${token.name})` }"
+            aria-hidden="true"
+            data-theme-swatch
+          />
+          <Input
+            :model-value="shownText(token.name)"
+            :aria-label="token.label"
+            :aria-invalid="refused[token.name] !== undefined ? true : undefined"
+            class="font-mono text-xs"
+            data-theme-text
+            @update:model-value="(text: string | number) => onType(token.name, text)"
+            @change="accept(token.name)"
+            @keydown.enter="accept(token.name)"
+            @keydown.esc="revert(token.name)"
+          />
+          <p
+            v-if="refused[token.name] !== undefined"
+            role="alert"
+            class="col-span-full pb-1 text-xs text-destructive"
+            data-theme-error
+          >
+            {{ refused[token.name] }}
+          </p>
+          <p
+            v-for="line in warnings.get(token.name) ?? []"
+            :key="line"
+            role="status"
+            class="col-span-full pb-1 text-xs text-warning"
+            data-theme-warning
+          >
+            {{ line }}
+          </p>
+        </div>
+      </div>
+    </template>
+  </section>
+</template>

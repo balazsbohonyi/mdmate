@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  bindingFromEvent,
+  bindingText,
   canonicalKeybinding,
   detectPlatform,
   formatKeybinding,
@@ -136,5 +138,51 @@ describe('platform detection', () => {
     expect(detectPlatform()).toBe('other')
     vi.stubGlobal('navigator', undefined)
     expect(detectPlatform()).toBe('other')
+  })
+})
+
+describe('ISC-407: the shortcut an event records is matched by that same event', () => {
+  const cases: [string, KeyInput, 'mac' | 'other'][] = [
+    ['Shift with a digit', press('%', { code: 'Digit5', ctrlKey: true, shiftKey: true }), 'other'],
+    ['Alt with a digit', press('€', { code: 'Digit5', altKey: true }), 'other'],
+    [
+      'Alt and Shift with a digit',
+      press('%', { code: 'Digit5', altKey: true, shiftKey: true }),
+      'other',
+    ],
+    ['a function key alone', press('F5'), 'other'],
+    ['a function key with Shift', press('F12', { shiftKey: true }), 'other'],
+    ['Space', press(' ', { code: 'Space', ctrlKey: true }), 'other'],
+    ['an arrow with Mod and Shift', press('ArrowUp', { ctrlKey: true, shiftKey: true }), 'other'],
+    ['a capital letter held with Shift', press('K', { ctrlKey: true, shiftKey: true }), 'other'],
+    ['a symbol', press(',', { code: 'Comma', ctrlKey: true }), 'other'],
+    ['Cmd on a Mac', press('k', { metaKey: true }), 'mac'],
+    ['Cmd and Shift on a Mac', press('K', { metaKey: true, shiftKey: true }), 'mac'],
+  ]
+
+  it.each(cases)('%s', (_name, event, platform) => {
+    const binding = bindingFromEvent(event, platform)
+    expect(binding).not.toBeNull()
+    if (binding === null) return
+    expect(matchesKey(binding, event, platform)).toBe(true)
+    // What the file would hold reads back as the same shortcut.
+    expect(canonicalKeybinding(parseKeybinding(bindingText(binding)))).toBe(
+      canonicalKeybinding(binding),
+    )
+  })
+
+  it("is null for a modifier alone, an unnamed key and the other platform's modifier", () => {
+    expect(bindingFromEvent(press('Control', { ctrlKey: true }), 'other')).toBeNull()
+    expect(bindingFromEvent(press('Shift', { shiftKey: true }), 'other')).toBeNull()
+    expect(bindingFromEvent(press('Dead', { ctrlKey: true }), 'other')).toBeNull()
+    expect(bindingFromEvent(press('k', { ctrlKey: true }), 'mac')).toBeNull()
+    expect(bindingFromEvent(press('k', { metaKey: true }), 'other')).toBeNull()
+  })
+
+  it('writes a shortcut the way the file keeps it', () => {
+    expect(bindingText(parseKeybinding('shift+mod+b'))).toBe('Mod+Shift+B')
+    expect(bindingText(parseKeybinding('Alt+Shift+5'))).toBe('Alt+Shift+5')
+    expect(bindingText(parseKeybinding('mod+arrowup'))).toBe('Mod+ArrowUp')
+    expect(bindingText(parseKeybinding('f12'))).toBe('F12')
   })
 })

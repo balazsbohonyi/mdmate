@@ -5,7 +5,7 @@
  * contrast on a light page, and syntax colors at lower lightness. Nothing is taken from another
  * editor's theme. tests/styles/themes.test.ts pins the token names and checks contrast.
  */
-:root.light {
+:root[data-theme='light'] {
   color-scheme: light;
 
   --background: oklch(0.985 0.004 85);
@@ -23,9 +23,16 @@
   --accent: oklch(0.92 0.008 85);
   --accent-foreground: var(--foreground);
   --destructive: oklch(0.52 0.2 27);
+  --destructive-foreground: var(--background);
+  /* A hint that needs a second look but is not an error: a dark amber, readable on the page. */
+  --warning: oklch(0.55 0.12 68);
+  --success: oklch(0.5 0.13 150);
   --border: oklch(0.88 0.008 85);
   --input: oklch(0.84 0.01 85);
   --ring: var(--primary);
+  /* The tooltip surface: in light it is the popover color, as before (dark's is lighter than its page). */
+  --tooltip: var(--popover);
+  --tooltip-foreground: var(--foreground);
 
   --sidebar: oklch(0.965 0.005 85);
   --sidebar-foreground: oklch(0.3 0.012 262);

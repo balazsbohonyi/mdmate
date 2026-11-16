@@ -7,7 +7,7 @@
  * tests/styles/themes.test.ts pins that and checks contrast.
  */
 :root,
-:root.dark {
+:root[data-theme='dark'] {
   color-scheme: dark;
 
   /* Matches backgroundColor in src-tauri/tauri.conf.json, so launch has no color jump. A test pins the pair. */
@@ -26,9 +26,16 @@
   --accent: oklch(0.32 0.016 262);
   --accent-foreground: var(--foreground);
   --destructive: oklch(0.72 0.16 25);
+  --destructive-foreground: var(--background);
+  /* A hint that needs a second look but is not an error: amber, readable on the page. */
+  --warning: oklch(0.82 0.14 82);
+  --success: oklch(0.8 0.15 150);
   --border: oklch(0.33 0.014 262);
   --input: oklch(0.37 0.015 262);
   --ring: var(--primary);
+  /* The tooltip surface: lighter than the page in dark, darker in light, so a hint stands out from what is under it. */
+  --tooltip: oklch(0.37 0.016 262);
+  --tooltip-foreground: var(--foreground);
 
   --sidebar: oklch(0.21 0.012 262);
   --sidebar-foreground: oklch(0.86 0.01 262);

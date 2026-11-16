@@ -1,7 +1,10 @@
 import type { Endings } from '@/lib/endings'
 import { freeName, nameProblem } from '@/lib/fileNames'
 import type { LinksOnRename } from '@/lib/settings'
+import { checkFolderName, checkPasteFolder } from '@/lib/settingsFile'
+import { checkThemeName } from '@/lib/themeNames'
 import type {
+  AppliedSettings,
   DiskChange,
   Host,
   OpenedFile,
@@ -77,6 +80,18 @@ function hostError(kind: string, message: string): MockHostError {
   return new MockHostError(kind, message)
 }
 
+/** A theme file is not read, and not written, above this many characters (Rust: 256 KB). */
+const THEME_MAX_BYTES = 256 * 1024
+
+const themePath = (name: string): string => `${MOCK_THEMES_FOLDER}/${name}.json`
+
+/** The name when Rust would take it, or the error Rust gives for a name that is not a plain one. */
+function requireThemeName(name: string): string {
+  const checked = checkThemeName(name)
+  if (!checked.ok) throw hostError('invalid', `invalid request: theme name: ${checked.why}`)
+  return checked.value
+}
+
 /** Runs `run` and hands back what it returns, or what it throws, as a promise. */
 function attempt<T>(run: () => T): Promise<T> {
   try {
@@ -139,10 +154,26 @@ export interface MockHost extends Host {
   readonly copiedImages: string[]
   /** The `keep` lists `sweepDrafts` was called with, in order. */
   readonly sweeps: number[][]
+  /**
+   * What the page last told this host through `settingsApply`, as Rust would hold it, and how many
+   * times the developer tools were opened.
+   */
+  readonly runtime: {
+    values: AppliedSettings
+    /** Every set `settingsApply` accepted, in order. */
+    readonly calls: AppliedSettings[]
+    devtoolsOpened: number
+  }
 }
 
 /** Where the mock keeps the draft folders of untitled documents. */
 export const DRAFT_ROOT = '/mock-data/drafts'
+
+/** Where the mock keeps `settings.json`, in the same files the app can open as a tab. */
+export const MOCK_SETTINGS_FILE = '/mock-data/settings.json'
+export const MOCK_KEYBINDINGS_FILE = '/mock-data/keybindings.json'
+/** Where the mock keeps the user theme files, as Rust keeps them in the data folder. */
+export const MOCK_THEMES_FOLDER = '/mock-data/themes'
 
 /** The files of a draft's `assets` that can be copied: a name and one of the four extensions. */
 const DRAFT_IMAGE = /^[^/\\]+\.(?:png|jpg|gif|webp)$/i
@@ -264,6 +295,8 @@ export interface MockHostOptions {
    * to load.
    */
   readonly images?: Readonly<Record<string, { readonly url: string; readonly bytes: number }>>
+  /** Makes the Recycle Bin unavailable, as on a drive without one: deleting a theme fails and the file stays. */
+  readonly noRecycleBin?: boolean
 }
 
 /** What a file opens as, by name. Like Rust's `fs::kind`, and just as small. */
@@ -322,7 +355,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     return { name, reused: false }
   }
   /**
-   * Copies the images of draft `number` that `text` links to into `<folder>/assets`, under their own
+   * Copies the images of draft `number` that `text` links to into `<folder>/<imagesFolder>`, under their own
    * names when free and `-2`, `-3` when taken (a picture already there under another name is linked
    * instead), and returns the text with the renamed links updated. What Rust does for the first Save
    * As and for recovered text.
@@ -331,6 +364,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     number: number,
     text: string,
     folder: string,
+    imagesFolder = 'assets',
   ): { text: string; renamedImages: { from: string; to: string }[] } => {
     const source = `${draftFolder(number)}/assets`
     const names = (files.listDir(source) ?? [])
@@ -342,7 +376,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
       })
       .sort()
     const used = new Set(draftLinkUses(text, names).map((use) => use.name))
-    const target = `${folder}/assets`
+    const target = `${folder}/${imagesFolder}`
     const renamedImages: { from: string; to: string }[] = []
     for (const name of names.filter((candidate) => used.has(candidate))) {
       const dot = name.lastIndexOf('.')
@@ -358,10 +392,12 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
       )
       if (bytes !== undefined && !placed.reused)
         pastedImages.push({ path: `${target}/${placed.name}`, bytes: bytes.bytes })
-      if (placed.name !== name) renamedImages.push({ from: name, to: placed.name })
+      // A link is rewritten when its name or its folder differs from the draft's.
+      if (placed.name !== name || imagesFolder !== 'assets')
+        renamedImages.push({ from: name, to: placed.name })
     }
     const renames = new Map(renamedImages.map((image) => [image.from, image.to]))
-    return { text: rewriteDraftLinks(text, renames), renamedImages }
+    return { text: rewriteDraftLinks(text, renames, imagesFolder), renamedImages }
   }
   const recent = {
     files: [...(options.recent?.files ?? [])],
@@ -427,6 +463,17 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
   const pastedImages: { path: string; bytes: Uint8Array }[] = []
   const copiedImages: string[] = []
   const sweeps: number[][] = []
+  const runtime: MockHost['runtime'] = {
+    calls: [],
+    values: {
+      pasteFolder: 'assets',
+      recentFiles: 10,
+      recentFolders: 5,
+      excludedFolders: [],
+      devtools: false,
+    },
+    devtoolsOpened: 0,
+  }
   const trimmed = (path: string): string => pathKey(path).replace(/\/$/, '')
   const slashes = (path: string): string => path.replaceAll('\\', '/').replace(/\/$/, '')
   const parentOf = (path: string): string => slashes(path).split('/').slice(0, -1).join('/')
@@ -702,6 +749,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     pastedImages,
     copiedImages,
     sweeps,
+    runtime,
     files,
     openDocuments() {
       return new Map([...open].map(([id, doc]) => [id, doc.path]))
@@ -786,7 +834,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
       return attempt(() => {
         if (picked === null) return null
         const root = addRoot(picked)
-        remember(recent.folders, root, 5)
+        remember(recent.folders, root, runtime.values.recentFolders)
         return root
       })
     },
@@ -896,16 +944,19 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
         const data = new Uint8Array(bytes)
         const ext = sniffImageExtension(data)
         if (ext === null) throw hostError('invalid', 'not a PNG, JPEG, GIF or WebP image')
+        // An untitled document's draft has a folder of its own; a file's images go where
+        // `images.pasteFolder` says.
+        const images = number !== undefined ? 'assets' : runtime.values.pasteFolder
         const folder =
           number !== undefined
-            ? `${draftFolder(number)}/assets`
-            : `${parentOf(doc?.path ?? '')}/assets`
+            ? `${draftFolder(number)}/${images}`
+            : `${parentOf(doc?.path ?? '')}/${images}`
         // The same picture again is the file that is there; otherwise the first free name, and a
         // taken one is never replaced.
         const content = Array.from(data, (byte) => String.fromCharCode(byte)).join('')
         const placed = placeImage(folder, `image-${stamp}`, ext, content)
         if (!placed.reused) pastedImages.push({ path: `${folder}/${placed.name}`, bytes: data })
-        return { name: placed.name, link: `assets/${placed.name}` }
+        return { name: placed.name, link: `${images}/${placed.name}` }
       })
     },
     dropImage(id, path, stamp) {
@@ -922,7 +973,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
         // The copy keeps the file's own name, cleaned; a file with no usable name is named like
         // a pasted one. Unlike Rust the extension is the file's own: the mock's files are not
         // real images, so there are no bytes to read it from.
-        const copyOf = (folder: string): { link: string; copied: true } => {
+        const copyOf = (folder: string, images: string): { link: string; copied: true } => {
           const dot = nameOf(path).lastIndexOf('.')
           const own = safeStem(dot > 0 ? nameOf(path).slice(0, dot) : nameOf(path))
           if (own === '' && !/^\d{8}-\d{6}$/.test(stamp)) {
@@ -934,7 +985,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
                   .slice(dot + 1)
                   .toLowerCase()
               : 'png'
-          const target = `${folder}/assets`
+          const target = `${folder}/${images}`
           const placed = placeImage(
             target,
             own === '' ? `image-${stamp}` : own,
@@ -942,9 +993,9 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
             files.read(path) ?? '',
           )
           if (!placed.reused) copiedImages.push(`${target}/${placed.name}`)
-          return { link: `assets/${placed.name}`, copied: true }
+          return { link: `${images}/${placed.name}`, copied: true }
         }
-        if (number !== undefined) return copyOf(draftFolder(number))
+        if (number !== undefined) return copyOf(draftFolder(number), 'assets')
         const doc = open.get(id)
         if (doc === undefined) throw hostError('not-open', `no open document ${id}`)
         if (doc.readOnly !== null) throw hostError('read-only', 'it cannot be edited')
@@ -971,7 +1022,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
           ].join('/')
           return { link, copied: false }
         }
-        return copyOf(folder)
+        return copyOf(folder, runtime.values.pasteFolder)
       })
     },
     createFile(parent, name) {
@@ -1005,6 +1056,143 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     },
     linksOnRenameOverride() {
       return Promise.resolve(options.linksOnRename ?? null)
+    },
+    settingsRead() {
+      return attempt(() => files.read(MOCK_SETTINGS_FILE) ?? null)
+    },
+    settingsWrite(text) {
+      return attempt(() => {
+        files.write(MOCK_SETTINGS_FILE, text)
+      })
+    },
+    watchSettings(onChange) {
+      // Any change to the file, the page's own writes and a save of its tab included, as Rust's
+      // watcher reports them.
+      return Promise.resolve(
+        files.onChange((path) => {
+          if (pathKey(path) === pathKey(MOCK_SETTINGS_FILE)) onChange()
+        }),
+      )
+    },
+    settingsFile() {
+      return attempt(() => {
+        if (!files.has(MOCK_SETTINGS_FILE)) files.write(MOCK_SETTINGS_FILE, '{}\n')
+        return MOCK_SETTINGS_FILE
+      })
+    },
+    keybindingsRead() {
+      return attempt(() => files.read(MOCK_KEYBINDINGS_FILE) ?? null)
+    },
+    keybindingsWrite(text) {
+      return attempt(() => {
+        files.write(MOCK_KEYBINDINGS_FILE, text)
+      })
+    },
+    watchKeybindings(onChange) {
+      return Promise.resolve(
+        files.onChange((path) => {
+          if (pathKey(path) === pathKey(MOCK_KEYBINDINGS_FILE)) onChange()
+        }),
+      )
+    },
+    keybindingsFile() {
+      return attempt(() => {
+        if (!files.has(MOCK_KEYBINDINGS_FILE)) files.write(MOCK_KEYBINDINGS_FILE, '{}\n')
+        return MOCK_KEYBINDINGS_FILE
+      })
+    },
+    themesRead() {
+      return attempt(() => {
+        const listed = files.listDir(MOCK_THEMES_FOLDER) ?? []
+        return listed
+          .filter((entry) => entry.kind === 'file' && entry.name.endsWith('.json'))
+          .map((entry) => entry.name.slice(0, -'.json'.length))
+          .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+          .slice(0, 200)
+          .map((name) => {
+            const named = checkThemeName(name)
+            if (!named.ok) return { name, text: null, error: named.why }
+            const text = files.read(themePath(name)) ?? ''
+            return text.length > THEME_MAX_BYTES
+              ? { name, text: null, error: 'it is larger than 256 KB' }
+              : { name, text, error: null }
+          })
+      })
+    },
+    themeRead(name) {
+      return attempt(() => {
+        const path = themePath(requireThemeName(name))
+        return files.read(path) ?? null
+      })
+    },
+    themeWrite(name, text, create) {
+      return attempt(() => {
+        const path = themePath(requireThemeName(name))
+        if (text.length > THEME_MAX_BYTES)
+          throw hostError('invalid', `${name}.json would be larger than 256 KB`)
+        const exists = files.has(path)
+        if (create && exists) throw hostError('exists', `${name}.json already exists`)
+        if (!create && !exists) throw hostError('not-found', `${name}.json was not found`)
+        files.write(path, text)
+      })
+    },
+    themeRename(from, to) {
+      return attempt(() => {
+        const source = themePath(requireThemeName(from))
+        const target = themePath(requireThemeName(to))
+        if (!files.has(source)) throw hostError('not-found', `${from}.json was not found`)
+        if (from === to) return
+        if (files.has(target) && from.toLowerCase() !== to.toLowerCase())
+          throw hostError('exists', `${to}.json already exists`)
+        files.move(source, target)
+      })
+    },
+    themeDelete(name) {
+      return attempt(() => {
+        const path = themePath(requireThemeName(name))
+        if (!files.has(path)) throw hostError('not-found', `${name}.json was not found`)
+        if (options.noRecycleBin === true)
+          throw hostError('io', 'There is no Recycle Bin for this drive.')
+        recycled.push(...files.remove(path))
+      })
+    },
+    watchThemes(onChange) {
+      const prefix = `${pathKey(MOCK_THEMES_FOLDER)}/`
+      return Promise.resolve(
+        files.onChange((path) => {
+          if (pathKey(path).startsWith(prefix)) onChange()
+        }),
+      )
+    },
+    themesFolderOpen() {
+      return attempt(() => {
+        files.mkdir(MOCK_THEMES_FOLDER)
+        openedFolders.push(MOCK_THEMES_FOLDER)
+      })
+    },
+    settingsApply(values) {
+      return attempt(() => {
+        // Rust checks again with the same rules and applies all of it or none of it.
+        const folder = checkPasteFolder(values.pasteFolder)
+        if (!folder.ok) throw hostError('invalid', `images.pasteFolder: ${folder.why}`)
+        const caps = [values.recentFiles, values.recentFolders]
+        if (caps.some((cap) => !Number.isInteger(cap) || cap < 0 || cap > 50))
+          throw hostError('invalid', 'recent: use a number from 0 to 50')
+        if (values.excludedFolders.some((name) => !checkFolderName(name).ok))
+          throw hostError('invalid', 'workspace.excludedFolders: use a folder name, not a path')
+        runtime.values = { ...values, pasteFolder: folder.value }
+        runtime.calls.push(runtime.values)
+        // Lowering a limit shows at once.
+        recent.files.length = Math.min(recent.files.length, values.recentFiles)
+        recent.folders.length = Math.min(recent.folders.length, values.recentFolders)
+      })
+    },
+    devtoolsOpen() {
+      return attempt(() => {
+        if (!runtime.values.devtools)
+          throw hostError('not-allowed', 'the developer tools while the setting is off')
+        runtime.devtoolsOpened += 1
+      })
     },
     rewritePlan(path, change, buffers, onProgress) {
       return planRewrite(path, change, buffers, onProgress)
@@ -1280,7 +1468,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
       // Like Rust: a file that is already open keeps what the host recorded for it. The page holds
       // the text it read earlier, and decides what the fresh content means.
       // Like Rust, a file the user chose goes on the recent list every time, open already or not.
-      if (rememberIt === true) remember(recent.files, canonical, 10)
+      if (rememberIt === true) remember(recent.files, canonical, runtime.values.recentFiles)
       const existing = open.get(id)
       if (existing !== undefined) return Promise.resolve(describe(id, existing, raw))
       const readOnly: ReadOnlyReason | null = files.isUnsupported(canonical)
@@ -1345,6 +1533,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
           encoding: 'utf-8',
           bom: false,
           renamedImages: [],
+          imagesFolder: 'assets',
         }))
       }
       const other = ids.get(key)
@@ -1364,8 +1553,10 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
       // file first, a taken name is not overwritten, and the links in what is written follow.
       let renamedImages: { from: string; to: string }[] = []
       let written = text
+      let imagesFolder = 'assets'
       if (number !== undefined) {
-        const adopted = adoptDraftImages(number, text, parentOf(canonical))
+        imagesFolder = runtime.values.pasteFolder
+        const adopted = adoptDraftImages(number, text, parentOf(canonical), imagesFolder)
         renamedImages = adopted.renamedImages
         written = adopted.text
         files.remove(draftFolder(number))
@@ -1387,7 +1578,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
         doc.reported = null
       }
       ids.set(key, id)
-      remember(recent.files, canonical, 10)
+      remember(recent.files, canonical, runtime.values.recentFiles)
       return Promise.resolve({
         path: canonical,
         name: nameOf(canonical),
@@ -1397,6 +1588,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
         encoding: 'utf-8',
         bom: false,
         renamedImages,
+        imagesFolder,
       })
     },
     documentExists(id) {
@@ -1406,8 +1598,10 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     },
     recentList() {
       return Promise.resolve({
-        files: recent.files.filter((path) => files.has(path)),
-        folders: recent.folders.filter((path) => files.isFolder(path)),
+        files: recent.files.filter((path) => files.has(path)).slice(0, runtime.values.recentFiles),
+        folders: recent.folders
+          .filter((path) => files.isFolder(path))
+          .slice(0, runtime.values.recentFolders),
       })
     },
     recentClear() {
@@ -1421,7 +1615,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
       if (entry === undefined) {
         return Promise.reject(hostError('not-allowed', `access to ${path} is not allowed`))
       }
-      remember(recent.files, entry, 10)
+      remember(recent.files, entry, runtime.values.recentFiles)
       return Promise.resolve(entry)
     },
     recentOpenFolder(path) {
@@ -1432,7 +1626,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
       }
       return attempt(() => {
         const root = addRoot(entry)
-        remember(recent.folders, root, 5)
+        remember(recent.folders, root, runtime.values.recentFolders)
         return root
       })
     },

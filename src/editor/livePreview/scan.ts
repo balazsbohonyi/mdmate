@@ -58,6 +58,8 @@ export const classes = {
   emphasis: 'cm-md-em',
   strike: 'cm-md-strike',
   code: 'cm-md-code',
+  /** The part of an inline code span a selection covers: no background, the text's own color. */
+  codeSelected: 'cm-md-code cm-md-code-selected',
   link: 'cm-md-link',
   listMark: 'cm-md-list-mark',
   quote: 'cm-md-quote',
@@ -82,6 +84,44 @@ export function touched(ranges: readonly SelectionRange[], from: number, to: num
     if (range.from <= to && range.to >= from) return true
   }
   return false
+}
+
+/** The parts of `[from, to]` a non-empty selection range covers, in order, overlapping ones joined. */
+export function selectedParts(
+  ranges: readonly SelectionRange[],
+  from: number,
+  to: number,
+): [number, number][] {
+  const parts: [number, number][] = []
+  for (const range of [...ranges].sort((a, b) => a.from - b.from)) {
+    const start = Math.max(range.from, from)
+    const end = Math.min(range.to, to)
+    if (start >= end) continue
+    const last = parts[parts.length - 1]
+    if (last !== undefined && start <= last[1]) last[1] = Math.max(last[1], end)
+    else parts.push([start, end])
+  }
+  return parts
+}
+
+/**
+ * An inline code span, in two looks: its own, and (where a selection covers it) the selected one.
+ * The background of the span would hide the selection drawn behind the text, so the covered part
+ * is cut out of the span and drawn without it; the rest keeps its background.
+ */
+function codeMarks(
+  items: PreviewItem[],
+  selection: readonly SelectionRange[],
+  from: number,
+  to: number,
+): void {
+  let at = from
+  for (const [start, end] of selectedParts(selection, from, to)) {
+    if (start > at) items.push({ type: 'mark', from: at, to: start, class: classes.code })
+    items.push({ type: 'mark', from: start, to: end, class: classes.codeSelected })
+    at = end
+  }
+  if (at < to) items.push({ type: 'mark', from: at, to, class: classes.code })
 }
 
 /** The first number in `[from, limit)` after a run of spaces and tabs that starts at `from`. */
@@ -303,7 +343,8 @@ export function scanPreview(
 
         const wrap = wrapped[name]
         if (wrap !== undefined) {
-          items.push({ type: 'mark', from: node.from, to: node.to, class: wrap.class })
+          if (name === 'InlineCode') codeMarks(items, selection, node.from, node.to)
+          else items.push({ type: 'mark', from: node.from, to: node.to, class: wrap.class })
           // The markers show while the caret is in the element, edges included.
           if (touched(selection, node.from, node.to)) return
           for (let child = node.node.firstChild; child; child = child.nextSibling) {

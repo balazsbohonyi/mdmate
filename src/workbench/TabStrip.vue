@@ -118,7 +118,7 @@ function run(action: () => Promise<unknown> | void): void {
 <template>
   <div
     data-tab-strip
-    class="flex h-tabstrip shrink-0 items-stretch border-b border-border bg-tabstrip select-none"
+    class="flex h-tabstrip shrink-0 items-stretch border-b border-border bg-tabstrip text-tab-foreground select-none"
   >
     <div
       ref="scroller"
@@ -234,7 +234,7 @@ function run(action: () => Promise<unknown> | void): void {
           aria-label="New file"
           data-new-tab
           tabindex="-1"
-          class="flex size-6 items-center justify-center rounded-sm text-tab-foreground hover:bg-accent hover:text-foreground"
+          class="flex size-6 items-center justify-center rounded-sm text-tab-foreground hover:bg-accent hover:text-accent-foreground"
           @click="emit('new')"
         >
           <Plus class="size-4" />
@@ -257,7 +257,7 @@ function run(action: () => Promise<unknown> | void): void {
                 aria-label="Open tabs"
                 data-tab-list
                 tabindex="-1"
-                class="flex size-6 items-center justify-center rounded-sm text-tab-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent"
+                class="flex size-6 items-center justify-center rounded-sm text-tab-foreground hover:bg-accent hover:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
               >
                 <ChevronDown class="size-4" />
               </button>

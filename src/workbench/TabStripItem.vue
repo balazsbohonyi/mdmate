@@ -78,7 +78,7 @@ function onPointerDown(event: PointerEvent): void {
         type="button"
         aria-label="Close tab"
         tabindex="-1"
-        class="flex size-5 items-center justify-center rounded-sm opacity-0 group-hover:opacity-100 hover:bg-accent"
+        class="flex size-5 items-center justify-center rounded-sm opacity-0 group-hover:opacity-100 hover:bg-accent hover:text-accent-foreground"
         :class="[
           { 'opacity-100': active && !tab.dirty },
           tab.dirty ? 'hidden group-hover:flex' : '',

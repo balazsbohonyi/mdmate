@@ -117,7 +117,7 @@ function onKeydown(event: KeyboardEvent): void {
         <button
           type="button"
           aria-label="Close references"
-          class="ml-auto flex size-5 cursor-default items-center justify-center rounded-sm hover:bg-accent"
+          class="ml-auto flex size-5 cursor-default items-center justify-center rounded-sm hover:bg-accent hover:text-accent-foreground"
           @click="closeReferences"
         >
           <X
@@ -149,7 +149,7 @@ function onKeydown(event: KeyboardEvent): void {
       :aria-valuenow="sidebarWidth ?? SIDEBAR_DEFAULT"
       tabindex="0"
       data-sidebar-handle
-      class="absolute inset-y-0 -right-0.5 z-10 w-1 cursor-col-resize touch-none outline-none hover:bg-ring/40 focus-visible:bg-ring/60 active:bg-ring/60"
+      class="absolute inset-y-0 -right-0.5 z-10 w-1 cursor-col-resize touch-none bg-handle outline-none hover:bg-handle-active focus-visible:bg-handle-active active:bg-handle-active"
       @pointerdown="startDrag"
       @pointermove="moveDrag"
       @pointerup="endDrag"

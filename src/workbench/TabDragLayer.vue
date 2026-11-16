@@ -2,7 +2,11 @@
 import { computed } from 'vue'
 import { tabDrag } from './tabDrag'
 
-/** The drop preview, as inline geometry. An insertion bar in a strip is solid, a pane preview is a tint. */
+/**
+ * The drop preview, as inline geometry. An insertion bar in a strip is solid, a pane preview is a
+ * tint with no border. It jumps from one target to the next: a glide was tried and the owner did not
+ * like it, so nothing here may carry a transition.
+ */
 const preview = computed(() => {
   const target = tabDrag.value?.target
   if (!target) return null
@@ -41,7 +45,7 @@ const labelStyle = computed(() => {
     <div
       v-if="preview"
       class="pointer-events-none fixed"
-      :class="preview.solid ? 'bg-primary' : 'border border-primary bg-drop-preview'"
+      :class="preview.solid ? 'bg-primary' : 'bg-drop-preview'"
       :style="preview.style"
       data-drop-preview
     />

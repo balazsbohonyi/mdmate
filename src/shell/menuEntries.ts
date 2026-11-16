@@ -1,5 +1,5 @@
 import { clearRecent, openRecentFile, openRecentFolder, recentLists } from '@/documents/recent'
-import { getCommand, isCommandEnabled, shortcutLabel } from '@/workbench/commands'
+import { commandState, getCommand, isCommandEnabled, shortcutLabel } from '@/workbench/commands'
 import { COMMAND_IDS } from '@/workbench/defaultCommands'
 import { detectPlatform, type Platform } from '@/workbench/keybinding'
 
@@ -15,6 +15,8 @@ export interface MenuItem {
   /** Smaller text after the label, such as the folder of a recent file. */
   readonly detail?: string
   readonly disabled?: boolean
+  /** For a toggle: whether it is on. The menu shows On or Off. */
+  readonly state?: boolean
   readonly run?: () => Promise<void>
 }
 
@@ -61,6 +63,12 @@ const MENU_LAYOUT: readonly string[] = [
   COMMAND_IDS.toggleSidebar,
   COMMAND_IDS.showOutline,
   COMMAND_IDS.toggleRawSource,
+  COMMAND_IDS.toggleWordWrap,
+  '-',
+  COMMAND_IDS.openSettings,
+  COMMAND_IDS.openSettingsFile,
+  COMMAND_IDS.switchTheme,
+  COMMAND_IDS.toggleDevtools,
   '-',
   COMMAND_IDS.exit,
 ]
@@ -132,11 +140,13 @@ export function buildMenuEntries(platform: Platform = detectPlatform()): readonl
     const command = getCommand(id)
     if (command === undefined) continue
     const shortcut = shortcutLabel(id, platform)
+    const state = commandState(id)
     entries.push({
       kind: 'item',
       id,
       label: command.title,
       ...(shortcut === undefined ? {} : { shortcut }),
+      ...(state === undefined ? {} : { state }),
       disabled: !isCommandEnabled(id),
     })
   }

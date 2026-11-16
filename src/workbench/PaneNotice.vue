@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { docMeta } from '@/documents/meta'
-import { LARGE_FILE_NOTICE } from '@/documents/largeFile'
+import { largeFileNotice } from '@/documents/largeFile'
 import {
   pendingClose,
   pendingRevert,
@@ -48,7 +48,7 @@ function resolve(choice: 'save' | 'discard' | 'cancel'): void {
   <div
     v-if="closing"
     role="alert"
-    class="flex shrink-0 items-center gap-3 border-b border-border bg-muted px-3 py-1.5 text-chrome"
+    class="flex shrink-0 items-center gap-3 border-b border-border bg-muted px-3 py-1.5 text-chrome text-muted-foreground"
   >
     <span class="min-w-0 flex-1 truncate">
       Save the changes to {{ meta?.name }} before closing?
@@ -61,21 +61,21 @@ function resolve(choice: 'save' | 'discard' | 'cancel'): void {
     </span>
     <button
       type="button"
-      class="rounded-sm px-2 py-0.5 hover:bg-accent"
+      class="rounded-sm px-2 py-0.5 hover:bg-accent hover:text-accent-foreground"
       @click="resolve('save')"
     >
       Save
     </button>
     <button
       type="button"
-      class="rounded-sm px-2 py-0.5 hover:bg-accent"
+      class="rounded-sm px-2 py-0.5 hover:bg-accent hover:text-accent-foreground"
       @click="resolve('discard')"
     >
       Don't save
     </button>
     <button
       type="button"
-      class="rounded-sm px-2 py-0.5 hover:bg-accent"
+      class="rounded-sm px-2 py-0.5 hover:bg-accent hover:text-accent-foreground"
       @click="resolve('cancel')"
     >
       Cancel
@@ -85,21 +85,21 @@ function resolve(choice: 'save' | 'discard' | 'cancel'): void {
     v-if="reverting"
     role="alert"
     data-testid="revert-confirm"
-    class="flex shrink-0 items-center gap-3 border-b border-border bg-muted px-3 py-1.5 text-chrome"
+    class="flex shrink-0 items-center gap-3 border-b border-border bg-muted px-3 py-1.5 text-chrome text-muted-foreground"
   >
     <span class="min-w-0 flex-1 truncate">
       Throw away your changes to {{ meta?.name }} and reload it from disk?
     </span>
     <button
       type="button"
-      class="rounded-sm px-2 py-0.5 hover:bg-accent"
+      class="rounded-sm px-2 py-0.5 hover:bg-accent hover:text-accent-foreground"
       @click="revert('revert')"
     >
       Revert
     </button>
     <button
       type="button"
-      class="rounded-sm px-2 py-0.5 hover:bg-accent"
+      class="rounded-sm px-2 py-0.5 hover:bg-accent hover:text-accent-foreground"
       @click="revert('cancel')"
     >
       Cancel
@@ -109,19 +109,19 @@ function resolve(choice: 'save' | 'discard' | 'cancel'): void {
     v-if="asking !== null"
     role="alert"
     data-testid="link-confirm"
-    class="flex shrink-0 items-center gap-3 border-b border-border bg-muted px-3 py-1.5 text-chrome"
+    class="flex shrink-0 items-center gap-3 border-b border-border bg-muted px-3 py-1.5 text-chrome text-muted-foreground"
   >
     <span class="min-w-0 flex-1 truncate"> Open {{ asking.path }} in its default app? </span>
     <button
       type="button"
-      class="rounded-sm px-2 py-0.5 hover:bg-accent"
+      class="rounded-sm px-2 py-0.5 hover:bg-accent hover:text-accent-foreground"
       @click="answer('open')"
     >
       Open
     </button>
     <button
       type="button"
-      class="rounded-sm px-2 py-0.5 hover:bg-accent"
+      class="rounded-sm px-2 py-0.5 hover:bg-accent hover:text-accent-foreground"
       @click="answer('cancel')"
     >
       Cancel
@@ -131,21 +131,21 @@ function resolve(choice: 'save' | 'discard' | 'cancel'): void {
     v-if="conflict !== null"
     role="alert"
     data-testid="conflict-notice"
-    class="flex shrink-0 items-center gap-3 border-b border-border bg-muted px-3 py-1.5 text-chrome"
+    class="flex shrink-0 items-center gap-3 border-b border-border bg-muted px-3 py-1.5 text-chrome text-muted-foreground"
   >
     <span class="min-w-0 flex-1 truncate">
       {{ meta?.name }} changed on disk, and you have edits the disk does not have.
     </span>
     <button
       type="button"
-      class="rounded-sm px-2 py-0.5 hover:bg-accent"
+      class="rounded-sm px-2 py-0.5 hover:bg-accent hover:text-accent-foreground"
       @click="settle('mine')"
     >
       Keep mine
     </button>
     <button
       type="button"
-      class="rounded-sm px-2 py-0.5 hover:bg-accent"
+      class="rounded-sm px-2 py-0.5 hover:bg-accent hover:text-accent-foreground"
       @click="settle('theirs')"
     >
       Load theirs
@@ -155,14 +155,14 @@ function resolve(choice: 'save' | 'discard' | 'cancel'): void {
     v-if="!closing && meta?.plainSource && meta.kind === 'markdown'"
     role="status"
     data-testid="large-file-notice"
-    class="shrink-0 border-b border-border bg-muted px-3 py-1.5 text-chrome"
+    class="shrink-0 border-b border-border bg-muted px-3 py-1.5 text-chrome text-muted-foreground"
   >
-    {{ LARGE_FILE_NOTICE }}
+    {{ largeFileNotice() }}
   </div>
   <div
     v-if="!closing && conflict === null && meta?.readOnly"
     role="status"
-    class="shrink-0 border-b border-border bg-muted px-3 py-1.5 text-chrome"
+    class="shrink-0 border-b border-border bg-muted px-3 py-1.5 text-chrome text-muted-foreground"
   >
     Read-only:
     {{

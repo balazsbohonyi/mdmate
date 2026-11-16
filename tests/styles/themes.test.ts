@@ -1,7 +1,8 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { contrast, inGamut, parseColor } from './color'
+import { contrast, inGamut, parseColor } from '@/lib/color'
+import { CONTRAST_PAIRS, THEME_TOKEN_NAMES } from '@/lib/themeTokens'
 
 const root = resolve(import.meta.dirname, '../..')
 
@@ -18,8 +19,20 @@ function declarations(css: string): Map<string, string> {
   return found
 }
 
-const dark = declarations(read('src/styles/themes/dark.css'))
-const light = declarations(read('src/styles/themes/light.css'))
+/** Every theme stylesheet in src/styles/themes, found by listing the folder: a new file is held to all of this. */
+const themeFiles = readdirSync(resolve(root, 'src/styles/themes'))
+  .filter((file) => file.endsWith('.css'))
+  .sort()
+const themes = new Map(
+  themeFiles.map((file) => [file.replace(/\.css$/, ''), read(`src/styles/themes/${file}`)]),
+)
+const parsed = new Map([...themes].map(([name, css]) => [name, declarations(css)]))
+const dark = parsed.get('dark') ?? new Map<string, string>()
+
+/** `light` or `dark`, as the file says in its `color-scheme` line. */
+const schemeOf = (name: string): string =>
+  /color-scheme:\s*(light|dark)/.exec(themes.get(name) ?? '')?.[1] ?? ''
+
 const tokensCss = read('src/styles/tokens.css')
 
 /** The `--color-x: var(--x)` lines of the `@theme inline` block: Tailwind utility to theme token. */
@@ -43,11 +56,28 @@ function resolveToken(theme: Map<string, string>, name: string): string {
   throw new Error(`Cannot resolve ${name}`)
 }
 
-const themes = { dark, light } as const
-
 describe('theme files', () => {
-  it('define exactly the same tokens in dark and light', () => {
-    expect([...light.keys()].sort()).toEqual([...dark.keys()].sort())
+  it('are dark, light and sepia, and no other file sits in the folder', () => {
+    expect([...themes.keys()]).toEqual(['dark', 'light', 'sepia'])
+  })
+
+  it('define exactly the same tokens in every theme, and exactly the tokens the editor lists', () => {
+    for (const [name, tokens] of parsed) {
+      expect([name, [...tokens.keys()].sort()]).toEqual([
+        name,
+        [...THEME_TOKEN_NAMES].map((token) => `--${token}`).sort(),
+      ])
+    }
+  })
+
+  it('give each theme its own color-scheme, and its own data-theme selector', () => {
+    for (const [name, css] of themes) {
+      expect(schemeOf(name)).toMatch(/^(light|dark)$/)
+      expect(css).toContain(`[data-theme='${name}']`)
+    }
+    expect(schemeOf('dark')).toBe('dark')
+    expect(schemeOf('light')).toBe('light')
+    expect(schemeOf('sepia')).toBe('light')
   })
 
   it('map every color token to a Tailwind utility, and every utility to a real token', () => {
@@ -76,43 +106,17 @@ describe('theme files', () => {
   it('start on the dark theme when the page has no theme class', () => {
     const html = readFileSync(resolve(root, 'index.html'), 'utf8')
     expect(html).toMatch(/<html[^>]*class="dark"/)
+    expect(html).toMatch(/<html[^>]*data-theme="dark"/)
   })
 })
 
-/** [foreground token, background token, minimum contrast]. Dim-by-design marks only need 3. */
-const PAIRS: [string, string, number][] = [
-  ['--foreground', '--background', 7],
-  ['--muted-foreground', '--background', 4.5],
-  ['--muted-foreground', '--muted', 4.5],
-  ['--card-foreground', '--card', 4.5],
-  ['--popover-foreground', '--popover', 4.5],
-  ['--primary-foreground', '--primary', 4.5],
-  ['--secondary-foreground', '--secondary', 4.5],
-  ['--accent-foreground', '--accent', 4.5],
-  ['--primary', '--background', 4.5],
-  ['--destructive', '--background', 4.5],
-  ['--sidebar-foreground', '--sidebar', 4.5],
-  ['--sidebar-accent-foreground', '--sidebar-accent', 4.5],
-  ['--titlebar-foreground', '--titlebar', 4.5],
-  ['--tab-foreground', '--tabstrip', 4.5],
-  ['--tab-active-foreground', '--tab-active', 7],
-  ['--statusbar-foreground', '--statusbar', 4.5],
-  ['--syntax-heading', '--background', 4.5],
-  ['--syntax-link', '--background', 4.5],
-  ['--syntax-code', '--syntax-code-background', 4.5],
-  ['--syntax-quote', '--background', 4.5],
-  ['--syntax-keyword', '--background', 4.5],
-  ['--syntax-string', '--background', 4.5],
-  ['--syntax-number', '--background', 4.5],
-  ['--syntax-function', '--background', 4.5],
-  ['--syntax-type', '--background', 4.5],
-  ['--syntax-punctuation', '--background', 4.5],
-  ['--syntax-invalid', '--background', 4.5],
-  ['--syntax-marker', '--background', 3],
-  ['--syntax-comment', '--background', 3],
-]
+const PAIRS: [string, string, number][] = CONTRAST_PAIRS.map(([fg, bg, min]) => [
+  `--${fg}`,
+  `--${bg}`,
+  min,
+])
 
-describe.each(Object.entries(themes))('%s theme colors', (_name, theme) => {
+describe.each([...parsed])('%s theme colors', (name, theme) => {
   it('stay inside the sRGB gamut, so the browser shows the colors as written', () => {
     const outside: string[] = []
     for (const token of theme.keys()) {
@@ -144,5 +148,40 @@ describe.each(Object.entries(themes))('%s theme colors', (_name, theme) => {
     const editor = parseColor(resolveToken(theme, '--background'))
     expect(contrast(idle, active)).toBeGreaterThan(1.03)
     expect(contrast(sidebar, editor)).toBeGreaterThan(1.03)
+  })
+
+  it('give a tooltip its own surface: lighter than the page in a dark theme, the popover color in a light one', () => {
+    if (schemeOf(name) === 'light') {
+      expect(resolveToken(theme, '--tooltip')).toBe(resolveToken(theme, '--popover'))
+      return
+    }
+    const white = parseColor('#ffffff')
+    const tooltip = parseColor(resolveToken(theme, '--tooltip'))
+    const page = parseColor(resolveToken(theme, '--background'))
+    expect(contrast(tooltip, page)).toBeGreaterThan(1.15)
+    // Contrast against white falls as a color gets lighter.
+    expect(contrast(tooltip, white)).toBeLessThan(contrast(page, white))
+  })
+})
+
+describe('the Sepia theme (ISC-446)', () => {
+  const sepia = parsed.get('sepia') ?? new Map<string, string>()
+  const others = [parsed.get('dark'), parsed.get('light')]
+
+  it('takes MarkdownWeave’s cream page and brown text', () => {
+    expect(sepia.get('--background')?.toLowerCase()).toBe('#fdf6e3')
+    expect(sepia.get('--foreground')?.toLowerCase()).toBe('#3b2f1e')
+  })
+
+  it('has a color of its own for every token it writes as a color, the warning and syntax colors included', () => {
+    const copied: string[] = []
+    for (const [token, value] of sepia) {
+      if (value.startsWith('var(')) continue
+      for (const other of others) if (other?.get(token) === value) copied.push(`${token}: ${value}`)
+    }
+    expect(copied).toEqual([])
+    for (const token of ['--warning', '--syntax-keyword', '--syntax-string', '--syntax-comment']) {
+      expect(sepia.get(token), token).toMatch(/^(#|oklch\()/)
+    }
   })
 })

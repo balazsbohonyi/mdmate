@@ -45,6 +45,10 @@ pub(crate) struct SavedAs {
     /// there. The text was written with their links already updated; the page makes the same change
     /// to what it holds.
     pub(crate) renamed_images: Vec<RenamedImage>,
+    /// The folder those images are in now, beside the file (`assets` unless `images.pasteFolder`
+    /// says otherwise). Their links in the text point there already; the page changes what it
+    /// holds the same way.
+    pub(crate) images_folder: String,
 }
 
 /// An image whose file name changed on its way from the draft folder to the saved file's folder.
@@ -215,12 +219,14 @@ pub(crate) fn save_as(
     // beside the new file first, so the links resolve the moment it is on disk; a name that is taken
     // there is not overwritten, and its link in the text is updated.
     let number = state.documents().untitled_number(id);
+    let images_folder = state.runtime().paste_folder();
     let adopted = match (number, target.parent()) {
         (Some(number), Some(folder)) => Some(drafts::adopt(
             state.drafts(),
             number,
             frame.text,
             folder,
+            &images_folder,
             state.ignore_case(),
         )?),
         _ => None,
@@ -272,6 +278,7 @@ pub(crate) fn save_as(
         state.drafts().remove(number);
     }
     if let Some(adopted) = adopted {
+        saved.images_folder = images_folder;
         saved.renamed_images = adopted
             .renames
             .into_iter()
@@ -294,6 +301,7 @@ fn described(path: &Path, hash: u128, size: u64, format: Format) -> SavedAs {
         encoding: format.encoding.name(),
         bom: format.bom,
         renamed_images: Vec::new(),
+        images_folder: crate::images::IMAGES_FOLDER.to_owned(),
     }
 }
 
@@ -795,6 +803,49 @@ mod tests {
         // The draft folder is gone, and the document is an ordinary one now.
         assert!(!state.drafts().exists(1));
         assert!(!state.documents().is_untitled(id));
+    }
+
+    #[test]
+    fn draft_images_first_save_as_goes_to_the_paste_folder_setting_and_the_links_follow() {
+        let dir = temp();
+        let (state, id) = with_draft(&dir.path, 1);
+        draft_image(&state, 1, "image-20261113-153000.png", PNG);
+        state.runtime().set_paste_folder("media/img");
+        let target_folder = dir.path.join("notes");
+        std::fs::create_dir_all(&target_folder).expect("target");
+        let target = target_folder.join("doc.md");
+        let text =
+            "![a](assets/image-20261113-153000.png) and ![](./assets/image-20261113-153000.png)
+";
+        let saved = save_as(
+            &state,
+            id,
+            &frame_for(text, &lf(), "doc.md"),
+            &|_: &SaveRequest| Some(target.clone()),
+        )
+        .expect("saves")
+        .expect("not cancelled");
+
+        assert!(
+            target_folder
+                .join("media")
+                .join("img")
+                .join("image-20261113-153000.png")
+                .is_file()
+        );
+        assert!(!target_folder.join("assets").exists());
+        assert_eq!(
+            std::fs::read_to_string(&target).expect("the file"),
+            "![a](media/img/image-20261113-153000.png) and ![](./media/img/image-20261113-153000.png)
+"
+        );
+        assert_eq!(saved.images_folder, "media/img");
+        assert_eq!(
+            saved.renamed_images.len(),
+            1,
+            "the link changes though the name does not"
+        );
+        assert_eq!(saved.renamed_images[0].from, saved.renamed_images[0].to);
     }
 
     #[test]
