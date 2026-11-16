@@ -12,20 +12,22 @@ export const THEME_TOKEN_USAGE: Readonly<Record<string, string>> = {
     'The page behind everything: the editor, empty panes, and the fill of most fields and screens.',
   foreground:
     'The main text color: document text, labels, and any text that has no more specific color.',
-  card: 'The surface of the theme rows in Settings.',
-  'card-foreground': 'Text on a card, the theme rows in Settings.',
+  card: 'The panel of the New theme form in Settings.',
+  'card-foreground': 'Text on a card: the New theme form.',
   popover:
-    'The surface of anything that floats: menus, dropdowns, the command palette, the color picker, dialogs and toasts.',
+    'The surface of anything that floats: menus, dropdowns, the command palette, the color picker, dialogs, toasts and the label that follows a dragged tab.',
   'popover-foreground':
     'Text on floating surfaces: menu items, dialog text, the palette and toasts.',
   primary:
-    "The brand color: default buttons, a switch that is on, the chosen option of a toggle, Settings headings, the unsaved-changes dot, the focused tab's top line, task checkboxes and the tab drop bar.",
+    'The brand color: default buttons, a switch that is on, the chosen option of a toggle, Settings headings, the unsaved-changes dot, the top line of the active tab in the focused pane, task checkboxes and the tab drop bar.',
   'primary-foreground':
     'Text and icons on the primary color: the label of a default button and of the chosen option in a toggle.',
-  secondary: 'The fill of secondary buttons.',
-  'secondary-foreground': 'Text on secondary buttons.',
+  secondary:
+    'The fill of secondary buttons. No screen of the app has one yet; only the Theme preview shows it.',
+  'secondary-foreground':
+    'Text on secondary buttons. No screen of the app has one yet; only the Theme preview shows it.',
   muted:
-    "A quiet surface: notices above a pane, the find bar, Settings chips, markdown table headers, the front matter pill and the color picker's panels.",
+    'A quiet surface: notices above a pane, the find bar, notices and chips in Settings, markdown table headers, the front matter pill, the strip at the foot of a dialog, and the checkerboard behind a translucent color.',
   'muted-foreground':
     'Secondary text: descriptions, hints, keyboard shortcuts, and text on a muted surface.',
   accent:
@@ -33,7 +35,7 @@ export const THEME_TOKEN_USAGE: Readonly<Record<string, string>> = {
   'accent-foreground':
     'Text and icons on the accent color: what a hovered button or a highlighted menu item shows.',
   destructive:
-    'Errors and dangerous actions: error text, an invalid field border, the red button, and the fill of the close-window button on hover and of the file name error bubble.',
+    'Errors and dangerous actions: error text, an invalid field border, the red delete and reset buttons, and the fill of the close-window button on hover and of the file name error bubble.',
   'destructive-foreground':
     'Text on a solid destructive fill: the close-window button when you point at it, and the red bubble that says a file name is not allowed, for example because it already exists.',
   warning:
@@ -42,7 +44,7 @@ export const THEME_TOKEN_USAGE: Readonly<Record<string, string>> = {
   border:
     'Lines: borders of panels and fields, separators in menus, table and code block outlines, and the horizontal rule in a document.',
   input: 'Borders and fill of text fields and selects, and a switch that is off.',
-  ring: 'The focus ring: the outline around the button, field or control that has keyboard focus.',
+  ring: 'The focus ring: the outline around the button, field or control that has keyboard focus, and around the folder a file is dropped onto.',
   tooltip: 'The surface of hover hints, like this one.',
   'tooltip-foreground': 'Text on hover hints, like this one.',
 
@@ -64,9 +66,10 @@ export const THEME_TOKEN_USAGE: Readonly<Record<string, string>> = {
   'tab-active-foreground': 'Text of the active tab.',
   statusbar: 'The bar at the bottom of the window.',
   'statusbar-foreground': 'Text in the status bar.',
-  handle: 'The draggable dividers between panes, while nothing is pointing at them.',
+  handle:
+    'The draggable dividers between panes and the edge of the sidebar, while nothing is pointing at them.',
   'handle-active':
-    'The same dividers while you point at or drag them, and the outline and corner handle of a selected image.',
+    'The same dividers and sidebar edge while you point at or drag them, and the outline and corner handle of a selected image.',
   'scrollbar-thumb': 'The scrollbar thumb. It can be translucent.',
   'scrollbar-thumb-hover': 'The scrollbar thumb while the pointer is over it.',
   'drop-preview':
@@ -74,9 +77,10 @@ export const THEME_TOKEN_USAGE: Readonly<Record<string, string>> = {
 
   // Editor
   selection: 'The highlight behind selected text in the editor.',
-  'find-match': 'Every match of a find or a search in the editor.',
+  'find-match':
+    'Matches of the Find bar and of a folder search: highlighted in the editor, and in the results list of the Search panel.',
   'find-match-active':
-    'The match you are on, and the spot that lights up briefly after you jump to a heading or a link.',
+    'The match you are on in the Find bar, the marks along the scrollbar that show where the matches are, and the match a folder search result jumps to.',
   caret: 'The text cursor in the editor.',
 
   // Syntax
@@ -90,7 +94,7 @@ export const THEME_TOKEN_USAGE: Readonly<Record<string, string>> = {
   'syntax-keyword': 'Keywords in code blocks, such as if, return and class.',
   'syntax-string': 'Strings in code blocks.',
   'syntax-number': 'Numbers in code blocks.',
-  'syntax-comment': 'Comments in code blocks, and in JSON theme files.',
+  'syntax-comment': 'Comments in code blocks, and in JSON files such as settings.json.',
   'syntax-function': 'Function names in code blocks.',
   'syntax-type': 'Type and class names in code blocks.',
   'syntax-punctuation': 'Brackets, commas and operators in code blocks.',

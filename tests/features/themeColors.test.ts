@@ -460,8 +460,12 @@ describe('ISC-540: a token says where the app uses it', () => {
     await mount(SELECT_MINE)
     const rows = [...document.querySelectorAll<HTMLElement>('[data-theme-token]')]
     expect(rows.length).toBe(THEME_TOKENS.length)
-    for (const row of rows)
-      expect(row.querySelector('[data-theme-token-label]'), row.dataset.themeToken).not.toBeNull()
+    for (const row of rows) {
+      const label = row.querySelector('[data-theme-token-label]')
+      expect(label, row.dataset.themeToken).not.toBeNull()
+      // A name that wraps onto two lines needs a box for a hit area, not an inline span's lines.
+      expect(label?.classList.contains('inline-block'), row.dataset.themeToken).toBe(true)
+    }
   })
 })
 describe('the color picker popover (ISC-492 to ISC-496)', () => {
