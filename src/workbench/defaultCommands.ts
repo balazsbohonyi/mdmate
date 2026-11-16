@@ -316,7 +316,7 @@ export function registerDefaultCommands(): () => void {
     registerCommand({
       id: COMMAND_IDS.toggleContentWidth,
       group: 'View',
-      title: 'Toggle Content Width Limit',
+      title: 'Toggle Limit Content Width',
       keybinding: 'Alt+Shift+W',
       // `editor.limitContentWidth`: a readable centered column, or the whole width of the tab.
       state: () => isToggleOn('editor.limitContentWidth'),

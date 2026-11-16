@@ -218,9 +218,11 @@ Choices made while building, in the order they were made. The settled design is 
 - **Not changed.** The find ticks along the scrollbar and the tab strip. No fade. Revert: `git revert` the commit.
 - **Reading.** "Active tab" is read as the pane the focus is in, since every pane has one visible tab. If the owner meant something else (for example every pane's own tab), the rule is one selector.
 
-## P8-T6: Toggle Content Width Limit command (fifteenth follow-up)
+## P8-T6: Toggle Limit Content Width command (fifteenth follow-up)
 
-- **Command.** `view.toggleContentWidth`, "Toggle Content Width Limit", View group, state is `editor.limitContentWidth`. It is built like Toggle Word Wrap and flips the setting through the Settings screen's own path, so unsaved settings.json edits are asked about first.
+- **Command.** `view.toggleContentWidth`, "Toggle Limit Content Width", View group, state is `editor.limitContentWidth`. It is built like Toggle Word Wrap and flips the setting through the Settings screen's own path, so unsaved settings.json edits are asked about first.
 - **Key.** Alt+Shift+W, unique among the default keys (a test checks it). It is listed in the Keyboard category under View and can be rebound there or in keybindings.json like any command; no extra code was needed for that.
+- **Title.** "Toggle Limit Content Width", the setting's label with Toggle in front. The palette matches the words of a search in order, so "Toggle Content Width Limit" was not found by "limit content".
+- **Word wrap off.** The limit is the width of wrapped text, so with word wrap off the command changes the setting and nothing visible follows (the Settings switch has the same property). Alternative: enable the command only while wrap is on. Not done; say if wanted.
 - **Not added.** A hamburger menu entry; the owner named the palette and the key. Say if it should be there too.
 - **Revert.** `git revert` the commit.

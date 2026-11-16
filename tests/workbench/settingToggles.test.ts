@@ -205,10 +205,27 @@ describe('ISC-549: the content width limit has a toggle command', () => {
     expect(ID).toBe('view.toggleContentWidth')
     const rows = commandRows('width')
     expect(rows.map((row) => row.key)).toContain(ID)
-    expect(rows.find((row) => row.key === ID)?.label).toBe('Toggle Content Width Limit')
+    expect(rows.find((row) => row.key === ID)?.label).toBe('Toggle Limit Content Width')
     expect(commandState(ID)).toBe(true)
     expect(paletteState(ID)).toBe(true)
     expect(isToggleOn('editor.limitContentWidth')).toBe(true)
+  })
+
+  it('is found by the words the setting uses, in the order the setting uses them', async () => {
+    await start()
+    // The palette matches the words of a search in order, so the title has to say Limit first.
+    for (const query of [
+      'limit content width',
+      'limit content',
+      'content width',
+      'width',
+      'limit',
+    ]) {
+      expect(
+        commandRows(query).map((row) => row.key),
+        query,
+      ).toContain(ID)
+    }
   })
 
   it('writes the opposite value, as the Settings screen does, and the second run puts it back', async () => {
