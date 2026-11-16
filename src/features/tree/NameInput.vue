@@ -59,7 +59,7 @@ function onBlur(): void {
       v-if="error !== null"
       role="alert"
       data-name-error
-      class="absolute top-full left-0 z-20 mt-0.5 w-max max-w-56 rounded-sm bg-destructive px-1.5 py-0.5 text-chrome text-background shadow"
+      class="absolute top-full left-0 z-20 mt-0.5 w-max max-w-56 rounded-sm bg-destructive px-1.5 py-0.5 text-chrome text-destructive-foreground shadow"
     >
       {{ error }}
     </span>

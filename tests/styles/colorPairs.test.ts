@@ -12,11 +12,11 @@
  * This scans the sources. A fill with a transparency (`bg-accent/40`) is a tint over another color,
  * not a fill, so it is left out. A fill that carries no text (a dot, a bar, a drag preview) is
  * listed in ALLOWED with the reason, and a listed entry that no longer matches fails the test.
- * `--destructive` has no partner token yet, so it is not enforced.
  */
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { CONTRAST_PAIRS, THEME_TOKENS } from '@/lib/themeTokens'
 
 const SRC = join(process.cwd(), 'src')
 
@@ -45,6 +45,7 @@ export const ENFORCED: Record<string, string> = {
   tabstrip: 'tab-foreground',
   'tab-active': 'tab-active-foreground',
   statusbar: 'statusbar-foreground',
+  destructive: 'destructive-foreground',
 }
 
 /** A class token: the variants before the last colon, then the utility. */
@@ -146,6 +147,18 @@ describe('a fill is paired with its text color (ISC-534, ISC-535)', () => {
     expect(bad).toEqual([])
   })
 
+  it('holds every pair to a contrast ratio and names it a theme token', () => {
+    const names = THEME_TOKENS.map((token) => token.name)
+    const unchecked: string[] = []
+    for (const [fill, text] of Object.entries(ENFORCED)) {
+      expect(names, fill).toContain(fill)
+      expect(names, text).toContain(text)
+      const held = CONTRAST_PAIRS.some(([a, b, ratio]) => a === text && b === fill && ratio >= 4.5)
+      if (!held) unchecked.push(text + ' on ' + fill)
+    }
+    expect(unchecked).toEqual([])
+  })
+
   it('lists no exception that is not needed any more', () => {
     const stale = ALLOWED.filter(
       (entry) => !found.some((hit) => hit.file === entry.file && hit.line.includes(entry.line)),
@@ -157,6 +170,7 @@ describe('a fill is paired with its text color (ISC-534, ISC-535)', () => {
     expect(unpaired('<a class="px-2 hover:bg-accent">')).toEqual(['1: hover:bg-accent'])
     expect(unpaired("x = 'bg-accent text-foreground'")).toEqual(['1: bg-accent'])
     expect(unpaired('class="bg-primary"')).toEqual(['1: bg-primary'])
+    expect(unpaired('class="bg-destructive text-background"')).toEqual(['1: bg-destructive'])
     expect(unpaired('class="bg-muted text-foreground"')).toEqual(['1: bg-muted'])
     expect(unpaired('class="bg-sidebar-accent text-sidebar-foreground"')).toEqual([
       '1: bg-sidebar-accent',
@@ -180,6 +194,7 @@ describe('a fill is paired with its text color (ISC-534, ISC-535)', () => {
       unpaired('class="data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"'),
     ).toEqual([])
     expect(unpaired('class="hover:bg-accent/40"')).toEqual([])
-    expect(unpaired('class="bg-accent-x bg-background bg-destructive"')).toEqual([])
+    expect(unpaired('class="bg-accent-x bg-background bg-destructive/10"')).toEqual([])
+    expect(unpaired('class="bg-destructive text-destructive-foreground"')).toEqual([])
   })
 })

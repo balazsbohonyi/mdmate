@@ -26,6 +26,7 @@
   --accent: oklch(0.32 0.016 262);
   --accent-foreground: var(--foreground);
   --destructive: oklch(0.72 0.16 25);
+  --destructive-foreground: var(--background);
   /* A hint that needs a second look but is not an error: amber, readable on the page. */
   --warning: oklch(0.82 0.14 82);
   --success: oklch(0.8 0.15 150);

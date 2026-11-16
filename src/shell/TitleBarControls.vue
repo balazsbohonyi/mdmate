@@ -67,7 +67,7 @@ async function close(): Promise<void> {
       type="button"
       aria-label="Close"
       tabindex="-1"
-      class="flex w-11.5 items-center justify-center text-titlebar-foreground hover:bg-destructive hover:text-background"
+      class="flex w-11.5 items-center justify-center text-titlebar-foreground hover:bg-destructive hover:text-destructive-foreground"
       @click="close"
     >
       <X
