@@ -96,7 +96,7 @@ Mark `[x]` only when the task's "Done when" in its phase plan holds. Each task l
 
 Phase 9 runs before this phase (owner's decision, 2026-11-13): image paste ships with a built-in `assets` folder and P8-T1 makes it a setting.
 
-**Phase 8 is done (owner, 2026-11-17).** Every task below is closed. ISC-146 (built-in themes copy no SublimeText assets) is a review the owner does by hand and stays open in the ISA until they tick it.
+**Phase 8 is done (owner, 2026-11-17).** Every task below is closed. ISC-146 (built-in themes copy no SublimeText assets) was a review the owner does by hand, and they passed it on the same day.
 
 - [x] P8-T1: Settings core: the file, its validation, live apply, the typed settings object — closes ISC-147, ISC-148, ISC-320, ISC-384, ISC-386
 - [x] P8-T1b: The behaviour behind each key (paste folder, word wrap, large-file size, recent caps, excluded folders, devtools and F12) — closes ISC-330, ISC-359, ISC-364, ISC-365, ISC-366. ISC-368 moved to P8-T1d (it names the row) and ISC-249 was closed after P8-T1f, with the palette toggle and a release build the owner allowed
@@ -105,7 +105,7 @@ Phase 9 runs before this phase (owner's decision, 2026-11-13): image paste ships
 - [x] P8-T1e: Fonts: three families, base size, code size, heading scale, applied live — closes ISC-360, ISC-361, ISC-362, ISC-363 and the new ISC-392, ISC-393
 - [x] P8-T1f: Palette toggles that show their state, and Switch Theme — closes ISC-153, ISC-370 and the new ISC-394, ISC-395; ISC-249 has its Toggle Developer Tools command and was closed afterwards by F12 on a release build the owner allowed; ISC-358 and ISC-371 moved to P8-T3, they need the themes
 - [x] P8-T2: Keybindings: the file, the rebind API, the on-screen recorder — closes ISC-149, ISC-372, ISC-373, ISC-374, ISC-375, ISC-376 and the new ISC-402 to ISC-411
-- [x] P8-T3: Themes: Dark, Light, Sepia and System, user theme files, Customize, the colour editor — closes ISC-145, ISC-150, ISC-151, ISC-173, ISC-377, ISC-378, ISC-379, ISC-380, ISC-381, ISC-382, ISC-383, ISC-385, ISC-358, ISC-371 and the new ISC-445 to ISC-458; ISC-146 (no SublimeText assets) stays open for the owner to review
+- [x] P8-T3: Themes: Dark, Light, Sepia and System, user theme files, Customize, the colour editor — closes ISC-145, ISC-150, ISC-151, ISC-173, ISC-377, ISC-378, ISC-379, ISC-380, ISC-381, ISC-382, ISC-383, ISC-385, ISC-358, ISC-371 and the new ISC-445 to ISC-458; ISC-146 (no SublimeText assets) was left for the owner to review, and they passed it on 2026-11-17
 - [x] P8-T4: Portable mode — closes ISC-152 and the new ISC-459 to ISC-461
 - [x] P8-T5: Settings polish: sub-group headings in `--primary`, hide-contrast-warnings (on by default), colors shown as hex or OKLCH — the new ISC-462 to ISC-470 (owner request after P8-T3)
 - [x] P8-T6: Managing themes (and the follow-ups, ISC-483 to ISC-510 and ISC-532 to ISC-553): names, a list, New theme, rename, duplicate, delete to the Recycle Bin, dark/light switch, per-color reset, scroll to the editor (owner request; plan in the plans folder) — the new ISC-471 to ISC-482
