@@ -70,6 +70,7 @@ export const COMMAND_IDS = {
   focusSidebar: 'view.focusSidebar',
   toggleRawSource: 'view.toggleRawSource',
   toggleWordWrap: 'view.toggleWordWrap',
+  toggleContentWidth: 'view.toggleContentWidth',
   switchTheme: 'view.switchTheme',
   back: 'navigate.back',
   forward: 'navigate.forward',
@@ -310,6 +311,17 @@ export function registerDefaultCommands(): () => void {
       state: () => isToggleOn('editor.wordWrap'),
       run: async () => {
         await flipSetting('editor.wordWrap')
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.toggleContentWidth,
+      group: 'View',
+      title: 'Toggle Content Width Limit',
+      keybinding: 'Alt+Shift+W',
+      // `editor.limitContentWidth`: a readable centered column, or the whole width of the tab.
+      state: () => isToggleOn('editor.limitContentWidth'),
+      run: async () => {
+        await flipSetting('editor.limitContentWidth')
       },
     }),
     registerCommand({

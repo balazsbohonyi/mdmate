@@ -196,3 +196,65 @@ describe('ISC-394: a toggle with unsaved settings.json edits asks first', () => 
     expect(settingsTabId()).toBeUndefined()
   })
 })
+
+describe('ISC-549: the content width limit has a toggle command', () => {
+  const ID = COMMAND_IDS.toggleContentWidth
+
+  it('is a View command with a title and a state that is the setting', async () => {
+    await start()
+    expect(ID).toBe('view.toggleContentWidth')
+    const rows = commandRows('width')
+    expect(rows.map((row) => row.key)).toContain(ID)
+    expect(rows.find((row) => row.key === ID)?.label).toBe('Toggle Content Width Limit')
+    expect(commandState(ID)).toBe(true)
+    expect(paletteState(ID)).toBe(true)
+    expect(isToggleOn('editor.limitContentWidth')).toBe(true)
+  })
+
+  it('writes the opposite value, as the Settings screen does, and the second run puts it back', async () => {
+    await start()
+    expect(await runCommand(ID)).toBe(true)
+    expect(settings.editor.limitContentWidth).toBe(false)
+    expect(fileObject()).toEqual({ editor: { limitContentWidth: false } })
+    expect(commandState(ID)).toBe(false)
+    expect(paletteState(ID)).toBe(false)
+
+    await runCommand(ID)
+    expect(settings.editor.limitContentWidth).toBe(true)
+    expect(fileObject()).toEqual({})
+    expect(commandState(ID)).toBe(true)
+  })
+
+  it('leaves the other toggles alone', async () => {
+    await start()
+    await runCommand(ID)
+    expect(settings.editor.wordWrap).toBe(true)
+    expect(settings.devtools).toBe(false)
+    expect(fileObject()).toEqual({ editor: { limitContentWidth: false } })
+  })
+
+  it('follows a hand edit of the file, since the state reads the live setting', async () => {
+    await start('{"editor": {"limitContentWidth": false}}')
+    expect(commandState(ID)).toBe(false)
+    const { applySettingsText } = await import('@/features/settings/store')
+    applySettingsText('{}')
+    expect(commandState(ID)).toBe(true)
+  })
+
+  it('asks first when settings.json has unsaved edits, like Toggle Word Wrap', async () => {
+    await watchDisk()
+    await start('{}\n')
+    const tab = await openPath(MOCK_SETTINGS_FILE)
+    followerOfTab(tab)?.dispatch({
+      changes: { from: 0, to: 3, insert: '{"note": "mine"}\n' },
+    })
+    const before = host.files.read(MOCK_SETTINGS_FILE)
+    await runCommand(ID)
+    expect(host.files.read(MOCK_SETTINGS_FILE)).toBe(before)
+    expect(settings.editor.limitContentWidth).toBe(true)
+    expect(pendingSettingChange.value).toMatchObject({
+      key: 'editor.limitContentWidth',
+      value: false,
+    })
+  })
+})

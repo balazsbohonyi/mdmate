@@ -217,3 +217,10 @@ Choices made while building, in the order they were made. The settled design is 
 - **Preview exempt.** The Theme preview keeps its thumb, because it sits in an unfocused pane while its theme is edited, to show those colors.
 - **Not changed.** The find ticks along the scrollbar and the tab strip. No fade. Revert: `git revert` the commit.
 - **Reading.** "Active tab" is read as the pane the focus is in, since every pane has one visible tab. If the owner meant something else (for example every pane's own tab), the rule is one selector.
+
+## P8-T6: Toggle Content Width Limit command (fifteenth follow-up)
+
+- **Command.** `view.toggleContentWidth`, "Toggle Content Width Limit", View group, state is `editor.limitContentWidth`. It is built like Toggle Word Wrap and flips the setting through the Settings screen's own path, so unsaved settings.json edits are asked about first.
+- **Key.** Alt+Shift+W, unique among the default keys (a test checks it). It is listed in the Keyboard category under View and can be rebound there or in keybindings.json like any command; no extra code was needed for that.
+- **Not added.** A hamburger menu entry; the owner named the palette and the key. Say if it should be there too.
+- **Revert.** `git revert` the commit.

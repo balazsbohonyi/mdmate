@@ -120,7 +120,7 @@ describe('ISC-414: the Keyboard category is grouped', () => {
     expect(titlesIn('File')).toHaveLength(10)
     expect(titlesIn('Find')).toHaveLength(5)
     expect(titlesIn('Formatting')).toHaveLength(7)
-    expect(titlesIn('View')).toHaveLength(7)
+    expect(titlesIn('View')).toHaveLength(8)
     expect(titlesIn('Tabs & Navigation')).toHaveLength(6)
     expect(titlesIn('App')).toHaveLength(6)
     const ids = rowIds()
@@ -154,7 +154,12 @@ describe('ISC-416: the search finds by title, id, group and shortcut', () => {
     await mount()
     await type('view.toggle')
     expect(rowIds().sort()).toEqual(
-      [COMMAND_IDS.toggleSidebar, COMMAND_IDS.toggleRawSource, COMMAND_IDS.toggleWordWrap].sort(),
+      [
+        COMMAND_IDS.toggleSidebar,
+        COMMAND_IDS.toggleRawSource,
+        COMMAND_IDS.toggleWordWrap,
+        COMMAND_IDS.toggleContentWidth,
+      ].sort(),
     )
     await type('formatting')
     expect(headings()).toEqual(['Formatting'])
@@ -287,5 +292,28 @@ describe('ISC-419: where the search box sits', () => {
     await flush()
     expect(searchBox().value).toBe('')
     expect(rowIds()).toHaveLength(listCommands().length)
+  })
+})
+
+describe('ISC-550: the content width toggle is in the Keyboard category', () => {
+  it('is listed under View with its key, and is found by its title and by its key', async () => {
+    await mount()
+    const row = document.querySelector(`[data-setting-row="${COMMAND_IDS.toggleContentWidth}"]`)
+    expect(row).not.toBeNull()
+    expect(row?.closest('[data-keyboard-group]')?.getAttribute('aria-label')).toBe('View')
+    expect(row?.textContent).toContain('Alt+Shift+W')
+    await type('width')
+    expect(rowIds()).toEqual([COMMAND_IDS.toggleContentWidth])
+    await type('alt+shift+w')
+    expect(rowIds()).toEqual([COMMAND_IDS.toggleContentWidth])
+  })
+
+  it('has a key that no other command has', async () => {
+    await mount()
+    const keys = listCommands()
+      .map((command) => shortcutLabel(command.id, 'other'))
+      .filter((label): label is string => label !== undefined)
+    expect(keys.filter((key) => key === 'Alt+Shift+W')).toHaveLength(1)
+    expect(new Set(keys).size).toBe(keys.length)
   })
 })
