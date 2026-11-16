@@ -5,6 +5,11 @@ import { stemLength } from './model'
 /**
  * The box a name is typed in, inside a row of the tree. Enter keeps the name, Escape drops it, and
  * so does leaving the box: clicking elsewhere never creates or renames anything by accident.
+ *
+ * The refusal is a bubble under the box. It hangs from the row, not from the box: the box is only
+ * what is left of the row after the indent and the icons, and the tree clips what sticks out past
+ * its edge, so a bubble the width of its text is cut off. Anchored to the row and capped at the
+ * row width, it wraps instead.
  */
 const props = defineProps<{
   initial: string
@@ -36,7 +41,7 @@ function onBlur(): void {
 </script>
 
 <template>
-  <span class="relative min-w-0 flex-1">
+  <span class="min-w-0 flex-1">
     <input
       ref="input"
       v-model="value"
@@ -59,7 +64,7 @@ function onBlur(): void {
       v-if="error !== null"
       role="alert"
       data-name-error
-      class="absolute top-full left-0 z-20 mt-0.5 w-max max-w-56 rounded-sm bg-destructive px-1.5 py-0.5 text-chrome text-destructive-foreground shadow"
+      class="absolute top-full left-1 z-20 mt-0.5 w-max max-w-[min(14rem,calc(100%-0.5rem))] rounded-sm bg-destructive px-1.5 py-0.5 text-chrome text-destructive-foreground shadow"
     >
       {{ error }}
     </span>

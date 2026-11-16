@@ -2,7 +2,11 @@
 import { computed } from 'vue'
 import { tabDrag } from './tabDrag'
 
-/** The drop preview, as inline geometry. An insertion bar in a strip is solid, a pane preview is a tint. */
+/**
+ * The drop preview, as inline geometry. An insertion bar in a strip is solid, a pane preview is a
+ * tint with no border. Moving from one target to the next glides in 75 ms, about what VS Code does,
+ * and not at all under reduced motion.
+ */
 const preview = computed(() => {
   const target = tabDrag.value?.target
   if (!target) return null
@@ -40,8 +44,8 @@ const labelStyle = computed(() => {
   >
     <div
       v-if="preview"
-      class="pointer-events-none fixed"
-      :class="preview.solid ? 'bg-primary' : 'border border-primary bg-drop-preview'"
+      class="pointer-events-none fixed transition-[left,top,width,height] duration-75 ease-out motion-reduce:transition-none"
+      :class="preview.solid ? 'bg-primary' : 'bg-drop-preview'"
       :style="preview.style"
       data-drop-preview
     />

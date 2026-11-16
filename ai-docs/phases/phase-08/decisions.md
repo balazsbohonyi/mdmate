@@ -205,3 +205,8 @@ Choices made while building, in the order they were made. The settled design is 
 - **Hit area.** The hover target is an inline-block. A name that wraps onto two lines has a smaller hit area as an inline span than its box, and a pointer in the box center missed it in the real window.
 - **The base is a name.** "Based on Dark." with a note that it is fixed when the theme was made. Changing a base made every token the file leaves out look overridden, so it is not offered. `setThemeBase` and its tests are removed; ISC-479 is superseded. Revert: `git revert` the commit.
 - **Left.** The preview cannot show the close-window button hover or the name error bubble, so `--destructive-foreground` has no visible effect there; the hint says where it is used. Adding those two to the preview is a follow-up.
+
+## P8-T6: name bubble and drop preview (twelfth follow-up)
+
+- **Bubble.** The refusal under a name box hangs from the row and is capped at the row width, so it wraps inside the sidebar instead of being cut at its edge. It used to hang from the box, which is narrower than the row and sits behind a clipping scroller. Open: on the last visible row it still hangs below and can be out of view.
+- **Drop preview.** No border; a 75 ms transition on left, top, width and height (VS Code uses 70 ms), off under reduced motion. A change of target animates; the first appearance does not. Revert: `git revert` the commit.
