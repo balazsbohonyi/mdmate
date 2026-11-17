@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 541/553
+progress: 542/554
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-16T03:10:00Z
+updated: 2026-11-17T20:08:00Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -154,6 +154,7 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-188 | bash | line heights of the block with the caret in and out | identical | real window, line block heights of every line | derived: no layout jump | | |
 | ISC-189 | bash | box lines for a kind that is not code | same container classes, label on the first line, cost follows the view | pnpm test:web tests/editor/codeBlock.test.ts | derived: reuse | | |
 | ISC-73 | bash | scan package.json | absent | node scripts/check-arch.mjs no-math-mermaid | derived: fast | | |
+| ISC-554 | bash | read the model of tables with an empty cell first, in the middle, last and as two pipes in a row, in a header row, in body rows, and in rows with no outer pipes | every row has one cell per column, the empty cell holds no text, and the other cells keep their text and their column | pnpm test:web tests/editor/table.test.ts | derived: reported-by-owner | | |
 | ISC-74 | bash | link action test | new tab | pnpm test:web tests/links/navigate.test.ts | derived: link-navigation | | |
 | ISC-75 | bash | link action test | caret at heading | pnpm test:web tests/links/navigate.test.ts | derived: link-navigation | | |
 | ISC-76 | bash | link action test | tab and heading | pnpm test:web tests/links/navigate.test.ts | derived: link-navigation | | |
@@ -735,6 +736,7 @@ Why: documents mix prose with tables, images and code, and a page full of raw sy
 - [x] ISC-188: Anti: a fenced code block never changes height when the caret enters or leaves it.
 - [x] ISC-189: The container is one module that a block of another kind (Mermaid, later) can use.
 - [x] ISC-73: Anti: `katex` and `mermaid` are absent from v1 dependencies.
+- [x] ISC-554: A table cell with no text keeps its column, so no cell after it shifts left.
 
 ### F5 · Link navigation
 Why: documentation is a web of files, so following a link has to cost one gesture and be undoable.
@@ -1915,6 +1917,7 @@ Why: a large workspace stays quick to search only when mdmate keeps a list of it
 - P8-T6 sixteenth follow-up (2026-11-17): ISC-552 and ISC-553 closed. Tests: `tests/features/settingsView.test.ts` (7 new: both written in one go and the key leaves the file; comments, other and unknown keys kept; nothing extra with wrap already on; limit off and other settings leave wrap alone; the row reset; the switch on the screen with the word wrap switch following; a hand edit is not rewritten, and the "wrap" search now finds both rows), `tests/workbench/settingToggles.test.ts` (3 new: the command turns wrap on and the word wrap command shows it, the next run turns only the limit off, and after the unsaved-edits question) and `tests/features/settings.test.ts` (a file that is not valid JSON is refused with one notice and nothing written). Deliberate breaks, each put back: 7 (never turns wrap on, also when the limit goes off, any key turns it on, writes wrap as false, writes wrap as true into the file, ignores a refused first edit, second edit from the old text), all caught after one test was added for the survivor (the broken-file case); tree byte-identical after. Gates: `pnpm check` and `pnpm test:web` pass. Real window (own rig, port 9353, `t24-live.mjs`, Dark, a file of long lines, sidebar hidden, settings.json with wrap off and the limit off): the column starts at 2613 px and the palette reads "Toggle Word Wrap Off"; Alt+Shift+W gives 948 px, settings.json becomes `{ "theme": "dark" }` and the palette reads "Toggle Word Wrap On"; with both off again by a hand edit (2613 px), clicking the Limit content width switch in Settings makes both switches read true, the file `{ "theme": "dark" }`, and the file tab 948 px; screenshots read (palette state and the Editor page). Not checked: Light and Sepia, the reset icon of the limit row in the real window (tested in jsdom), a settings.json tab open with unsaved edits in the real window (tested in jsdom).
 
 - ISC-146 (2026-11-17): passed by the owner's review of the built-in themes as they are now; no test, since the claim is "Review by the owner". Recorded in Decisions. Checked by me: a search of `src/` and `src-tauri/src` finds no SublimeText, Monokai or tmTheme reference, and the theme file headers name their sources (Dark original, Sepia from MarkdownWeave). Not checked by me: a line-by-line comparison with SublimeText's theme files.
+- P9.1-T1 (2026-11-17): ISC-554 closed. The owner found it in the app: an empty table cell shifted the cells after it left. The parser emits no `TableCell` for an empty cell, so `cellsOf` in `src/editor/livePreview/blocks/scan.ts` now also reads the pipes. Tests: two new in `tests/editor/table.test.ts` (an empty cell first, in the middle, last and as two pipes in a row; an empty cell in a header and in rows with no outer pipes). Deliberate break: the original `scan.ts` put back in the working tree, both new tests failed (the header came back as `a`, `c` with the empty cell gone) and the other 20 passed; the fix restored from the index, tree and index unchanged after. Gates: `pnpm check` exit 0 (553 leaf claims before this one) and `pnpm test:web` 159 files, 3248 tests passed on the second run; the first run reported one error and exit 1 that I did not capture, and the rerun was clean. Not checked: the table on screen in the real window or `pnpm dev`, Light and Sepia, and the caret entering an empty cell.
 
 ## Remaining Work
 

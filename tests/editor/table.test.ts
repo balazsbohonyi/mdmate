@@ -72,6 +72,27 @@ describe('the table model', () => {
     ])
   })
 
+  it('keeps an empty cell in place instead of shifting the next cell left', () => {
+    const doc =
+      '| a | b | c |\n|---|---|---|\n| 1 |  | 3 |\n|  | 5 | 6 |\n| 7 | 8 |  |\n| 9 ||  |\n'
+    const table = tableOf(doc)
+    expect(table.model.rows.map((row) => row.map((cell) => flat(cell.runs)))).toEqual([
+      ['1', '', '3'],
+      ['', '5', '6'],
+      ['7', '8', ''],
+      ['9', '', ''],
+    ])
+  })
+
+  it('keeps an empty cell in a header and in rows without outer pipes', () => {
+    const table = tableOf('| a |  | c |\n|---|---|---|\n| 1 | | 3 |\n')
+    expect(table.model.head.map((cell) => flat(cell.runs))).toEqual(['a', '', 'c'])
+    const bare = tableOf('a | b | c\n--|--|--\n1 | | 3\n')
+    expect(bare.model.rows.map((row) => row.map((cell) => flat(cell.runs)))).toEqual([
+      ['1', '', '3'],
+    ])
+  })
+
   it('renders emphasis, strikethrough and links in a cell, and an image as its alt text', () => {
     const table = tableOf('| h |\n|---|\n| *a* ~~b~~ [c](d) ![e](f.png) |\n')
     expect(flat(table.model.rows[0]?.[0]?.runs ?? [])).toBe('em(a) del(b) link(c) e')

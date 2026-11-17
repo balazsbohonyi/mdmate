@@ -205,12 +205,25 @@ function alignments(row: string): Align[] {
   })
 }
 
-/** The cells of a header or body row, in order. */
+/**
+ * The cells of a header or body row, in order. The parser emits no `TableCell` for an empty cell,
+ * only the pipes around it, so a pipe that closes a slot nothing filled stands for an empty cell.
+ */
 function cellsOf(doc: Text, row: SyntaxNode, base: number): Cell[] {
   const cells: Cell[] = []
+  let filled = false
+  let slotStart = row.from
   for (let child = row.firstChild; child; child = child.nextSibling) {
-    if (child.name !== 'TableCell') continue
-    cells.push({ runs: inlineRuns(doc, child, child.from, child.to), offset: child.from - base })
+    if (child.name === 'TableCell') {
+      cells.push({ runs: inlineRuns(doc, child, child.from, child.to), offset: child.from - base })
+      filled = true
+    } else if (child.name === 'TableDelimiter') {
+      // A pipe before any cell is the leading pipe, not the end of an empty cell.
+      const leading = child.from === row.from || doc.sliceString(row.from, child.from).trim() === ''
+      if (!filled && !leading) cells.push({ runs: [], offset: slotStart - base })
+      filled = false
+      slotStart = child.to
+    }
   }
   return cells
 }

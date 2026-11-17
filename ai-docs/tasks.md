@@ -119,6 +119,12 @@ Phase 9 runs before this phase (owner's decision, 2026-11-13): image paste ships
 - [x] P9-T4: Select, resize and delete images — closes ISC-157, ISC-158, ISC-159, ISC-322, ISC-325, ISC-326
 - [x] P9-T5: Images in untitled documents (a draft folder per document) — closes ISC-327, ISC-331, ISC-332, ISC-333
 
+## Phase 9.1: Polish ([plan](phases/phase-09.1/plan.md))
+
+Phase 9.1 collects the small fixes and rough edges found in daily use, between the last feature phase and the release (owner's decision, 2026-11-17). Each fix is one task with a claim in `ISA.md`. New tasks go above Phase 10.
+
+- [x] P9.1-T1: Empty table cells keep their column — closes ISC-554
+
 ## Phase 10: Ship ([plan](phases/phase-10/plan.md))
 
 - [ ] P10-T1: Single instance and launch arguments — closes ISC-161, ISC-162, ISC-163
