@@ -150,6 +150,25 @@ describe.each([...parsed])('%s theme colors', (name, theme) => {
     expect(contrast(sidebar, editor)).toBeGreaterThan(1.03)
   })
 
+  it('give the idle tab a color of its own, apart from the strip and from the active tab (ISC-566)', () => {
+    const strip = parseColor(resolveToken(theme, '--tabstrip'))
+    const idle = parseColor(resolveToken(theme, '--tab-inactive'))
+    const active = parseColor(resolveToken(theme, '--tab-active'))
+    expect(contrast(idle, strip)).toBeGreaterThan(1.03)
+    expect(contrast(idle, active)).toBeGreaterThan(1.03)
+  })
+
+  it('make the strip lighter than the content, and the separator visible on the idle tab (ISC-566)', () => {
+    // Contrast against white falls as a color gets lighter.
+    const white = parseColor('#ffffff')
+    const against = (token: string): number =>
+      contrast(parseColor(resolveToken(theme, token)), white)
+    expect(against('--tabstrip')).toBeLessThan(against('--background'))
+    const separator = parseColor(resolveToken(theme, '--tab-separator'))
+    const idle = parseColor(resolveToken(theme, '--tab-inactive'))
+    expect(contrast(separator, idle)).toBeGreaterThan(1.2)
+  })
+
   it('give a tooltip its own surface: lighter than the page in a dark theme, the popover color in a light one', () => {
     if (schemeOf(name) === 'light') {
       expect(resolveToken(theme, '--tooltip')).toBe(resolveToken(theme, '--popover'))

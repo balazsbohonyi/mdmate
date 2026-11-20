@@ -30,14 +30,19 @@ function onPointerDown(event: PointerEvent): void {
     role="tab"
     :aria-selected="active"
     :data-tab-id="tab.id"
-    class="group flex min-w-24 max-w-56 shrink-0 cursor-default items-center gap-2 border-t-2 pr-1.5 pl-3 text-chrome select-none"
+    :data-pane-focused="focused"
+    class="group relative flex min-w-24 max-w-56 shrink-0 cursor-default items-center gap-2 rounded-t-md pr-1.5 pl-3 text-chrome select-none"
     :class="[
       active
-        ? [
-            'bg-tab-active text-tab-active-foreground',
-            focused ? 'border-primary' : 'border-muted-foreground/40',
-          ]
-        : 'border-transparent text-tab-foreground hover:bg-accent/40',
+        ? 'bg-tab-active text-tab-active-foreground'
+        : [
+            'bg-tab-inactive text-tab-foreground hover:bg-accent/40',
+            // A line on the left edge between two tabs that are not active. None before the first
+            // tab or next to the active one, and none beside the tab the pointer is on.
+            `before:absolute before:inset-y-2 before:left-0 before:w-px before:bg-tab-separator before:content-['']`,
+            'first:before:hidden [[aria-selected=true]+&]:before:hidden',
+            'hover:before:opacity-0 [:hover+&]:before:opacity-0',
+          ],
       dragging ? 'opacity-50' : '',
     ]"
     @pointerdown="onPointerDown"

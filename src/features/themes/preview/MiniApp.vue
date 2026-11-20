@@ -137,7 +137,7 @@ const rows: Row[] = [
       </aside>
       <main class="flex min-w-0 flex-1 flex-col">
         <div
-          class="flex h-tabstrip shrink-0 items-stretch border-b border-border bg-tabstrip text-tab-foreground select-none"
+          class="flex h-tabstrip shrink-0 items-stretch border-b border-border bg-tabstrip pt-2 text-tab-foreground select-none"
         >
           <TabStripItem
             v-for="(tab, at) in tabs"

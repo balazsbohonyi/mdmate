@@ -45,7 +45,8 @@
   --text-editor--line-height: 1.6;
 
   --spacing-titlebar: 2rem;
-  --spacing-tabstrip: 2.125rem;
+  /* The tab strip and the sidebar header beside it: 0.5rem of padding above the tabs, then 2rem of tab. */
+  --spacing-tabstrip: 2.5rem;
   --spacing-statusbar: 1.5rem;
   --spacing-sidebar: 15rem;
   --spacing-handle: 0.25rem;
@@ -98,8 +99,10 @@
   --color-titlebar-foreground: var(--titlebar-foreground);
   --color-tabstrip: var(--tabstrip);
   --color-tab-foreground: var(--tab-foreground);
+  --color-tab-inactive: var(--tab-inactive);
   --color-tab-active: var(--tab-active);
   --color-tab-active-foreground: var(--tab-active-foreground);
+  --color-tab-separator: var(--tab-separator);
   --color-statusbar: var(--statusbar);
   --color-statusbar-foreground: var(--statusbar-foreground);
   --color-handle: var(--handle);

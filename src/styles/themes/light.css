@@ -42,10 +42,12 @@
 
   --titlebar: oklch(0.945 0.006 85);
   --titlebar-foreground: oklch(0.36 0.012 262);
-  --tabstrip: oklch(0.955 0.006 85);
+  --tabstrip: oklch(1 0 0);
   --tab-foreground: oklch(0.44 0.012 262);
+  --tab-inactive: oklch(0.945 0.006 85);
   --tab-active: var(--background);
   --tab-active-foreground: oklch(0.2 0.012 262);
+  --tab-separator: oklch(0.84 0.008 85);
   --statusbar: oklch(0.945 0.006 85);
   --statusbar-foreground: oklch(0.44 0.012 262);
   --handle: oklch(0.9 0.007 85);

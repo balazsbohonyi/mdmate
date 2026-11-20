@@ -118,7 +118,7 @@ function run(action: () => Promise<unknown> | void): void {
 <template>
   <div
     data-tab-strip
-    class="flex h-tabstrip shrink-0 items-stretch border-b border-border bg-tabstrip text-tab-foreground select-none"
+    class="flex h-tabstrip shrink-0 items-stretch border-b border-border bg-tabstrip pt-2 text-tab-foreground select-none"
   >
     <div
       ref="scroller"
