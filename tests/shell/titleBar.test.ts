@@ -11,8 +11,9 @@ import { setHost } from '@/platform'
 import { createMockHost } from '@/platform/mock'
 import { activeFileLabel } from '@/shell/activeFile'
 import TitleBar from '@/shell/TitleBar.vue'
-import { clearCommands } from '@/workbench/commands'
-import { registerDefaultCommands } from '@/workbench/defaultCommands'
+import { clearCommands, setKeybindingOverrides } from '@/workbench/commands'
+import { COMMAND_IDS, registerDefaultCommands } from '@/workbench/defaultCommands'
+import { resetSidebar, sidebarVisible, toggleSidebar } from '@/workbench/sidebar'
 import { resetWorkbench, settingsTabId, tabRecord } from '@/workbench/store'
 import { tooltipApp } from '../helpers/tooltips'
 
@@ -24,6 +25,7 @@ afterEach(() => {
   mounted = undefined
   resetDocuments()
   resetWorkbench()
+  resetSidebar()
   setHost(undefined)
 })
 
@@ -65,6 +67,101 @@ describe('the title bar file name', () => {
     await nextTick()
     expect(title(root)).toBe(activeFileLabel.value)
     expect(title(root)).toMatch(/^Untitled-\d+$/)
+  })
+})
+
+const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
+
+async function flush(): Promise<void> {
+  for (let round = 0; round < 6; round++) {
+    await settle()
+    await nextTick()
+  }
+}
+
+/** What a mouse over an element does to its tooltip trigger. */
+async function hover(element: Element | null | undefined): Promise<void> {
+  if (!element) throw new Error('nothing to hover')
+  element.dispatchEvent(new MouseEvent('pointermove', { bubbles: true }))
+  await flush()
+}
+
+/** The tooltip's visible text: Radix adds a hidden copy for screen readers (`role=tooltip`), left out here. */
+function hint(): string | undefined {
+  const box = document.body.querySelector('[data-hover-hint]')
+  if (!box) return undefined
+  const hidden = box.querySelector('[role="tooltip"]')?.textContent ?? ''
+  return box.textContent.slice(0, box.textContent.length - hidden.length).trim()
+}
+
+describe('the sidebar button (ISC-562)', () => {
+  it('sits right after the menu button and before the file name', async () => {
+    const root = await mountBar()
+    const buttons = [...root.querySelectorAll('button')]
+    expect(buttons[0]?.getAttribute('aria-label')).toBe('Menu')
+    expect(buttons[1]?.hasAttribute('data-sidebar-toggle')).toBe(true)
+    expect(buttons[1]?.getAttribute('aria-label')).toBe('Toggle Sidebar')
+    expect(buttons[1]?.compareDocumentPosition(root.querySelector('[data-title-file]')!)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    )
+  })
+
+  it('toggles the sidebar on a click, and its pressed state and icon follow', async () => {
+    const removeCommands = registerDefaultCommands()
+    try {
+      const root = await mountBar()
+      const button = root.querySelector<HTMLButtonElement>('[data-sidebar-toggle]')
+      expect(sidebarVisible.value).toBe(true)
+      expect(button?.getAttribute('aria-pressed')).toBe('true')
+      const openIcon = button?.innerHTML
+      button?.click()
+      await flush()
+      expect(sidebarVisible.value).toBe(false)
+      expect(button?.getAttribute('aria-pressed')).toBe('false')
+      expect(button?.innerHTML).not.toBe(openIcon)
+      button?.click()
+      await flush()
+      expect(sidebarVisible.value).toBe(true)
+      expect(button?.innerHTML).toBe(openIcon)
+    } finally {
+      removeCommands()
+      clearCommands()
+    }
+  })
+
+  it('names the action and the current shortcut in the shadcn tooltip, never a title', async () => {
+    const removeCommands = registerDefaultCommands()
+    try {
+      const root = await mountBar()
+      const button = root.querySelector<HTMLButtonElement>('[data-sidebar-toggle]')
+      expect(button?.hasAttribute('title')).toBe(false)
+      await hover(button)
+      expect(hint()).toBe('Hide Sidebar (Ctrl+Shift+B)')
+      toggleSidebar()
+      await flush()
+      expect(hint()).toBe('Show Sidebar (Ctrl+Shift+B)')
+    } finally {
+      removeCommands()
+      clearCommands()
+    }
+  })
+
+  it('follows a rebound shortcut, and shows the action alone when none is set', async () => {
+    const removeCommands = registerDefaultCommands()
+    try {
+      const root = await mountBar()
+      const button = root.querySelector<HTMLButtonElement>('[data-sidebar-toggle]')
+      setKeybindingOverrides({ [COMMAND_IDS.toggleSidebar]: 'Mod+Alt+B' })
+      await hover(button)
+      expect(hint()).toBe('Hide Sidebar (Ctrl+Alt+B)')
+      setKeybindingOverrides({ [COMMAND_IDS.toggleSidebar]: null })
+      await flush()
+      expect(hint()).toBe('Hide Sidebar')
+    } finally {
+      setKeybindingOverrides({})
+      removeCommands()
+      clearCommands()
+    }
   })
 })
 
