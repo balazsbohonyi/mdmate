@@ -260,15 +260,10 @@ describe('the keys (ISC-254)', () => {
     expect(hasRow('/work/notes/a.md')).toBe(true)
   })
 
-  it('a key with Ctrl, Alt or Meta is left to the app shortcuts, and so is Shift', async () => {
+  it('a key with Ctrl, Alt or Meta is left to the app shortcuts', async () => {
     await start()
     selectedPath.value = '/work/notes'
-    for (const init of [
-      { ctrlKey: true },
-      { altKey: true },
-      { metaKey: true },
-      { shiftKey: true },
-    ]) {
+    for (const init of [{ ctrlKey: true }, { altKey: true }, { metaKey: true }]) {
       const event = await press('ArrowDown', init)
       expect(event.defaultPrevented, JSON.stringify(init)).toBe(false)
       expect(selectedPath.value).toBe('/work/notes')

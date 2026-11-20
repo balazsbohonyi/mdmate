@@ -1,12 +1,12 @@
 import { shallowRef } from 'vue'
 import { allDocuments, describe, documentMoved } from '@/documents/store'
-import { moveWithLinks } from '@/features/links/rewrite'
+import { moveWithLinks, type RewriteBatch } from '@/features/links/rewrite'
 import type { TabId } from '@/workbench/splitTree'
 import { holdingEditorFocus } from '@/workbench/focus'
 import { closeTabById, imageTabs, setImagePath, tabsOfDocument } from '@/workbench/store'
 import { nameProblem } from '@/lib/fileNames'
 import { getHost, type ClashAnswer, type ClashChoice, type Moved } from '@/platform'
-import { baseName, parentPath } from './model'
+import { baseName, outermost, parentPath, type Place } from './model'
 import {
   cancelNaming,
   forgetPath,
@@ -14,12 +14,17 @@ import {
   loadFolder,
   naming,
   openFolderRow,
+  pathKey,
   remapPaths,
+  requestScroll,
   restoreTreeFocus,
   revealPath,
+  rootOf,
   samePath,
   selectedPath,
+  selectedPlaces,
   selectedRoot,
+  setSelection,
   startNaming,
   treeRows,
   workspaceRoots,
@@ -109,14 +114,17 @@ export async function commitNaming(name: string): Promise<void> {
   }
 }
 
-/** Updates tabs, open folders and listings after `from` moved to where `moved` says. */
-function afterMove(from: string, moved: Moved): void {
+/**
+ * Updates tabs, open folders and listings after `from` moved to where `moved` says, and selects the
+ * moved row unless a batch will select all of its rows together.
+ */
+function afterMove(from: string, moved: Moved, reveal = true): void {
   followDocuments(from, moved)
   remapPaths(from, moved.path)
   const [was, now] = [parentPath(from), parentPath(moved.path)]
   if (was !== null) void loadFolder(was)
   if (now !== null && (was === null || !samePath(was, now))) void loadFolder(now)
-  void revealPath(moved.path)
+  if (reveal) void revealPath(moved.path)
 }
 
 // ---- move, delete, reveal ----
@@ -147,6 +155,73 @@ export async function moveRow(path: string, folder: string): Promise<void> {
   }
 }
 
+/**
+ * Moves several files and folders into one folder. Each goes through `moveProblem` and a move that
+ * is not allowed is skipped, and so is one Rust refuses (a name that is taken there); the rest go
+ * on, and one line at the end says how it went. With `links.onRename` set to ask, the question is
+ * asked once, by the first move that has links to update, and its answer covers the others. Cancel
+ * in that question stops the batch, keeping what was already moved. The moved rows end up selected.
+ */
+export async function moveRows(paths: readonly string[], folder: string): Promise<void> {
+  const movable: string[] = []
+  const skipped: string[] = []
+  for (const path of paths) {
+    const refusal = moveProblem(path, folder)
+    if (refusal === null) movable.push(path)
+    else skipped.push(`${baseName(path)}: ${refusal}`)
+  }
+  if (movable.length === 0) {
+    const [first] = skipped
+    if (first !== undefined) reportWarning(first)
+    return
+  }
+  const batch: RewriteBatch = { choice: null }
+  const arrived: string[] = []
+  for (const [index, path] of movable.entries()) {
+    try {
+      const moved = await moveWithLinks(
+        path,
+        { kind: 'move', into: folder },
+        { batch, more: movable.length - index - 1 },
+      )
+      if (moved === null) break
+      afterMove(path, moved, false)
+      arrived.push(moved.path)
+    } catch (error) {
+      skipped.push(`${baseName(path)}: ${describe(error)}`)
+    }
+  }
+  if (arrived.length > 0) {
+    await openFolderRow(folder)
+    setSelection(arrived.map((path) => ({ root: rootOf(path) ?? folder, path })))
+    const [first] = arrived
+    if (first !== undefined) requestScroll(first, 'row', rootOf(first))
+  }
+  if (arrived.length < paths.length && batch.choice !== 'cancel') {
+    const [first] = skipped
+    const more = skipped.length > 1 ? ` and ${String(skipped.length - 1)} more` : ''
+    const why = first === undefined ? '' : ` ${first}${more}`
+    reportWarning(`Moved ${String(arrived.length)} of ${String(paths.length)}.${why}`)
+  }
+  restoreTreeFocus()
+}
+
+/**
+ * What a delete or a move acts on: the selected rows, each path once, without a workspace folder
+ * (which is not deleted or moved here) and without a row inside another selected row, which the
+ * outer one takes along. `roots` counts the workspace folders that were left out.
+ */
+export function selectedTargets(): { paths: string[]; roots: number } {
+  const places = selectedPlaces.value
+  const isRoot = (place: Place): boolean =>
+    workspaceRoots.value.some((root) => samePath(root, place.path))
+  const rest = outermost(
+    places.filter((place) => !isRoot(place)),
+    pathKey,
+  )
+  return { paths: rest.map((place) => place.path), roots: places.filter(isRoot).length }
+}
+
 /** The tabs that show a file, or any file under a folder, and how many hold unsaved edits (ISC-228). */
 function tabsUnder(path: string): { tabs: TabId[]; unsaved: number } {
   const tabs: TabId[] = []
@@ -162,9 +237,16 @@ function tabsUnder(path: string): { tabs: TabId[]; unsaved: number } {
 
 /** The question on screen before a delete, or null (ISC-227). */
 export interface DeletePrompt {
+  /** The row asked about; with several, the first of them. */
   readonly path: string
+  /** The name shown in the question: the row's, or "3 items". */
   readonly name: string
   readonly folder: boolean
+  /** Every path that goes when the question is answered yes. */
+  readonly paths: readonly string[]
+  /** How many of them are files, and how many are folders (which take what is in them). */
+  readonly files: number
+  readonly folders: number
   /** Open tabs that close with it. */
   readonly tabs: number
   /** Of the files behind those tabs, how many hold edits that were never saved. */
@@ -182,14 +264,49 @@ export function requestDelete(path: string): Promise<void> {
     (r) => (r.kind === 'file' || r.kind === 'folder') && samePath(r.path, path),
   )
   const { tabs, unsaved } = tabsUnder(path)
+  const folder = row?.kind === 'folder'
   deletePrompt.value = {
     path,
     name: baseName(path),
-    folder: row?.kind === 'folder',
+    folder,
+    paths: [path],
+    files: folder ? 0 : 1,
+    folders: folder ? 1 : 0,
     tabs: tabs.length,
     unsaved,
   }
   return Promise.resolve()
+}
+
+/**
+ * Asks once before deleting several files and folders: how many of each, and what happens to the
+ * tabs of all of them. `paths` must not hold one inside another (see `selectedTargets`).
+ */
+export function requestDeleteMany(paths: readonly string[]): void {
+  const first = paths[0]
+  if (first === undefined) return
+  const tabIds = new Set<TabId>()
+  let unsaved = 0
+  let folders = 0
+  for (const path of paths) {
+    const found = tabsUnder(path)
+    for (const id of found.tabs) tabIds.add(id)
+    unsaved += found.unsaved
+    const row = treeRows.value.find(
+      (r) => (r.kind === 'file' || r.kind === 'folder') && samePath(r.path, path),
+    )
+    if (row?.kind === 'folder') folders++
+  }
+  deletePrompt.value = {
+    path: first,
+    name: `${String(paths.length)} items`,
+    folder: false,
+    paths: [...paths],
+    files: paths.length - folders,
+    folders,
+    tabs: tabIds.size,
+    unsaved,
+  }
 }
 
 /** The owner said no. */
@@ -202,7 +319,8 @@ export async function confirmDelete(
   asked: DeletePrompt | null = deletePrompt.value,
 ): Promise<void> {
   deletePrompt.value = null
-  if (asked !== null) await deleteRow(asked.path)
+  if (asked === null) return
+  for (const path of asked.paths) await deleteRow(path)
 }
 
 /**
@@ -251,16 +369,32 @@ export async function openFolderInFileManager(path: string): Promise<void> {
 /** The key that deletes the selected row. The tree handles it itself, so it is not a command. */
 export const TREE_DELETE_KEY = 'Delete'
 
-/** Asks to delete the selected row, for the Delete key. */
+/**
+ * Asks to delete the selected rows, for the Delete key and the menu: one row as it always did, and
+ * several with a single question. A workspace folder among them is left out with a note.
+ */
 export function deleteSelected(): Promise<void> {
   const path = selectedPath.value
-  return path === null ? Promise.resolve() : requestDelete(path)
+  if (path === null) return Promise.resolve()
+  if (selectedPlaces.value.length <= 1) return requestDelete(path)
+  const { paths, roots } = selectedTargets()
+  if (paths.length === 0) return requestDelete(path)
+  if (roots > 0) {
+    reportWarning(
+      `${String(roots)} workspace folder${roots === 1 ? ' was' : 's were'} left out: use Remove Folder from Workspace.`,
+    )
+  }
+  const [only] = paths
+  if (paths.length === 1 && only !== undefined) return requestDelete(only)
+  requestDeleteMany(paths)
+  return Promise.resolve()
 }
 
-/** Renames the selected row, for F2. */
+/** Renames the selected row, for F2. With several rows selected there is nothing to rename. */
 export function renameSelected(): Promise<void> {
   const path = selectedPath.value
-  return path === null ? Promise.resolve() : renameRow(path, selectedRoot.value)
+  if (path === null || selectedPlaces.value.length > 1) return Promise.resolve()
+  return renameRow(path, selectedRoot.value)
 }
 
 // ---- copy on drop ----

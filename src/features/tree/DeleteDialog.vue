@@ -19,19 +19,47 @@ import { cancelDelete, confirmDelete, deletePrompt, type DeletePrompt } from './
  */
 const bin = navigator.userAgent.includes('Windows') ? 'the Recycle Bin' : 'the Trash'
 
+/** Several items in one question: the title names how many, and the lines say what they are. */
+const several = computed(() => (deletePrompt.value?.paths.length ?? 1) > 1)
+
+const title = computed(() => {
+  const asked = deletePrompt.value
+  if (asked === null) return ''
+  if (several.value) return `Delete ${asked.name}?`
+  return `Delete ${asked.folder ? 'the folder ' : ''}"${asked.name}"?`
+})
+
+function count(n: number, one: string, many: string): string {
+  return `${String(n)} ${n === 1 ? one : many}`
+}
+
 const lines = computed<string[]>(() => {
   const asked = deletePrompt.value
   if (asked === null) return []
-  const out = [
-    asked.folder ? `The folder and everything in it moves to ${bin}.` : `The file moves to ${bin}.`,
-  ]
+  const out: string[] = []
+  if (several.value) {
+    const parts = [
+      asked.files > 0 ? count(asked.files, 'file', 'files') : null,
+      asked.folders > 0 ? count(asked.folders, 'folder', 'folders') : null,
+    ].filter((part): part is string => part !== null)
+    out.push(`${parts.join(' and ')} move to ${bin}.`)
+    if (asked.folders > 0) out.push('A folder takes everything in it.')
+  } else {
+    out.push(
+      asked.folder
+        ? `The folder and everything in it moves to ${bin}.`
+        : `The file moves to ${bin}.`,
+    )
+  }
   if (asked.tabs > 0) {
     out.push(asked.tabs === 1 ? '1 open tab closes.' : `${String(asked.tabs)} open tabs close.`)
   }
   if (asked.unsaved > 0) {
     out.push(
       asked.unsaved === 1
-        ? 'It has unsaved changes, and they are lost.'
+        ? several.value
+          ? '1 file has unsaved changes, and they are lost.'
+          : 'It has unsaved changes, and they are lost.'
         : `${String(asked.unsaved)} files have unsaved changes, and they are lost.`,
     )
   }
@@ -70,7 +98,7 @@ function onOpenChange(open: boolean): void {
     >
       <AlertDialogHeader>
         <AlertDialogTitle class="break-words">
-          Delete {{ deletePrompt?.folder ? 'the folder ' : '' }}"{{ deletePrompt?.name }}"?
+          {{ title }}
         </AlertDialogTitle>
         <AlertDialogDescription as-child>
           <div class="grid gap-1">

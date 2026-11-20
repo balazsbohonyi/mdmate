@@ -28,8 +28,11 @@ export interface RewriteUpdated {
 /** What the sidebar shows, or null when nothing is going on. */
 export type RewriteState =
   | { readonly phase: 'scanning'; readonly scanned: number }
-  /** Asked before any file is read for links, so there are no counts yet. */
-  | { readonly phase: 'asking'; readonly path: string }
+  /**
+   * Asked before any file is read for links, so there are no counts yet. `more` is how many moves of
+   * the same batch wait behind this one, which the answer covers too.
+   */
+  | { readonly phase: 'asking'; readonly path: string; readonly more: number }
   | {
       readonly phase: 'report'
       /** What was updated, when links were. */
@@ -66,13 +69,13 @@ export function dirtyBuffers(): RewriteBuffer[] {
     .map((doc) => ({ id: doc.id, text: doc.snapshot().text }))
 }
 
-function ask(path: string): Promise<RewriteAnswer> {
+function ask(path: string, more: number): Promise<RewriteAnswer> {
   return new Promise((resolve) => {
     answer = (choice) => {
       answer = undefined
       resolve(choice)
     }
-    rewriteState.value = { phase: 'asking', path }
+    rewriteState.value = { phase: 'asking', path, more }
   })
 }
 
@@ -88,9 +91,21 @@ function showReport(report: Extract<RewriteState, { phase: 'report' }>): void {
   }, SUMMARY_MS)
 }
 
+/**
+ * What a batch of moves decided. The first move that has to ask records the answer here, and the
+ * moves after it follow it without asking again.
+ */
+export interface RewriteBatch {
+  choice: RewriteAnswer | null
+}
+
 export interface MoveOptions {
   /** Called once, when the move has been checked and the scan found nothing wrong with it. */
   readonly onChecked?: () => void
+  /** Set when this move is one of several that are answered together. */
+  readonly batch?: RewriteBatch
+  /** How many moves of the batch come after this one, for the question to say. */
+  readonly more?: number
 }
 
 /**
@@ -116,7 +131,10 @@ export async function moveWithLinks(
       ? host.renameEntry(path, change.name)
       : host.moveEntry(path, change.into)
 
-  const mode: LinksOnRename = (await host.linksOnRenameOverride()) ?? settings.links.onRename
+  let mode: LinksOnRename = (await host.linksOnRenameOverride()) ?? settings.links.onRename
+  // A batch that was answered already: Yes updates the links of every move, No moves plainly.
+  if (mode === 'ask' && options.batch?.choice === 'update') mode = 'update'
+  if (mode === 'ask' && options.batch?.choice === 'move-only') mode = 'never'
   if (mode === 'never') {
     const moved = await plain()
     options.onChecked?.()
@@ -130,8 +148,9 @@ export async function moveWithLinks(
   if (!something) return plain()
 
   if (mode === 'ask') {
-    const choice = await ask(path)
+    const choice = await ask(path, options.more ?? 0)
     rewriteState.value = null
+    if (options.batch !== undefined) options.batch.choice = choice
     if (choice === 'cancel') return null
     if (choice === 'move-only') return plain()
   }

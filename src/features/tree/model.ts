@@ -222,6 +222,53 @@ export function visibleWindow(
   }
 }
 
+// ---- selecting several rows ----
+
+/** Whether two places are the same row: the same path under the same root, case folded as the OS does. */
+export function samePlace(a: Place, b: Place, keyOf: (path: string) => string): boolean {
+  return keyOf(a.root) === keyOf(b.root) && keyOf(a.path) === keyOf(b.path)
+}
+
+/**
+ * The places of the rows from `from` to `to`, both included, in the order of the rows on screen. A
+ * note or a name box between them is not a place. When either end is not on screen (it sits in a
+ * folder that was closed) the range is `to` alone.
+ */
+export function rangeBetween(
+  rows: readonly TreeRow[],
+  from: Place,
+  to: Place,
+  keyOf: (path: string) => string,
+): Place[] {
+  const selectable = rows.filter(isSelectable)
+  const first = selectable.findIndex((row) => samePlace(row, from, keyOf))
+  const last = selectable.findIndex((row) => samePlace(row, to, keyOf))
+  if (first === -1 || last === -1) return [{ root: to.root, path: to.path }]
+  const [start, end] = first <= last ? [first, last] : [last, first]
+  return selectable.slice(start, end + 1).map((row) => ({ root: row.root, path: row.path }))
+}
+
+/**
+ * What a delete or a move acts on, from the selected places: each path once, and a path inside
+ * another selected one left out, since the outer one takes it along. The order of the input stays.
+ */
+export function outermost(places: readonly Place[], keyOf: (path: string) => string): Place[] {
+  const seen = new Set<string>()
+  const unique = places.filter((place) => {
+    const key = keyOf(place.path)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+  return unique.filter((place) => {
+    const key = keyOf(place.path)
+    return !unique.some((other) => {
+      const outer = keyOf(other.path)
+      return outer !== key && key.startsWith(`${outer}/`)
+    })
+  })
+}
+
 // ---- the keyboard ----
 
 /** A row the user can select: not a note and not the box a new name is typed in. */

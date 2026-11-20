@@ -8,6 +8,7 @@ const box = ref<HTMLElement | null>(null)
 
 const state = computed(() => rewriteState.value)
 const asking = computed(() => (state.value?.phase === 'asking' ? state.value.path : null))
+const askingMore = computed(() => (state.value?.phase === 'asking' ? state.value.more : 0))
 
 const updatedLine = computed(() => {
   const report = state.value
@@ -80,7 +81,7 @@ watch(
           class="font-medium"
           data-name
           >{{ baseName(asking) }}</span
-        >?
+        ><template v-if="askingMore > 0"> and {{ askingMore }} more</template>?
       </p>
       <p
         class="text-muted-foreground"

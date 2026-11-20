@@ -42,17 +42,21 @@ import {
   deleteSelected,
   moveProblem,
   moveRow,
+  moveRows,
   newFileIn,
   newFolderIn,
   openFolderInFileManager,
   renameRow,
   renameSelected,
   revealInFileManager,
+  selectedTargets,
   TREE_DELETE_KEY,
 } from './ops'
 import {
   activateRow,
   cancelNaming,
+  collapseSelection,
+  isSelectedPlace,
   naming,
   removeRootFolder,
   samePath,
@@ -60,9 +64,12 @@ import {
   requestScroll,
   select,
   selectedPath,
+  selectedPlaces,
   selectedRoot,
+  selectRangeTo,
   takeTreeFocusRequest,
   toggleFolder,
+  toggleSelected,
   treeFocusRequest,
   treeRows,
   type TreeFocusRequest,
@@ -159,9 +166,13 @@ function onContextMenu(event: MouseEvent): void {
     menuRow.value = null
     return
   }
-  select(row.path, row.root)
+  // A row inside the selection keeps it, so the menu acts on all of it; any other row is selected alone.
+  if (!isSelectedPlace(row.root, row.path)) select(row.path, row.root)
   menuRow.value = row
 }
+
+/** Whether the menu is for several rows, when only Delete makes sense. */
+const manyRows = computed(() => selectedPlaces.value.length > 1)
 
 const isFolderRow = computed(
   () => menuRow.value?.kind === 'root' || menuRow.value?.kind === 'folder',
@@ -185,6 +196,10 @@ function menuRename(): void {
   if (path !== null) void renameRow(path, menuRow.value?.root)
 }
 function menuDelete(): void {
+  if (manyRows.value) {
+    void deleteSelected()
+    return
+  }
   const path = menuPath()
   if (path !== null) void requestDelete(path)
 }
@@ -273,6 +288,21 @@ function onKeydown(event: KeyboardEvent): void {
     return
   }
   if (event.ctrlKey || event.altKey || event.metaKey) return
+  // Shift with Up or Down grows the selection from where it started; Escape goes back to one row.
+  if (event.shiftKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+    event.preventDefault()
+    const action = keyAction(treeRows.value, selectedPath.value, event.key, selectedRoot.value)
+    if (action?.kind === 'select') {
+      selectRangeTo(treeRows.value, action.path, action.root)
+      requestScroll(action.path, 'row', action.root)
+    }
+    return
+  }
+  if (event.key === 'Escape' && manyRows.value) {
+    event.preventDefault()
+    collapseSelection()
+    return
+  }
   if (!event.shiftKey && TREE_KEYS.includes(event.key)) {
     // Space and the arrows would scroll the list; the tree moves the selection itself.
     event.preventDefault()
@@ -310,7 +340,10 @@ function runKeyAction(action: ReturnType<typeof keyAction>): void {
 /** Pixels the pointer must travel before a press becomes a drag, so a click never moves a file. */
 const DRAG_THRESHOLD = 5
 
-const dragged = ref<Place | null>(null)
+/** The rows being dragged: the selection, which a press on an unselected row replaces by that row. */
+const dragged = ref<readonly Place[]>([])
+/** What the drag moves, fixed when it starts. */
+let dragPaths: string[] = []
 /** The folder the dragged row would land in, or null when the pointer is somewhere it cannot. */
 const dropFolder = ref<Place | null>(null)
 let press: { root: string; path: string; x: number; y: number } | undefined
@@ -340,19 +373,26 @@ function onPointerDown(event: PointerEvent, row: TreeRow): void {
 
 function onPointerMove(event: PointerEvent): void {
   if (press === undefined) return
-  if (dragged.value === null) {
+  if (dragged.value.length === 0) {
     if (Math.hypot(event.clientX - press.x, event.clientY - press.y) < DRAG_THRESHOLD) return
-    dragged.value = { root: press.root, path: press.path }
+    // Dragging a row that is not selected takes that row alone; dragging a selected one takes them all.
+    if (!isSelectedPlace(press.root, press.path)) select(press.path, press.root)
+    dragged.value = selectedPlaces.value
+    dragPaths = selectedTargets().paths
+    if (dragPaths.length === 0) dragPaths = [press.path]
   }
   const folder = folderAt(event.clientX, event.clientY)
+  // The folder takes the drag when at least one of the rows can go there; the others are skipped.
   dropFolder.value =
-    folder !== null && moveProblem(press.path, folder.path) === null ? folder : null
+    folder !== null && dragPaths.some((path) => moveProblem(path, folder.path) === null)
+      ? folder
+      : null
   setDragCursor(dropFolder.value === null ? 'blocked' : 'move')
 }
 
 function onPointerUp(): void {
-  const [path, folder] = [press?.path, dropFolder.value]
-  const wasDragging = dragged.value !== null
+  const [paths, folder] = [dragPaths, dropFolder.value]
+  const wasDragging = dragged.value.length > 0
   stopDrag()
   if (!wasDragging) return
   // The click that ends a drag lands on the row under the pointer and must not open it.
@@ -360,7 +400,9 @@ function onPointerUp(): void {
   setTimeout(() => {
     swallowClick = false
   }, 0)
-  if (path !== undefined && folder !== null) void moveRow(path, folder.path)
+  const [only] = paths
+  if (folder === null || only === undefined) return
+  void (paths.length === 1 ? moveRow(only, folder.path) : moveRows(paths, folder.path))
 }
 
 function onDragKey(event: KeyboardEvent): void {
@@ -371,7 +413,8 @@ function onDragKey(event: KeyboardEvent): void {
 
 function stopDrag(): void {
   press = undefined
-  dragged.value = null
+  dragged.value = []
+  dragPaths = []
   dropFolder.value = null
   setDragCursor(null)
   window.removeEventListener('pointermove', onPointerMove)
@@ -381,6 +424,17 @@ function stopDrag(): void {
 
 function onRowClick(event: MouseEvent, row: TreeRow): void {
   if (swallowClick) return
+  // Ctrl adds the row to the selection or takes it out, Shift selects the rows up to it. Neither
+  // opens a file or a folder. These come before the double-click test: two quick Ctrl clicks on
+  // one row are two toggles.
+  if (isSelectable(row) && (event.ctrlKey || event.metaKey)) {
+    toggleSelected(row.path, row.root)
+    return
+  }
+  if (isSelectable(row) && event.shiftKey) {
+    selectRangeTo(treeRows.value, row.path, row.root)
+    return
+  }
   // The second click of a double click: the first one already did its work (a folder toggled once,
   // a file shown), and a double click on a file is the dblclick below.
   if (event.detail >= 2) return
@@ -388,7 +442,8 @@ function onRowClick(event: MouseEvent, row: TreeRow): void {
 }
 
 /** A double click on a file shows it and puts the caret in it, like Enter. */
-function onRowDoubleClick(row: TreeRow): void {
+function onRowDoubleClick(event: MouseEvent, row: TreeRow): void {
+  if (event.ctrlKey || event.metaKey || event.shiftKey) return
   if (row.kind === 'file') void activateRow(row, { focusEditor: true })
 }
 
@@ -422,8 +477,7 @@ function isDragged(row: TreeRow): boolean {
   return (
     row.kind !== 'note' &&
     row.kind !== 'new' &&
-    row.path === dragged.value?.path &&
-    row.root === dragged.value.root
+    dragged.value.some((place) => place.path === row.path && place.root === row.root)
   )
 }
 
@@ -437,12 +491,7 @@ function rowKey(row: TreeRow): string {
 }
 
 function isSelectedRow(row: TreeRow): boolean {
-  return (
-    row.kind !== 'note' &&
-    row.kind !== 'new' &&
-    row.path === selectedPath.value &&
-    row.root === selectedRoot.value
-  )
+  return row.kind !== 'note' && row.kind !== 'new' && isSelectedPlace(row.root, row.path)
 }
 
 /** The tooltip of a row: its path (a note shows its text). Nothing while the row is a name box. */
@@ -459,6 +508,7 @@ function rowHint(row: TreeRow): string | null {
         ref="scroller"
         role="tree"
         aria-label="Workspace files"
+        aria-multiselectable="true"
         data-file-tree
         tabindex="0"
         :aria-activedescendant="
@@ -518,7 +568,7 @@ function rowHint(row: TreeRow): string | null {
               }"
               @pointerdown="onPointerDown($event, row)"
               @click="onRowClick($event, row)"
-              @dblclick="onRowDoubleClick(row)"
+              @dblclick="onRowDoubleClick($event, row)"
             >
               <template v-if="row.kind === 'root' || row.kind === 'folder'">
                 <component
@@ -577,51 +627,59 @@ function rowHint(row: TreeRow): string | null {
       </div>
     </ContextMenuTrigger>
     <ContextMenuContent @close-auto-focus="onMenuClosed">
-      <template v-if="isFolderRow">
-        <ContextMenuItem @select="menuNewFile">New File</ContextMenuItem>
-        <ContextMenuItem @select="menuNewFolder">New Folder</ContextMenuItem>
-        <ContextMenuSeparator />
-      </template>
-      <template v-if="menuRow?.kind !== 'root'">
-        <ContextMenuItem @select="menuRename">
-          Rename...
-          <ContextMenuShortcut>{{
-            shortcutLabel(COMMAND_IDS.rename, platform)
-          }}</ContextMenuShortcut>
-        </ContextMenuItem>
+      <template v-if="manyRows">
         <ContextMenuItem @select="menuDelete">
-          Delete
+          Delete {{ selectedPlaces.length }} items
           <ContextMenuShortcut>{{ TREE_DELETE_KEY }}</ContextMenuShortcut>
         </ContextMenuItem>
-        <ContextMenuSeparator />
       </template>
-      <ContextMenuItem @select="menuCopyPath">Copy Path</ContextMenuItem>
-      <template v-if="menuRow?.kind !== 'root'">
-        <ContextMenuItem @select="menuCopyRelativePath">Copy Relative Path</ContextMenuItem>
-      </template>
-      <ContextMenuSeparator />
-      <ContextMenuItem
-        v-if="isFolderRow"
-        @select="menuFindInFolder"
-      >
-        Find in Folder...
-        <ContextMenuShortcut>{{ FIND_IN_FOLDER_KEYS }}</ContextMenuShortcut>
-      </ContextMenuItem>
-      <ContextMenuItem @select="menuReveal">{{
-        isFolderRow ? OPEN_FOLDER : OPEN_CONTAINING_FOLDER
-      }}</ContextMenuItem>
-      <ContextMenuItem
-        v-if="menuRow?.kind === 'file'"
-        @select="menuFindReferences"
-      >
-        Find File References
-        <ContextMenuShortcut>{{
-          shortcutLabel(COMMAND_IDS.findReferences, platform)
-        }}</ContextMenuShortcut>
-      </ContextMenuItem>
-      <template v-if="menuRow?.kind === 'root'">
+      <template v-else>
+        <template v-if="isFolderRow">
+          <ContextMenuItem @select="menuNewFile">New File</ContextMenuItem>
+          <ContextMenuItem @select="menuNewFolder">New Folder</ContextMenuItem>
+          <ContextMenuSeparator />
+        </template>
+        <template v-if="menuRow?.kind !== 'root'">
+          <ContextMenuItem @select="menuRename">
+            Rename...
+            <ContextMenuShortcut>{{
+              shortcutLabel(COMMAND_IDS.rename, platform)
+            }}</ContextMenuShortcut>
+          </ContextMenuItem>
+          <ContextMenuItem @select="menuDelete">
+            Delete
+            <ContextMenuShortcut>{{ TREE_DELETE_KEY }}</ContextMenuShortcut>
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+        </template>
+        <ContextMenuItem @select="menuCopyPath">Copy Path</ContextMenuItem>
+        <template v-if="menuRow?.kind !== 'root'">
+          <ContextMenuItem @select="menuCopyRelativePath">Copy Relative Path</ContextMenuItem>
+        </template>
         <ContextMenuSeparator />
-        <ContextMenuItem @select="remove">Remove Folder from Workspace</ContextMenuItem>
+        <ContextMenuItem
+          v-if="isFolderRow"
+          @select="menuFindInFolder"
+        >
+          Find in Folder...
+          <ContextMenuShortcut>{{ FIND_IN_FOLDER_KEYS }}</ContextMenuShortcut>
+        </ContextMenuItem>
+        <ContextMenuItem @select="menuReveal">{{
+          isFolderRow ? OPEN_FOLDER : OPEN_CONTAINING_FOLDER
+        }}</ContextMenuItem>
+        <ContextMenuItem
+          v-if="menuRow?.kind === 'file'"
+          @select="menuFindReferences"
+        >
+          Find File References
+          <ContextMenuShortcut>{{
+            shortcutLabel(COMMAND_IDS.findReferences, platform)
+          }}</ContextMenuShortcut>
+        </ContextMenuItem>
+        <template v-if="menuRow?.kind === 'root'">
+          <ContextMenuSeparator />
+          <ContextMenuItem @select="remove">Remove Folder from Workspace</ContextMenuItem>
+        </template>
       </template>
     </ContextMenuContent>
   </ContextMenu>

@@ -8,6 +8,7 @@ import {
   parentPath,
   pathKeyer,
   placeKey,
+  rangeBetween,
   withNewRow,
   type Listing,
   type Place,
@@ -53,10 +54,103 @@ export const selectedRoot = computed<string | null>(() => {
   return rootOf(path) ?? null
 })
 
-/** Selects a row: its path, and the root it sits under when it is known. */
+/** Selects a row on its own: its path, and the root it sits under when it is known. */
 export function select(path: string | null, root: string | null = null): void {
   selectedPath.value = path
   selectedUnder.value = path === null ? null : root
+  selection.value = new Map()
+  anchor = path === null ? null : { root: root ?? rootOf(path) ?? path, path }
+}
+
+// ---- selecting several rows ----
+
+/**
+ * The rows selected together, by place. Empty, or a set that does not hold the lead row (a test or
+ * an old caller set `selectedPath` alone), means the lead row is the whole selection. The lead is
+ * the row last clicked or moved to, and the one the keyboard continues from.
+ */
+const selection = shallowRef<ReadonlyMap<string, Place>>(new Map())
+/** Where a Shift range starts: the row last selected on its own or toggled with Ctrl. */
+let anchor: Place | null = null
+
+/** A place as the selection tells places apart. */
+function placeId(root: string, path: string): string {
+  return placeKey(keyOf, root, path)
+}
+
+/** Every selected place, the lead row last. A single selection is one place. */
+export const selectedPlaces = computed<Place[]>(() => {
+  const path = selectedPath.value
+  if (path === null) return []
+  const root = selectedRoot.value ?? path
+  const set = selection.value
+  if (!set.has(placeId(root, path))) return [{ root, path }]
+  const others = [...set.values()].filter((place) => !(place.root === root && place.path === path))
+  return [...others, { root, path }]
+})
+
+const selectedKeys = computed(
+  () => new Set(selectedPlaces.value.map((place) => placeId(place.root, place.path))),
+)
+
+/** Whether a row is one of the selected ones. */
+export function isSelectedPlace(root: string, path: string): boolean {
+  return selectedKeys.value.has(placeId(root, path))
+}
+
+function applySelection(places: readonly Place[], lead: Place): void {
+  selectedPath.value = lead.path
+  selectedUnder.value = lead.root
+  selection.value = new Map(places.map((place) => [placeId(place.root, place.path), place]))
+}
+
+/** Ctrl+click: adds the row to the selection, or takes it out when it is in. */
+export function toggleSelected(path: string, root: string): void {
+  const key = placeId(root, path)
+  const current = selectedPlaces.value
+  anchor = { root, path }
+  if (current.some((place) => placeId(place.root, place.path) === key)) {
+    const rest = current.filter((place) => placeId(place.root, place.path) !== key)
+    const lead = rest.at(-1)
+    if (lead === undefined) select(null)
+    else applySelection(rest, lead)
+    return
+  }
+  applySelection([...current, { root, path }], { root, path })
+}
+
+/**
+ * Shift+click, and Shift with Up or Down: selects the rows from the anchor to this one, in the
+ * order they are on screen, and makes this one the lead. The anchor stays where it was.
+ */
+export function selectRangeTo(rows: readonly TreeRow[], path: string, root: string): void {
+  const from = anchor ?? selectedPlaces.value.at(-1) ?? { root, path }
+  applySelection(rangeBetween(rows, from, { root, path }, keyOf), { root, path })
+}
+
+/** Goes back to the lead row alone (Escape, or a click on a selected row with no key held). */
+export function collapseSelection(): void {
+  const lead = selectedPlaces.value.at(-1)
+  if (lead !== undefined && selectedPlaces.value.length > 1) select(lead.path, lead.root)
+}
+
+/** Selects these places together, the last one the lead. */
+export function setSelection(places: readonly Place[]): void {
+  const lead = places.at(-1)
+  if (lead === undefined) {
+    select(null)
+    return
+  }
+  applySelection(places, lead)
+  anchor = lead
+}
+
+/** Takes the places `gone` picks out of the selection, and the lead with them if it is one. */
+function dropSelected(gone: (place: Place) => boolean): void {
+  const all = selectedPlaces.value
+  const rest = all.filter((place) => !gone(place))
+  if (rest.length === all.length) return
+  setSelection(rest)
 }
 
 /**
@@ -269,7 +363,15 @@ export function remapPaths(from: string, to: string): void {
     }
   }
   const selected = selectedPath.value
-  if (selected !== null && isInside(selected, from)) {
+  const places = selectedPlaces.value
+  if (places.length > 1) {
+    // Several rows selected: each one that moved follows it, the others stay.
+    const follow = (place: Place): Place =>
+      isInside(place.path, from)
+        ? { root: place.root, path: to + place.path.slice(from.length) }
+        : place
+    setSelection(places.map(follow))
+  } else if (selected !== null && isInside(selected, from)) {
     select(to + selected.slice(from.length), selectedUnder.value)
   }
   for (const folder of reopened) void loadFolder(folder)
@@ -288,7 +390,7 @@ export function forgetPath(path: string): void {
       newest.delete(key)
     }
   }
-  if (selectedPath.value !== null && isInside(selectedPath.value, path)) select(null)
+  dropSelected((place) => isInside(place.path, path))
 }
 
 /**
@@ -383,10 +485,10 @@ export async function removeRootFolder(path: string): Promise<void> {
     reportError(`Could not remove the folder: ${describe(error)}`)
     return
   }
-  const wasSelectedHere = selectedRoot.value !== null && samePath(selectedRoot.value, path)
+  // The selection goes first: once the root is out of the list its rows no longer name a root.
+  dropSelected((place) => samePath(place.root, path))
   roots.value = roots.value.filter((root) => keyOf(root) !== keyOf(path))
   forgetRoot(path)
-  if (wasSelectedHere) select(null)
 }
 
 /** The newest file the tree asked to open, so a double click waits for the click before it. */
