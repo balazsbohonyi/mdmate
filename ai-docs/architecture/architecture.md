@@ -38,7 +38,7 @@ mdmate/
 │  ├─ documents/      Document store, master state, save, conflict, session
 │  ├─ workbench/      Split tree model, panes, tabs, pointer drag, commands
 │  ├─ shell/          App layout: title bar with menu and caption buttons, sidebar frame, status bar
-│  ├─ features/       tree/ (model, store, ops, FileTree.vue, NameInput.vue, CopyBanner.vue), drop.ts, palette/ (state, rows, PaletteHost.vue); later search, outline, settings
+│  ├─ features/       tree/ (model, store, ops, FileTree.vue, FileIcon.vue, fileIcons.ts, NameInput.vue, CopyBanner.vue), drop.ts, palette/ (state, rows, PaletteHost.vue); later search, outline, settings
 │  ├─ components/ui/  shadcn-vue, added only with `pnpm ui:add` (never edit by hand)
 │  ├─ lib/            shadcn-vue utilities
 │  └─ styles/         tokens.css (fonts, sizes, Tailwind map), themes/dark.css, light.css and sepia.css (every color)
@@ -220,6 +220,8 @@ A command may carry a `state()`, which the palette rows and the menu show as On 
 The web view's own browser shortcuts (reload, view source, find, zoom) are off: `Platform::disable_browser_keys` runs once from `setup` in `lib.rs`, and on Windows it clears WebView2's `AreBrowserAcceleratorKeysEnabled` (`platform/windows`, through `with_webview`). The app's shortcuts are handled in the page, so they are unaffected, and F12 reaches `open_devtools` through `devtools_open`, not an accelerator.
 
 The window zoom is the `view.zoom` setting (percent, 50 to 300). Zoom In, Zoom Out and Reset Zoom (`Mod+=`, `Mod+-`, `Mod+0`, with a plus typed with Ctrl as an alias handled in `workbench/keyboard.ts`) and Ctrl+wheel (`workbench/zoomWheel.ts`) step it through `features/settings/zoom.ts`, which writes the setting like any other change. `updateZoom` (`features/settings/zoomApply.ts`) hands the level to the web view with `host.setZoom` after every settings read, the first time always; the web view does the scaling, so the pixel ratio includes the zoom and pointer positions stay in CSS pixels.
+
+File rows in the sidebar show an icon by file type. `features/tree/fileIcons.ts` is a pure map from a file name to an icon id (whole name first, then the longest extension, case-insensitive, a default for unknown names), and `FileIcon.vue` draws the id as a `<use>` into `public/file-icons.svg`, one local sprite of a Material Icon Theme subset (MIT; its licence is `public/file-icons-LICENSE.txt`). The sprite is made by `scripts/build-file-icons.mjs` from the ids the map lists, and a test keeps the two in step. Folder rows keep their Lucide icons.
 
 A tab can be pinned in its pane. The pin is part of the layout (`workbench/splitTree.ts`): a pane has an optional `pinned` count, and the pinned tabs are always its first `pinned` tabs, so the prefix rule holds by construction and `validateLayout` checks it. `pinTab` and `unpinTab` move a tab to the end of the pinned group or to the front of the rest; `closeTab`, `moveTab` and `moveTabToEdge` keep the count right, and a move holds the index inside the dragged tab's own group. The count is saved inside the layout text of the session, left out while it is zero, so the session version stays 1. The close commands that take many tabs (Close Others, Close to the Right, Close All, in `workbench/tabMenu.ts` and `documents/store.ts`) leave pinned tabs open; Close on one tab closes it. The tab strip (`TabStrip.vue`, `TabStripItem.vue`) shows the pin in the slot of the X, and the drop code (`tabDropTarget.ts`) clamps the preview and the index the same way `moveTab` does.
 

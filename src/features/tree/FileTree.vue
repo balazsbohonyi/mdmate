@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronDown, ChevronRight, File, FileText, Folder, FolderOpen } from '@lucide/vue'
+import { ChevronDown, ChevronRight, FileText, Folder, FolderOpen } from '@lucide/vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   ContextMenu,
@@ -23,6 +23,7 @@ import {
   copyRelativePath,
 } from '@/workbench/tabMenu'
 import { setDragCursor } from './dragCursor'
+import FileIcon from './FileIcon.vue'
 import NameInput from './NameInput.vue'
 import {
   FALLBACK_VIEWPORT_HEIGHT,
@@ -534,12 +535,7 @@ function rowHint(row: TreeRow): string | null {
               </template>
               <template v-else-if="row.kind === 'file'">
                 <span class="size-3.5 shrink-0" />
-                <component
-                  :is="row.markdown ? FileText : File"
-                  class="size-4 shrink-0"
-                  :class="row.markdown ? '' : 'opacity-60'"
-                  :stroke-width="1.5"
-                />
+                <FileIcon :name="row.name" />
               </template>
               <template v-else-if="row.kind === 'new'">
                 <span class="size-3.5 shrink-0" />
