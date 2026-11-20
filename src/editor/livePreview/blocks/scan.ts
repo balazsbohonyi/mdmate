@@ -44,6 +44,12 @@ export interface TableItem {
   readonly model: TableModel
   /** The table's own text, which is what makes two widgets for it the same widget. */
   readonly source: string
+  /**
+   * The whitespace before the first row, for a table in a list item, which the widget keeps so the
+   * table lines up under the item's text. Empty for a table at the top level, which is drawn at the
+   * margin whatever its (up to three spaces of) indent.
+   */
+  readonly indent: string
 }
 
 /**
@@ -237,10 +243,28 @@ function fit(cells: Cell[], width: number): Cell[] {
   return fitted
 }
 
-function tableItem(state: EditorState, node: SyntaxNode): TableItem | null {
+/** The nodes a list is made of. */
+const LIST_NODES = new Set(['BulletList', 'OrderedList', 'ListItem'])
+
+/** Whether everything above `node`, up to the document, is a list or a list item. */
+function inListsOnly(node: SyntaxNode): boolean {
+  for (let up = node.parent; up !== null && up.name !== 'Document'; up = up.parent) {
+    if (!LIST_NODES.has(up.name)) return false
+  }
+  return true
+}
+
+/**
+ * A table drawn as a widget. `nested` is true for a table inside list items, which is drawn only
+ * when its first row starts the line after whitespace: a list marker before it (`- | a |`) would
+ * be lost with the line, so that table stays Markdown.
+ */
+function tableItem(state: EditorState, node: SyntaxNode, nested = false): TableItem | null {
   const doc = state.doc
   const from = doc.lineAt(node.from).from
   const to = doc.lineAt(node.to).to
+  const indent = nested ? doc.sliceString(from, node.from) : ''
+  if (indent.trim() !== '') return null
   let head: Cell[] = []
   let align: Align[] = []
   const body: Cell[][] = []
@@ -262,6 +286,7 @@ function tableItem(state: EditorState, node: SyntaxNode): TableItem | null {
       rows: body.map((row) => fit(row, width)),
     },
     source: doc.sliceString(from, to),
+    indent,
   }
 }
 
@@ -427,8 +452,19 @@ export function scanBlocks(
           }
           return false
         }
-        // Blocks are top-level: inside a list or a quote the line prefix would be lost.
-        if (node.node.parent?.name !== 'Document') return false
+        // Blocks are top-level, except a table in a list item, whose only line prefix is the indent
+        // that the widget keeps. Inside a quote the `>` would be lost, so nothing there is drawn.
+        if (node.node.parent?.name !== 'Document') {
+          if (!inListsOnly(node.node)) return false
+          if (LIST_NODES.has(node.name)) return
+          if (node.name === 'Table' && !seen.has(node.from)) {
+            seen.add(node.from)
+            const item = tableItem(state, node.node, true)
+            if (item !== null) items.push(item)
+          }
+          return false
+        }
+        if (node.name === 'BulletList' || node.name === 'OrderedList') return
         if (node.name === 'Table') {
           if (!seen.has(node.from)) {
             seen.add(node.from)

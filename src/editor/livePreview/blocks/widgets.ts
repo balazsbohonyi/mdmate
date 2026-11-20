@@ -19,6 +19,8 @@ export const ROW_HEIGHT = 33
 export const FIRST_ROWS = 50
 /** The deferred fill of a table drawn in two steps, by its DOM, so `destroy` can stop it. */
 const filling = new WeakMap<HTMLElement, () => void>()
+/** The table wrapper inside an indented table's outer element, which is what CodeMirror holds. */
+const wrapOf = new WeakMap<HTMLElement, HTMLElement>()
 /** The padding above and below a table, in px. */
 const TABLE_PADDING = 16
 
@@ -57,11 +59,14 @@ export class TableWidget extends BlockWidget {
   readonly model: TableModel
   /** The table's own text, which is what makes two widgets for it the same widget. */
   readonly source: string
+  /** The whitespace a table in a list item starts after, kept so it lines up under the item's text. */
+  readonly indent: string
 
-  constructor(model: TableModel, source: string) {
+  constructor(model: TableModel, source: string, indent = '') {
     super()
     this.model = model
     this.source = source
+    this.indent = indent
   }
 
   /** The same source draws the same table, so CodeMirror keeps the DOM it has. */
@@ -98,6 +103,18 @@ export class TableWidget extends BlockWidget {
     for (const cells of rows.slice(0, FIRST_ROWS)) body.append(row(cells, 'td'))
     table.append(head, body)
     wrap.append(table)
+    // `shell` is what the editor holds and what CodeMirror asks about; it is `wrap` itself unless the
+    // table is indented, when it is a row of an invisible stand-in for the typed whitespace (so the
+    // gap is as wide as the text it replaces, in the editor's own font) and the scrolling table.
+    let shell: HTMLElement = wrap
+    if (this.indent !== '') {
+      shell = document.createElement('div')
+      shell.className = 'cm-md-table-indented'
+      const gap = document.createElement('span')
+      gap.className = 'cm-md-table-indent'
+      gap.textContent = this.indent
+      shell.append(gap, wrap)
+    }
 
     // The rest of a big table: one spacer row as tall as the rows it stands for, replaced by the
     // real rows in a single step after the frame, so the table is laid out once more, not often.
@@ -156,17 +173,21 @@ export class TableWidget extends BlockWidget {
         offset = Number(cell?.dataset.offset ?? 0)
       }
       // Where the widget is now: its DOM can outlive edits that moved the table.
-      const start = view.posAtDOM(wrap)
+      const start = view.posAtDOM(shell)
       event.preventDefault()
       view.dispatch({ selection: { anchor: start + offset }, scrollIntoView: true })
       view.focus()
     })
-    return wrap
+    // CodeMirror hands `destroy` the element returned here, which is the shell, not the wrapper.
+    if (shell !== wrap) wrapOf.set(shell, wrap)
+    return shell
   }
 
   override destroy(dom: HTMLElement): void {
-    filling.get(dom)?.()
-    filling.delete(dom)
+    const wrap = wrapOf.get(dom) ?? dom
+    wrapOf.delete(dom)
+    filling.get(wrap)?.()
+    filling.delete(wrap)
   }
 }
 

@@ -6,6 +6,15 @@ import { EditorView } from '@codemirror/view'
  */
 export const blockTheme = EditorView.baseTheme({
   '.cm-md-table-wrap': { padding: '0.45em 0', overflowX: 'auto', overflowY: 'hidden' },
+  // A table in a list item: a row of the invisible indent and the table, which scrolls by itself.
+  '.cm-md-table-indented': { display: 'flex', alignItems: 'flex-start' },
+  '.cm-md-table-indented > .cm-md-table-wrap': { flex: '1 1 auto', minWidth: '0' },
+  '.cm-md-table-indent': {
+    flex: 'none',
+    whiteSpace: 'pre',
+    visibility: 'hidden',
+    padding: '0.45em 0',
+  },
   '.cm-md-table': {
     borderCollapse: 'collapse',
     fontSize: '0.95em',

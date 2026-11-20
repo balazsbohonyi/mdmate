@@ -133,7 +133,7 @@ Phase 9.1 collects the small fixes and rough edges found in daily use, between t
 - [x] P9.1-T8: File-type icons in the sidebar (Material Icon Theme subset) — closes the new claims
 - [ ] P9.1-T9: Select several files in the sidebar; batch delete with one confirmation; move them together — closes the new claims
 - [ ] P9.1-T10: Drag selected files and folders out to the desktop as copies (spike first; may move to Phase 10) — closes the new claims
-- [ ] P9.1-T11: Tables inside list items are drawn as tables, at the item's indent — closes the new claims (owner request; independent of T9 and T10)
+- [x] P9.1-T11: Tables inside list items are drawn as tables, at the item's indent — closes the new claims (owner request; independent of T9 and T10)
 
 ## Phase 10: Ship ([plan](phases/phase-10/plan.md))
 
