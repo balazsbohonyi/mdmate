@@ -10,7 +10,7 @@
 - **Plan first, then add to this file.** The owner writes a small plan for each fix. Its task gets a section below and a line in `ai-docs/tasks.md` before the code changes.
 - **Every fix has a claim.** A bug reopens the claim that should have caught it, or adds a new one (`ai-docs/standards/isa.md`). The probe fails on the old code first.
 - **Scope stays small.** A fix that grows into a feature moves to Phase 10 or a phase of its own.
-- **Order:** T2 to T10 run in order. T10 starts with a spike and may move to Phase 10 (recorded in `ISA.md` Decisions).
+- **Order:** T2 to T10 run in order. T10 starts with a spike and may move to Phase 10 (recorded in `ISA.md` Decisions). T11 was added later and touches nothing the others do, so it can run before T9.
 - **Claims:** a task's claims are added to `ISA.md` in the task's own commit, as P9.1-T1 did. The sections below name the claims a task reopens and the areas where new ones go.
 - **Branch:** `feat/phase-09.1-polish`.
 
@@ -156,3 +156,40 @@
 **Tests:** Rust tests for path resolution and the refusals. The drag itself is a `manual` claim, verified in a real window by dropping two files and one folder on the Desktop. Record the numbers and the OS in ISA Verification.
 
 **Done when:** the spike result is recorded. If it passed, a two-file and one-folder drag to the Desktop gives copies, the sources are untouched, and `pnpm check`, `pnpm check:rust` and `pnpm test:rust` are green.
+
+## P9.1-T11: Tables inside list items are drawn as tables
+
+**The problem:** a table written under a list item is shown as raw Markdown. `ai-docs/phases/phase-00/decisions.md` has three, each indented under a `- **Baseline...**` bullet (lines 84, 112 and 137), and none is drawn. Checked on 2026-11-20 with the real block layer: the same table at the top level is drawn, one to three spaces of indent make no difference, and four spaces or a tab make an indented code block, as in CommonMark (not a bug). Only the list parent stops it.
+
+**Cause:** `scanBlocks` (`src/editor/livePreview/blocks/scan.ts`) walks only the top level: any node whose parent is not `Document` returns `false`, so a `BulletList` or `OrderedList` is skipped whole and its `Table` is never reached. The comment there gives the reason: the widget replaces whole lines, so a line prefix would be lost. For a list item the prefix is only the indent, which can be kept.
+
+**Scope.** Drawn: a `Table` whose ancestors up to the document are only `ListItem`, `BulletList` and `OrderedList` (any depth, bullet or numbered), and whose first row line holds nothing but whitespace before the first pipe. Not drawn, and unchanged: a table in a quote or in a list inside a quote (the `>` prefix would be lost), and a table that starts on the marker line (`- | a | b |`, the marker would be lost). Images and every other block in a list stay as they are.
+
+**Fix:**
+
+1. **Scan.** Let `enter` go down through `BulletList`, `OrderedList` and `ListItem` nodes. Inside a list, handle only `Table` and return `false` for everything else, so paragraphs and images in list items are as before. `tableItem` gets the indent: the text between the start of the row's first line and the node. A table with no list ancestor has an empty indent, so a top-level table with one to three spaces of indent is drawn at the margin as it is now. `TableItem` gains `indent: string`.
+2. **Widget.** `TableWidget(model, source, indent)`. With an indent, `toDOM` returns a flex container with a first child that holds the indent text itself (`white-space: pre`, invisible, no shrink) and the existing wrapper after it with `min-width: 0`. The gap is the width of the typed whitespace in the editor's own font, so it lines up under the item text for any body font, and a tab follows `tab-size`. With no indent the DOM is exactly what it is now, so top-level tables and their tests do not move. `eq` already compares `source`, which includes the indent.
+3. **Field.** No change expected. `enclose` already grows an edit to the whole top-level list, so a rescan reaches every table in it, and a table that stops being one (a deleted pipe, a changed delimiter row) has its old widget cleared with the rest of the list. A test proves that, since it is the part most likely to be wrong.
+4. **Clicks and the caret.** A cell's `data-offset` is counted from the start of the line, so it already includes the indent. Pressing a cell puts the caret in it, and a caret or a selection that touches the lines shows the source, as for any table. `view.posAtDOM` is taken on the returned root.
+
+**Not in this task:** tables in quotes, a table starting on the marker line, editing cells in the drawn table, tables whose rows use different indents (the first row's indent is used).
+
+**Claims (new, added to `ISA.md` in the task's commit):**
+
+- **F4:** a table in a list item, bullet or numbered, one level or nested, is drawn as a table at the item's text indent.
+- **F4:** a table in a list item behaves like any table: a press on a cell puts the caret there, the caret or a selection on it shows the lines as source, and an edit in the list draws it again or removes it.
+- **F4:** what stays source stays source: a table in a quote, one on the marker line, and the images, paragraphs and top-level tables around a list are unchanged.
+- **F4, screenshot:** `ai-docs/phases/phase-00/decisions.md` draws its three tables in `pnpm dev`.
+- **F4, manual:** the owner finds the tables in lists right in the real window.
+
+**Tests** (`tests/editor/table.test.ts`, with `drawn()` and `mountPreview`):
+
+- **Drawn:** a bullet list, a numbered list, a nested list, a table after a paragraph in the item, and the real `decisions.md` (3 tables).
+- **Indent:** the widget carries the indent text, and a top-level table with none renders exactly as before.
+- **Not drawn:** a table in a quote, in a list in a quote, on the marker line, and one indented four spaces or by a tab.
+- **Edits:** break the delimiter row of a table in a list and the widget goes; fix it and it comes back; type in another item and the other tables stay.
+- **Caret:** the caret on a row shows the lines; a press on a cell places the caret in it.
+- **Property test:** random lists with tables and paragraphs, scanned whole and edited step by step, always give the same blocks as a scan from scratch (the pattern of `blocks.test.ts`, ISC-183).
+- Each new test fails on the old `scan.ts`.
+
+**Done when:** the new tests fail on the old code and pass on the new, `decisions.md` shows its tables in `pnpm dev` (Dark and Light), the owner confirms in the real window, and `pnpm check` and `pnpm test:web` are green.
