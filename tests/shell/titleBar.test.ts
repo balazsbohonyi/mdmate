@@ -106,7 +106,7 @@ describe('the sidebar button (ISC-562)', () => {
     )
   })
 
-  it('toggles the sidebar on a click, and its pressed state and icon follow', async () => {
+  it('toggles the sidebar on a click, and its pressed state follows while the icon stays', async () => {
     const removeCommands = registerDefaultCommands()
     try {
       const root = await mountBar()
@@ -118,7 +118,7 @@ describe('the sidebar button (ISC-562)', () => {
       await flush()
       expect(sidebarVisible.value).toBe(false)
       expect(button?.getAttribute('aria-pressed')).toBe('false')
-      expect(button?.innerHTML).not.toBe(openIcon)
+      expect(button?.innerHTML).toBe(openIcon)
       button?.click()
       await flush()
       expect(sidebarVisible.value).toBe(true)
@@ -129,7 +129,7 @@ describe('the sidebar button (ISC-562)', () => {
     }
   })
 
-  it('draws a plain panel with no arrow inside, shown or hidden, and tells the two apart', async () => {
+  it('draws the same plain panel with no arrow inside, shown or hidden', async () => {
     const root = await mountBar()
     const button = root.querySelector<HTMLButtonElement>('[data-sidebar-toggle]')
     const looks: string[] = []
@@ -144,7 +144,9 @@ describe('the sidebar button (ISC-562)', () => {
       for (const d of paths) expect(d).toMatch(/^(?:M[\d. ]+v-?[\d.]+)+$/)
       looks.push(svg?.outerHTML ?? '')
     }
-    expect(looks[0]).not.toBe(looks[1])
+    // One icon for both states: the pressed state and the tooltip say which one it is.
+    expect(looks[0]).toBe(looks[1])
+    expect(looks).toHaveLength(2)
   })
 
   it('names the action and the current shortcut in the shadcn tooltip, never a title', async () => {

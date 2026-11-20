@@ -146,7 +146,8 @@ describe.each([...parsed])('%s theme colors', (name, theme) => {
     const active = parseColor(resolveToken(theme, '--tab-active'))
     const sidebar = parseColor(resolveToken(theme, '--sidebar'))
     const editor = parseColor(resolveToken(theme, '--background'))
-    expect(contrast(idle, active)).toBeGreaterThan(1.03)
+    // In a light theme the strip is darker than the page, so the active tab has to stand out clearly.
+    expect(contrast(idle, active)).toBeGreaterThan(schemeOf(name) === 'light' ? 1.2 : 1.3)
     expect(contrast(sidebar, editor)).toBeGreaterThan(1.03)
   })
 
@@ -160,12 +161,20 @@ describe.each([...parsed])('%s theme colors', (name, theme) => {
     expect(contrast(text, hover)).toBeGreaterThanOrEqual(4.5)
   })
 
-  it('make the strip lighter than the content, and the separator visible on the strip (ISC-566)', () => {
+  it('set the strip apart from the content, and keep the separator visible on it (ISC-566)', () => {
     // Contrast against white falls as a color gets lighter.
     const white = parseColor('#ffffff')
     const against = (token: string): number =>
       contrast(parseColor(resolveToken(theme, token)), white)
-    expect(against('--tabstrip')).toBeLessThan(against('--background'))
+    // A dark theme has a strip lighter than the content; a light one has it darker, so that the
+    // active tab, which is the page color, stands out against it.
+    if (schemeOf(name) === 'light') {
+      expect(against('--tabstrip')).toBeGreaterThan(against('--background'))
+      // And it is darker than the hover color too, so the pointer on an idle tab still shows.
+      expect(against('--tabstrip')).toBeGreaterThan(against('--accent'))
+    } else {
+      expect(against('--tabstrip')).toBeLessThan(against('--background'))
+    }
     const separator = parseColor(resolveToken(theme, '--tab-separator'))
     const strip = parseColor(resolveToken(theme, '--tabstrip'))
     expect(contrast(separator, strip)).toBeGreaterThan(1.2)

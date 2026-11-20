@@ -71,14 +71,18 @@ function onKeydown(event: KeyboardEvent): void {
     :style="sidebarWidth === null ? undefined : { width: `${String(sidebarWidth)}px` }"
   >
     <div
-      class="flex h-tabstrip shrink-0 items-center gap-3 border-b border-sidebar-border px-3 text-xs font-medium tracking-wide text-muted-foreground uppercase select-none"
+      class="flex h-tabstrip shrink-0 items-center gap-3 border-b border-sidebar-border px-3 pt-2.5 text-xs font-medium tracking-wide text-muted-foreground uppercase select-none"
     >
       <button
         type="button"
         data-sidebar-tab="folders"
         :aria-pressed="sidebarPanel === 'folders'"
-        class="cursor-default uppercase hover:text-foreground"
-        :class="sidebarPanel === 'folders' ? 'text-foreground' : ''"
+        class="relative flex h-full cursor-default items-center uppercase hover:text-foreground"
+        :class="
+          sidebarPanel === 'folders'
+            ? 'text-foreground after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary'
+            : ''
+        "
         @click="showSidebar('folders')"
       >
         Folders
@@ -87,8 +91,12 @@ function onKeydown(event: KeyboardEvent): void {
         type="button"
         data-sidebar-tab="search"
         :aria-pressed="sidebarPanel === 'search'"
-        class="cursor-default uppercase hover:text-foreground"
-        :class="sidebarPanel === 'search' ? 'text-foreground' : ''"
+        class="relative flex h-full cursor-default items-center uppercase hover:text-foreground"
+        :class="
+          sidebarPanel === 'search'
+            ? 'text-foreground after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary'
+            : ''
+        "
         @click="showSidebar('search')"
       >
         Search
@@ -97,8 +105,12 @@ function onKeydown(event: KeyboardEvent): void {
         type="button"
         data-sidebar-tab="outline"
         :aria-pressed="sidebarPanel === 'outline'"
-        class="cursor-default uppercase hover:text-foreground"
-        :class="sidebarPanel === 'outline' ? 'text-foreground' : ''"
+        class="relative flex h-full cursor-default items-center uppercase hover:text-foreground"
+        :class="
+          sidebarPanel === 'outline'
+            ? 'text-foreground after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary'
+            : ''
+        "
         @click="showSidebar('outline')"
       >
         Outline
@@ -108,8 +120,12 @@ function onKeydown(event: KeyboardEvent): void {
           type="button"
           data-sidebar-tab="references"
           :aria-pressed="sidebarPanel === 'references'"
-          class="cursor-default uppercase hover:text-foreground"
-          :class="sidebarPanel === 'references' ? 'text-foreground' : ''"
+          class="relative flex h-full cursor-default items-center uppercase hover:text-foreground"
+          :class="
+            sidebarPanel === 'references'
+              ? 'text-foreground after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary'
+              : ''
+          "
           @click="showSidebar('references')"
         >
           References

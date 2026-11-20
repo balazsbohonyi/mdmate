@@ -88,10 +88,13 @@ const rows: Row[] = [
         data-mini-sidebar
       >
         <div
-          class="flex h-tabstrip shrink-0 items-center gap-3 border-b border-sidebar-border px-3 text-xs font-medium tracking-wide text-muted-foreground uppercase select-none"
+          class="flex h-tabstrip shrink-0 items-center gap-3 border-b border-sidebar-border px-3 pt-2.5 text-xs font-medium tracking-wide text-muted-foreground uppercase select-none"
         >
-          <span class="text-foreground">Folders</span>
-          <span>Search</span>
+          <span
+            class="relative flex h-full items-center text-foreground after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary"
+            >Folders</span
+          >
+          <span class="flex h-full items-center">Search</span>
         </div>
         <div class="min-h-0 flex-1 overflow-hidden text-chrome select-none">
           <div

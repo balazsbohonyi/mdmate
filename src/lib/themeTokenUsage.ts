@@ -61,7 +61,7 @@ export const THEME_TOKEN_USAGE: Readonly<Record<string, string>> = {
   'titlebar-foreground':
     'Text and icons in the title bar: the menu button, the window title, and the minimize, maximize and close buttons.',
   tabstrip:
-    'The background of the strip that holds the tabs, which the tabs that are not active share.',
+    'The background of the strip that holds the tabs, which the tabs that are not active share. In the light themes it is darker than the page, so the active tab stands out.',
   'tab-foreground': 'Text of the tabs that are not active, and of the buttons in the strip.',
   'tab-active': 'The background of the active tab.',
   'tab-active-foreground': 'Text of the active tab.',

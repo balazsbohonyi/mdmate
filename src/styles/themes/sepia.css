@@ -44,11 +44,11 @@
 
   --titlebar: #f0e6ce;
   --titlebar-foreground: #4f4030;
-  --tabstrip: #fffbf0;
-  --tab-foreground: #6f5a44;
+  --tabstrip: #e3d5b3;
+  --tab-foreground: #66523c;
   --tab-active: var(--background);
   --tab-active-foreground: #2c1a0e;
-  --tab-separator: #d9caa8;
+  --tab-separator: #cdbd97;
   --statusbar: #f0e6ce;
   --statusbar-foreground: #6f5a44;
   --handle: #e6dac2;

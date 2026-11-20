@@ -98,6 +98,16 @@ const ALLOWED: readonly { file: string; line: string; why: string }[] = [
   { file: 'workbench/TabStripItem.vue', line: 'size-2 rounded-full bg-primary', why: 'a dot' },
   { file: 'workbench/TabStripItem.vue', line: 'size-1.5 rounded-full bg-primary', why: 'a dot' },
   { file: 'workbench/TabDragLayer.vue', line: "preview.solid ? 'bg-primary'", why: 'a drop bar' },
+  {
+    file: 'shell/SidebarFrame.vue',
+    line: 'after:bg-primary',
+    why: 'the underline of the selected label',
+  },
+  {
+    file: 'features/themes/preview/MiniApp.vue',
+    line: 'after:bg-primary',
+    why: 'the same underline, in the preview',
+  },
   { file: 'components/ui/switch/Switch.vue', line: 'data-checked:bg-primary', why: 'a track' },
   { file: 'components/ui/tooltip/TooltipContent.vue', line: 'fill-tooltip', why: 'an arrow' },
   {

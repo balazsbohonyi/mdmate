@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { PanelLeft, PanelLeftDashed, Settings } from '@lucide/vue'
+import { PanelLeft, Settings } from '@lucide/vue'
 import { computed } from 'vue'
 import HoverHint from '@/components/HoverHint.vue'
 import { runCommand, shortcutLabel } from '@/workbench/commands'
@@ -63,12 +63,6 @@ function openSettings(): void {
         @click="toggleSidebarFromBar"
       >
         <PanelLeft
-          v-if="sidebarVisible"
-          class="size-4"
-          :stroke-width="1.5"
-        />
-        <PanelLeftDashed
-          v-else
           class="size-4"
           :stroke-width="1.5"
         />
