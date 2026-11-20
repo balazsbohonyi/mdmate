@@ -178,6 +178,28 @@ describe('the app menu', () => {
       { kind: 'separator' },
       {
         kind: 'item',
+        id: COMMAND_IDS.zoomIn,
+        label: 'Zoom In',
+        shortcut: 'Ctrl+=',
+        disabled: false,
+      },
+      {
+        kind: 'item',
+        id: COMMAND_IDS.zoomOut,
+        label: 'Zoom Out',
+        shortcut: 'Ctrl+-',
+        disabled: false,
+      },
+      {
+        kind: 'item',
+        id: COMMAND_IDS.zoomReset,
+        label: 'Reset Zoom',
+        shortcut: 'Ctrl+0',
+        disabled: false,
+      },
+      { kind: 'separator' },
+      {
+        kind: 'item',
         id: COMMAND_IDS.openSettings,
         label: 'Open Settings',
         shortcut: 'Ctrl+,',
@@ -224,6 +246,9 @@ describe('the app menu', () => {
       '⇧⌘B',
       '⇧⌘L',
       '⌘E',
+      '⌘=',
+      '⌘-',
+      '⌘0',
       '⌘,',
     ])
   })

@@ -201,6 +201,14 @@ describe('the value rules', () => {
     expect(check('files.largeFileMB', 2000)).toBe(false)
   })
 
+  it('takes a whole zoom from 50 to 300 percent, and refuses the rest', () => {
+    for (const good of [50, 100, 105, 300])
+      expect(check('view.zoom', good), String(good)).toBe(true)
+    for (const bad of [49, 301, 0, -100, 100.5, '100', null, true, Number.NaN])
+      expect(check('view.zoom', bad), String(bad)).toBe(false)
+    expect(DEFAULT_SETTINGS.view.zoom).toBe(100)
+  })
+
   it('takes a list of folder names, drops repeats and refuses paths', () => {
     expect(SETTING_DEFS['workspace.excludedFolders'].check(['a', 'B', 'b', 'c'])).toEqual({
       ok: true,

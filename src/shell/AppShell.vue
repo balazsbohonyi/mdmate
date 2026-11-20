@@ -8,6 +8,7 @@ import DeleteDialog from '@/features/tree/DeleteDialog.vue'
 import { runCommand } from '@/workbench/commands'
 import { registerDefaultCommands } from '@/workbench/defaultCommands'
 import { installKeybindings } from '@/workbench/keyboard'
+import { installZoomWheel } from '@/workbench/zoomWheel'
 import { activeTabId } from '@/workbench/tabMenu'
 import { sidebarVisible } from '@/workbench/sidebar'
 import WorkbenchView from '@/workbench/WorkbenchView.vue'
@@ -23,7 +24,9 @@ const PaletteHost = defineAsyncComponent(() => import('@/features/palette/Palett
 // The menu and the shortcuts both run commands from the registry, through `runCommand`.
 const removeCommands = registerDefaultCommands()
 const removeKeybindings = installKeybindings(window)
+const removeZoomWheel = installZoomWheel(window)
 onUnmounted(() => {
+  removeZoomWheel()
   removeKeybindings()
   removeCommands()
 })

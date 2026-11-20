@@ -219,6 +219,8 @@ A command may carry a `state()`, which the palette rows and the menu show as On 
 
 The web view's own browser shortcuts (reload, view source, find, zoom) are off: `Platform::disable_browser_keys` runs once from `setup` in `lib.rs`, and on Windows it clears WebView2's `AreBrowserAcceleratorKeysEnabled` (`platform/windows`, through `with_webview`). The app's shortcuts are handled in the page, so they are unaffected, and F12 reaches `open_devtools` through `devtools_open`, not an accelerator.
 
+The window zoom is the `view.zoom` setting (percent, 50 to 300). Zoom In, Zoom Out and Reset Zoom (`Mod+=`, `Mod+-`, `Mod+0`, with a plus typed with Ctrl as an alias handled in `workbench/keyboard.ts`) and Ctrl+wheel (`workbench/zoomWheel.ts`) step it through `features/settings/zoom.ts`, which writes the setting like any other change. `updateZoom` (`features/settings/zoomApply.ts`) hands the level to the web view with `host.setZoom` after every settings read, the first time always; the web view does the scaling, so the pixel ratio includes the zoom and pointer positions stay in CSS pixels.
+
 ## Security
 
 Markdown content is untrusted, and people will open files they did not write.

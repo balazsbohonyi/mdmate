@@ -117,6 +117,9 @@ describe('the default commands', () => {
       [COMMAND_IDS.focusSidebar]: 'Ctrl+Shift+E',
       [COMMAND_IDS.toggleRawSource]: 'Ctrl+E',
       [COMMAND_IDS.toggleContentWidth]: 'Alt+Shift+W',
+      [COMMAND_IDS.zoomIn]: 'Ctrl+=',
+      [COMMAND_IDS.zoomOut]: 'Ctrl+-',
+      [COMMAND_IDS.zoomReset]: 'Ctrl+0',
       [COMMAND_IDS.back]: 'Alt+ArrowLeft',
       [COMMAND_IDS.forward]: 'Alt+ArrowRight',
       [COMMAND_IDS.bold]: 'Ctrl+B',
@@ -133,10 +136,10 @@ describe('the default commands', () => {
   it('can be registered a second time before the first is removed, as hot reload does', () => {
     const removeOld = removeCommands
     removeCommands = registerDefaultCommands()
-    expect(listCommands()).toHaveLength(42)
+    expect(listCommands()).toHaveLength(45)
     // The old shell unmounts after the new one has mounted, and removes what it registered.
     removeOld()
-    expect(listCommands()).toHaveLength(42)
+    expect(listCommands()).toHaveLength(45)
     expect(shortcutLabel(COMMAND_IDS.toggleSidebar, 'other')).toBe('Ctrl+Shift+B')
   })
 
@@ -144,7 +147,7 @@ describe('the default commands', () => {
     removeCommands()
     expect(listCommands()).toEqual([])
     removeCommands = registerDefaultCommands()
-    expect(listCommands()).toHaveLength(42)
+    expect(listCommands()).toHaveLength(45)
   })
 })
 
@@ -367,6 +370,9 @@ describe('ISC-412: every command is in one of the six groups', () => {
         'toggleContentWidth',
         'switchTheme',
         'commandPalette',
+        'zoomIn',
+        'zoomOut',
+        'zoomReset',
       ),
       'Tabs & Navigation': ids(
         'splitRight',
@@ -386,9 +392,9 @@ describe('ISC-412: every command is in one of the six groups', () => {
       ),
     })
     expect(Object.values(byGroup).map((list) => list.length)).toEqual(
-      expect.arrayContaining([10, 5, 7, 8, 6, 6]),
+      expect.arrayContaining([10, 5, 7, 11, 6, 6]),
     )
-    expect(listCommands()).toHaveLength(42)
+    expect(listCommands()).toHaveLength(45)
   })
 
   it('has a group for every id the table names, so none is left out of the page', () => {

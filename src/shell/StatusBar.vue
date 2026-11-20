@@ -1,13 +1,18 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { indexCutNote, indexStatus } from '@/features/index/status'
+import { zoomNote } from '@/features/settings/zoom'
 import { findCounts } from '@/workbench/find'
 import { workbenchLayout } from '@/workbench/store'
 
-// The match count of the find bar in the focused pane, when one is open; else the note about a
-// folder too big to index whole. Things that went wrong are toasts (shell/toasts.ts).
+// The zoom level for a moment after it changes; else the match count of the find bar in the
+// focused pane, when one is open; else the note about a folder too big to index whole. Things that
+// went wrong are toasts (shell/toasts.ts).
 const text = computed(
-  () => findCounts.get(workbenchLayout.value.activePane) ?? (indexCutNote.value || ''),
+  () =>
+    (zoomNote.value || undefined) ??
+    findCounts.get(workbenchLayout.value.activePane) ??
+    (indexCutNote.value || ''),
 )
 </script>
 

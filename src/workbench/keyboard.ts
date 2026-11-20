@@ -1,5 +1,6 @@
 import { setAppKeyHandler } from '@/editor/appKeys'
 import { commandForEvent, runCommand } from './commands'
+import { COMMAND_IDS } from './defaultCommands'
 import { detectPlatform, type KeyInput, type Platform } from './keybinding'
 
 /** What the handler reads from a keyboard event beyond the key itself. */
@@ -7,6 +8,23 @@ type KeyEventLike = Event & KeyInput & { readonly repeat?: boolean; readonly isC
 
 function isKeyEvent(event: Event): event is KeyEventLike {
   return 'key' in event && 'code' in event
+}
+
+/** The commands a held key keeps running: each repeat of a zoom key is another step. */
+const REPEATING: ReadonlySet<string> = new Set([COMMAND_IDS.zoomIn, COMMAND_IDS.zoomOut])
+
+/**
+ * The zoom-in command for the press of a plus, which no shortcut text can name (`Mod++` is not
+ * a shortcut the parser reads). Ctrl+Shift+= types a plus, and so does the numpad's plus key, so
+ * both zoom in like Ctrl+=. Other presses give undefined. The minus and zero keys need no alias:
+ * the numpad ones type the same characters as the main row.
+ */
+function zoomAliasCommand(event: KeyEventLike, platform: Platform): string | undefined {
+  const mac = platform === 'mac'
+  const modHeld = mac ? event.metaKey : event.ctrlKey
+  const otherHeld = mac ? event.ctrlKey : event.metaKey
+  if (!modHeld || otherHeld || event.altKey || event.key !== '+') return undefined
+  return COMMAND_IDS.zoomIn
 }
 
 /**
@@ -17,11 +35,12 @@ function isKeyEvent(event: Event): event is KeyEventLike {
 function takeShortcut(event: Event, platform: Platform): boolean {
   if (!isKeyEvent(event) || event.defaultPrevented || event.isComposing === true) return false
   const command = commandForEvent(event, platform)
-  if (command === undefined) return false
+  const id = command?.id ?? zoomAliasCommand(event, platform)
+  if (id === undefined) return false
   event.preventDefault()
-  if (event.repeat === true) return true
-  runCommand(command.id).catch((error: unknown) => {
-    console.error(`Command "${command.id}" failed`, error)
+  if (event.repeat === true && !REPEATING.has(id)) return true
+  runCommand(id).catch((error: unknown) => {
+    console.error(`Command "${id}" failed`, error)
   })
   return true
 }

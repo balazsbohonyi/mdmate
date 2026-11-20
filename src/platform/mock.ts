@@ -163,6 +163,8 @@ export interface MockHost extends Host {
     /** Every set `settingsApply` accepted, in order. */
     readonly calls: AppliedSettings[]
     devtoolsOpened: number
+    /** Every level `setZoom` was given, in order. */
+    readonly zooms: number[]
   }
 }
 
@@ -473,6 +475,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
       devtools: false,
     },
     devtoolsOpened: 0,
+    zooms: [],
   }
   const trimmed = (path: string): string => pathKey(path).replace(/\/$/, '')
   const slashes = (path: string): string => path.replaceAll('\\', '/').replace(/\/$/, '')
@@ -1427,6 +1430,10 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
       return Promise.resolve('browser')
     },
     showWindow() {
+      return Promise.resolve()
+    },
+    setZoom(percent) {
+      runtime.zooms.push(percent)
       return Promise.resolve()
     },
     windowControls: mockWindowControls(),

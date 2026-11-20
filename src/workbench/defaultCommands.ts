@@ -30,10 +30,12 @@ import { openPicker, togglePalette } from '@/features/palette/state'
 import { ensureKeybindingsTemplate } from '@/features/keybindings/store'
 import { flipSetting, isToggleOn } from '@/features/settings/quick'
 import { ensureSettingsTemplate } from '@/features/settings/store'
+import { zoomBy, zoomTo } from '@/features/settings/zoom'
 import { showOutline } from '@/features/outline/store'
 import { showSearch } from '@/features/search/store'
 import { focusTree, openFolderDialog } from '@/features/tree/store'
 import { settings } from '@/lib/settings'
+import { ZOOM_DEFAULT } from '@/lib/zoom'
 import { getHost } from '@/platform'
 import { reportError } from '@/shell/toasts'
 import { registerCommand, removeCommand } from './commands'
@@ -72,6 +74,9 @@ export const COMMAND_IDS = {
   toggleWordWrap: 'view.toggleWordWrap',
   toggleContentWidth: 'view.toggleContentWidth',
   switchTheme: 'view.switchTheme',
+  zoomIn: 'view.zoomIn',
+  zoomOut: 'view.zoomOut',
+  zoomReset: 'view.zoomReset',
   back: 'navigate.back',
   forward: 'navigate.forward',
   bold: 'format.bold',
@@ -322,6 +327,34 @@ export function registerDefaultCommands(): () => void {
       state: () => isToggleOn('editor.limitContentWidth'),
       run: async () => {
         await flipSetting('editor.limitContentWidth')
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.zoomIn,
+      group: 'View',
+      title: 'Zoom In',
+      // Ctrl+plus and the numpad plus work too (`zoomAliasCommand` in keyboard.ts).
+      keybinding: 'Mod+=',
+      run: async () => {
+        await zoomBy(1)
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.zoomOut,
+      group: 'View',
+      title: 'Zoom Out',
+      keybinding: 'Mod+-',
+      run: async () => {
+        await zoomBy(-1)
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.zoomReset,
+      group: 'View',
+      title: 'Reset Zoom',
+      keybinding: 'Mod+0',
+      run: async () => {
+        await zoomTo(ZOOM_DEFAULT)
       },
     }),
     registerCommand({

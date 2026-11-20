@@ -109,11 +109,12 @@ const pageTitle = (): HTMLElement => {
 }
 
 describe('ISC-462: every sub-group heading is drawn in the primary color', () => {
-  it('on Appearance: Theme, Fonts, Theme colors and the five color groups', async () => {
+  it('on Appearance: Theme, Fonts, Window, Theme colors and the five color groups', async () => {
     await mountScreen('appearance', SELECT_MINE)
     expect(texts()).toEqual([
       'Theme',
       'Fonts',
+      'Window',
       'Themes',
       'Theme colors',
       'Core',
@@ -169,7 +170,7 @@ describe('ISC-463: one component draws every sub-group heading', () => {
 })
 
 describe('ISC-464: the Appearance rows sit under their headings', () => {
-  it('puts the Theme row under Theme and the five font rows under Fonts, in that order', async () => {
+  it('puts the Theme row under Theme, the six font rows under Fonts and Zoom under Window, in that order', async () => {
     await mountScreen('appearance')
     const nodes = [
       ...document.querySelectorAll<HTMLElement>('[data-sub-group-heading], [data-setting-row]'),
@@ -189,6 +190,8 @@ describe('ISC-464: the Appearance rows sit under their headings', () => {
       'fonts.size',
       'fonts.codeSize',
       'fonts.headingScale',
+      '# Window',
+      'view.zoom',
       '# Themes',
       '# Theme colors',
       'themes.colorFormat',

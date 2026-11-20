@@ -100,6 +100,9 @@ export const tauriHost: Host = {
   async showWindow() {
     await getCurrentWindow().show()
   },
+  async setZoom(percent) {
+    await getCurrentWebview().setZoom(percent / 100)
+  },
   windowControls: {
     async minimize() {
       await getCurrentWindow().minimize()

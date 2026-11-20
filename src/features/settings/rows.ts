@@ -103,6 +103,15 @@ export const SETTING_ROWS: readonly SettingRowSpec[] = [
     control: { kind: 'scale' },
   },
   {
+    key: 'view.zoom',
+    category: 'appearance',
+    label: 'Zoom',
+    group: 'Window',
+    description:
+      'How big the whole window is, in percent, from 50 to 300. Ctrl+plus, Ctrl+minus and Ctrl+wheel change it, Ctrl+0 goes back to 100.',
+    control: { kind: 'number' },
+  },
+  {
     key: 'themes.hideContrastWarnings',
     category: 'appearance',
     group: 'Theme colors',

@@ -139,6 +139,10 @@ export interface Settings {
     /** The format the color editor shows every color in, and writes a changed one in. */
     colorFormat: ColorFormat
   }
+  view: {
+    /** The zoom of the whole window, in percent (`lib/zoom.ts`). */
+    zoom: number
+  }
   devtools: boolean
 }
 
@@ -167,6 +171,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = {
   recent: { files: 10, folders: 5 },
   workspace: { excludedFolders: BUILT_IN_EXCLUDED_FOLDERS },
   themes: { hideContrastWarnings: true, colorFormat: 'hex' },
+  view: { zoom: 100 },
   devtools: false,
 }
 
@@ -182,6 +187,7 @@ export function cloneSettings(from: Readonly<Settings>): Settings {
     recent: { ...from.recent },
     workspace: { excludedFolders: [...from.workspace.excludedFolders] },
     themes: { ...from.themes },
+    view: { ...from.view },
     devtools: from.devtools,
   }
 }

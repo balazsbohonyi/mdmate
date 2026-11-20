@@ -219,6 +219,11 @@ export interface Host {
   platformName(): Promise<string>
   /** Shows the window. It starts hidden so launch never flashes a blank frame. */
   showWindow(): Promise<void>
+  /**
+   * Scales the whole window to `percent` (100 is the normal size). The web view does it, so text
+   * measuring and pointer positions stay right at any level.
+   */
+  setZoom(percent: number): Promise<void>
   readonly windowControls: WindowControls
   /** A file's bytes, untouched. They cross as raw binary, never as JSON. */
   readFile(path: string): Promise<ArrayBuffer>

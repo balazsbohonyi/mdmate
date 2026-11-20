@@ -10,6 +10,7 @@ import {
   type LinksOnRename,
   type Settings,
 } from './settings'
+import { ZOOM_MAX, ZOOM_MIN } from './zoom'
 
 /**
  * `settings.json`: the keys, their defaults, and the one validator every value passes through.
@@ -42,6 +43,7 @@ export interface SettingValueMap {
   'workspace.excludedFolders': readonly string[]
   'themes.hideContrastWarnings': boolean
   'themes.colorFormat': ColorFormat
+  'view.zoom': number
   devtools: boolean
 }
 
@@ -357,6 +359,13 @@ export const SETTING_DEFS: { readonly [K in SettingKey]: SettingDef<SettingValue
     path: ['themes', 'colorFormat'],
     default: DEFAULT_SETTINGS.themes.colorFormat,
     check: checkColorFormat,
+    equals: same,
+  },
+  'view.zoom': {
+    key: 'view.zoom',
+    path: ['view', 'zoom'],
+    default: DEFAULT_SETTINGS.view.zoom,
+    check: numberIn(ZOOM_MIN, ZOOM_MAX, true),
     equals: same,
   },
   devtools: {

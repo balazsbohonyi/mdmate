@@ -35,6 +35,7 @@ import { getHost } from '@/platform'
 import type { AppliedSettings } from '@/platform/host'
 import { reportError, reportWarning } from '@/shell/toasts'
 import { settingsTemplate } from './templates'
+import { updateZoom } from './zoomApply'
 
 /**
  * `settings.json` as the page lives with it. The file is the source of truth: this module reads it
@@ -112,6 +113,7 @@ function assignSettings(next: typeof settings): void {
   Object.assign(settings.files, next.files)
   Object.assign(settings.recent, next.recent)
   Object.assign(settings.themes, next.themes)
+  Object.assign(settings.view, next.view)
   settings.workspace.excludedFolders = next.workspace.excludedFolders
   settings.devtools = next.devtools
 }
@@ -158,6 +160,7 @@ export function applySettingsText(text: string | null): void {
   if (settings.editor.wordWrap !== wrapped) refreshWordWrap()
   updateDocumentFonts()
   updateContentWidth()
+  updateZoom()
   refreshSourceLanguages()
   applyCurrentTheme()
   pushRuntime()
