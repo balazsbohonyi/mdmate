@@ -7,6 +7,8 @@
  * - a split has two or more children, and a child split never has its parent's direction;
  * - sizes are percentages: one per child, each above zero, summing to 100;
  * - every tab is in exactly one pane, and a pane's active tab is one of its tabs (null when empty);
+ * - the pinned tabs of a pane are its first tabs, and `pinned` counts them (it never exceeds the
+ *   number of tabs, and a pane with none pinned leaves it out);
  * - ids are unique, and the active pane exists.
  */
 
@@ -23,6 +25,11 @@ export interface PaneNode {
   readonly id: PaneId
   readonly tabs: readonly TabId[]
   readonly activeTab: TabId | null
+  /**
+   * How many of the first `tabs` are pinned, in the order they were pinned. Left out while none is,
+   * so a layout with no pinned tab reads the same as one written before pinning existed.
+   */
+  readonly pinned?: number
 }
 
 export interface SplitBranch {
@@ -68,6 +75,17 @@ export function allTabs(layout: Layout): readonly TabId[] {
   return leaves(layout.root).flatMap((pane) => pane.tabs)
 }
 
+/** How many of a pane's first tabs are pinned. */
+export function pinnedCount(pane: PaneNode): number {
+  return pane.pinned ?? 0
+}
+
+/** True when the tab is one of the pinned tabs of its pane. */
+export function isTabPinned(layout: Layout, tabId: TabId): boolean {
+  const pane = paneOfTab(layout, tabId)
+  return pane !== undefined && pane.tabs.indexOf(tabId) < pinnedCount(pane)
+}
+
 /** How many levels the tree has: a lone pane is 1, a split of panes is 2. */
 export function depthOf(node: SplitNode): number {
   return node.kind === 'pane' ? 1 : 1 + Math.max(...node.children.map(depthOf))
@@ -82,6 +100,17 @@ export function createLayout(): Layout {
 
 function emptyPane(id: PaneId, tabs: readonly TabId[] = []): PaneNode {
   return { kind: 'pane', id, tabs, activeTab: tabs[0] ?? null }
+}
+
+/** A pane with new tabs and a new pinned count. The count is left out at zero. */
+function withTabs(
+  pane: PaneNode,
+  tabs: readonly TabId[],
+  activeTab: TabId | null,
+  pinned: number,
+): PaneNode {
+  const next: PaneNode = { kind: 'pane', id: pane.id, tabs, activeTab }
+  return pinned > 0 ? { ...next, pinned } : next
 }
 
 function updatePane(node: SplitNode, id: PaneId, update: (pane: PaneNode) => PaneNode): SplitNode {
@@ -235,9 +264,46 @@ export function closeTab(layout: Layout, tabId: TabId): Layout {
   const tabs = pane.tabs.filter((tab) => tab !== tabId)
   if (tabs.length === 0 && leaves(layout.root).length > 1) return withoutPane(layout, pane.id)
   const activeTab = pane.activeTab === tabId ? neighbourTab(pane.tabs, tabId) : pane.activeTab
+  const pinned = pinnedCount(pane) - (pane.tabs.indexOf(tabId) < pinnedCount(pane) ? 1 : 0)
   return {
     ...layout,
-    root: updatePane(layout.root, pane.id, (current) => ({ ...current, tabs, activeTab })),
+    root: updatePane(layout.root, pane.id, (current) => withTabs(current, tabs, activeTab, pinned)),
+  }
+}
+
+/**
+ * Pins a tab: it moves to the end of the pinned tabs of its pane, which are always the first tabs,
+ * so the pinned tabs stay in the order they were pinned. A tab that is pinned already changes nothing.
+ */
+export function pinTab(layout: Layout, tabId: TabId): Layout {
+  const pane = paneOfTab(layout, tabId)
+  if (!pane || pane.tabs.indexOf(tabId) < pinnedCount(pane)) return layout
+  const rest = pane.tabs.filter((tab) => tab !== tabId)
+  const at = pinnedCount(pane)
+  const tabs = [...rest.slice(0, at), tabId, ...rest.slice(at)]
+  return {
+    ...layout,
+    root: updatePane(layout.root, pane.id, (current) =>
+      withTabs(current, tabs, current.activeTab, at + 1),
+    ),
+  }
+}
+
+/**
+ * Unpins a tab: it becomes the first of the tabs that are not pinned, right after the ones that
+ * still are. A tab that is not pinned changes nothing.
+ */
+export function unpinTab(layout: Layout, tabId: TabId): Layout {
+  const pane = paneOfTab(layout, tabId)
+  if (!pane || pane.tabs.indexOf(tabId) >= pinnedCount(pane)) return layout
+  const rest = pane.tabs.filter((tab) => tab !== tabId)
+  const pinned = pinnedCount(pane) - 1
+  const tabs = [...rest.slice(0, pinned), tabId, ...rest.slice(pinned)]
+  return {
+    ...layout,
+    root: updatePane(layout.root, pane.id, (current) =>
+      withTabs(current, tabs, current.activeTab, pinned),
+    ),
   }
 }
 
@@ -248,30 +314,40 @@ export function closePane(layout: Layout, paneId: PaneId): Layout {
   if (leaves(layout.root).length > 1) return withoutPane(layout, paneId)
   return {
     ...layout,
-    root: updatePane(layout.root, paneId, (current) => ({ ...current, tabs: [], activeTab: null })),
+    root: updatePane(layout.root, paneId, (current) => withTabs(current, [], null, 0)),
   }
 }
 
 /**
  * Moves a tab to a place in a pane's strip, in this pane or another. `index` is the position in
- * the strip after the move; the default is the end. The moved tab becomes the active one. A pane
- * emptied by the move closes.
+ * the strip after the move; the default is the end of the tab's own group. The moved tab becomes
+ * the active one. A pane emptied by the move closes. A pinned tab keeps its pin, in any pane, and
+ * stays among the pinned tabs: `index` is held inside the group the tab belongs to (the pinned
+ * tabs are the first ones, so an unpinned tab never lands among them).
  */
 export function moveTab(layout: Layout, tabId: TabId, toPaneId: PaneId, index?: number): Layout {
   const from = paneOfTab(layout, tabId)
   const to = findPane(layout, toPaneId)
   if (!from || !to) return layout
+  const wasPinned = from.tabs.indexOf(tabId) < pinnedCount(from)
 
-  const place = (tabs: readonly TabId[]): TabId[] => {
-    const at = Math.min(Math.max(index ?? tabs.length, 0), tabs.length)
+  /** `tabs` has the moved tab left out; `fixed` is how many of its first tabs are pinned. */
+  const place = (tabs: readonly TabId[], fixed: number): TabId[] => {
+    const low = wasPinned ? 0 : fixed
+    const high = wasPinned ? fixed : tabs.length
+    const at = Math.min(Math.max(index ?? high, low), high)
     return [...tabs.slice(0, at), tabId, ...tabs.slice(at)]
   }
 
   if (from.id === to.id) {
-    const tabs = place(from.tabs.filter((tab) => tab !== tabId))
+    const others = from.tabs.filter((tab) => tab !== tabId)
+    const fixed = pinnedCount(from) - (wasPinned ? 1 : 0)
+    const tabs = place(others, fixed)
     return {
       ...layout,
-      root: updatePane(layout.root, from.id, (pane) => ({ ...pane, tabs, activeTab: tabId })),
+      root: updatePane(layout.root, from.id, (pane) =>
+        withTabs(pane, tabs, tabId, fixed + (wasPinned ? 1 : 0)),
+      ),
       activePane: from.id,
     }
   }
@@ -280,13 +356,22 @@ export function moveTab(layout: Layout, tabId: TabId, toPaneId: PaneId, index?: 
   const moved: Layout = {
     ...layout,
     root: updatePane(
-      updatePane(layout.root, from.id, (pane) => ({
-        ...pane,
-        tabs: remaining,
-        activeTab: pane.activeTab === tabId ? neighbourTab(pane.tabs, tabId) : pane.activeTab,
-      })),
+      updatePane(layout.root, from.id, (pane) =>
+        withTabs(
+          pane,
+          remaining,
+          pane.activeTab === tabId ? neighbourTab(pane.tabs, tabId) : pane.activeTab,
+          pinnedCount(pane) - (wasPinned ? 1 : 0),
+        ),
+      ),
       to.id,
-      (pane) => ({ ...pane, tabs: place(pane.tabs), activeTab: tabId }),
+      (pane) =>
+        withTabs(
+          pane,
+          place(pane.tabs, pinnedCount(pane)),
+          tabId,
+          pinnedCount(pane) + (wasPinned ? 1 : 0),
+        ),
     ),
     activePane: to.id,
   }
@@ -314,20 +399,21 @@ export function moveTabToEdge(
   const paneId = `p${layout.nextId}`
   const splitId = `s${layout.nextId + 1}`
 
-  const emptied = updatePane(layout.root, from.id, (pane) => ({
-    ...pane,
-    tabs: remaining,
-    activeTab: pane.activeTab === tabId ? neighbourTab(pane.tabs, tabId) : pane.activeTab,
-  }))
-  const split: Layout = {
-    root: insertBeside(
-      emptied,
-      target.id,
-      emptyPane(paneId, [tabId]),
-      direction,
-      placement,
-      splitId,
+  const wasPinned = from.tabs.indexOf(tabId) < pinnedCount(from)
+  const emptied = updatePane(layout.root, from.id, (pane) =>
+    withTabs(
+      pane,
+      remaining,
+      pane.activeTab === tabId ? neighbourTab(pane.tabs, tabId) : pane.activeTab,
+      pinnedCount(pane) - (wasPinned ? 1 : 0),
     ),
+  )
+  // The tab keeps its pin in the pane it opens.
+  const alone = wasPinned
+    ? { ...emptyPane(paneId, [tabId]), pinned: 1 }
+    : emptyPane(paneId, [tabId])
+  const split: Layout = {
+    root: insertBeside(emptied, target.id, alone, direction, placement, splitId),
     activePane: paneId,
     nextId: layout.nextId + 2,
   }
@@ -406,6 +492,12 @@ export function validateLayout(layout: Layout): string[] {
         if (tabs.has(tab)) problems.push(`tab ${tab} is in more than one place`)
         tabs.add(tab)
       }
+      if (
+        node.pinned !== undefined &&
+        (!Number.isInteger(node.pinned) || node.pinned < 0 || node.pinned > node.tabs.length)
+      ) {
+        problems.push(`pane ${node.id} pins ${String(node.pinned)} of ${node.tabs.length} tabs`)
+      }
       if (node.tabs.length === 0 && node.activeTab !== null) {
         problems.push(`pane ${node.id} has an active tab but no tabs`)
       }
@@ -483,7 +575,17 @@ function readNode(value: unknown, where: string): SplitNode {
     if (activeTab !== null && typeof activeTab !== 'string') {
       throw new ParseFailure(`${where}: "activeTab" must be a string or null`)
     }
-    return { kind: 'pane', id, tabs, activeTab }
+    // A layout from before pinning has no count. A count that is not a number is read as none, and
+    // one that is too big or not whole is cut to what the pane can hold, so a damaged count never
+    // costs the layout.
+    const raw = value.pinned
+    const pinned =
+      typeof raw === 'number' && Number.isFinite(raw)
+        ? Math.min(Math.max(Math.trunc(raw), 0), tabs.length)
+        : 0
+    return pinned > 0
+      ? { kind: 'pane', id, tabs, activeTab, pinned }
+      : { kind: 'pane', id, tabs, activeTab }
   }
   if (value.kind === 'split') {
     const direction = value.direction

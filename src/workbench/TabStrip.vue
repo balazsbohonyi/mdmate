@@ -35,6 +35,7 @@ import {
   revealTabInExplorer,
   revealTabInSidebar,
   tabMenuState,
+  togglePinTab,
 } from './tabMenu'
 import type { TabInfo } from './tabs'
 
@@ -53,6 +54,8 @@ const {
 const emit = defineEmits<{
   select: [id: string]
   close: [id: string]
+  /** The pin icon of a pinned tab was clicked. */
+  unpin: [id: string]
   press: [id: string, event: PointerEvent]
   /** The + button: a new file in this pane. */
   new: []
@@ -137,6 +140,7 @@ function run(action: () => Promise<unknown> | void): void {
             :dragging="tab.id === draggingId"
             @select="emit('select', tab.id)"
             @close="emit('close', tab.id)"
+            @unpin="emit('unpin', tab.id)"
             @press="(event) => emit('press', tab.id, event)"
           />
         </ContextMenuTrigger>
@@ -160,9 +164,16 @@ function run(action: () => Promise<unknown> | void): void {
           >
             Close to the Right
           </ContextMenuItem>
-          <ContextMenuItem @select="run(() => closeEveryTab(tab.id))">
+          <ContextMenuItem
+            :disabled="!tabMenuState(tab.id).canCloseAll"
+            @select="run(() => closeEveryTab(tab.id))"
+          >
             Close All
             <ContextMenuShortcut>{{ shortcut(COMMAND_IDS.closeAll) }}</ContextMenuShortcut>
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem @select="togglePinTab(tab.id)">
+            {{ tabMenuState(tab.id).pinned ? 'Unpin Tab' : 'Pin Tab' }}
           </ContextMenuItem>
           <ContextMenuSeparator />
           <ContextMenuItem

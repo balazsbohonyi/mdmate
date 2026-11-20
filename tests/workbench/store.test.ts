@@ -3,8 +3,10 @@ import { findPane, panesOf } from '@/workbench/splitTree'
 import {
   closeTabById,
   dropTabOnEdge,
+  isPinned,
   moveTabTo,
   openSettingsTab,
+  pinTabById,
   resetWorkbench,
   resizeSplit,
   selectTab,
@@ -14,6 +16,7 @@ import {
   splitActivePane,
   tabRecord,
   tabTitle,
+  unpinTabById,
   workbenchLayout,
 } from '@/workbench/store'
 import { namedDoc, openNewTab } from '../helpers/tabs'
@@ -93,6 +96,50 @@ describe('the workbench store', () => {
     resizeSplit(root.id, [30, 70])
     const resized = workbenchLayout.value.root
     expect(resized.kind === 'split' ? resized.sizes : []).toEqual([30, 70])
+  })
+})
+
+describe('pinning in the store (ISC-569)', () => {
+  it('pins to the start of the pane in the order of the pins, and unpins to the first unpinned place', () => {
+    const [a, b, c] = [openNewTab('a.md'), openNewTab('b.md'), openNewTab('c.md')] as [
+      string,
+      string,
+      string,
+    ]
+    pinTabById(c)
+    pinTabById(b)
+    expect(tabsOf(0)).toEqual([c, b, a])
+    expect([a, b, c].map(isPinned)).toEqual([false, true, true])
+    unpinTabById(c)
+    expect(tabsOf(0)).toEqual([b, c, a])
+    expect([a, b, c].map(isPinned)).toEqual([false, true, false])
+  })
+
+  it('asks nothing of a tab that is not open', () => {
+    expect(isPinned('nope')).toBe(false)
+    pinTabById('nope')
+    unpinTabById('nope')
+    expect(tabsOf(0)).toEqual([])
+  })
+
+  it('keeps the pin through a move to another pane, and drops it with the tab', () => {
+    const a = openNewTab('a.md')
+    openNewTab('b.md')
+    splitActivePane('row', namedDoc('c.md'))
+    pinTabById(a)
+    const target = panesOf(workbenchLayout.value)[1]?.id ?? ''
+    moveTabTo(a, target, 0)
+    expect(isPinned(a)).toBe(true)
+    expect(tabsOf(1)[0]).toBe(a)
+    closeTabById(a)
+    expect(isPinned(a)).toBe(false)
+    expect(panesOf(workbenchLayout.value)[1]?.pinned).toBeUndefined()
+  })
+
+  it('starts over unpinned after a reset', () => {
+    pinTabById(openNewTab('a.md'))
+    resetWorkbench()
+    expect(panesOf(workbenchLayout.value)[0]?.pinned).toBeUndefined()
   })
 })
 

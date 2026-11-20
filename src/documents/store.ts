@@ -6,7 +6,7 @@ import { refreshSourceLanguages } from '@/editor/sourceLanguage'
 import { getHost, type OpenedFile, type SaveAsHint } from '@/platform'
 import { isMarkdownName } from '@/features/tree/model'
 import { focusActiveEditor } from '@/workbench/focus'
-import { findPane } from '@/workbench/splitTree'
+import { findPane, pinnedCount } from '@/workbench/splitTree'
 import {
   closeTabById,
   imageTabs,
@@ -669,19 +669,21 @@ export async function closeTabs(tabs: readonly TabId[]): Promise<boolean> {
 }
 
 /**
- * Closes every tab of one pane (the active pane when none is named), asking about each document
- * with unsaved edits. Never the tabs of another pane: a pane whose last tab closes goes away on its
- * own. False when the user cancelled.
+ * Closes every tab of one pane (the active pane when none is named) that is not pinned, asking
+ * about each document with unsaved edits. Never the tabs of another pane: a pane whose last tab
+ * closes goes away on its own. False when the user cancelled.
  */
 export function closeAllTabs(paneId?: PaneId): Promise<boolean> {
   const layout = workbenchLayout.value
-  return closeTabs(findPane(layout, paneId ?? layout.activePane)?.tabs ?? [])
+  const pane = findPane(layout, paneId ?? layout.activePane)
+  return closeTabs(pane === undefined ? [] : pane.tabs.slice(pinnedCount(pane)))
 }
 
-/** True when the active pane holds at least one tab, which is what Close All would close. */
+/** True when the active pane holds a tab that is not pinned, which is what Close All would close. */
 export function activePaneHasTabs(): boolean {
   const layout = workbenchLayout.value
-  return (findPane(layout, layout.activePane)?.tabs.length ?? 0) > 0
+  const pane = findPane(layout, layout.activePane)
+  return pane !== undefined && pane.tabs.length > pinnedCount(pane)
 }
 
 /** Settles a pending close: save and close, close and discard, or keep the tab open. */

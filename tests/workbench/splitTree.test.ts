@@ -9,14 +9,18 @@ import {
   deserialize,
   depthOf,
   findPane,
+  isTabPinned,
   moveTab,
   moveTabToEdge,
   openTab,
   paneOfTab,
   panesOf,
+  pinnedCount,
+  pinTab,
   serialize,
   setSizes,
   splitPane,
+  unpinTab,
   validateLayout,
   type Layout,
   type SplitBranch,
@@ -461,6 +465,174 @@ function mulberry32(seed: number): () => number {
   }
 }
 
+/** The tabs of the first pane, with a `*` before each pinned one. */
+function strip(layout: Layout, paneId = 'p1'): string {
+  const pane = findPane(layout, paneId)
+  if (!pane) throw new Error(`no pane ${paneId}`)
+  return pane.tabs.map((tab, at) => (at < pinnedCount(pane) ? `*${tab}` : tab)).join(' ')
+}
+
+describe('pinned tabs (ISC-569)', () => {
+  it('goes to the end of the pinned tabs, so the pinned tabs keep the order they were pinned in', () => {
+    let layout = withTabs('a', 'b', 'c', 'd')
+    layout = pinTab(layout, 'c')
+    expect(strip(layout)).toBe('*c a b d')
+    layout = pinTab(layout, 'd')
+    expect(strip(layout)).toBe('*c *d a b')
+    layout = pinTab(layout, 'a')
+    expect(strip(layout)).toBe('*c *d *a b')
+    expectValid(layout)
+  })
+
+  it('leaves the layout as it was when the tab is pinned already, or is not open', () => {
+    const layout = pinTab(withTabs('a', 'b'), 'b')
+    expect(pinTab(layout, 'b')).toBe(layout)
+    expect(pinTab(layout, 'nope')).toBe(layout)
+    expect(unpinTab(layout, 'a')).toBe(layout)
+    expect(unpinTab(layout, 'nope')).toBe(layout)
+  })
+
+  it('puts an unpinned tab first among the tabs that are not pinned', () => {
+    let layout = withTabs('a', 'b', 'c', 'd')
+    for (const tab of ['b', 'c', 'd']) layout = pinTab(layout, tab)
+    expect(strip(layout)).toBe('*b *c *d a')
+    layout = unpinTab(layout, 'b')
+    expect(strip(layout)).toBe('*c *d b a')
+    layout = unpinTab(layout, 'd')
+    expect(strip(layout)).toBe('*c d b a')
+    layout = unpinTab(layout, 'c')
+    expect(strip(layout)).toBe('c d b a')
+    // With none pinned the pane carries no count, like a layout from before pinning.
+    expect(findPane(layout, 'p1')).toEqual({
+      kind: 'pane',
+      id: 'p1',
+      tabs: [...'cdba'],
+      activeTab: 'd',
+    })
+    expectValid(layout)
+  })
+
+  it('keeps the active tab where it is, and the active pane', () => {
+    const layout = pinTab(withTabs('a', 'b', 'c'), 'a')
+    expect(findPane(layout, 'p1')?.activeTab).toBe('c')
+    expect(unpinTab(layout, 'a')).toMatchObject({ activePane: 'p1' })
+  })
+
+  it('opens a new tab after the pinned ones, at the end', () => {
+    const layout = openTab(pinTab(withTabs('a', 'b'), 'b'), 'c')
+    expect(strip(layout)).toBe('*b a c')
+  })
+
+  it('counts one fewer when a pinned tab closes, and the same when another one does', () => {
+    let layout = withTabs('a', 'b', 'c', 'd')
+    layout = pinTab(pinTab(layout, 'b'), 'c')
+    expect(strip(closeTab(layout, 'd'))).toBe('*b *c a')
+    expect(strip(closeTab(layout, 'b'))).toBe('*c a d')
+    expect(strip(closeTab(closeTab(layout, 'b'), 'c'))).toBe('a d')
+    expectValid(closeTab(layout, 'b'))
+  })
+
+  it('closes the pane when its only pinned tab closes, like any last tab', () => {
+    const layout = splitPane(pinTab(withTabs('a'), 'a'), 'p1', 'row', 'after', ['b'])
+    expect(panesOf(closeTab(layout, 'b'))).toHaveLength(1)
+    expect(panesOf(closeTab(layout, 'a'))).toHaveLength(1)
+    expectValid(closeTab(layout, 'a'))
+  })
+
+  it('holds a dragged tab inside its own group, within a pane', () => {
+    let layout = withTabs('a', 'b', 'c', 'd', 'e')
+    layout = pinTab(pinTab(layout, 'b'), 'c') // *b *c a d e
+    // A pinned tab cannot go past the pinned ones, an unpinned one cannot go before them.
+    expect(strip(moveTab(layout, 'b', 'p1', 4))).toBe('*c *b a d e')
+    expect(strip(moveTab(layout, 'b', 'p1'))).toBe('*c *b a d e')
+    expect(strip(moveTab(layout, 'c', 'p1', 0))).toBe('*c *b a d e')
+    expect(strip(moveTab(layout, 'e', 'p1', 0))).toBe('*b *c e a d')
+    expect(strip(moveTab(layout, 'a', 'p1', 1))).toBe('*b *c a d e')
+    expect(strip(moveTab(layout, 'a', 'p1', 4))).toBe('*b *c d e a')
+    expect(strip(moveTab(layout, 'a', 'p1', -3))).toBe('*b *c a d e')
+    expectValid(moveTab(layout, 'e', 'p1', 0))
+  })
+
+  it('keeps the pin of a tab moved to another pane, among that pane’s pinned tabs', () => {
+    let layout = splitPane(withTabs('a', 'b', 'c'), 'p1', 'row', 'after', ['x', 'y'])
+    layout = pinTab(layout, 'b') // p1: *b a c
+    layout = pinTab(layout, 'x') // p2: *x y
+    const toTheEnd = moveTab(layout, 'b', 'p2')
+    expect(strip(toTheEnd, 'p1')).toBe('a c')
+    expect(strip(toTheEnd, 'p2')).toBe('*x *b y')
+    const toTheStart = moveTab(layout, 'b', 'p2', 0)
+    expect(strip(toTheStart, 'p2')).toBe('*b *x y')
+    // An unpinned tab dropped before the pinned ones lands after them.
+    const unpinned = moveTab(layout, 'a', 'p2', 0)
+    expect(strip(unpinned, 'p2')).toBe('*x a y')
+    expect(strip(unpinned, 'p1')).toBe('*b c')
+    for (const next of [toTheEnd, toTheStart, unpinned]) expectValid(next)
+  })
+
+  it('closes the pane its last pinned tab leaves, and keeps nothing pinned there', () => {
+    let layout = splitPane(withTabs('a'), 'p1', 'row', 'after', ['x'])
+    layout = pinTab(layout, 'x')
+    const moved = moveTab(layout, 'x', 'p1')
+    expect(panesOf(moved)).toHaveLength(1)
+    expect(strip(moved)).toBe('*x a')
+    expectValid(moved)
+  })
+
+  it('keeps the pin of a tab dropped on a pane edge, in the pane that opens', () => {
+    const layout = pinTab(withTabs('a', 'b', 'c'), 'b')
+    const split = moveTabToEdge(layout, 'b', 'p1', 'right')
+    expect(strip(split, 'p1')).toBe('a c')
+    const opened = panesOf(split).find((pane) => pane.tabs.includes('b'))
+    expect(opened).toMatchObject({ tabs: ['b'], pinned: 1 })
+    expect(findPane(split, 'p1')?.pinned).toBeUndefined()
+    // An unpinned tab opens a pane with no count.
+    const plain = moveTabToEdge(layout, 'c', 'p1', 'bottom')
+    expect(panesOf(plain).find((pane) => pane.tabs.includes('c'))?.pinned).toBeUndefined()
+    expect(strip(plain, 'p1')).toBe('*b a')
+    expectValid(split)
+    expectValid(plain)
+  })
+
+  it('is saved and read back, and a layout from before pinning reads as none pinned', () => {
+    const layout = pinTab(pinTab(withTabs('a', 'b', 'c'), 'c'), 'b')
+    expect(deserialize(serialize(layout))).toEqual({ ok: true, layout })
+    expect(serialize(withTabs('a'))).not.toContain('pinned')
+    const old = deserialize(
+      '{"root":{"kind":"pane","id":"p1","tabs":["a","b"],"activeTab":"a"},"activePane":"p1","nextId":2}',
+    )
+    expect(old.ok && pinnedCount(findPane(old.layout, 'p1') ?? panesOf(old.layout)[0]!)).toBe(0)
+  })
+
+  it('reads a damaged count as the nearest one the pane can hold, and keeps the layout', () => {
+    const read = (pinned: string): number => {
+      const result = deserialize(
+        `{"root":{"kind":"pane","id":"p1","tabs":["a","b"],"activeTab":"a","pinned":${pinned}},"activePane":"p1","nextId":2}`,
+      )
+      if (!result.ok) throw new Error(result.error)
+      return pinnedCount(panesOf(result.layout)[0]!)
+    }
+    expect(read('1')).toBe(1)
+    expect(read('2')).toBe(2)
+    expect(read('9')).toBe(2)
+    expect(read('-3')).toBe(0)
+    expect(read('1.7')).toBe(1)
+    expect(read('"two"')).toBe(0)
+    expect(read('null')).toBe(0)
+  })
+
+  it('is refused by the check when the count is more than the tabs, or not a whole number', () => {
+    const base = withTabs('a', 'b')
+    const pane = (pinned: number): Layout => ({
+      ...base,
+      root: { kind: 'pane', id: 'p1', tabs: ['a', 'b'], activeTab: 'a', pinned },
+    })
+    expect(validateLayout(pane(2))).toEqual([])
+    expect(validateLayout(pane(3))).toHaveLength(1)
+    expect(validateLayout(pane(-1))).toHaveLength(1)
+    expect(validateLayout(pane(0.5))).toHaveLength(1)
+  })
+})
+
 describe('random sequences of operations', () => {
   it('always leave a valid layout that holds exactly the tabs that should be open, and round-trips', () => {
     for (let seed = 1; seed <= 300; seed++) {
@@ -470,11 +642,13 @@ describe('random sequences of operations', () => {
       const expected = new Set<string>()
       let counter = 0
       const log: string[] = []
+      /** The tabs that were pinned and not unpinned or closed since: a model kept beside the layout. */
+      const pinned = new Set<string>()
 
       for (let step = 0; step < 60; step++) {
         const panes = panesOf(layout)
         const tabs = allTabs(layout)
-        const op = Math.floor(random() * 9)
+        const op = Math.floor(random() * 11)
         const newTab = `t${++counter}`
         if (op === 0) {
           layout = openTab(layout, newTab, pick(panes).id)
@@ -484,6 +658,7 @@ describe('random sequences of operations', () => {
           const tab = pick(tabs)
           layout = closeTab(layout, tab)
           expected.delete(tab)
+          pinned.delete(tab)
           log.push(`close ${tab}`)
         } else if (op === 2 && tabs.length > 0) {
           layout = moveTab(layout, pick(tabs), pick(panes).id, Math.floor(random() * 6) - 1)
@@ -509,7 +684,10 @@ describe('random sequences of operations', () => {
           log.push('splitPane')
         } else if (op === 5) {
           const pane = pick(panes)
-          for (const tab of pane.tabs) expected.delete(tab)
+          for (const tab of pane.tabs) {
+            expected.delete(tab)
+            pinned.delete(tab)
+          }
           layout = closePane(layout, pane.id)
           log.push(`closePane ${pane.id}`)
         } else if (op === 6 && layout.root.kind === 'split') {
@@ -531,6 +709,16 @@ describe('random sequences of operations', () => {
         } else if (op === 7 && tabs.length > 0) {
           layout = activateTab(layout, pick(tabs))
           log.push('activateTab')
+        } else if (op === 9 && tabs.length > 0) {
+          const tab = pick(tabs)
+          layout = pinTab(layout, tab)
+          pinned.add(tab)
+          log.push(`pin ${tab}`)
+        } else if (op === 10 && tabs.length > 0) {
+          const tab = pick(tabs)
+          layout = unpinTab(layout, tab)
+          pinned.delete(tab)
+          log.push(`unpin ${tab}`)
         } else {
           layout = activatePane(layout, pick(panes).id)
           log.push('activatePane')
@@ -540,6 +728,13 @@ describe('random sequences of operations', () => {
         expect(validateLayout(layout), context).toEqual([])
         expect(new Set(allTabs(layout)), context).toEqual(expected)
         expect(allTabs(layout), context).toHaveLength(expected.size)
+        // The pinned tabs are the ones the model says, and each pane has them first.
+        for (const tab of allTabs(layout)) {
+          expect(isTabPinned(layout, tab), `${context}: ${tab}`).toBe(pinned.has(tab))
+        }
+        for (const pane of panesOf(layout)) {
+          expect(pane.tabs.slice(0, pinnedCount(pane)).every((tab) => pinned.has(tab))).toBe(true)
+        }
       }
 
       expect(deserialize(serialize(layout)), `seed ${seed}`).toEqual({ ok: true, layout })

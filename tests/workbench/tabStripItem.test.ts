@@ -13,11 +13,11 @@ import type { TabInfo } from '@/workbench/tabs'
 
 let mounted: { app: App; root: HTMLElement } | undefined
 
-function mount(tab: TabInfo, active = false): HTMLElement {
+function mount(tab: TabInfo, active = false, handlers: Record<string, unknown> = {}): HTMLElement {
   const root = document.createElement('div')
   document.body.append(root)
   const app = createApp({
-    render: () => h(TooltipProvider, () => h(TabStripItem, { tab, active })),
+    render: () => h(TooltipProvider, () => h(TabStripItem, { tab, active, ...handlers })),
   })
   app.mount(root)
   mounted = { app, root }
@@ -134,5 +134,86 @@ describe('the unsaved dot and the close button (ISC-250)', () => {
     const close = item.querySelector<HTMLElement>('[data-tab-slot] [aria-label="Close tab"]')
     expect(close).not.toBeNull()
     expect(close?.className).toContain('opacity-100')
+  })
+})
+
+describe('the pin of a pinned tab (ISC-571)', () => {
+  const pinnedTab = (dirty: boolean): TabInfo => ({
+    id: 't',
+    kind: 'markdown',
+    title: 'a.md',
+    dirty,
+    pinned: true,
+  })
+
+  it('shows a pin in the slot where the X is, and no close button', () => {
+    const item = mount(pinnedTab(false))
+    const slot = item.querySelector<HTMLElement>('[data-tab-slot]')
+    expect(slot?.querySelector('[data-tab-pin]')).not.toBeNull()
+    expect(slot?.querySelector('[aria-label="Close tab"]')).toBeNull()
+    expect(item.lastElementChild).toBe(slot)
+    expect(slot?.className).toContain('size-5')
+    expect(item.getAttribute('data-tab-pinned')).toBe('true')
+  })
+
+  it('shows no pin, and the X as before, on a tab that is not pinned', () => {
+    const item = mount(tab(false))
+    expect(item.querySelector('[data-tab-pin]')).toBeNull()
+    expect(item.querySelector('[aria-label="Close tab"]')).not.toBeNull()
+    expect(item.getAttribute('data-tab-pinned')).toBe('false')
+  })
+
+  it('has no dot while nothing is unsaved', () => {
+    expect(mount(pinnedTab(false)).querySelector('[data-dirty]')).toBeNull()
+  })
+
+  it('puts a smaller dot on the corner of the pin while there are unsaved changes', () => {
+    const item = mount(pinnedTab(true))
+    const pin = item.querySelector<HTMLElement>('[data-tab-pin]')
+    const dot = pin?.querySelector<HTMLElement>('[data-dirty]')
+    expect(dot).not.toBeNull()
+    expect(dot?.className).toContain('size-1.5')
+    expect(dot?.className.split(' ')).toContain('absolute')
+    expect(dot?.className).toContain('right-0')
+    expect(dot?.className).toContain('bottom-0')
+    // The dot of an unpinned tab is the bigger one, and sits beside the X, not on the pin.
+    const plain = mount(tab(true)).querySelector<HTMLElement>('[data-dirty]')
+    expect(plain?.className).toContain('size-2')
+  })
+
+  it('hides the dot while the pointer is on the pin, and swaps the pin for the unpin icon', () => {
+    const item = mount(pinnedTab(true))
+    const pin = item.querySelector<HTMLElement>('[data-tab-pin]')
+    expect(pin?.className).toContain('group/pin')
+    expect(pin?.querySelector('[data-dirty]')?.className).toContain('group-hover/pin:hidden')
+    const icons = [...(pin?.querySelectorAll('svg') ?? [])]
+    expect(icons).toHaveLength(2)
+    expect(icons[0]?.getAttribute('class')).toContain('group-hover/pin:hidden')
+    expect(icons[1]?.getAttribute('class')).toContain('group-hover/pin:block')
+  })
+
+  it('unpins on a click on the pin, also while the tab has unsaved changes, and selects nothing', () => {
+    for (const dirty of [false, true]) {
+      const calls: string[] = []
+      const item = mount(pinnedTab(dirty), false, {
+        onUnpin: () => calls.push('unpin'),
+        onSelect: () => calls.push('select'),
+        onClose: () => calls.push('close'),
+      })
+      item.querySelector<HTMLElement>('[data-tab-pin]')?.click()
+      expect(calls).toEqual(['unpin'])
+      mounted?.app.unmount()
+      mounted?.root.remove()
+    }
+  })
+
+  it('does not start a drag from a press on the pin', () => {
+    const presses: string[] = []
+    const item = mount(pinnedTab(false), false, { onPress: () => presses.push('press') })
+    const pin = item.querySelector<HTMLElement>('[data-tab-pin]')
+    pin?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
+    expect(presses).toEqual([])
+    item.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
+    expect(presses).toEqual(['press'])
   })
 })

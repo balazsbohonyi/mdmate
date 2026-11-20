@@ -15,8 +15,11 @@ import {
   openTab,
   paneOfTab,
   panesOf,
+  pinTab,
+  isTabPinned,
   setSizes,
   splitPane,
+  unpinTab,
   type Direction,
   type Edge,
   type Layout,
@@ -222,6 +225,21 @@ export function closeTabById(tabId: TabId): void {
 
 export function closePaneById(paneId: PaneId): void {
   change((current) => closePane(current, paneId))
+}
+
+/** True while the tab is pinned in its pane. */
+export function isPinned(tabId: TabId): boolean {
+  return isTabPinned(layout.value, tabId)
+}
+
+/** Pins a tab: it goes after the tabs pinned before it, at the start of its pane. */
+export function pinTabById(tabId: TabId): void {
+  change((current) => pinTab(current, tabId))
+}
+
+/** Unpins a tab: it becomes the first tab that is not pinned. */
+export function unpinTabById(tabId: TabId): void {
+  change((current) => unpinTab(current, tabId))
 }
 
 export function moveTabTo(tabId: TabId, paneId: PaneId, index?: number): void {

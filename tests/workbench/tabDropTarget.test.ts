@@ -89,6 +89,59 @@ describe('dropping in a tab strip', () => {
   })
 })
 
+describe('dropping with pinned tabs (ISC-572)', () => {
+  /** The same pane with its first `count` tabs pinned. */
+  const pinFirst = (source: PaneGeometry, count: number): PaneGeometry => ({
+    ...source,
+    tabs: source.tabs.map((tab, at) => (at < count ? { ...tab, pinned: true } : tab)),
+  })
+  // p1 is a, b, c at 0-100, 100-200, 200-300; a and b are pinned.
+  const pinned = [pinFirst(p1, 2), p2]
+  const pinnedFromA: DraggedTab = { ...fromA, pinned: true }
+  const pinnedFromD: DraggedTab = { ...fromD, pinned: true }
+
+  it('holds an unpinned tab after the pinned ones, and shows the bar there', () => {
+    const at = (x: number) => resolveDrop({ x, y: 10 }, pinned, fromD)
+    expect(at(10)).toMatchObject({ kind: 'strip', paneId: 'p1', index: 2 })
+    expect(at(120)).toMatchObject({ index: 2 })
+    expect(at(251)).toMatchObject({ index: 3 })
+    // Index 2 is the border between b and c, at x = 200, wherever the pointer is over the pinned tabs.
+    expect(at(10)?.preview).toEqual({
+      left: 200 - INSERT_BAR_PX / 2,
+      right: 200 + INSERT_BAR_PX / 2,
+      top: 0,
+      bottom: STRIP,
+    })
+  })
+
+  it('holds a pinned tab among the pinned ones, from another pane', () => {
+    const at = (x: number) => resolveDrop({ x, y: 10 }, pinned, pinnedFromD)
+    expect(at(10)).toMatchObject({ index: 0 })
+    expect(at(151)).toMatchObject({ index: 2 })
+    expect(at(251)).toMatchObject({ index: 2 })
+    expect(at(390)).toMatchObject({ index: 2 })
+  })
+
+  it('leaves the dragged pinned tab out when it counts the pinned ones in its own strip', () => {
+    // The others are b (pinned, 100-200) and c (200-300): one pinned tab remains.
+    const at = (x: number) => resolveDrop({ x, y: 10 }, pinned, pinnedFromA)
+    expect(at(10)).toMatchObject({ index: 0 })
+    expect(at(160)).toMatchObject({ index: 1 })
+    expect(at(390)).toMatchObject({ index: 1 })
+  })
+
+  it('leaves the dragged unpinned tab out the same way', () => {
+    // c dragged inside its own strip: the others are a and b, both pinned, so it lands at 2.
+    const fromC: DraggedTab = { id: 'c', paneId: 'p1', paneTabCount: 3 }
+    expect(resolveDrop({ x: 10, y: 10 }, pinned, fromC)).toMatchObject({ index: 2 })
+  })
+
+  it('changes nothing for a strip with no pinned tab', () => {
+    expect(resolveDrop({ x: 10, y: 10 }, panes, fromD)).toMatchObject({ index: 0 })
+    expect(resolveDrop({ x: 10, y: 10 }, panes, pinnedFromD)).toMatchObject({ index: 0 })
+  })
+})
+
 describe('dropping on a pane body', () => {
   // p2's body spans x 400-800 and y 34-300, so its edge bands are 100 px wide and 66.5 px tall.
   const at = (x: number, y: number, dragged: DraggedTab = fromA) =>

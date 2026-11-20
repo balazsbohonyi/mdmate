@@ -54,9 +54,11 @@ import {
   revealTabInSidebar,
   tabMenuState,
   tabPath,
+  togglePinTab,
 } from '@/workbench/tabMenu'
 import {
   openTabFor,
+  pinTabById,
   resetWorkbench,
   selectTab,
   splitActivePane,
@@ -680,5 +682,135 @@ describe('Shift+F12 (ISC-221)', () => {
     press({})
     await flush()
     expect(referencesState.value).toBeNull()
+  })
+})
+
+describe('pinned tabs and the Close commands (ISC-570)', () => {
+  let removeCommands: (() => void) | undefined
+
+  beforeEach(() => {
+    clearCommands()
+    removeCommands = registerDefaultCommands()
+  })
+
+  afterEach(() => {
+    removeCommands?.()
+    clearCommands()
+  })
+
+  /** a, b, c, d open in one pane with b and c pinned, in that order: `*b *c a d`. */
+  async function four(): Promise<{ a: string; b: string; c: string; d: string }> {
+    await start()
+    const a = await openPath('/work/a.md')
+    const b = await openPath('/work/b.md')
+    const c = await openPath('/work/c.md')
+    const d = await openPath('/work/deep/er/d.md')
+    pinTabById(b)
+    pinTabById(c)
+    expect(paneTabs(a)).toEqual([b, c, a, d])
+    return { a, b, c, d }
+  }
+
+  it('Pin Tab and Unpin Tab toggle the pin, and the menu state says which one applies', async () => {
+    const { a, b, c, d } = await four()
+    expect(tabMenuState(b).pinned).toBe(true)
+    expect(tabMenuState(a).pinned).toBe(false)
+    togglePinTab(a)
+    expect(tabMenuState(a).pinned).toBe(true)
+    expect(paneTabs(a)).toEqual([b, c, a, d])
+    togglePinTab(b)
+    expect(tabMenuState(b).pinned).toBe(false)
+    expect(paneTabs(a)).toEqual([c, a, b, d])
+  })
+
+  it('Close Others leaves the pinned tabs, from a tab that is pinned and from one that is not', async () => {
+    const { a, b, c, d } = await four()
+    expect(await closeOtherTabs(a)).toBe(true)
+    expect(paneTabs(a)).toEqual([b, c, a])
+    expect(allTabs(workbenchLayout.value)).not.toContain(d)
+  })
+
+  it('Close Others from a pinned tab closes the tabs that are not pinned and keeps the other pinned one', async () => {
+    const { a, b, c, d } = await four()
+    expect(await closeOtherTabs(b)).toBe(true)
+    expect(paneTabs(b)).toEqual([b, c])
+    expect(allTabs(workbenchLayout.value)).not.toContain(a)
+    expect(allTabs(workbenchLayout.value)).not.toContain(d)
+  })
+
+  it('Close to the Right skips the pinned tabs, also from a pinned tab', async () => {
+    const { a, b, c, d } = await four()
+    expect(await closeTabsToTheRight(b)).toBe(true)
+    expect(paneTabs(b)).toEqual([b, c])
+    expect(allTabs(workbenchLayout.value)).not.toContain(a)
+    expect(allTabs(workbenchLayout.value)).not.toContain(d)
+  })
+
+  it('Close All closes every tab that is not pinned and keeps the pinned ones, shown', async () => {
+    const { a, b, c } = await four()
+    expect(await closeEveryTab(a)).toBe(true)
+    expect(paneTabs(b)).toEqual([b, c])
+    expect(paneOfTab(workbenchLayout.value, b)?.activeTab).toBe(c)
+    expect(panesOf(workbenchLayout.value)).toHaveLength(1)
+  })
+
+  it('the Close All command skips pinned tabs, and is off when only pinned tabs are left', async () => {
+    const { a, b, c } = await four()
+    expect(isCommandEnabled(COMMAND_IDS.closeAll)).toBe(true)
+    await runCommand(COMMAND_IDS.closeAll)
+    expect(paneTabs(b)).toEqual([b, c])
+    expect(isCommandEnabled(COMMAND_IDS.closeAll)).toBe(false)
+    expect(tabMenuState(b).canCloseAll).toBe(false)
+    expect(allTabs(workbenchLayout.value)).not.toContain(a)
+    await closeAllTabs()
+    expect(paneTabs(b)).toEqual([b, c])
+  })
+
+  it('closing the last tab that is not pinned leaves the pinned ones', async () => {
+    const { a, b, c, d } = await four()
+    closeTab(d)
+    closeTab(a)
+    expect(paneTabs(b)).toEqual([b, c])
+    expect(tabMenuState(b).canCloseOthers).toBe(false)
+    expect(tabMenuState(b).canCloseToTheRight).toBe(false)
+    expect(tabMenuState(b).canCloseAll).toBe(false)
+  })
+
+  it('Close on a pinned tab closes it, from the menu and from the Close Tab command', async () => {
+    const { a, b, c, d } = await four()
+    closeTab(b)
+    expect(paneTabs(a)).toEqual([c, a, d])
+    expect(tabMenuState(c).pinned).toBe(true)
+    selectTab(c)
+    await runCommand(COMMAND_IDS.closeTab)
+    expect(allTabs(workbenchLayout.value)).not.toContain(c)
+    expect(tabMenuState(a).pinned).toBe(false)
+  })
+
+  it('does not ask about a pinned tab with unsaved edits when Close All passes it by', async () => {
+    const { a, b, c } = await four()
+    type(b, 'edit ')
+    expect(await closeEveryTab(a)).toBe(true)
+    expect(pendingClose.value).toBeNull()
+    expect(paneTabs(b)).toEqual([b, c])
+    // Close on the tab itself still asks, as for any tab with unsaved edits.
+    closeTab(b)
+    expect(pendingClose.value).toMatchObject({ tabId: b })
+    await resolvePendingClose('discard')
+    expect(paneTabs(c)).toEqual([c])
+  })
+
+  it('only counts the pinned tabs of its own pane', async () => {
+    const { a, b, c } = await four()
+    splitActivePane('row')
+    const x = await openPath('/work/inner/x.md')
+    expect(tabMenuState(x).pinned).toBe(false)
+    expect(tabMenuState(x).canCloseAll).toBe(true)
+    // The new pane holds the copy of the active tab and x, and nothing in it is pinned.
+    expect(paneTabs(x)).toHaveLength(2)
+    expect(paneTabs(x)[1]).toBe(x)
+    expect(tabMenuState(paneTabs(x)[0] ?? '').pinned).toBe(false)
+    expect(await closeEveryTab(a)).toBe(true)
+    expect(paneTabs(b)).toEqual([b, c])
   })
 })

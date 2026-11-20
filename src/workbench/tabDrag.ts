@@ -201,7 +201,15 @@ function readGeometry(): readonly PaneGeometry[] {
     const paneId = section.dataset.paneId
     if (!strip || !body || !paneId) continue
     const tabs = [...strip.querySelectorAll<HTMLElement>('[data-tab-id]')].flatMap((element) =>
-      element.dataset.tabId ? [{ id: element.dataset.tabId, rect: rectOf(element) }] : [],
+      element.dataset.tabId
+        ? [
+            {
+              id: element.dataset.tabId,
+              rect: rectOf(element),
+              ...(element.dataset.tabPinned === 'true' ? { pinned: true } : {}),
+            },
+          ]
+        : [],
     )
     panes.push({ paneId, strip: rectOf(strip), body: rectOf(body), tabs })
   }

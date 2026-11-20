@@ -8,9 +8,9 @@ import { findBars } from './find'
 import { focusActiveEditor } from './focus'
 import ImageView from './ImageView.vue'
 import PaneNotice from './PaneNotice.vue'
-import type { PaneNode } from './splitTree'
+import { pinnedCount, type PaneNode } from './splitTree'
 import { isRaw } from './rawMode'
-import { focusPane, selectTab, tabInfo, tabRecord, tabTitle } from './store'
+import { focusPane, selectTab, tabInfo, tabRecord, tabTitle, unpinTabById } from './store'
 import { docIdOf } from './tabs'
 import { beginTabDrag, tabDrag } from './tabDrag'
 import TabStrip from './TabStrip.vue'
@@ -25,7 +25,11 @@ const ThemePreview = defineAsyncComponent(
 
 const { pane, active } = defineProps<{ pane: PaneNode; active: boolean }>()
 
-const tabs = computed(() => pane.tabs.map(tabInfo))
+const tabs = computed(() =>
+  pane.tabs.map((id, at) =>
+    at < pinnedCount(pane) ? { ...tabInfo(id), pinned: true } : tabInfo(id),
+  ),
+)
 const activeRecord = computed(() =>
   pane.activeTab === null ? undefined : tabRecord(pane.activeTab),
 )
@@ -55,6 +59,7 @@ function startDrag(id: string, event: PointerEvent): void {
     title: tabTitle(id),
     paneId: pane.id,
     paneTabCount: pane.tabs.length,
+    pinned: pane.tabs.indexOf(id) < pinnedCount(pane),
   })
 }
 </script>
@@ -73,6 +78,7 @@ function startDrag(id: string, event: PointerEvent): void {
       :dragging-id="tabDrag?.tabId ?? null"
       @select="onSelect"
       @close="requestCloseTab"
+      @unpin="unpinTabById"
       @press="startDrag"
       @new="void newUntitledTab(pane.id)"
     />

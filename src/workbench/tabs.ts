@@ -62,4 +62,6 @@ export interface TabInfo {
   readonly title: string
   /** The tab's document has unsaved edits. */
   readonly dirty: boolean
+  /** The tab is pinned in its pane. Left out for a tab that is not. */
+  readonly pinned?: boolean
 }

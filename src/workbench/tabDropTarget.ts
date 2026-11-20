@@ -20,6 +20,8 @@ export interface Point {
 export interface TabGeometry {
   readonly id: TabId
   readonly rect: Rect
+  /** The tab is pinned. Pinned tabs are the first ones of a strip. Left out for a tab that is not. */
+  readonly pinned?: boolean
 }
 
 /** The three rectangles of one pane that a drop can hit. */
@@ -35,6 +37,8 @@ export interface DraggedTab {
   readonly id: TabId
   readonly paneId: PaneId
   readonly paneTabCount: number
+  /** The dragged tab is pinned: it stays among the pinned tabs, and the others stay out of them. */
+  readonly pinned?: boolean
 }
 
 /** Every target carries `preview`, the rectangle to light up while the pointer is there. */
@@ -67,7 +71,11 @@ function center(rect: Rect): number {
 function stripTarget(pane: PaneGeometry, point: Point, dragged: DraggedTab): DropTarget {
   const others = pane.tabs.filter((tab) => tab.id !== dragged.id)
   // The position in the strip once the dragged tab has left it, which is what `moveTab` takes.
-  const index = others.filter((tab) => center(tab.rect) < point.x).length
+  // A pinned tab drops among the pinned tabs and any other tab after them, so the index is held
+  // inside the dragged tab's own group, and the bar shows where the tab will really land.
+  const pinnedOthers = others.filter((tab) => tab.pinned === true).length
+  const raw = others.filter((tab) => center(tab.rect) < point.x).length
+  const index = dragged.pinned === true ? Math.min(raw, pinnedOthers) : Math.max(raw, pinnedOthers)
   const before = others[index - 1]
   const after = others[index]
   const x = before ? before.rect.right : (after?.rect.left ?? pane.strip.left)

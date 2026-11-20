@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { X } from '@lucide/vue'
+import { Pin, PinOff, X } from '@lucide/vue'
 import HoverHint from '@/components/HoverHint.vue'
 import { SLOW_HINT_DELAY } from '@/components/hintDelay'
 import type { TabInfo } from './tabs'
@@ -15,7 +15,13 @@ const {
   focused?: boolean
   dragging?: boolean
 }>()
-const emit = defineEmits<{ select: []; close: []; press: [event: PointerEvent] }>()
+const emit = defineEmits<{
+  select: []
+  close: []
+  /** The pin icon of a pinned tab was clicked. */
+  unpin: []
+  press: [event: PointerEvent]
+}>()
 
 /** Only a plain primary-button press by mouse or pen can start a drag. */
 function onPointerDown(event: PointerEvent): void {
@@ -31,6 +37,7 @@ function onPointerDown(event: PointerEvent): void {
     :aria-selected="active"
     :data-tab-id="tab.id"
     :data-pane-focused="focused"
+    :data-tab-pinned="tab.pinned === true"
     class="group relative flex min-w-24 max-w-56 shrink-0 cursor-default items-center gap-2 rounded-t-md pr-1.5 pl-3 text-chrome select-none"
     :class="[
       active
@@ -72,30 +79,63 @@ function onPointerDown(event: PointerEvent): void {
       data-tab-slot
       class="ml-auto grid size-5 shrink-0 place-items-center"
     >
-      <span
-        v-if="tab.dirty"
-        data-dirty
-        role="img"
-        aria-label="Unsaved changes"
-        class="size-2 rounded-full bg-primary group-hover:hidden"
-      />
+      <!--
+        A pinned tab has the pin here and no close button. A click on the pin unpins the tab, also
+        when it has unsaved changes; the dot sits on the pin's corner and gives way to the unpin
+        icon while the pointer is on the pin, to show that a click unpins.
+      -->
       <button
+        v-if="tab.pinned === true"
         type="button"
-        aria-label="Close tab"
+        aria-label="Unpin tab"
+        data-tab-pin
         tabindex="-1"
-        class="flex size-5 items-center justify-center rounded-sm opacity-0 group-hover:opacity-100 hover:bg-accent hover:text-accent-foreground"
-        :class="[
-          { 'opacity-100': active && !tab.dirty },
-          tab.dirty ? 'hidden group-hover:flex' : '',
-        ]"
+        class="group/pin relative flex size-5 items-center justify-center rounded-sm hover:bg-accent hover:text-accent-foreground"
         @pointerdown.stop
-        @click.stop="emit('close')"
+        @click.stop="emit('unpin')"
       >
-        <X
-          class="size-3.5"
+        <Pin
+          class="size-3.5 group-hover/pin:hidden"
           :stroke-width="1.5"
         />
+        <PinOff
+          class="hidden size-3.5 group-hover/pin:block"
+          :stroke-width="1.5"
+        />
+        <span
+          v-if="tab.dirty"
+          data-dirty
+          role="img"
+          aria-label="Unsaved changes"
+          class="absolute right-0 bottom-0 size-1.5 rounded-full bg-primary group-hover/pin:hidden"
+        />
       </button>
+      <template v-else>
+        <span
+          v-if="tab.dirty"
+          data-dirty
+          role="img"
+          aria-label="Unsaved changes"
+          class="size-2 rounded-full bg-primary group-hover:hidden"
+        />
+        <button
+          type="button"
+          aria-label="Close tab"
+          tabindex="-1"
+          class="flex size-5 items-center justify-center rounded-sm opacity-0 group-hover:opacity-100 hover:bg-accent hover:text-accent-foreground"
+          :class="[
+            { 'opacity-100': active && !tab.dirty },
+            tab.dirty ? 'hidden group-hover:flex' : '',
+          ]"
+          @pointerdown.stop
+          @click.stop="emit('close')"
+        >
+          <X
+            class="size-3.5"
+            :stroke-width="1.5"
+          />
+        </button>
+      </template>
     </span>
   </div>
 </template>

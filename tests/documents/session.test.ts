@@ -31,11 +31,13 @@ import {
   setSidebarWidth,
   sidebarWidth,
 } from '@/workbench/sidebar'
-import { allTabs, panesOf } from '@/workbench/splitTree'
+import { allTabs, panesOf, pinnedCount } from '@/workbench/splitTree'
 import {
+  isPinned,
   moveTabTo,
   openSettingsTab,
   openThemePreviewTab,
+  pinTabById,
   resetWorkbench,
   resizeSplit,
   selectTab,
@@ -1121,6 +1123,105 @@ describe('the Theme preview tab (P8-T7)', () => {
     expect(report).toMatchObject({ tabs: 1, notices: [] })
     expect(allTabs(workbenchLayout.value)).toEqual([a])
     expect(allDocuments().map((doc) => doc.path)).toEqual([A])
+  })
+})
+
+describe('pinned tabs (ISC-573)', () => {
+  const layoutPanes = (): { tabs: string[]; pinned?: number }[] => {
+    const layout = JSON.parse((JSON.parse(host.session ?? '{}') as { layout: string }).layout) as {
+      root: { tabs: string[]; pinned?: number }
+    }
+    return [layout.root]
+  }
+  const pinnedOf = (): number => pinnedCount(panesOf(workbenchLayout.value)[0] ?? emptyPane)
+  const emptyPane = { kind: 'pane', id: 'none', tabs: [], activeTab: null } as const
+
+  it('come back pinned, in the order they were pinned, with the tabs behind them', async () => {
+    const a = await openPath(A)
+    const b = await openPath(B)
+    const c = await openPath(C)
+    pinTabById(c)
+    pinTabById(b)
+    expect(allTabs(workbenchLayout.value)).toEqual([c, b, a])
+    const before = workbenchLayout.value
+    await flushSession()
+    expect(layoutPanes()[0]).toMatchObject({ tabs: [c, b, a], pinned: 2 })
+
+    newRun(host)
+    const report = await restoreSession()
+
+    expect(report).toMatchObject({ tabs: 3, notices: [] })
+    expect(workbenchLayout.value).toEqual(before)
+    expect(isPinned(c) && isPinned(b)).toBe(true)
+    expect(isPinned(a)).toBe(false)
+  })
+
+  it('come back pinned in the pane they were in, with another pane unpinned', async () => {
+    const a = await openPath(A)
+    pinTabById(a)
+    splitActivePane('row')
+    const b = await openPath(B)
+    await flushSession()
+    newRun(host)
+    await restoreSession()
+    expect(isPinned(a)).toBe(true)
+    expect(isPinned(b)).toBe(false)
+    expect(panesOf(workbenchLayout.value).map((pane) => pane.pinned)).toEqual([1, undefined])
+  })
+
+  it('writes no count for a pane with nothing pinned, so the file reads as before pinning', async () => {
+    await openPath(A)
+    await flushSession()
+    expect(host.session).not.toContain('pinned')
+  })
+
+  it('count one fewer when a pinned tab cannot come back, and keep the pinned ones that can', async () => {
+    const a = await openPath(A)
+    const b = await openPath(B)
+    const c = await openPath(C)
+    pinTabById(b)
+    pinTabById(c)
+    await flushSession()
+    host.files.remove(B)
+
+    newRun(host)
+    const report = await restoreSession()
+
+    expect(report?.notices.join(' ')).toContain('b.md could not be opened')
+    expect(allTabs(workbenchLayout.value)).toEqual([c, a])
+    expect(pinnedOf()).toBe(1)
+    expect(isPinned(c)).toBe(true)
+    expect(isPinned(a)).toBe(false)
+  })
+
+  it('read an old session with no count as nothing pinned', async () => {
+    const a = await openPath(A)
+    const b = await openPath(B)
+    await flushSession()
+    newRun(host)
+    await restoreSession()
+    expect(pinnedOf()).toBe(0)
+    expect(allTabs(workbenchLayout.value)).toEqual([a, b])
+  })
+
+  it('leave out a pinned Theme preview and still count the rest right', async () => {
+    const settings = openSettingsTab('appearance')
+    const a = await openPath(A)
+    const preview = openThemePreviewTab()
+    pinTabById(settings)
+    pinTabById(preview)
+    pinTabById(a)
+    await flushSession()
+    const saved = layoutPanes().flatMap((pane) => pane.tabs)
+    expect(saved).not.toContain(preview)
+    newRun(host)
+    await restoreSession()
+    expect(allTabs(workbenchLayout.value)).not.toContain(preview)
+    const pinned = panesOf(workbenchLayout.value).flatMap((pane) =>
+      pane.tabs.slice(0, pinnedCount(pane)),
+    )
+    expect(pinned).toContain(settings)
+    expect(pinned).toContain(a)
   })
 })
 

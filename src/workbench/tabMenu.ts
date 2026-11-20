@@ -12,8 +12,8 @@ import { renameRow, revealInFileManager } from '@/features/tree/ops'
 import { revealPath, rootOf } from '@/features/tree/store'
 import { getHost } from '@/platform'
 import { showSidebar } from './sidebar'
-import { findPane, paneOfTab, type TabId } from './splitTree'
-import { tabRecord, workbenchLayout } from './store'
+import { findPane, paneOfTab, pinnedCount, type PaneNode, type TabId } from './splitTree'
+import { pinTabById, tabRecord, unpinTabById, workbenchLayout } from './store'
 import { reportError, reportWarning } from '@/shell/toasts'
 
 /**
@@ -40,20 +40,46 @@ export function activeTabId(): TabId | null {
 /** Why Rename is off for a file outside every open folder. Shown as the item's tooltip. */
 export const RENAME_OUTSIDE_FOLDER = 'Only a file in an open folder can be renamed.'
 
+/** The tabs of a pane that are not pinned, in order. The Close commands other than Close leave pinned tabs open. */
+function unpinnedTabs(pane: PaneNode): readonly TabId[] {
+  return pane.tabs.slice(pinnedCount(pane))
+}
+
 /** Which items of the menu apply to a tab. */
 export interface TabMenuState {
   /** The tab shows an untitled document, which has no file yet. */
   readonly untitled: boolean
   readonly hasPath: boolean
-  /** The pane holds other tabs to close. */
+  /** The tab is pinned, so the menu offers Unpin Tab and not Pin Tab. */
+  readonly pinned: boolean
+  /** The pane holds other tabs to close that are not pinned. */
   readonly canCloseOthers: boolean
-  /** The pane holds tabs to the right of this one. */
+  /** The pane holds tabs to the right of this one that are not pinned. */
   readonly canCloseToTheRight: boolean
+  /** The pane holds a tab that is not pinned, which is what Close All would close. */
+  readonly canCloseAll: boolean
   /** The file lies in an open folder, so the tree has a row for it. */
   readonly canRevealInSidebar: boolean
   readonly canRename: boolean
   /** Why Rename is off, when it is off for a reason the user can act on; otherwise null. */
   readonly renameWhyNot: string | null
+}
+
+/** The tabs after this one in its pane that are not pinned. */
+function rightOf(pane: PaneNode, tabId: TabId): readonly TabId[] {
+  return pane.tabs.slice(pane.tabs.indexOf(tabId) + 1).filter((tab) => !isPinnedIn(pane, tab))
+}
+
+function isPinnedIn(pane: PaneNode, tabId: TabId): boolean {
+  return pane.tabs.indexOf(tabId) < pinnedCount(pane)
+}
+
+/** Pins the tab, or unpins it when it is pinned. */
+export function togglePinTab(tabId: TabId): void {
+  const pane = paneOfTab(workbenchLayout.value, tabId)
+  if (pane === undefined) return
+  if (isPinnedIn(pane, tabId)) unpinTabById(tabId)
+  else pinTabById(tabId)
 }
 
 export function tabMenuState(tabId: TabId): TabMenuState {
@@ -65,8 +91,10 @@ export function tabMenuState(tabId: TabId): TabMenuState {
   return {
     untitled,
     hasPath: path !== null,
-    canCloseOthers: pane?.tabs.some((other) => other !== tabId) === true,
-    canCloseToTheRight: (pane?.tabs.indexOf(tabId) ?? -1) < (pane?.tabs.length ?? 0) - 1,
+    pinned: pane !== undefined && pane.tabs.indexOf(tabId) < pinnedCount(pane),
+    canCloseOthers: pane !== undefined && unpinnedTabs(pane).some((other) => other !== tabId),
+    canCloseToTheRight: pane !== undefined && rightOf(pane, tabId).length > 0,
+    canCloseAll: pane !== undefined && unpinnedTabs(pane).length > 0,
     canRevealInSidebar: inRoot,
     // A new file is named by Save As; a file on disk is renamed in its tree row.
     canRename: untitled || inRoot,
@@ -81,26 +109,27 @@ export function closeTab(tabId: TabId): void {
 
 /**
  * Closes every other tab of the pane the tab is in, asking about each document with unsaved
- * edits. The tab that was kept is then the only one in the pane, so it is the one shown. False
- * when the user cancelled a question.
+ * edits. Pinned tabs stay open. When the tab that was kept is not pinned and no pinned tab is left
+ * either, it is the only one in the pane. False when the user cancelled a question.
  */
 export async function closeOtherTabs(tabId: TabId): Promise<boolean> {
   const pane = paneOfTab(workbenchLayout.value, tabId)
   if (pane === undefined) return true
-  return closeTabs(pane.tabs.filter((other) => other !== tabId))
+  return closeTabs(unpinnedTabs(pane).filter((other) => other !== tabId))
 }
 
 /**
  * Closes the tabs to the right of this one in its pane, left to right, asking about each document
- * with unsaved edits. The other panes are never touched. False when the user cancelled a question.
+ * with unsaved edits. Pinned tabs stay open, and the other panes are never touched. False when the
+ * user cancelled a question.
  */
 export async function closeTabsToTheRight(tabId: TabId): Promise<boolean> {
   const pane = paneOfTab(workbenchLayout.value, tabId)
   if (pane === undefined) return true
-  return closeTabs(pane.tabs.slice(pane.tabs.indexOf(tabId) + 1))
+  return closeTabs(rightOf(pane, tabId))
 }
 
-/** Closes every tab of the pane this tab is in, and no tab of another pane. */
+/** Closes every tab of the pane this tab is in that is not pinned, and no tab of another pane. */
 export function closeEveryTab(tabId: TabId): Promise<boolean> {
   return closeAllTabs(paneOfTab(workbenchLayout.value, tabId)?.id)
 }

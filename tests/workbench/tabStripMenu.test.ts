@@ -16,8 +16,8 @@ import { registerDefaultCommands } from '@/workbench/defaultCommands'
 import { resetSidebar } from '@/workbench/sidebar'
 import TabStrip from '@/workbench/TabStrip.vue'
 import { RENAME_OUTSIDE_FOLDER } from '@/workbench/tabMenu'
-import { resetWorkbench } from '@/workbench/store'
-import { tabInfo } from '@/workbench/store'
+import { allTabs } from '@/workbench/splitTree'
+import { isPinned, pinTabById, resetWorkbench, tabInfo, workbenchLayout } from '@/workbench/store'
 
 // Radix measures with these; jsdom has neither.
 class FakeObserver {
@@ -59,10 +59,20 @@ afterEach(() => {
 })
 
 /** Opens the menu of the tab with this file name, the way a right-click does. */
-async function openMenuOf(file: string, files: readonly string[]): Promise<void> {
+async function openMenuOf(
+  file: string,
+  files: readonly string[],
+  pinned: readonly string[] = [],
+): Promise<void> {
   const ids: string[] = []
   for (const path of files) ids.push(await openPath(path))
-  const infos = ids.map((id) => tabInfo(id)).filter((info) => info !== undefined)
+  files.forEach((path, at) => {
+    const id = ids[at]
+    if (id !== undefined && pinned.includes(path)) pinTabById(id)
+  })
+  const infos = ids
+    .map((id) => tabInfo(id))
+    .map((info) => (isPinned(info.id) ? { ...info, pinned: true } : info))
   const root = document.createElement('div')
   document.body.append(root)
   const app = tooltipApp(TabStrip, { tabs: infos, activeId: ids[0] ?? null })
@@ -215,5 +225,59 @@ describe('the shortcuts the menu shows (ISC-221)', () => {
     )
     expect(shown).toContain('Open Containing Folder')
     expect(shown.some((text) => text.startsWith('Reveal in File'))).toBe(false)
+  })
+})
+
+const menuItems = (): string[] =>
+  [...document.body.querySelectorAll('[data-tab-menu] [role=menuitem]')].map((item) =>
+    item.textContent.replace(/\s+/g, ' ').trim(),
+  )
+
+describe('Pin Tab in the tab menu (ISC-570)', () => {
+  it('offers Pin Tab on a tab that is not pinned, after the Close items', async () => {
+    await start()
+    await openMenuOf('a.md', ['/work/a.md'])
+    const items = menuItems()
+    expect(items).toContain('Pin Tab')
+    expect(items).not.toContain('Unpin Tab')
+    expect(items.indexOf('Pin Tab')).toBeGreaterThan(
+      items.findIndex((item) => item.startsWith('Close All')),
+    )
+  })
+
+  it('offers Unpin Tab on a pinned tab, and Pin Tab then pins it', async () => {
+    await start()
+    await openMenuOf('a.md', ['/work/a.md'], ['/work/a.md'])
+    expect(menuItems()).toContain('Unpin Tab')
+    expect(menuItems()).not.toContain('Pin Tab')
+  })
+
+  it('a click on Pin Tab pins the tab', async () => {
+    await start()
+    await openMenuOf('a.md', ['/work/a.md'])
+    const id = allTabs(workbenchLayout.value)[0] ?? ''
+    const click = async (label: string): Promise<void> => {
+      const item = [...document.body.querySelectorAll('[data-tab-menu] [role=menuitem]')].find(
+        (candidate) => candidate.textContent.trim() === label,
+      )
+      if (item === undefined) throw new Error(`no ${label}`)
+      item.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+      await flush()
+    }
+    await click('Pin Tab')
+    expect(isPinned(id)).toBe(true)
+  })
+
+  it('turns Close Others, Close to the Right and Close All off when only pinned tabs are left to keep', async () => {
+    await start()
+    await openMenuOf('a.md', ['/work/a.md', '/outside/o.md'], ['/work/a.md', '/outside/o.md'])
+    const disabled = (label: string): boolean | undefined =>
+      [...document.body.querySelectorAll('[data-tab-menu] [role=menuitem]')]
+        .find((item) => item.textContent.trim().startsWith(label))
+        ?.hasAttribute('data-disabled')
+    expect(disabled('Close Others')).toBe(true)
+    expect(disabled('Close to the Right')).toBe(true)
+    expect(disabled('Close All')).toBe(true)
+    expect(disabled('Close')).toBe(false)
   })
 })

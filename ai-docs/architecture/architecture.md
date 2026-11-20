@@ -221,6 +221,8 @@ The web view's own browser shortcuts (reload, view source, find, zoom) are off: 
 
 The window zoom is the `view.zoom` setting (percent, 50 to 300). Zoom In, Zoom Out and Reset Zoom (`Mod+=`, `Mod+-`, `Mod+0`, with a plus typed with Ctrl as an alias handled in `workbench/keyboard.ts`) and Ctrl+wheel (`workbench/zoomWheel.ts`) step it through `features/settings/zoom.ts`, which writes the setting like any other change. `updateZoom` (`features/settings/zoomApply.ts`) hands the level to the web view with `host.setZoom` after every settings read, the first time always; the web view does the scaling, so the pixel ratio includes the zoom and pointer positions stay in CSS pixels.
 
+A tab can be pinned in its pane. The pin is part of the layout (`workbench/splitTree.ts`): a pane has an optional `pinned` count, and the pinned tabs are always its first `pinned` tabs, so the prefix rule holds by construction and `validateLayout` checks it. `pinTab` and `unpinTab` move a tab to the end of the pinned group or to the front of the rest; `closeTab`, `moveTab` and `moveTabToEdge` keep the count right, and a move holds the index inside the dragged tab's own group. The count is saved inside the layout text of the session, left out while it is zero, so the session version stays 1. The close commands that take many tabs (Close Others, Close to the Right, Close All, in `workbench/tabMenu.ts` and `documents/store.ts`) leave pinned tabs open; Close on one tab closes it. The tab strip (`TabStrip.vue`, `TabStripItem.vue`) shows the pin in the slot of the X, and the drop code (`tabDropTarget.ts`) clamps the preview and the index the same way `moveTab` does.
+
 ## Security
 
 Markdown content is untrusted, and people will open files they did not write.

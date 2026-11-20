@@ -129,7 +129,7 @@ Phase 9.1 collects the small fixes and rough edges found in daily use, between t
 - [x] P9.1-T4: Sidebar toggle button next to the menu in the title bar — closes the new claim
 - [x] P9.1-T5: Inline code uses the code font at the content size; the code size is for blocks — reopens ISC-363 and closes the new claims
 - [x] P9.1-T6: Tab strip look: no top edge, rounded tabs, lighter strip, inactive tab colour, separators that hide on hover — closes the new claims
-- [ ] P9.1-T7: Pin and unpin tabs: pin icon with the dirty dot, pinned tabs first, skipped by the Close commands — closes the new claims
+- [x] P9.1-T7: Pin and unpin tabs: pin icon with the dirty dot, pinned tabs first, skipped by the Close commands — closes the new claims
 - [ ] P9.1-T8: File-type icons in the sidebar (Material Icon Theme subset) — closes the new claims
 - [ ] P9.1-T9: Select several files in the sidebar; batch delete with one confirmation; move them together — closes the new claims
 - [ ] P9.1-T10: Drag selected files and folders out to the desktop as copies (spike first; may move to Phase 10) — closes the new claims
