@@ -40,9 +40,11 @@ export const previewTheme = EditorView.baseTheme({
   '.cm-md-strong': { fontWeight: '700' },
   '.cm-md-em': { fontStyle: 'italic' },
   '.cm-md-strike': { textDecoration: 'line-through' },
+  // Inline code has the code family at the size of the text around it, a heading included. The
+  // code size setting is for blocks only (`.cm-md-box-code`).
   '.cm-md-code': {
     fontFamily: 'var(--doc-font-code, var(--font-mono))',
-    fontSize: 'calc(var(--doc-code-ratio, calc(14 / 15)) * 1em)',
+    fontSize: '1em',
     color: 'var(--syntax-code)',
     backgroundColor: 'var(--syntax-code-background)',
     borderRadius: 'var(--radius)',

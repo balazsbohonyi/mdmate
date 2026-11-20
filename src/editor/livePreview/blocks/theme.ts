@@ -96,9 +96,10 @@ export const blockTheme = EditorView.baseTheme({
   // The caret is somewhere else while an image is selected, so it is not drawn.
   '&.cm-image-selected .cm-content': { caretColor: 'transparent' },
   '&.cm-image-selected .cm-cursorLayer': { visibility: 'hidden' },
+  // Inline code in a cell, as outside a table: the code family at the size of the cell's text.
   '.cm-md-table code': {
     fontFamily: 'var(--doc-font-code, var(--font-mono))',
-    fontSize: 'calc(var(--doc-code-ratio, calc(14 / 15)) * 1em)',
+    fontSize: '1em',
     color: 'var(--syntax-code)',
     backgroundColor: 'var(--syntax-code-background)',
     borderRadius: 'var(--radius)',

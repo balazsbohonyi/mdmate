@@ -130,6 +130,55 @@ describe('ISC-362: the size and each heading level follow the settings', () => {
   })
 })
 
+/** The text of one rule of an editor theme file: from its selector to the closing brace. */
+function ruleOf(file: string, selector: string): string {
+  const text = readFileSync(join('src/editor', file), 'utf8')
+  const start = text.indexOf(`'${selector}': {`)
+  if (start < 0) throw new Error(`${file} has no rule ${selector}`)
+  return text.slice(start, text.indexOf('}', start) + 1)
+}
+
+/** The rules that draw inline code: in text, and in a table cell. */
+const INLINE_CODE_RULES = [
+  ['livePreview/theme.ts', '.cm-md-code'],
+  ['livePreview/blocks/theme.ts', '.cm-md-table code'],
+] as const
+
+describe('ISC-563: inline code is at the size of the text around it', () => {
+  it.each(INLINE_CODE_RULES)(
+    '%s: %s has the code family at 1em and reads no code size',
+    (file, selector) => {
+      const rule = ruleOf(file, selector)
+      expect(rule).toContain(`var(${FONT_VARIABLES.code},`)
+      expect(rule).toMatch(/fontSize: '1em'/)
+      expect(rule).not.toContain(FONT_VARIABLES.codeRatio)
+    },
+  )
+
+  it('stays at the text size however the code size is set', () => {
+    // jsdom cannot draw `var()`, so this checks the two ends: the code size goes to a property
+    // that only the block rule reads, and the inline rules read no property of the code size.
+    load({ size: 15, codeSize: 18 })
+    expect(Number(root().getPropertyValue(FONT_VARIABLES.codeRatio)) * 15).toBeCloseTo(18, 10)
+    for (const [file, selector] of INLINE_CODE_RULES) {
+      expect(ruleOf(file, selector), file).not.toMatch(/--doc-code-(ratio|size)/)
+    }
+  })
+
+  it('has no other rule that sizes inline code', () => {
+    // Every use of the ratio in the editor is the block rule.
+    const users = [
+      'create.ts',
+      'livePreview/theme.ts',
+      'livePreview/blocks/theme.ts',
+      'livePreview/box.ts',
+    ].filter((file) =>
+      readFileSync(join('src/editor', file), 'utf8').includes(FONT_VARIABLES.codeRatio),
+    )
+    expect(users).toEqual(['livePreview/box.ts'])
+  })
+})
+
 describe('ISC-363: the code size is its own setting', () => {
   it('sets the code size as a multiple of the text size and leaves the text size alone', () => {
     load({ codeSize: 18 })
@@ -144,18 +193,12 @@ describe('ISC-363: the code size is its own setting', () => {
     expect(Number(root().getPropertyValue(FONT_VARIABLES.codeRatio)) * 30).toBeCloseTo(18, 10)
   })
 
-  it('is a multiple of the surrounding text, so code in a heading grows with the heading', () => {
-    // The rule is `calc(ratio * 1em)`: 1em is the text the code sits in. A fixed px size here
-    // would draw code in an H1 smaller than the heading around it.
-    for (const file of [
-      'livePreview/theme.ts',
-      'livePreview/blocks/theme.ts',
-      'livePreview/box.ts',
-    ]) {
-      const text = readFileSync(join('src/editor', file), 'utf8')
-      expect(text, file).toMatch(/calc\(var\(--doc-code-ratio, [^)]+\)+ \* 1em\)/)
-      expect(text, file).not.toMatch(/--doc-code-size/)
-    }
+  it('sizes the code blocks as a multiple of the surrounding text', () => {
+    // The rule is `calc(ratio * 1em)`: 1em is the text the block sits in. A fixed px size here
+    // would not follow the text size setting. The ratio is for blocks only (ISC-563).
+    const rule = ruleOf('livePreview/box.ts', '.cm-md-box-code')
+    expect(rule).toMatch(/calc\(var\(--doc-code-ratio, [^)]+\)+ \* 1em\)/)
+    expect(rule).not.toMatch(/--doc-code-size/)
   })
 })
 
@@ -220,8 +263,9 @@ describe('the properties are what the editor theme reads', () => {
       'livePreview/box.ts',
     ]) {
       expect(theme(file), file).toContain(`var(${FONT_VARIABLES.code},`)
-      expect(theme(file), file).toContain(`var(${FONT_VARIABLES.codeRatio},`)
     }
+    // Only the code blocks read the code size (ISC-563).
+    expect(theme('livePreview/box.ts')).toContain(`var(${FONT_VARIABLES.codeRatio},`)
   })
 
   it('has fallbacks that are the defaults, for a file that is not read yet or cannot be', () => {
@@ -234,15 +278,9 @@ describe('the properties are what the editor theme reads', () => {
     DEFAULT_SETTINGS.fonts.headingScale.forEach((multiple, index) => {
       expect(fallback(preview, FONT_VARIABLES.headingScale(index + 1))).toBe(String(multiple))
     })
-    for (const file of [
-      'livePreview/theme.ts',
-      'livePreview/blocks/theme.ts',
-      'livePreview/box.ts',
-    ]) {
-      expect(fallback(theme(file), FONT_VARIABLES.codeRatio), file).toBe(
-        `calc(${DEFAULT_SETTINGS.fonts.codeSize} / ${DEFAULT_SETTINGS.fonts.size})`,
-      )
-    }
+    expect(fallback(theme('livePreview/box.ts'), FONT_VARIABLES.codeRatio)).toBe(
+      `calc(${DEFAULT_SETTINGS.fonts.codeSize} / ${DEFAULT_SETTINGS.fonts.size})`,
+    )
   })
 
   it('has no em size left in the code rules that the setting should own', () => {

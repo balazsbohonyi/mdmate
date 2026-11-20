@@ -29,9 +29,9 @@ export const FONT_VARIABLES = {
   code: '--doc-font-code',
   size: '--doc-size',
   /**
-   * The code size as a multiple of the text size (`codeSize / size`), not as px. Code takes it as
-   * `calc(ratio * 1em)`, so code in body text is exactly `fonts.codeSize` and code in a heading
-   * grows with the heading, as inline code always did (it was 0.92em).
+   * The code size as a multiple of the text size (`codeSize / size`), not as px. Code blocks take it
+   * as `calc(ratio * 1em)`, so a block in body text is exactly `fonts.codeSize`. Inline code does
+   * not read it: it takes the size of its surroundings (P9.1-T5).
    */
   codeRatio: '--doc-code-ratio',
   headingScale: (level: number): string => `--doc-heading-${String(level)}`,

@@ -131,7 +131,7 @@ export const boxTheme = EditorView.baseTheme({
     pointerEvents: 'none',
     userSelect: 'none',
   },
-  // Code: monospace, a little smaller than the prose around it, like inline code.
+  // Code blocks: monospace at the code size setting (inline code follows the text size instead).
   '.cm-md-box-code': {
     fontFamily: 'var(--doc-font-code, var(--font-mono))',
     fontSize: 'calc(var(--doc-code-ratio, calc(14 / 15)) * 1em)',

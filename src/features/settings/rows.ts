@@ -91,7 +91,7 @@ export const SETTING_ROWS: readonly SettingRowSpec[] = [
     category: 'appearance',
     group: 'Fonts',
     label: 'Code size',
-    description: 'The size of code, inline and in blocks, in pixels.',
+    description: 'The size of code blocks, in pixels. Inline code follows the text size.',
     control: { kind: 'number' },
   },
   {
