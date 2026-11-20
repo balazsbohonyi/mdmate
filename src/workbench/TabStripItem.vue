@@ -43,7 +43,7 @@ function onPointerDown(event: PointerEvent): void {
       active
         ? 'bg-tab-active text-tab-active-foreground'
         : [
-            'bg-tab-inactive text-tab-foreground hover:bg-accent/40',
+            'text-tab-foreground hover:bg-accent hover:text-accent-foreground',
             // A line on the left edge between two tabs that are not active. None before the first
             // tab or next to the active one, and none beside the tab the pointer is on.
             `before:absolute before:inset-y-2 before:left-0 before:w-px before:bg-tab-separator before:content-['']`,

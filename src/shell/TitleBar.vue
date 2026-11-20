@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { PanelLeftClose, PanelLeftOpen, Settings } from '@lucide/vue'
+import { PanelLeft, PanelLeftDashed, Settings } from '@lucide/vue'
 import { computed } from 'vue'
 import HoverHint from '@/components/HoverHint.vue'
 import { runCommand, shortcutLabel } from '@/workbench/commands'
@@ -62,12 +62,12 @@ function openSettings(): void {
         class="flex w-titlebar shrink-0 items-center justify-center text-titlebar-foreground outline-none hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground"
         @click="toggleSidebarFromBar"
       >
-        <PanelLeftClose
+        <PanelLeft
           v-if="sidebarVisible"
           class="size-4"
           :stroke-width="1.5"
         />
-        <PanelLeftOpen
+        <PanelLeftDashed
           v-else
           class="size-4"
           :stroke-width="1.5"

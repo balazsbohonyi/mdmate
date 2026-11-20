@@ -60,9 +60,9 @@ export const THEME_TOKEN_USAGE: Readonly<Record<string, string>> = {
   titlebar: 'The title bar at the top of the window.',
   'titlebar-foreground':
     'Text and icons in the title bar: the menu button, the window title, and the minimize, maximize and close buttons.',
-  tabstrip: 'The background of the strip that holds the tabs.',
+  tabstrip:
+    'The background of the strip that holds the tabs, which the tabs that are not active share.',
   'tab-foreground': 'Text of the tabs that are not active, and of the buttons in the strip.',
-  'tab-inactive': 'The background of a tab that is not active.',
   'tab-active': 'The background of the active tab.',
   'tab-active-foreground': 'Text of the active tab.',
   'tab-separator':

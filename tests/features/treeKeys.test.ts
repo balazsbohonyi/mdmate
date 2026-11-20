@@ -20,7 +20,6 @@ const file = (path: string, depth: number): TreeRow => ({
   path,
   name: path.split('/').at(-1) ?? path,
   depth,
-  markdown: true,
 })
 const note = (path: string, depth: number): TreeRow => ({
   kind: 'note',

@@ -179,6 +179,28 @@ describe('ISC-563: inline code is at the size of the text around it', () => {
   })
 })
 
+/** Every rule that draws code text: inline code in text, in a table cell, and a code block. */
+const CODE_TEXT_RULES = [...INLINE_CODE_RULES, ['livePreview/box.ts', '.cm-md-box-code']] as const
+
+describe('ISC-581: code text uses the code font from the settings', () => {
+  it.each(CODE_TEXT_RULES)('%s: %s takes the code family and nothing else', (file, selector) => {
+    const rule = ruleOf(file, selector)
+    expect(rule).toContain("fontFamily: 'var(--doc-font-code, var(--font-mono))'")
+    expect(rule).not.toMatch(/--doc-font-(body|heading)|--font-sans/)
+  })
+
+  it('puts the configured code font first, ahead of the built-in code stack', () => {
+    load({ code: 'Fira Code, "JetBrains Mono"' })
+    expect(root().getPropertyValue(FONT_VARIABLES.code)).toBe(
+      '"Fira Code", "JetBrains Mono", var(--font-mono)',
+    )
+    // The body font does not reach it.
+    load({ body: 'Georgia', code: '' })
+    expect(root().getPropertyValue(FONT_VARIABLES.code)).toBe('var(--font-mono)')
+    expect(root().getPropertyValue(FONT_VARIABLES.body)).toContain('Georgia')
+  })
+})
+
 describe('ISC-363: the code size is its own setting', () => {
   it('sets the code size as a multiple of the text size and leaves the text size alone', () => {
     load({ codeSize: 18 })

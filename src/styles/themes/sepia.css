@@ -46,7 +46,6 @@
   --titlebar-foreground: #4f4030;
   --tabstrip: #fffbf0;
   --tab-foreground: #6f5a44;
-  --tab-inactive: #efe4cb;
   --tab-active: var(--background);
   --tab-active-foreground: #2c1a0e;
   --tab-separator: #d9caa8;

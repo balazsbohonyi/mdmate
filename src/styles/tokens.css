@@ -99,7 +99,6 @@
   --color-titlebar-foreground: var(--titlebar-foreground);
   --color-tabstrip: var(--tabstrip);
   --color-tab-foreground: var(--tab-foreground);
-  --color-tab-inactive: var(--tab-inactive);
   --color-tab-active: var(--tab-active);
   --color-tab-active-foreground: var(--tab-active-foreground);
   --color-tab-separator: var(--tab-separator);

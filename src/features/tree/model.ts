@@ -52,8 +52,6 @@ export type TreeRow =
       readonly path: string
       readonly name: string
       readonly depth: number
-      /** False for anything that is not Markdown; the tree draws those dimmed. */
-      readonly markdown: boolean
     }
   | {
       /** The box where a new file or folder is named, first under the folder it is made in. */
@@ -202,7 +200,6 @@ export function flatten(
           path: child,
           name: entry.name,
           depth: depth + 1,
-          markdown: isMarkdownName(entry.name),
         })
       }
     }

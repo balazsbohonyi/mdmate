@@ -56,14 +56,17 @@ describe('the tab look (ISC-565)', () => {
     expect(classesOf(item).filter((name) => /^rounded-(?!t-)/.test(name))).toEqual([])
   })
 
-  it('takes its background from the tab tokens: the active tab the content color, the others their own', () => {
+  it('gives the active tab the content color and the others no background, so the strip shows (ISC-565)', () => {
     expect(classesOf(mount(tab(false), true))).toContain('bg-tab-active')
     mounted?.app.unmount()
     mounted?.root.remove()
     const idle = classesOf(mount(tab(false), false))
-    expect(idle).toContain('bg-tab-inactive')
-    expect(idle).not.toContain('bg-tab-active')
+    // No background class at rest: only the pointer on the tab gives it one.
+    expect(idle.filter((name) => name.startsWith('bg-'))).toEqual([])
     expect(idle).toContain('text-tab-foreground')
+    expect(idle).toContain('hover:bg-accent')
+    expect(idle).toContain('hover:text-accent-foreground')
+    expect(idle).not.toContain('bg-tab-inactive')
   })
 
   it('draws a separator on the left edge of a tab that is not active, and none on the active one', () => {

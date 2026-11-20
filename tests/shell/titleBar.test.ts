@@ -129,6 +129,24 @@ describe('the sidebar button (ISC-562)', () => {
     }
   })
 
+  it('draws a plain panel with no arrow inside, shown or hidden, and tells the two apart', async () => {
+    const root = await mountBar()
+    const button = root.querySelector<HTMLButtonElement>('[data-sidebar-toggle]')
+    const looks: string[] = []
+    for (const shown of [true, false]) {
+      if (sidebarVisible.value !== shown) toggleSidebar()
+      await flush()
+      const svg = button?.querySelector('svg')
+      expect(svg?.querySelectorAll('rect')).toHaveLength(1)
+      const paths = [...(svg?.querySelectorAll('path') ?? [])].map((path) => path.getAttribute('d'))
+      expect(paths.length).toBeGreaterThan(0)
+      // A divider is straight, vertical strokes (`M9 3v18`); an arrow head needs a diagonal or a turn.
+      for (const d of paths) expect(d).toMatch(/^(?:M[\d. ]+v-?[\d.]+)+$/)
+      looks.push(svg?.outerHTML ?? '')
+    }
+    expect(looks[0]).not.toBe(looks[1])
+  })
+
   it('names the action and the current shortcut in the shadcn tooltip, never a title', async () => {
     const removeCommands = registerDefaultCommands()
     try {

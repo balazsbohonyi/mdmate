@@ -504,7 +504,6 @@ function rowHint(row: TreeRow): string | null {
                   ? 'bg-sidebar-accent text-sidebar-accent-foreground ring-1 ring-ring ring-inset'
                   : '',
                 isDragged(row) ? 'opacity-50' : '',
-                row.kind === 'file' && !row.markdown ? 'text-muted-foreground' : '',
                 row.kind === 'note'
                   ? row.tone === 'error'
                     ? 'text-destructive'

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
- * The sidebar tree (P6-T1): ISC-97 (several roots), ISC-99 (a big folder draws few rows), ISC-105
- * (other files dimmed), ISC-132 (a file made elsewhere shows up) and ISC-192 and ISC-193 from the
+ * The sidebar tree (P6-T1): ISC-97 (several roots), ISC-99 (a big folder draws few rows), ISC-580
+ * (no file dimmed), ISC-132 (a file made elsewhere shows up) and ISC-192 and ISC-193 from the
  * page's side. The files live in the mock host, which keeps what Rust keeps: the roots, and the
  * rule that only a folder inside a root can be listed.
  */
@@ -529,7 +529,7 @@ describe('open folders and changes (ISC-132)', () => {
   })
 })
 
-describe('the drawn tree (ISC-99, ISC-105)', () => {
+describe('the drawn tree (ISC-99, ISC-580)', () => {
   it('draws fewer than 200 rows for a folder of 10,000 files, and other rows as you scroll', async () => {
     const many: Record<string, string> = {}
     for (let index = 0; index < 10_000; index++)
@@ -585,7 +585,7 @@ describe('the drawn tree (ISC-99, ISC-105)', () => {
     expect(hint()).toContain('/work/readme.md')
   }, 10_000)
 
-  it('draws files that are not Markdown dimmed, and Markdown not', async () => {
+  it('draws every file the same, Markdown or not: none is dimmed (ISC-580)', async () => {
     start({ roots: ['/work'] })
     await restoreWorkspace([])
     await toggleFolder('/work/notes')
@@ -599,10 +599,13 @@ describe('the drawn tree (ISC-99, ISC-105)', () => {
       if (found === undefined) throw new Error(`no row ${text}`)
       return found
     }
-    expect(rowFor('a.md').className).not.toContain('text-muted-foreground')
-    expect(rowFor('pic.png').className).toContain('text-muted-foreground')
-    expect(rowFor('Zeta.txt').className).toContain('text-muted-foreground')
-    // Folders are never dimmed like a stray file.
+    const before = rowFor('a.md').className
+    for (const name of ['a.md', 'pic.png', 'Zeta.txt']) {
+      expect(rowFor(name).className, name).not.toContain('text-muted-foreground')
+      expect(rowFor(name).className, name).not.toContain('opacity')
+      // Same classes apart from what makes the row itself (selection, position).
+      expect(rowFor(name).className, name).toBe(before)
+    }
     expect(rowFor('notes').className).not.toContain('opacity')
   })
 

@@ -43,7 +43,6 @@ export const ENFORCED: Record<string, string> = {
   'sidebar-accent': 'sidebar-accent-foreground',
   titlebar: 'titlebar-foreground',
   tabstrip: 'tab-foreground',
-  'tab-inactive': 'tab-foreground',
   'tab-active': 'tab-active-foreground',
   statusbar: 'statusbar-foreground',
   destructive: 'destructive-foreground',
