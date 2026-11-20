@@ -217,6 +217,8 @@ The document fonts (`fonts.*`) are applied by `editor/documentFonts.ts`: the sto
 
 A command may carry a `state()`, which the palette rows and the menu show as On or Off. Toggle Word Wrap and Toggle Developer Tools flip their setting through `features/settings/quick.ts`, which uses the Settings screen's change path and shows the Settings tab when unsaved settings.json edits hold the change. Switch Theme opens the palette in its `themes` mode, a pick list of `lib/themes.ts`.
 
+The web view's own browser shortcuts (reload, view source, find, zoom) are off: `Platform::disable_browser_keys` runs once from `setup` in `lib.rs`, and on Windows it clears WebView2's `AreBrowserAcceleratorKeysEnabled` (`platform/windows`, through `with_webview`). The app's shortcuts are handled in the page, so they are unaffected, and F12 reaches `open_devtools` through `devtools_open`, not an accelerator.
+
 ## Security
 
 Markdown content is untrusted, and people will open files they did not write.

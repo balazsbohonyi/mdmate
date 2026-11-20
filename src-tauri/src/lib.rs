@@ -55,6 +55,10 @@ pub fn run() {
             app.manage(Arc::new(settings::KeybindingsStore::new(dir.clone())));
             app.manage(Arc::new(settings::themes::ThemeStore::new(dir.clone())));
             app.manage(Arc::new(session::SessionStore::new(dir)));
+            // Reload, view source and the zoom keys belong to a browser, not to this app.
+            if let Some(window) = app.get_webview_window("main") {
+                platform::current().disable_browser_keys(&window);
+            }
             Ok(())
         })
         .on_window_event(|window, event| {

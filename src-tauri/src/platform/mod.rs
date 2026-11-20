@@ -50,6 +50,11 @@ pub(crate) trait Platform {
     /// Opens a folder itself in the system's file manager. The caller has checked it is a folder:
     /// the same call on a file would launch the program the OS has for it.
     fn show_folder(&self, path: &Path) -> std::io::Result<()>;
+
+    /// Turns off the web view's own browser shortcuts (reload, view source, zoom, find and the
+    /// like), so only the app's keybindings act. Developer tools stay reachable through
+    /// `open_devtools`. Where the web view has no such shortcuts, this does nothing.
+    fn disable_browser_keys(&self, _window: &tauri::WebviewWindow) {}
 }
 
 /// The trash crate's call, shared by every OS. On Windows it asks the shell for an undoable

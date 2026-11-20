@@ -137,4 +137,27 @@ impl Platform for Native {
         std::thread::spawn(move || child.wait());
         Ok(())
     }
+
+    fn disable_browser_keys(&self, window: &tauri::WebviewWindow) {
+        use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Settings3;
+        use windows_core::Interface as _;
+
+        let asked = window.with_webview(|webview| {
+            // SAFETY: the closure runs on the thread that owns the web view, as `with_webview`
+            // promises, and the controller it hands over stays valid for the whole call. Each COM
+            // call only reads a settings object or sets one flag, and its result is checked.
+            let result = (|| unsafe {
+                let settings = webview.controller().CoreWebView2()?.Settings()?;
+                settings
+                    .cast::<ICoreWebView2Settings3>()?
+                    .SetAreBrowserAcceleratorKeysEnabled(false)
+            })();
+            if let Err(error) = result {
+                eprintln!("Could not turn off the browser shortcuts: {error}");
+            }
+        });
+        if let Err(error) = asked {
+            eprintln!("Could not reach the web view: {error}");
+        }
+    }
 }
