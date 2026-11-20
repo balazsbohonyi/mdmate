@@ -124,6 +124,15 @@ Phase 9 runs before this phase (owner's decision, 2026-11-13): image paste ships
 Phase 9.1 collects the small fixes and rough edges found in daily use, between the last feature phase and the release (owner's decision, 2026-11-17). Each fix is one task with a claim in `ISA.md`. New tasks go above Phase 10.
 
 - [x] P9.1-T1: Empty table cells keep their column — closes ISC-554
+- [ ] P9.1-T2: No browser shortcuts: Ctrl+R, F5, zoom keys and the other WebView2 defaults do nothing, F12 stays on the setting — closes the new claims (owner request)
+- [ ] P9.1-T3: Zoom the whole window with Ctrl+plus, Ctrl+minus, Ctrl+0 and Ctrl+wheel, kept in a `view.zoom` setting — closes the new claims (owner request)
+- [ ] P9.1-T4: Sidebar toggle button next to the menu in the title bar — closes the new claim
+- [ ] P9.1-T5: Inline code uses the code font at the content size; the code size is for blocks — reopens ISC-363 and closes the new claims
+- [ ] P9.1-T6: Tab strip look: no top edge, rounded tabs, lighter strip, inactive tab colour, separators that hide on hover — closes the new claims
+- [ ] P9.1-T7: Pin and unpin tabs: pin icon with the dirty dot, pinned tabs first, skipped by the Close commands — closes the new claims
+- [ ] P9.1-T8: File-type icons in the sidebar (Material Icon Theme subset) — closes the new claims
+- [ ] P9.1-T9: Select several files in the sidebar; batch delete with one confirmation; move them together — closes the new claims
+- [ ] P9.1-T10: Drag selected files and folders out to the desktop as copies (spike first; may move to Phase 10) — closes the new claims
 
 ## Phase 10: Ship ([plan](phases/phase-10/plan.md))
 
