@@ -10,8 +10,8 @@
 - **Plan first, then add to this file.** The owner writes a small plan for each fix. Its task gets a section below and a line in `ai-docs/tasks.md` before the code changes.
 - **Every fix has a claim.** A bug reopens the claim that should have caught it, or adds a new one (`ai-docs/standards/isa.md`). The probe fails on the old code first.
 - **Scope stays small.** A fix that grows into a feature moves to Phase 10 or a phase of its own.
-- **Order:** T2 to T10 run in order. T10 starts with a spike and may move to Phase 10 (recorded in `ISA.md` Decisions). T11 was added later and touches nothing the others do, so it can run before T9. T12 to T19 were added on 2026-11-21 (owner review) and run in order; each is independent of the others, except that T17 and T18 both add fields to the session snapshot (`src/documents/session.ts`), so they run one after the other.
-- **Claims:** a task's claims are added to `ISA.md` in the task's own commit, as P9.1-T1 did. The sections below name the claims a task reopens and the areas where new ones go.
+- **Order:** T2 to T10 run in order. T10 starts with a spike and may move to Phase 10 (recorded in `ISA.md` Decisions). T11 was added later and touches nothing the others do, so it can run before T9. T12 to T19 were added on 2026-11-21 (owner review) and run in order; each is independent of the others, except that T17 and T18 both add fields to the session snapshot (`src/documents/session.ts`), so they run one after the other. T20 to T28 were added on 2026-11-21 (owner review) and run in order: T20, T25 and T26 all add Settings rows, T27 follows T26 (it reads what the tree lists), and T28 follows T27 and T21 (it adds theme tokens the way T21 does).
+- **Claims:** a task's claims are written open in `ISA.md` when the task is planned (as for T12 to T28), and the task's own commit sets them to `[x]`. P9.1-T1 to T11 added theirs in the task's commit; `ai-docs/standards/isa.md` says before code.
 - **Branch:** `feat/phase-09.1-polish`.
 
 ## P9.1-T1: Empty table cells keep their column
@@ -306,3 +306,126 @@
 **Tests:** `tests/editor/listMarker.test.ts`: all three markers, nested, with a task item and an ordered list around, the caret on and off the marker, a selection across items, the caret never inside the marker, and copy.
 
 **Done when:** the tests fail on the old code and pass on the new, the owner finds the dash right in Dark, Light and Sepia, and the checks are green. Closes ISC-623 and ISC-624.
+
+## P9.1-T20: Line height settings
+
+**The change:** two settings, `fonts.lineHeight` (body) and `fonts.codeLineHeight` (code blocks), each a unitless number from 1 to 3 in steps of 0.05, filled with today's values. Headings get no field: they inherit the body value, and the hardcoded `lineHeight` of H1 to H3 (`livePreview/theme.ts:20,25,30`, 1.35, 1.4, 1.45) goes, a shift of at most 0.05.
+
+**Today:** no line-height setting exists. The body, lists, tables and H4 to H6 inherit CodeMirror's default on `.cm-scroller`, which I expect to be 1.4 (confirm in the running editor first; the defaults must equal today's look). `tokens.css:44-45` has `--text-editor--line-height: 1.6`, unused.
+
+**How:**
+- Settings: `fonts` in `src/lib/settings.ts` (interface, `DEFAULT_SETTINGS`, `cloneSettings`), `SettingValueMap` and `SETTING_DEFS` in `src/lib/settingsFile.ts` (a `numberIn`-style check with the step), `rows.ts`.
+- CSS: two variables in `FONT_VARIABLES` (`src/editor/documentFonts.ts`), `--doc-line-height` set on `.cm-content` and `--doc-code-line-height` on `.cm-md-box-code` (`livePreview/box.ts:135-138`); `updateDocumentFonts` already re-measures every view.
+- Rows: the "Text size" row and the "Code size" row each hold two fields. One key per setting stays (flat `settings.json`), so `SettingsView.vue` gets a paired control that renders two keys in one row: sizes narrowed to about half, never below two digits, a gap between, each field with its own reset and error. The label and description name the line height. The heading sizes row is unchanged.
+
+**Risks:** `estimatedHeight` of widgets and the scroll jump check on a long file when the line height changes live; table cells and the code box label (`box.ts:129`, 1.4) must not be left on their own value by accident.
+
+**Tests:** `tests/editor/lineHeight.test.ts` (variables, body, list, quote, table, H1 to H6, code block, live change), `tests/lib/settings.test.ts` and `settingsFile.test.ts` (defaults, steps, refusals), `tests/features/settingsView.test.ts` (the two paired rows).
+
+**Done when:** the tests fail on the old code and pass on the new, the owner finds the line heights right in Dark, Light and Sepia, and the checks are green. Closes ISC-625 to ISC-629.
+
+## P9.1-T21: Line-number look
+
+**The change:** the gutter of P9.1-T16 gets a quieter look: smaller numbers, a muted colour that is not the body colour, a subtle background on the gutter, in the code font family, in every theme.
+
+**How:**
+- Two tokens, `gutter` (background) and `gutter-foreground` (numbers), in `dark.css`, `light.css`, `sepia.css`, the `@theme inline` block of `tokens.css`, `NAMES` in `src/lib/themeTokens.ts` (editor group), `THEME_TOKEN_USAGE` in `themeTokenUsage.ts`, and a `CONTRAST_PAIRS` entry (4.5). A custom theme that leaves them out takes its base theme's (`themeFile.ts`).
+- CSS in the `frame` theme, `create.ts:70-82`: background from the token, number colour from `gutter-foreground`, family `var(--doc-font-code, var(--font-mono))` (already), size `calc(var(--doc-size, 15px) * 0.85)` becomes 0.8 times the code size (`--doc-code-ratio`). The active line number keeps `var(--foreground)`.
+- The gutter background is only the strip that holds the numbers. With a centred column it sits against the column's left edge, as before.
+
+**Tests:** `tests/styles/themes.test.ts`, `colorPairs.test.ts`, `tests/lib/themeTokenUsage.test.ts` (the existing scans fail until all five places agree), `tests/editor/lineNumbers.test.ts` (rules).
+
+**Done when:** the tests fail on the old code and pass on the new, the owner finds the numbers right in Dark, Light and Sepia, and the checks are green. Closes ISC-630 to ISC-633.
+
+## P9.1-T22: Line selections
+
+**The bug:** a selected whole line is highlighted into the padding on the left and right of the content area. The owner's screenshot (2026-11-21, line numbers on, a selection from the start of one paragraph to the middle of another, across blank lines and wrapped lines) shows the highlight starting about 7 px left of the text and running about 50 px past the end of the longest line on the right. The right-hand excess is larger than the 24 px padding, so the cause may be more than the padding (the scroller, the gutter, the wrap width); reproduce it in `pnpm dev` first and measure the text edge against the highlight edge before choosing the fix. Blank lines inside the selection are painted full width too.
+
+**Cause (a guess, to confirm):** `.cm-content` has `padding: 1.25rem 1.5rem` (`create.ts:48`). CodeMirror's `drawSelection` measures full-line rectangles against the content box and insets them by the padding of the first `.cm-line` (about 6px and 2px), not by the content's 24px, so the highlight covers the padding.
+
+**Fix:** make the text edge and the measured edge the same. Preferred: move the horizontal padding from `.cm-content` to `.cm-line` (the AGENTS.md gotcha already says to pad `.cm-line`), so CodeMirror's inset matches the text; the box (1em), the quote and the table lines keep their own padding added to it. Fallback: inset or clip the selection layer in CSS. Record the choice in `decisions.md`.
+
+**Risks:** the caret and the arrow keys (`.cm-line` padding rule), the centring math in `documentWidth.ts` (`CONTENT_PADDING_X`, `--doc-content-max`), the gutter's position, and the widths of blocks and images. `tests/editor/contentPadding.test.ts` asserts today's padding and will change with the fix.
+
+**Tests:** `tests/editor/selectionEdge.test.ts` (the padding and selection-layer rules for plain text, a code box, a quote and a table); `contentPadding.test.ts` and `contentWidth.test.ts` updated.
+
+**Done when:** the tests fail on the old code and pass on the new, the owner selects with Shift+Down and Ctrl+A in the real window and finds the highlight lines up with the text, and the checks are green. Closes ISC-634 and ISC-635.
+
+## P9.1-T23: The sidebar cannot be narrower than its tabs
+
+**The bug:** the sidebar can be dragged so narrow that the end of "OUTLINE" leaves the sidebar and overlaps the pane's tab strip.
+
+**The change:** the minimum width is the measured width of the tab strip's tabs (Folders, Search, Outline), plus the References tab and its close button while they are shown. It follows the font and the zoom.
+
+**How:** `SidebarFrame.vue` measures the strip (the strip has no overflow handling, so `scrollWidth` is its natural width) and gives the pure clamp in `src/workbench/sidebar.ts` (`setSidebarWidth`, `SIDEBAR_MIN`) a minimum that can change. The Tailwind `min-w-48` on the `aside` (a second copy of `SIDEBAR_MIN`) goes, or follows the measured value; the drag, the arrow keys (`aria-valuemin`) and the session restore (`session.ts:554`) all use the same minimum. My estimate is about 210 px for three tabs and about 330 px with References; measure the real strip first. `windowWidth` in the frame is a one-time snapshot and is not reactive, so check it does not stale the maximum.
+
+**Tests:** `tests/workbench/sidebar.test.ts` (clamp with a given minimum, restore below the minimum), `tests/shell/sidebarFrame.test.ts` (drag and keys with stubbed widths, References shown and hidden).
+
+**Done when:** the tests fail on the old code and pass on the new, the owner finds no label leaves the sidebar at its narrowest in the three themes, and the checks are green. Closes ISC-636 to ISC-638.
+
+## P9.1-T24: Outline bold
+
+**The change:** in the outline the lowest heading level a document uses is always bold, also when it is the only level (this reverses P9.1-T14's "only with more than one level"). When that level occurs once, the next level used is bold too. One step, no chain. Examples: one H1 and many H2: all H2 bold. One H2, no H1, many H3: all H3 bold. No H1 or H2, only H3: all H3 bold. Many H2: all H2 bold, H3 not.
+
+**How:** `levelsIn` (`src/features/outline/layout.ts:34-36`) returns the distinct levels; add a count of the lowest level (or a small `boldRanks(headings)` helper) and pass it from `OutlinePanel.vue:77` to `rowStyle` (`layout.ts:46-57`, where bold is `rank === 0 && levels.length > 1`). Sizes, indent and the muted inks do not change. ISC-607 loses its bold clause (done at planning); `tests/features/outline.test.ts:704-780` is updated.
+
+**Check first:** `layout.ts:46` shows a TypeScript diagnostic in the editor (`string | undefined` not assignable to `string`); compare it with `pnpm check` before editing.
+
+**Tests:** the cases above and a document with no headings or one heading, in `tests/features/outline.test.ts`.
+
+**Done when:** the tests fail on the old code and pass on the new, and the checks are green. Closes ISC-639 and ISC-640.
+
+## P9.1-T25: Searchable font comboboxes
+
+**The change:** the heading, body and code font fields (a plain text `<Input>` today, `SettingsView.vue:694-715`) become searchable comboboxes over the installed font families, like "Add a language" under Syntax colors. Each option is drawn in its own family. "Built-in" is first and clears the setting. A typed name that is not in the list can still be used, and a saved stack (`Inter, sans-serif`) is shown and kept as it is.
+
+**Font list:** nothing lists fonts today (searched src, `src-tauri`, docs). A Rust command, behind a new `Platform` trait method in `src-tauri/src/platform/` with an Unsupported default, reads the installed families with the `fontdb` crate (pin the version, check its licence, add it to `Cargo.toml`; ask the owner before the dependency goes in), returns them unique and sorted, and is called through `src/platform/host.ts`, `tauri.ts` and `mock.ts` (a short fixed list). Load it lazily when the first combobox opens, as `languageChoices()` does.
+
+**UI:** the structure of lines 839-904 (`Combobox`, `ignore-filter`, own filtering, `ComboboxViewport max-h-60`), a new small component so the three fields share it. The live sample line under each field stays.
+
+**Risks:** hundreds of options each in its own font; render only the filtered, capped part of the list if it is slow.
+
+**Tests:** `pnpm test:rust fonts`, `tests/platform/host.test.ts`, `tests/features/fontPicker.test.ts`, `settingsView.test.ts`.
+
+**Done when:** the tests fail on the old code and pass on the new, the owner picks fonts in the real window, and `pnpm check`, `pnpm check:rust`, `pnpm test:rust` and `pnpm test:web` are green. Closes ISC-641 to ISC-644.
+
+## P9.1-T26: Hide names in the tree
+
+**The problem:** the tree shows every entry (`workspace/tree.rs` `list_dir` filters nothing). The built-in excluded folders (`fs/exclude.rs`, `workspace.excludedFolders`) feed only search and the index, so `.git`, `.idea` and `.vscode` show in the tree.
+
+**The change:** a setting `workspace.hiddenNames`, separate from `workspace.excludedFolders` (reusing it would also hide `node_modules`, `dist` and `target`, which should stay visible and, after T28, muted). Default `.git`, `.idea`, `.vscode`, `.vs`, `.svn`, `.hg`, `.DS_Store`, `Thumbs.db`. Exact names, files and folders, case-insensitive. Other dotfiles (`.env`, `.gitignore`, `.github`) stay visible.
+
+**How:** the plumbing of `workspace.excludedFolders` (`settings.ts`, `settingsFile.ts` with a name check like `checkFolderName`, `store.ts` `assignSettings`, `rows.ts` category `files`, the chips editor in `SettingsView.vue:762-810`, generalised so two lists use it). Filter in `loadFolder` (`src/features/tree/store.ts:264`) after `host.listDir`, and refilter when the setting changes. Rust is not changed: `list_dir` still returns `.git`, which the repository discovery in T27 needs. Never hide a root row.
+
+**Tests:** `tests/lib/settings.test.ts`, `settingsFile.test.ts`, `settingsView.test.ts`, `tests/features/tree.test.ts`; `pnpm test:rust list_dir` for the unchanged listing.
+
+**Done when:** the tests fail on the old code and pass on the new, the owner finds `.git`, `.idea` and `.vscode` gone and `.gitignore` and `.github` still there, and the checks are green. Closes ISC-645 to ISC-648.
+
+## P9.1-T27: Git status backend
+
+**The change:** Rust can tell, for a root, the git status of every path under it, across many repositories. No UI colour yet (T28).
+
+**How:** a new module `src-tauri/src/git/` (find, discover, run, parse, command), a command registered in `commands/mod.rs` with the `access().check` pattern.
+- **Find git:** `git.path` when set, else `PATH`, else the standard Windows install folders (`C:\Program Files\Git\cmd\git.exe` and the like). None found: nothing runs, no error.
+- **Status:** `git -C <repo> status --porcelain=v2 -z --ignored=matching --no-optional-locks`, parsed into path to status (untracked, added, modified, renamed, conflicted, ignored). The spawn sets `CREATE_NO_WINDOW` (`CommandExt` is already imported in `platform/windows/mod.rs`; keep the unsafe-free route), a timeout, and a small concurrency cap.
+- **Discovery:** walk up from the root; scan three levels down skipping `fs/exclude.rs` names; check the children of each listed folder for `.git` (a directory or a file, for worktrees and submodules). The innermost repository decides a path. The depth is a constant.
+- **Settings:** `git.enabled` (on) and `git.path` (empty) through the plumbing of T26 and `Applied` in `settings/runtime.rs` (Rust validation mirrors the page's), in the Files category under a new "Git" sub-group (the `group` field of the row spec, `SubGroupHeading`).
+
+**Tests:** Rust unit tests on recorded porcelain output, temp-dir repositories (`git init`, skipped with a note when git is missing), the runner with a fake slow and failing git; `settingsFile.test.ts`, `settingsView.test.ts`, `subGroups.test.ts`.
+
+**Done when:** the tests fail on the old code and pass on the new, and `pnpm check`, `pnpm check:rust`, `pnpm test:rust` and `pnpm test:web` are green. Closes ISC-649 to ISC-654.
+
+## P9.1-T28: Git colours in the tree
+
+**The change:** in the Folders tree, an added (untracked or staged-added) file or folder name is green, a changed one blue, a conflicted one in the destructive colour, an ignored one muted, and everything inside an ignored folder is muted. A folder that holds a change is blue unless it is itself untracked (green). Ignored never colours a parent. No staging section, no tab or title colouring.
+
+**How:**
+- Tokens `git-added`, `git-modified`, `git-ignored` in the five places of T21, in the theme editor's `sidebar` group. There is no blue token today. Contrast pairs against `sidebar` and `sidebar-accent` (selected row): 4.5 for added and modified, 3 for ignored.
+- `FileTree.vue:568-644`: a class on the name span (the selected row keeps its fill and the colour must stay readable on it).
+- The tree store asks T27's command per root, keeps the result, and refreshes on: root open or restore, window focus, mdmate's own create, save, rename, delete and move (`tree/ops.ts`), and the tree-watcher callback (`store.ts:559-573`). Debounced; a stale reply is dropped. `.git/` is not watched, so a commit in a terminal shows up on the next focus.
+- A root with several repositories: one request covers the root and the answer holds every repository's paths; a change in one repository refreshes at the next trigger without redrawing the others' rows.
+- `git.enabled` off or git missing: no classes, no message.
+
+**Tests:** `tests/features/treeGit.test.ts` with a fake host (states, propagation, refresh triggers, out-of-order replies, two repositories, off); theme scans as for T21. `architecture.md` gets a Git section in the same commit.
+
+**Done when:** the tests fail on the old code and pass on the new, the owner finds the colours right in Dark, Light and Sepia on a root of several repositories (selected row included, and after a commit in a terminal), and the checks are green. Closes ISC-655 to ISC-660.
