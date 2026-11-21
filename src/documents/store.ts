@@ -94,6 +94,23 @@ export function watchDocuments(listener: () => void): () => void {
   }
 }
 
+const savedListeners = new Set<() => void>()
+
+/**
+ * Calls `listener` each time a file was written: a save, or a save as. It runs once the file is on
+ * disk. Returns the function that stops it.
+ */
+export function onDocumentSaved(listener: () => void): () => void {
+  savedListeners.add(listener)
+  return () => {
+    savedListeners.delete(listener)
+  }
+}
+
+function fileSaved(): void {
+  for (const listener of savedListeners) listener()
+}
+
 function touched(): void {
   touchListener?.()
   for (const watcher of watchers) watcher()
@@ -398,6 +415,7 @@ async function runSave(docId: number): Promise<boolean> {
     const saved = await host.saveFile(doc.id, snapshot.text, snapshot.endings)
     doc.markSaved(snapshot, saved)
     patchDocMeta(doc.id, { saveError: null })
+    fileSaved()
     return true
   } catch (error) {
     if (errorKind(error) === 'disk-changed') {
@@ -440,6 +458,7 @@ async function runSaveAs(docId: number): Promise<boolean> {
     lastFolder = folderOf(saved.path) ?? lastFolder
     // A change made to the old file no longer concerns this document.
     patchDocMeta(doc.id, { saveError: null, conflict: null, missing: false })
+    fileSaved()
     return true
   } catch (error) {
     if (errorKind(error) === 'disk-changed') {

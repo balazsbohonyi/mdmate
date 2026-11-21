@@ -6,6 +6,7 @@ import { holdingEditorFocus } from '@/workbench/focus'
 import { closeTabById, imageTabs, setImagePath, tabsOfDocument } from '@/workbench/store'
 import { nameProblem } from '@/lib/fileNames'
 import { getHost, type ClashAnswer, type ClashChoice, type Moved } from '@/platform'
+import { requestGitRefresh } from './gitStore'
 import { baseName, outermost, parentPath, type Place } from './model'
 import {
   cancelNaming,
@@ -107,6 +108,7 @@ export async function commitNaming(name: string): Promise<void> {
         ? await host.createFile(typing.parent, trimmed)
         : await host.createFolder(typing.parent, trimmed)
     cancelNaming()
+    requestGitRefresh()
     await loadFolder(typing.parent)
     await revealPath(made)
   } catch (error) {
@@ -121,6 +123,7 @@ export async function commitNaming(name: string): Promise<void> {
 function afterMove(from: string, moved: Moved, reveal = true): void {
   followDocuments(from, moved)
   remapPaths(from, moved.path)
+  requestGitRefresh()
   const [was, now] = [parentPath(from), parentPath(moved.path)]
   if (was !== null) void loadFolder(was)
   if (now !== null && (was === null || !samePath(was, now))) void loadFolder(now)
@@ -341,6 +344,7 @@ export async function deleteRow(path: string): Promise<void> {
     for (const id of tabs) closeTabById(id)
   })
   forgetPath(path)
+  requestGitRefresh()
   const holder = parentPath(path)
   if (holder !== null) void loadFolder(holder)
   restoreTreeFocus()
@@ -455,6 +459,7 @@ async function runCopy(
   try {
     const host = await getHost()
     const report = await host.copyDropped(into, paths, answers)
+    requestGitRefresh()
     await openFolderRow(into)
     await loadFolder(into)
     const first = report.copied[0]

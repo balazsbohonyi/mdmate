@@ -12,6 +12,7 @@ import type {
   SavedFile,
 } from './host'
 import { parseFollowedLink, parseLinkInfo } from './links'
+import { parseGitReport } from './git'
 import { parseIndexStatus } from './indexStatus'
 import { parseQuickOpenAnswer } from './quickOpen'
 import { parseReferencesFound } from './references'
@@ -355,6 +356,9 @@ export const tauriHost: Host = {
   },
   async listFontFamilies() {
     return invoke<string[]>('list_font_families')
+  },
+  async gitStatus(root, folders) {
+    return parseGitReport(await invoke<unknown>('git_status', { root, folders }))
   },
   async dragOut(paths) {
     return invoke<boolean>('drag_out', { paths })

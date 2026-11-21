@@ -55,6 +55,12 @@ export const THEME_TOKEN_USAGE: Readonly<Record<string, string>> = {
     'The highlight of a row in the sidebar: the selected file, a hovered row, and the folder you are dragging onto.',
   'sidebar-accent-foreground': 'Text on a highlighted sidebar row.',
   'sidebar-border': 'The lines inside the sidebar and the edge between it and the editor.',
+  'git-added':
+    'Names in the file tree that git sees as new: files and folders that are untracked or added.',
+  'git-modified':
+    'Names in the file tree that git sees as changed or renamed, and folders that hold a change.',
+  'git-ignored':
+    'Names in the file tree that a .gitignore hides from git, and everything inside an ignored folder. A name in conflict uses the destructive color.',
 
   // Chrome
   titlebar: 'The title bar at the top of the window.',

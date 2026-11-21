@@ -41,6 +41,10 @@
   --sidebar-accent: #ede0c4;
   --sidebar-accent-foreground: var(--foreground);
   --sidebar-border: #e6dac2;
+  /* Names in the file tree: new, changed, and ignored by git. */
+  --git-added: oklch(0.46 0.15 140);
+  --git-modified: oklch(0.5 0.14 255);
+  --git-ignored: #8a7760;
 
   --titlebar: #f0e6ce;
   --titlebar-foreground: #4f4030;

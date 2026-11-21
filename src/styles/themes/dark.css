@@ -42,6 +42,10 @@
   --sidebar-accent: oklch(0.3 0.016 262);
   --sidebar-accent-foreground: var(--foreground);
   --sidebar-border: oklch(0.29 0.013 262);
+  /* Names in the file tree: new, changed, and ignored by git. */
+  --git-added: oklch(0.8 0.15 150);
+  --git-modified: oklch(0.78 0.11 235);
+  --git-ignored: oklch(0.62 0.02 262);
 
   --titlebar: oklch(0.18 0.012 262);
   --titlebar-foreground: oklch(0.8 0.012 262);

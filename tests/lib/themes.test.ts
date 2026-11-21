@@ -110,6 +110,35 @@ describe('the themes a person can choose', () => {
   })
 })
 
+describe('the git colors (ISC-655)', () => {
+  const GIT = ['git-added', 'git-modified', 'git-ignored']
+
+  it('are in the sidebar group of the color editor', () => {
+    const names = THEME_TOKENS.filter((token) => token.group === 'sidebar').map(
+      (token) => token.name,
+    )
+    expect(names).toEqual(expect.arrayContaining(GIT))
+  })
+
+  it('come from the base theme for a custom theme that leaves them out', () => {
+    for (const base of ['dark', 'light', 'sepia'] as const) {
+      const slots = userSlot('Mine', base, { background: '#101418' })
+      const colors = effectiveTokens(resolveTheme('Mine', slots, LOADED))
+      const own = effectiveTokens({ palette: base, overrides: new Map() })
+      for (const token of GIT) {
+        expect(colors.get(token), `${base} ${token}`).toBeDefined()
+        expect(colors.get(token), `${base} ${token}`).toBe(own.get(token))
+      }
+    }
+  })
+
+  it('take a color from a custom theme that sets them', () => {
+    const slots = userSlot('Mine', 'dark', { 'git-added': '#00ff00', 'git-ignored': '#777777' })
+    const colors = effectiveTokens(resolveTheme('Mine', slots, LOADED))
+    expect([colors.get('git-added'), colors.get('git-ignored')]).toEqual(['#00ff00', '#777777'])
+  })
+})
+
 describe('the line-number colors (ISC-630)', () => {
   it('are in the editor group of the color editor', () => {
     const names = THEME_TOKENS.filter((token) => token.group === 'editor').map(

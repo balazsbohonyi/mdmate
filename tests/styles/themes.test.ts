@@ -199,6 +199,30 @@ describe.each([...parsed])('%s theme colors', (name, theme) => {
     expect(contrast(strip, page)).toBeLessThan(1.3)
   })
 
+  it('give the git names three colors of their own, readable on the sidebar and on its selected row (ISC-655)', () => {
+    for (const token of ['git-added', 'git-modified', 'git-ignored']) {
+      expect(theme.has(`--${token}`), token).toBe(true)
+      // The utility (`text-git-added` and the rest) is mapped to the token.
+      expect(colorMapping().get(`--color-${token}`), token).toBe(`--${token}`)
+      expect(THEME_TOKEN_NAMES.has(token), token).toBe(true)
+    }
+    const on = (token: string, surface: string): number =>
+      contrast(parseColor(resolveToken(theme, token)), parseColor(resolveToken(theme, surface)))
+    for (const surface of ['--sidebar', '--sidebar-accent']) {
+      expect(on('--git-added', surface), `added on ${surface}`).toBeGreaterThanOrEqual(4.5)
+      expect(on('--git-modified', surface), `modified on ${surface}`).toBeGreaterThanOrEqual(4.5)
+      expect(on('--git-ignored', surface), `ignored on ${surface}`).toBeGreaterThanOrEqual(3)
+      // A conflict uses the destructive color, so it has to read there too.
+      expect(on('--destructive', surface), `destructive on ${surface}`).toBeGreaterThanOrEqual(4.5)
+    }
+    // Three different colors, and the ignored one is quieter than the body text of the sidebar.
+    const values = ['--git-added', '--git-modified', '--git-ignored'].map((token) =>
+      resolveToken(theme, token),
+    )
+    expect(new Set(values).size).toBe(3)
+    expect(on('--git-ignored', '--sidebar')).toBeLessThan(on('--sidebar-foreground', '--sidebar'))
+  })
+
   it('give a tooltip its own surface: lighter than the page in a dark theme, the popover color in a light one', () => {
     if (schemeOf(name) === 'light') {
       expect(resolveToken(theme, '--tooltip')).toBe(resolveToken(theme, '--popover'))

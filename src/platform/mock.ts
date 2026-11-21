@@ -15,6 +15,7 @@ import type {
 import { IDLE_INDEX, type IndexStatus } from './indexStatus'
 import type { WindowGeometry } from './windowGeometry'
 import type { LinkInfo } from './links'
+import { NO_GIT, type GitReport } from './git'
 import type {
   ClashAnswer,
   CopyReport,
@@ -123,6 +124,8 @@ export interface MockHost extends Host {
   withoutEvents(run: () => void): void
   /** The session snapshot the page last wrote, or null before the first write. */
   session: string | null
+  /** Every `gitStatus` call, in order. */
+  readonly gitCalls: { readonly root: string; readonly folders: readonly string[] }[]
   /** Text the page asked to keep because it could not put it back in a tab. */
   readonly recovered: { name: string; text: string }[]
   /** Pretends the user closed the window: asks the page to flush and quit. False when no page listens. */
@@ -317,6 +320,12 @@ export interface MockHostOptions {
    * to load.
    */
   readonly images?: Readonly<Record<string, { readonly url: string; readonly bytes: number }>>
+  /**
+   * What git says about a root: the report `gitStatus` answers with, as it is when the call comes.
+   * The mock answers an empty report while the settings it was last given have git off, as Rust
+   * does. Default: an empty report.
+   */
+  readonly git?: (root: string, folders: readonly string[]) => GitReport | Promise<GitReport>
   /** Makes the Recycle Bin unavailable, as on a drive without one: deleting a theme fails and the file stays. */
   readonly noRecycleBin?: boolean
 }
@@ -498,6 +507,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
   const pastedImages: { path: string; bytes: Uint8Array }[] = []
   const copiedImages: string[] = []
   const sweeps: number[][] = []
+  const gitCalls: MockHost['gitCalls'] = []
   const runtime: MockHost['runtime'] = {
     calls: [],
     values: {
@@ -791,6 +801,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     copiedImages,
     sweeps,
     runtime,
+    gitCalls,
     files,
     openDocuments() {
       return new Map([...open].map(([id, doc]) => [id, doc.path]))
@@ -1269,6 +1280,13 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
         }
         revealed.push(path)
       })
+    },
+    gitStatus(root, folders) {
+      if (!insideRoot(root))
+        return Promise.reject(hostError('not-allowed', `access to ${root} is not allowed`))
+      gitCalls.push({ root, folders: [...folders] })
+      if (!runtime.values.gitEnabled || options.git === undefined) return Promise.resolve(NO_GIT)
+      return Promise.resolve(options.git(root, folders))
     },
     listFontFamilies() {
       // A short fixed list stands in for the system's fonts in a browser tab.
@@ -1799,4 +1817,19 @@ export const mockHost: MockHost = createMockHost({
     return path === undefined ? [] : [path]
   },
   pickFolder: () => '/demo',
+  // A made-up status, so the colors of the tree show under pnpm dev.
+  git: (root) =>
+    root === '/demo'
+      ? {
+          repos: ['/demo'],
+          entries: [
+            { repo: 0, path: '/demo/README.md', status: 'modified', folder: false },
+            { repo: 0, path: '/demo/notes.md', status: 'untracked', folder: false },
+            { repo: 0, path: '/demo/roadmap.md', status: 'conflicted', folder: false },
+            { repo: 0, path: '/demo/docs/guide.md', status: 'modified', folder: false },
+            { repo: 0, path: '/demo/docs/todo.txt', status: 'ignored', folder: false },
+            { repo: 0, path: '/demo/docs/logo.png', status: 'added', folder: false },
+          ],
+        }
+      : { repos: [], entries: [] },
 })

@@ -585,6 +585,29 @@ export function takeTreeFocusRequest(): TreeFocusRequest | null {
   return pending
 }
 
+const changeListeners = new Set<() => void>()
+const resetListeners = new Set<() => void>()
+
+/**
+ * Calls `listener` whenever Rust says a folder the tree watches changed. The host holds one
+ * listener for that, so anything else that wants to hear it goes through here. Returns the function
+ * that stops it.
+ */
+export function onTreeChanged(listener: () => void): () => void {
+  changeListeners.add(listener)
+  return () => {
+    changeListeners.delete(listener)
+  }
+}
+
+/** Calls `listener` when the tree is forgotten (`resetTree`), so state kept beside it goes too. */
+export function onTreeReset(listener: () => void): () => void {
+  resetListeners.add(listener)
+  return () => {
+    resetListeners.delete(listener)
+  }
+}
+
 /** Listens for changes Rust sees in the open folders and lists those folders again. */
 async function subscribe(): Promise<void> {
   if (subscribed) return
@@ -592,6 +615,7 @@ async function subscribe(): Promise<void> {
   stopTreeEvents?.()
   stopTreeEvents = await host.watchTree((folder) => {
     if (isOpenAnywhere(folder)) void loadFolder(folder)
+    for (const listener of changeListeners) listener()
   })
   subscribed = true
   await host.watchFolders(watchedFolders.value)
@@ -688,4 +712,5 @@ export function resetTree(): void {
   scrollRequest.value = null
   focusRequest.value = null
   opening = Promise.resolve()
+  for (const listener of resetListeners) listener()
 }

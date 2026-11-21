@@ -2,6 +2,7 @@ import type { Endings } from '@/lib/endings'
 import type { LinksOnRename } from '@/lib/settings'
 import type { FollowedLink, LinkInfo } from './links'
 import type { IndexStatus } from './indexStatus'
+import type { GitReport } from './git'
 import type { QuickOpenAnswer } from './quickOpen'
 import type { ReferencesFound } from './references'
 import type { RewriteBuffer, RewriteChange, RewriteDone, RewritePlanned } from './rewrite'
@@ -537,6 +538,14 @@ export interface Host {
    * system's font folders takes a moment, so ask when a field first opens and keep the answer.
    */
   listFontFamilies(): Promise<readonly string[]>
+  /**
+   * What git says about the files under a workspace root, for the colors of the tree: the
+   * repositories found and one entry per new, changed or ignored path. `folders` are the folders the
+   * tree has open, whose children are also checked for a repository. Resolves to an empty report
+   * when git is off, missing or fails, or the root is in no repository; rejects only for a path
+   * that is not an open root.
+   */
+  gitStatus(root: string, folders: readonly string[]): Promise<GitReport>
   /** Opens a folder itself in the system's file manager. A file is refused. */
   showFolder(path: string): Promise<void>
   /**

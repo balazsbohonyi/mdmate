@@ -24,6 +24,7 @@ import {
 } from '@/workbench/tabMenu'
 import { setDragCursor } from './dragCursor'
 import FileIcon from './FileIcon.vue'
+import { gitLook } from './gitStore'
 import NameInput from './NameInput.vue'
 import {
   FALLBACK_VIEWPORT_HEIGHT,
@@ -174,6 +175,28 @@ function onContextMenu(event: MouseEvent): void {
 
 /** Whether the menu is for several rows, when only Delete makes sense. */
 const manyRows = computed(() => selectedPlaces.value.length > 1)
+
+/** How git colors a row's name, or undefined for a row git has nothing to say about. */
+function gitLookOf(row: TreeRow): ReturnType<typeof gitLook> {
+  if (row.kind !== 'root' && row.kind !== 'folder' && row.kind !== 'file') return undefined
+  return gitLook(row.root, row.path, row.kind)
+}
+
+/** The classes are written out whole, so Tailwind finds each one. */
+function gitClass(row: TreeRow): string {
+  switch (gitLookOf(row)) {
+    case 'added':
+      return 'text-git-added'
+    case 'modified':
+      return 'text-git-modified'
+    case 'conflicted':
+      return 'text-destructive'
+    case 'ignored':
+      return 'text-git-ignored'
+    case undefined:
+      return ''
+  }
+}
 
 const isFolderRow = computed(
   () => menuRow.value?.kind === 'root' || menuRow.value?.kind === 'folder',
@@ -638,6 +661,8 @@ function rowHint(row: TreeRow): string | null {
               <span
                 v-else
                 class="truncate"
+                :class="gitClass(row)"
+                :data-git="gitLookOf(row)"
                 >{{ row.name }}</span
               >
             </div>

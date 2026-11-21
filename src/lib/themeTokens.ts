@@ -55,6 +55,9 @@ const NAMES: Readonly<Record<ThemeGroup, readonly string[]>> = {
     'sidebar-accent',
     'sidebar-accent-foreground',
     'sidebar-border',
+    'git-added',
+    'git-modified',
+    'git-ignored',
   ],
   chrome: [
     'titlebar',
@@ -135,6 +138,16 @@ export const CONTRAST_PAIRS: readonly (readonly [string, string, number])[] = [
   // The Outline mutes deeper headings toward this, on the sidebar and on its selected row.
   ['muted-foreground', 'sidebar', 4.5],
   ['muted-foreground', 'sidebar-accent', 4.5],
+  // File names in the tree take their git color, on the sidebar and on its selected row. An ignored
+  // name is dim on purpose, so it only needs 3.
+  ['git-added', 'sidebar', 4.5],
+  ['git-added', 'sidebar-accent', 4.5],
+  ['git-modified', 'sidebar', 4.5],
+  ['git-modified', 'sidebar-accent', 4.5],
+  ['git-ignored', 'sidebar', 3],
+  ['git-ignored', 'sidebar-accent', 3],
+  ['destructive', 'sidebar', 4.5],
+  ['destructive', 'sidebar-accent', 4.5],
   ['titlebar-foreground', 'titlebar', 4.5],
   ['tab-foreground', 'tabstrip', 4.5],
   ['tab-active-foreground', 'tab-active', 7],
