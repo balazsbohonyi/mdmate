@@ -1,5 +1,9 @@
 // @vitest-environment jsdom
-/** The text never touches the edges of its pane: 1.25rem above and below, 1.5rem each side (jsdom reports px). */
+/**
+ * The text never touches the edges of its pane: 1.25rem above and below (padding on the content),
+ * 1.5rem each side (padding on the scroller, outside the content box, so a whole-line selection
+ * starts at the text; P9.1-T22). jsdom reports px.
+ */
 import { afterEach, describe, expect, it } from 'vitest'
 import type { EditorView } from '@codemirror/view'
 import { createState, createView } from '@/editor/create'
@@ -16,12 +20,13 @@ function padding(doc: string, options: Parameters<typeof createState>[2]) {
   document.body.append(parent)
   const view = createView(parent, createState(doc, [], options))
   views.push(view)
-  const style = getComputedStyle(view.contentDOM)
+  const content = getComputedStyle(view.contentDOM)
+  const scroller = getComputedStyle(view.scrollDOM)
   return {
-    top: style.paddingTop,
-    right: style.paddingRight,
-    bottom: style.paddingBottom,
-    left: style.paddingLeft,
+    top: content.paddingTop,
+    right: scroller.paddingRight,
+    bottom: content.paddingBottom,
+    left: scroller.paddingLeft,
   }
 }
 

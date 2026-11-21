@@ -59,20 +59,20 @@ afterEach(() => {
 describe('ISC-439: the column stops at the width, not counting the padding', () => {
   it('puts the default 900px plus the padding on both sides on the root', () => {
     applySettingsText('{}')
-    expect(rootValue()).toBe('calc(900px + 2 * 1.5rem)')
+    expect(rootValue()).toBe('900px')
   })
 
   it('follows the width that was set', () => {
     load({ contentMaxWidth: 700 })
-    expect(rootValue()).toBe('calc(700px + 2 * 1.5rem)')
+    expect(rootValue()).toBe('700px')
     load({ contentMaxWidth: 1200 })
-    expect(rootValue()).toBe('calc(1200px + 2 * 1.5rem)')
+    expect(rootValue()).toBe('1200px')
   })
 
   it('keeps the last good width when the value is out of range', () => {
     load({ contentMaxWidth: 700 })
     load({ contentMaxWidth: 5 })
-    expect(rootValue()).toBe('calc(700px + 2 * 1.5rem)')
+    expect(rootValue()).toBe('700px')
   })
 
   it('has a theme rule that reads the property, centers the column and has no other width', () => {
@@ -91,7 +91,7 @@ describe('ISC-440: with the limit off the column uses the whole width', () => {
     load({ limitContentWidth: false })
     expect(rootValue()).toBe('none')
     load({ limitContentWidth: true })
-    expect(rootValue()).toBe('calc(900px + 2 * 1.5rem)')
+    expect(rootValue()).toBe('900px')
   })
 
   it('ignores the width while the limit is off', () => {
@@ -119,9 +119,9 @@ describe('ISC-441: a change reaches the open tabs at once', () => {
 
   it('follows a hand edit of the file the same way', () => {
     applySettingsText('{"editor": {"contentMaxWidth": 640}}')
-    expect(rootValue()).toBe('calc(640px + 2 * 1.5rem)')
+    expect(rootValue()).toBe('640px')
     applySettingsText('{}')
-    expect(rootValue()).toBe('calc(900px + 2 * 1.5rem)')
+    expect(rootValue()).toBe('900px')
   })
 })
 
@@ -174,7 +174,7 @@ describe('ISC-442: the two JSON files keep the whole width', () => {
 
 describe('ISC-443: the fallback is the default', () => {
   it('has the default width in the theme, for a file that is not read yet or cannot be', () => {
-    expect(contentWidthValue(DEFAULT_SETTINGS.editor)).toBe('calc(900px + 2 * 1.5rem)')
+    expect(contentWidthValue(DEFAULT_SETTINGS.editor)).toBe('900px')
     expect(DEFAULT_SETTINGS.editor.limitContentWidth).toBe(true)
     expect(DEFAULT_SETTINGS.editor.contentMaxWidth).toBe(900)
   })

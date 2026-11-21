@@ -35,9 +35,12 @@ const frame = EditorView.theme({
   // CodeMirror draws a dotted outline round a focused editor by default. The caret already shows
   // where focus is, and the outline cuts across the top of the pane under the tab strip.
   '&.cm-focused': { outline: 'none' },
-  '.cm-scroller': { overflow: 'auto' },
-  // Room between the text and the edges of the pane. Padding on the content, not margin: the
-  // scrollbar stays at the pane's edge, and CodeMirror counts content padding in its heights.
+  // Room beside the text, on the scroller and not on the content: CodeMirror draws the highlight of
+  // a whole selected line from the content box's own edge, inset only by a line's padding, so room
+  // inside the content box got painted. The content box is the text column. The scrollbar still
+  // stays at the pane's edge. Above and below the room is padding on the content, which CodeMirror
+  // counts in its heights.
+  '.cm-scroller': { overflow: 'auto', paddingInline: CONTENT_PADDING_X },
   // The selection and the caret are drawn by CodeMirror (`drawSelection`, in `common` and
   // `followerBase`), which hides the browser's own, so the theme's Selection and Caret colors apply
   // here. The focused rule is as specific as CodeMirror's own, and wins by coming from the theme.
@@ -45,7 +48,7 @@ const frame = EditorView.theme({
   '.cm-selectionBackground, &.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-content ::selection':
     { background: 'var(--selection)' },
   '.cm-content': {
-    padding: `1.25rem ${CONTENT_PADDING_X}`,
+    padding: '1.25rem 0',
     // The text column stops at the width from settings.json and sits in the middle (documentWidth.ts).
     // The fallback is the default, for the moment before the file is read or when it cannot be.
     maxWidth: `var(${WIDTH_VARIABLE}, ${contentWidthValue(DEFAULT_SETTINGS.editor)})`,
@@ -69,7 +72,10 @@ const frame = EditorView.theme({
   // the window. The column steps off the left margin and the gutter takes that free space instead,
   // so the pair sits in the middle with the numbers against the text.
   '&:not(.cm-lineNumbersOn) .cm-gutters': { display: 'none' },
-  '&.cm-lineNumbersOn .cm-content.cm-lineWrapping': { marginInlineStart: '0' },
+  // The gutter stays at the pane's edge and the column keeps its room from it as a margin, in every
+  // mode (wrapped, not wrapped, full width), so the scroller gives up its room on that side.
+  '&.cm-lineNumbersOn .cm-scroller': { paddingInlineStart: '0' },
+  '&.cm-lineNumbersOn .cm-content': { marginInlineStart: CONTENT_PADDING_X },
   '&.cm-lineNumbersOn .cm-gutters': {
     marginInlineStart: 'auto',
     backgroundColor: 'var(--gutter)',

@@ -128,16 +128,18 @@ describe('every kind of text tab (ISC-613)', () => {
     expect(shown(view)).toEqual(['1', '2', '3', '4'])
   })
 
-  it('sits against the column: the theme steps the column to the gutter and centers the pair', () => {
+  it('sits against the column: the gutter takes the free space on its left, the column its room as a margin', () => {
     const create = readFileSync(join(import.meta.dirname, '../../src/editor/create.ts'), 'utf8')
-    // With the gutter on, the column no longer centers itself; the gutter takes the free space on
-    // its left and the column the free space on its right, so the two sit together in the middle.
-    expect(create).toContain("'&.cm-lineNumbersOn .cm-content.cm-lineWrapping'")
+    // With the gutter on, the gutter stays at the pane's edge and takes the free space on its left
+    // (`auto`), and the column keeps its room from the gutter as a margin, so the pair sits together
+    // in the middle. The room is outside the content box (P9.1-T22), which is why it is a margin.
+    expect(create).toContain("'&.cm-lineNumbersOn .cm-content'")
+    expect(create).toContain("'&.cm-lineNumbersOn .cm-scroller'")
     expect(create).toContain("'&.cm-lineNumbersOn .cm-gutters'")
-    const rule = /'&\.cm-lineNumbersOn \.cm-content\.cm-lineWrapping': \{([^}]*)\}/.exec(
-      create,
-    )?.[1]
-    expect(rule).toContain("marginInlineStart: '0'")
+    const content = /'&\.cm-lineNumbersOn \.cm-content': \{([^}]*)\}/.exec(create)?.[1]
+    expect(content).toContain('marginInlineStart: CONTENT_PADDING_X')
+    const scroller = /'&\.cm-lineNumbersOn \.cm-scroller': \{([^}]*)\}/.exec(create)?.[1]
+    expect(scroller).toContain("paddingInlineStart: '0'")
     const gutters = /'&\.cm-lineNumbersOn \.cm-gutters': \{([^}]*)\}/.exec(create)?.[1]
     expect(gutters).toContain("marginInlineStart: 'auto'")
   })

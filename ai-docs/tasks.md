@@ -144,7 +144,7 @@ Phase 9.1 collects the small fixes and rough edges found in daily use, between t
 - [x] P9.1-T19: List markers `-`, `*` and `+` are drawn as an en dash — closes ISC-623, ISC-624
 - [x] P9.1-T20: Line height settings for the body and for code blocks, beside the size fields — closes ISC-625 to ISC-629
 - [x] P9.1-T21: Line numbers: smaller, muted, on a subtle gutter background, in the code font, all themes — closes ISC-630 to ISC-633
-- [ ] P9.1-T22: Line selections stop at the text edges, not in the padding — closes ISC-634, ISC-635
+- [x] P9.1-T22: Line selections stop at the text edges, not in the padding — closes ISC-634, ISC-635
 - [ ] P9.1-T23: The sidebar cannot be resized narrower than its tab strip — closes ISC-636 to ISC-638
 - [ ] P9.1-T24: Outline: the lowest level is always bold, and the next one too when it occurs once — closes ISC-639, ISC-640 (ISC-607 gives up its bold clause)
 - [ ] P9.1-T25: Searchable font comboboxes for heading, body and code fonts, from an installed-font list — closes ISC-641 to ISC-644

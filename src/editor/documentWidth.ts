@@ -17,20 +17,18 @@ import { refreshDocumentFonts } from './documentFonts'
  * past a reading column, and wrapping the comments would only make them harder to read.
  */
 
-/** The space on each side of the text, shared with the editor's theme. */
+/** The space on each side of the text column, shared with the editor's theme. It sits outside the column. */
 export const CONTENT_PADDING_X = '1.5rem'
 
 /** The custom property the editor's theme reads for the widest the content box gets. */
 export const WIDTH_VARIABLE = '--doc-content-max'
 
 /**
- * The widest the content box gets, as CSS: the column plus the padding on both sides (the setting
- * counts the text, not the padding), or `none` when there is no limit.
+ * The widest the content box gets, as CSS: the column, or `none` when there is no limit. The room
+ * beside the column is outside the content box (on the scroller), so the setting is the whole width.
  */
 export function contentWidthValue(editor: Readonly<Settings['editor']> = settings.editor): string {
-  return editor.limitContentWidth
-    ? `calc(${String(editor.contentMaxWidth)}px + 2 * ${CONTENT_PADDING_X})`
-    : 'none'
+  return editor.limitContentWidth ? `${String(editor.contentMaxWidth)}px` : 'none'
 }
 
 /** The class a view gets when it keeps the whole width. */
