@@ -5,6 +5,7 @@ mod drafts;
 mod drops;
 mod error;
 mod fs;
+mod git;
 mod images;
 mod links;
 mod outline;
@@ -178,6 +179,7 @@ pub fn run() {
         commands::delete_entry,
         commands::reveal_entry,
         commands::list_font_families,
+        commands::git_status,
         commands::drag_out,
         commands::show_folder,
         commands::copy_clashes,
@@ -273,6 +275,7 @@ pub fn run() {
         commands::delete_entry,
         commands::reveal_entry,
         commands::list_font_families,
+        commands::git_status,
         commands::drag_out,
         commands::show_folder,
         commands::copy_clashes,

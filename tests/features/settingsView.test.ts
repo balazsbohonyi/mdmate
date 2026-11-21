@@ -27,6 +27,7 @@ import {
   pendingSettingChange,
   resetSetting,
   resetSettingsState,
+  settledRuntime,
   settingsFileState,
   watchSettingsFile,
 } from '@/features/settings/store'
@@ -1236,6 +1237,42 @@ describe('ISC-645: the hidden names are chips with an add field and a reset', ()
     await mountScreen('files', '{"workspace": {"hiddenNames": "nope"}}')
     expect(errorOf(KEY)).not.toBeNull()
     expect(settings.workspace.hiddenNames).toEqual([...BUILT_IN_HIDDEN_NAMES])
+  })
+})
+
+describe('ISC-653: the Git rows on Files and workspace', () => {
+  it('sit under a Git sub-group, after the hidden names, with the defaults shown', async () => {
+    await mountScreen('files')
+    const keys = rowKeys()
+    expect(keys.slice(-2)).toEqual(['git.enabled', 'git.path'])
+    expect(keys.indexOf('git.enabled')).toBe(keys.indexOf('workspace.hiddenNames') + 1)
+    const heading = document.querySelector('[data-sub-group-heading]')
+    expect(heading?.textContent.trim()).toBe('Git')
+    expect(switchOf('git.enabled').getAttribute('aria-checked')).toBe('true')
+    expect(inputOf('git.path').value).toBe('')
+  })
+
+  it('turning git off writes the key and tells the host', async () => {
+    await mountScreen('files')
+    await click(switchOf('git.enabled'))
+    expect(fileObject()).toEqual({ git: { enabled: false } })
+    expect(settings.git.enabled).toBe(false)
+    await settledRuntime()
+    expect(host.runtime.values).toMatchObject({ gitEnabled: false })
+  })
+
+  it('accepts a full path, refuses a bare name, and says why on the row', async () => {
+    await mountScreen('files')
+    await typeAndLeave(inputOf('git.path'), 'git')
+    expect(errorOf('git.path')).not.toBeNull()
+    expect(host.files.read(MOCK_SETTINGS_FILE)).toBeUndefined()
+    await typeAndLeave(inputOf('git.path'), '/usr/bin/git')
+    expect(errorOf('git.path')).toBeNull()
+    expect(fileObject()).toEqual({ git: { path: '/usr/bin/git' } })
+    await settledRuntime()
+    expect(host.runtime.values).toMatchObject({ gitPath: '/usr/bin/git' })
+    await typeAndLeave(inputOf('git.path'), '')
+    expect(fileObject()).toEqual({})
   })
 })
 

@@ -19,6 +19,16 @@ impl Platform for Native {
         true
     }
 
+    fn standard_git_paths(&self) -> Vec<std::path::PathBuf> {
+        [
+            "/usr/bin/git",
+            "/opt/homebrew/bin/git",
+            "/usr/local/bin/git",
+        ]
+        .map(std::path::PathBuf::from)
+        .to_vec()
+    }
+
     fn file_is_busy(&self, _error: &std::io::Error) -> bool {
         false
     }

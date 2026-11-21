@@ -79,6 +79,8 @@ function runtimeValues(): AppliedSettings {
     recentFiles: settings.recent.files,
     recentFolders: settings.recent.folders,
     excludedFolders: [...settings.workspace.excludedFolders],
+    gitEnabled: settings.git.enabled,
+    gitPath: settings.git.path,
     devtools: settings.devtools,
   }
 }
@@ -114,6 +116,7 @@ function assignSettings(next: typeof settings): void {
   Object.assign(settings.files, next.files)
   Object.assign(settings.recent, next.recent)
   Object.assign(settings.themes, next.themes)
+  Object.assign(settings.git, next.git)
   Object.assign(settings.view, next.view)
   settings.workspace.excludedFolders = next.workspace.excludedFolders
   settings.workspace.hiddenNames = next.workspace.hiddenNames

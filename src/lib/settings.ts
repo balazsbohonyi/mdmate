@@ -158,6 +158,12 @@ export interface Settings {
     /** The file and folder names the tree does not show, whatever the case. Only the tree reads it. */
     hiddenNames: readonly string[]
   }
+  git: {
+    /** Whether the tree reads git for the colors of changed, new and ignored files. */
+    enabled: boolean
+    /** The full path of the git program, or empty to find it on the PATH and in the usual folders. */
+    path: string
+  }
   themes: {
     /** Whether the color editor leaves out its lines about a pair of colors that is hard to read. */
     hideContrastWarnings: boolean
@@ -199,6 +205,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = {
   files: { largeFileMB: 3 },
   recent: { files: 10, folders: 5 },
   workspace: { excludedFolders: BUILT_IN_EXCLUDED_FOLDERS, hiddenNames: BUILT_IN_HIDDEN_NAMES },
+  git: { enabled: true, path: '' },
   themes: { hideContrastWarnings: true, colorFormat: 'hex' },
   view: { zoom: 100 },
   devtools: false,
@@ -218,6 +225,7 @@ export function cloneSettings(from: Readonly<Settings>): Settings {
       excludedFolders: [...from.workspace.excludedFolders],
       hiddenNames: [...from.workspace.hiddenNames],
     },
+    git: { ...from.git },
     themes: { ...from.themes },
     view: { ...from.view },
     devtools: from.devtools,

@@ -971,6 +971,9 @@ pub(crate) fn settings_apply(
     let checked = crate::settings::runtime::check(&applied)?;
     state.runtime().set_paste_folder(&checked.paste_folder);
     state.runtime().set_devtools(checked.devtools);
+    state
+        .runtime()
+        .set_git(checked.git_enabled, &checked.git_path);
     recent.set_limits(checked.recent_files, checked.recent_folders);
     if crate::fs::exclude::set(&checked.excluded_folders) {
         state.index().rescan_all();
@@ -1409,6 +1412,26 @@ pub(crate) async fn add_dropped_root(
         let shown = workspace::add_dropped_root(&state, &store, &path)?;
         allow_images_from(&app, std::path::Path::new(&shown));
         Ok(shown)
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// What git says about the files under an open workspace root, for the colours of the tree: the
+/// repositories found and one entry per changed, new or ignored path. `folders` are folders the tree
+/// has listed, whose direct children are also checked for a repository. Nothing here is an error
+/// when git is off, missing, or fails; the answer is then smaller or empty. The root must be one
+/// the user opened.
+#[tauri::command]
+pub(crate) async fn git_status(
+    state: State<'_, Arc<AppState>>,
+    root: String,
+    folders: Vec<String>,
+) -> Result<crate::git::command::GitReport, AppError> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let folders: Vec<PathBuf> = folders.into_iter().map(PathBuf::from).collect();
+        crate::git::command::status(&state, &PathBuf::from(root), &folders)
     })
     .await
     .map_err(|error| AppError::Task(error.to_string()))?

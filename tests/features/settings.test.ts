@@ -334,6 +334,27 @@ describe('the behaviour behind each key (P8-T1b)', () => {
     expect(host.runtime.calls.length).toBe(base)
   })
 
+  it('ISC-653: git.enabled and git.path reach the host, and only a change sends them', async () => {
+    await start()
+    const base = host.runtime.calls.length
+    expect(host.runtime.values).toMatchObject({ gitEnabled: true, gitPath: '' })
+    expect(await changeSetting('git.enabled', false)).toBe(true)
+    await settledRuntime()
+    expect(host.runtime.calls.length).toBe(base + 1)
+    expect(host.runtime.values).toMatchObject({ gitEnabled: false, gitPath: '' })
+    expect(await changeSetting('git.path', '/usr/bin/git')).toBe(true)
+    await settledRuntime()
+    expect(host.runtime.calls.length).toBe(base + 2)
+    expect(host.runtime.values).toMatchObject({ gitEnabled: false, gitPath: '/usr/bin/git' })
+    expect(await changeSetting('git.path', '/usr/bin/git')).toBe(true)
+    await settledRuntime()
+    expect(host.runtime.calls.length).toBe(base + 2)
+    expect(await resetSetting('git.path')).toBe(true)
+    expect(await resetSetting('git.enabled')).toBe(true)
+    await settledRuntime()
+    expect(host.runtime.values).toMatchObject({ gitEnabled: true, gitPath: '' })
+  })
+
   it('applies what the file holds to Rust at start, before anything is pasted or restored', async () => {
     await start({
       [MOCK_SETTINGS_FILE]:

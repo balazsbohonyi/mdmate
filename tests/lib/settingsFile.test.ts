@@ -3,6 +3,7 @@
  * value of the wrong type or outside its range. Data enters as `unknown`.
  */
 import { describe, expect, it } from 'vitest'
+import gitPaths from '../data/git-paths.json'
 import pasteFolders from '../data/paste-folders.json'
 import {
   BUILT_IN_EXCLUDED_FOLDERS,
@@ -337,6 +338,28 @@ describe('the value rules', () => {
     ]) {
       expect(check('workspace.hiddenNames', bad), JSON.stringify(bad).slice(0, 30)).toBe(false)
     }
+  })
+
+  it('ISC-653: git is on and its path empty by default, and the two are checked', () => {
+    expect(DEFAULT_SETTINGS.git).toEqual({ enabled: true, path: '' })
+    expect(SETTING_DEFS['git.enabled'].default).toBe(true)
+    expect(SETTING_DEFS['git.path'].default).toBe('')
+    expect(SETTING_DEFS['git.path'].path).toEqual(['git', 'path'])
+    for (const good of [true, false]) expect(check('git.enabled', good)).toBe(true)
+    for (const bad of ['true', 1, null, 'on'])
+      expect(check('git.enabled', bad), String(bad)).toBe(false)
+    for (const bad of [1, null, true, ['/usr/bin/git'], { path: 'x' }])
+      expect(check('git.path', bad), JSON.stringify(bad)).toBe(false)
+  })
+
+  it('takes a git path the way the shared cases say, and Rust says the same (tests/data/git-paths.json)', () => {
+    expect(gitPaths.length).toBeGreaterThan(15)
+    for (const sample of gitPaths as readonly { input: string; path: string | null }[]) {
+      const checked = SETTING_DEFS['git.path'].check(sample.input)
+      expect(checked.ok ? checked.value : null, JSON.stringify(sample.input)).toBe(sample.path)
+    }
+    expect(check('git.path', 'x'.repeat(501))).toBe(false)
+    expect(check('git.path', '/' + 'x'.repeat(499))).toBe(true)
   })
 
   it('takes a theme name and refuses a path', () => {

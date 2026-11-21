@@ -129,6 +129,20 @@ describe('ISC-462: every sub-group heading is drawn in the primary color', () =>
     }
   })
 
+  it('ISC-653 on Files and workspace: a Git heading over the two git rows, and nothing over the rest', async () => {
+    await mountScreen('files')
+    expect(texts()).toEqual(['Git'])
+    expect(headings()[0]?.classList.contains('text-primary')).toBe(true)
+    const rows = [...document.querySelectorAll<HTMLElement>('[data-setting-row]')]
+    const heading = headings()[0]
+    const after = rows.filter(
+      (row) =>
+        heading !== undefined &&
+        heading.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING,
+    )
+    expect(after.map((row) => row.dataset.settingRow)).toEqual(['git.enabled', 'git.path'])
+  })
+
   it('on Keyboard: every group heading, and not the page title', async () => {
     await mountScreen('keyboard')
     const groups = [...document.querySelectorAll<HTMLElement>('[data-keyboard-group-heading]')]

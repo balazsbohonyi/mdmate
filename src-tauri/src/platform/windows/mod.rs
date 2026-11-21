@@ -13,6 +13,32 @@ use std::ptr::{null, null_mut};
 #[derive(Debug)]
 pub(crate) struct Native;
 
+/// The process creation flag that gives a console program no console window.
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+/// Where Git for Windows installs by default, in the order to look: under each Program Files
+/// folder the environment names, under the user's programs folder, then the usual spellings.
+/// `env` reads one environment variable; it is a parameter so a test can name the folders.
+fn git_install_paths(env: impl Fn(&str) -> Option<std::ffi::OsString>) -> Vec<std::path::PathBuf> {
+    let mut found: Vec<std::path::PathBuf> = Vec::new();
+    let mut add = |path: std::path::PathBuf| {
+        if !found.contains(&path) {
+            found.push(path);
+        }
+    };
+    for variable in ["ProgramFiles", "ProgramW6432", "ProgramFiles(x86)"] {
+        if let Some(base) = env(variable) {
+            add(Path::new(&base).join(r"Git\cmd\git.exe"));
+        }
+    }
+    if let Some(base) = env("LocalAppData") {
+        add(Path::new(&base).join(r"Programs\Git\cmd\git.exe"));
+    }
+    add(Path::new(r"C:\Program Files\Git\cmd\git.exe").to_path_buf());
+    add(Path::new(r"C:\Program Files (x86)\Git\cmd\git.exe").to_path_buf());
+    found
+}
+
 #[link(name = "shell32")]
 unsafe extern "system" {
     fn ShellExecuteW(
@@ -67,6 +93,14 @@ impl Platform for Native {
             206 => Some("the path is too long"),
             _ => None,
         }
+    }
+
+    fn hide_console(&self, command: &mut std::process::Command) {
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    fn standard_git_paths(&self) -> Vec<std::path::PathBuf> {
+        git_install_paths(|name| std::env::var_os(name))
     }
 
     fn open_external(&self, target: &str) -> std::io::Result<()> {
@@ -190,5 +224,81 @@ impl Platform for Native {
         if let Err(error) = asked {
             eprintln!("Could not reach the web view: {error}");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::OsString;
+
+    #[test]
+    fn the_no_window_flag_is_the_documented_value() {
+        assert_eq!(CREATE_NO_WINDOW, 0x0800_0000);
+    }
+
+    #[test]
+    fn git_is_looked_for_under_each_program_files_then_the_users_programs_then_the_usual_spellings()
+    {
+        let env = |name: &str| -> Option<OsString> {
+            match name {
+                "ProgramFiles" | "ProgramW6432" => Some(r"D:\Apps".into()),
+                "LocalAppData" => Some(r"C:\Users\me\AppData\Local".into()),
+                _ => None,
+            }
+        };
+        let shown: Vec<String> = git_install_paths(env)
+            .iter()
+            .map(|path| path.display().to_string())
+            .collect();
+        assert_eq!(
+            shown,
+            [
+                r"D:\Apps\Git\cmd\git.exe",
+                r"C:\Users\me\AppData\Local\Programs\Git\cmd\git.exe",
+                r"C:\Program Files\Git\cmd\git.exe",
+                r"C:\Program Files (x86)\Git\cmd\git.exe",
+            ]
+        );
+    }
+
+    /// The program a child runs to say whether it has a console window: PowerShell asks Windows for
+    /// its console window handle and prints it (0 means none).
+    fn console_window_of_a_child(hide: bool) -> Option<i64> {
+        let script = "Add-Type -Namespace T -Name C -MemberDefinition \
+            '[System.Runtime.InteropServices.DllImport(\"kernel32.dll\")] public static extern System.IntPtr GetConsoleWindow();'; \
+            [Console]::Out.Write([int64][T.C]::GetConsoleWindow())";
+        let mut command = std::process::Command::new("powershell.exe");
+        command
+            .args(["-NoProfile", "-NonInteractive", "-Command", script])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null());
+        if hide {
+            Native.hide_console(&mut command);
+        }
+        let output = command.output().ok()?;
+        String::from_utf8_lossy(&output.stdout).trim().parse().ok()
+    }
+
+    /// Only meaningful when this run has a console of its own to share: the control child (started
+    /// without the flag) must see a window, or "no window" would hold either way. It is skipped, out
+    /// loud, otherwise; the claim never leans on it.
+    #[test]
+    fn a_program_started_through_hide_console_has_no_console_window() {
+        let shared = console_window_of_a_child(false).expect("the control answered");
+        if shared == 0 {
+            eprintln!(
+                "SKIPPED a_program_started_through_hide_console: this run has no console, so the control shows nothing"
+            );
+            return;
+        }
+        let hidden = console_window_of_a_child(true).expect("the child answered");
+        assert_eq!(hidden, 0, "no console window for the hidden child");
+    }
+
+    #[test]
+    fn with_no_environment_the_usual_spellings_remain() {
+        assert_eq!(git_install_paths(|_| None).len(), 2);
     }
 }

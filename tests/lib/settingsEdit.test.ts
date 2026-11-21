@@ -28,6 +28,8 @@ const SETTING_PATHS: readonly (readonly string[])[] = [
   ['editor', 'wordWrap'],
   ['workspace', 'excludedFolders'],
   ['workspace', 'hiddenNames'],
+  ['git', 'enabled'],
+  ['git', 'path'],
   ['links', 'onRename'],
 ]
 

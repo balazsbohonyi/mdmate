@@ -1,6 +1,6 @@
 //! All OS-specific code. Everything outside this module stays portable.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub(crate) mod fonts;
 #[cfg(target_os = "linux")]
@@ -46,6 +46,15 @@ pub(crate) trait Platform {
         ))
     }
 
+    /// Keeps a program the app starts from opening a console window of its own (Windows gives a
+    /// console program started by a window app one, which flashes). Elsewhere there is nothing to do.
+    fn hide_console(&self, _command: &mut std::process::Command) {}
+
+    /// Where git is usually installed, in the order to look, for when it is not on the PATH.
+    fn standard_git_paths(&self) -> Vec<PathBuf> {
+        Vec::new()
+    }
+
     /// Hands a URL or a file path to the app the OS uses for it. Only the link guard calls this,
     /// with a target it approved (`links::guard::Approved`); nothing else may.
     fn open_external(&self, target: &str) -> std::io::Result<()>;
@@ -87,6 +96,57 @@ pub(crate) trait Platform {
 fn trash_item(path: &Path) -> std::io::Result<()> {
     trash::delete(path)
         .map_err(|error| std::io::Error::other(crate::error::plain_text(&error.to_string())))
+}
+
+/// What a fake program does, for tests of code that starts programs.
+#[cfg(test)]
+pub(crate) enum FakeProgram<'a> {
+    /// Ends at once with this exit code.
+    Exit(i32),
+    /// Waits about this many seconds, then ends well.
+    Sleep { seconds: u64 },
+    /// Writes the arguments it was given to this file and ends well.
+    Record { to: &'a Path },
+}
+
+/// Writes a small program for this OS into `dir` and returns its path (a `.cmd` file on Windows, an
+/// executable `sh` script elsewhere), for tests of code that must run a program it does not control.
+#[cfg(test)]
+pub(crate) fn write_fake_program(
+    dir: &Path,
+    name: &str,
+    behaviour: &FakeProgram<'_>,
+) -> std::io::Result<PathBuf> {
+    #[cfg(windows)]
+    {
+        let body = match behaviour {
+            FakeProgram::Exit(code) => format!("@echo off\r\nexit /b {code}\r\n"),
+            FakeProgram::Sleep { seconds } => {
+                format!("@echo off\r\nping -n {} 127.0.0.1 >nul\r\n", seconds + 1)
+            }
+            FakeProgram::Record { to } => {
+                format!("@echo off\r\necho %* > \"{}\"\r\n", to.display())
+            }
+        };
+        let path = dir.join(format!("{name}.cmd"));
+        std::fs::write(&path, body)?;
+        Ok(path)
+    }
+    #[cfg(not(windows))]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        let body = match behaviour {
+            FakeProgram::Exit(code) => format!("#!/bin/sh\nexit {code}\n"),
+            FakeProgram::Sleep { seconds } => format!("#!/bin/sh\nsleep {seconds}\n"),
+            FakeProgram::Record { to } => {
+                format!("#!/bin/sh\nprintf '%s\\n' \"$@\" > '{}'\n", to.display())
+            }
+        };
+        let path = dir.join(name);
+        std::fs::write(&path, body)?;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))?;
+        Ok(path)
+    }
 }
 
 /// Holds a file open so that no other reader can open it, for tests of a copy that fails partway.

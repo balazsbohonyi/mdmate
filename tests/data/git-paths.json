@@ -1,0 +1,28 @@
+[
+  { "input": "", "path": "" },
+  { "input": "   ", "path": "" },
+  {
+    "input": "C:\\Program Files\\Git\\cmd\\git.exe",
+    "path": "C:\\Program Files\\Git\\cmd\\git.exe"
+  },
+  { "input": "  C:\\Git\\cmd\\git.exe  ", "path": "C:\\Git\\cmd\\git.exe" },
+  { "input": "c:/git/cmd/git.exe", "path": "c:/git/cmd/git.exe" },
+  { "input": "D:\\tools\\git", "path": "D:\\tools\\git" },
+  { "input": "/usr/bin/git", "path": "/usr/bin/git" },
+  { "input": "/opt/homebrew/bin/git", "path": "/opt/homebrew/bin/git" },
+  { "input": "git", "path": null },
+  { "input": "git.exe", "path": null },
+  { "input": "bin/git", "path": null },
+  { "input": "./git", "path": null },
+  { "input": "../git", "path": null },
+  { "input": "~/bin/git", "path": null },
+  { "input": "C:git.exe", "path": null },
+  { "input": "C:", "path": null },
+  { "input": "\\\\server\\share\\git.exe", "path": null },
+  { "input": "//server/share/git", "path": null },
+  { "input": "\\\\?\\C:\\git.exe", "path": null },
+  { "input": "\\Program Files\\Git\\git.exe", "path": null },
+  { "input": "C:\\a\ngit.exe", "path": null },
+  { "input": "/usr/bin/git\u0000", "path": null },
+  { "input": "/usr/bin/git\u007f", "path": null }
+]

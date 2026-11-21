@@ -163,6 +163,10 @@ export interface AppliedSettings {
   readonly recentFolders: number
   /** The folder names the workspace index skips, in place of the built-in list. */
   readonly excludedFolders: readonly string[]
+  /** Whether Rust may run git to read the status of the files under a workspace folder. */
+  readonly gitEnabled: boolean
+  /** The full path of the git program, or empty to find it. */
+  readonly gitPath: string
   /** Whether F12 may open the developer tools. */
   readonly devtools: boolean
 }

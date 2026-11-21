@@ -277,6 +277,23 @@ export const SETTING_ROWS: readonly SettingRowSpec[] = [
     control: { kind: 'folders' },
   },
   {
+    key: 'git.enabled',
+    category: 'files',
+    label: 'Use git',
+    description: 'Read git to colour changed, new and ignored files in the tree.',
+    control: { kind: 'switch' },
+    group: 'Git',
+  },
+  {
+    key: 'git.path',
+    category: 'files',
+    label: 'Git program',
+    description:
+      'The full path of git. Empty finds it on the PATH and in the usual install folders.',
+    control: { kind: 'text', placeholder: 'Find automatically' },
+    group: 'Git',
+  },
+  {
     key: 'devtools',
     category: 'advanced',
     label: 'Developer tools',

@@ -1,7 +1,7 @@
 import type { Endings } from '@/lib/endings'
 import { freeName, nameProblem } from '@/lib/fileNames'
 import type { LinksOnRename } from '@/lib/settings'
-import { checkFolderName, checkPasteFolder } from '@/lib/settingsFile'
+import { checkFolderName, checkPasteFolder, SETTING_DEFS } from '@/lib/settingsFile'
 import { checkThemeName } from '@/lib/themeNames'
 import type {
   AppliedSettings,
@@ -505,6 +505,8 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
       recentFiles: 10,
       recentFolders: 5,
       excludedFolders: [],
+      gitEnabled: true,
+      gitPath: '',
       devtools: false,
     },
     devtoolsOpened: 0,
@@ -1219,7 +1221,9 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
           throw hostError('invalid', 'recent: use a number from 0 to 50')
         if (values.excludedFolders.some((name) => !checkFolderName(name).ok))
           throw hostError('invalid', 'workspace.excludedFolders: use a folder name, not a path')
-        runtime.values = { ...values, pasteFolder: folder.value }
+        const gitPath = SETTING_DEFS['git.path'].check(values.gitPath)
+        if (!gitPath.ok) throw hostError('invalid', `git.path: ${gitPath.why}`)
+        runtime.values = { ...values, pasteFolder: folder.value, gitPath: gitPath.value }
         runtime.calls.push(runtime.values)
         // Lowering a limit shows at once.
         recent.files.length = Math.min(recent.files.length, values.recentFiles)

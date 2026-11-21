@@ -46,6 +46,8 @@ export interface SettingValueMap {
   'recent.folders': number
   'workspace.excludedFolders': readonly string[]
   'workspace.hiddenNames': readonly string[]
+  'git.enabled': boolean
+  'git.path': string
   'themes.hideContrastWarnings': boolean
   'themes.colorFormat': ColorFormat
   'view.zoom': number
@@ -231,6 +233,31 @@ function checkHiddenNames(value: unknown): Checked<readonly string[]> {
   }
   if (names.length > MAX_HIDDEN_NAMES) return bad(`Use at most ${String(MAX_HIDDEN_NAMES)} names.`)
   return good(names)
+}
+
+/** The longest git path taken. */
+const MAX_GIT_PATH = 500
+
+/**
+ * The full path of the git program, or empty for "find it". It must be absolute, and never a
+ * network path (using one makes Windows contact that host): a drive letter with a slash, or a
+ * slash. Rust applies the same rule (`settings/runtime.rs`, `clean_git_path`); the shared cases are
+ * in `tests/data/git-paths.json`.
+ */
+function checkGitPath(value: unknown): Checked<string> {
+  if (typeof value !== 'string') return bad('Use the full path of the git program in quotes.')
+  const text = value.trim()
+  if (text === '') return good('')
+  if (text.length > MAX_GIT_PATH) return bad(`Use at most ${String(MAX_GIT_PATH)} characters.`)
+  // eslint-disable-next-line no-control-regex -- control characters are exactly what is refused
+  if (/[\u0000-\u001f\u007f]/u.test(text)) return bad('Use the full path of the git program.')
+  const drive = /^[A-Za-z]:[\\/]/u.test(text)
+  const rooted = text.startsWith('/') && !text.startsWith('//')
+  if (!drive && !rooted)
+    return bad(
+      'Use the full path, such as C:\\Program Files\\Git\\cmd\\git.exe, or leave it empty.',
+    )
+  return good(text)
 }
 
 /** The most extensions the highlight list holds, and the longest one. */
@@ -432,6 +459,20 @@ export const SETTING_DEFS: { readonly [K in SettingKey]: SettingDef<SettingValue
         a.map((name) => name.toLowerCase()).sort(),
         b.map((name) => name.toLowerCase()).sort(),
       ),
+  },
+  'git.enabled': {
+    key: 'git.enabled',
+    path: ['git', 'enabled'],
+    default: DEFAULT_SETTINGS.git.enabled,
+    check: isBoolean,
+    equals: same,
+  },
+  'git.path': {
+    key: 'git.path',
+    path: ['git', 'path'],
+    default: DEFAULT_SETTINGS.git.path,
+    check: checkGitPath,
+    equals: same,
   },
   'themes.hideContrastWarnings': {
     key: 'themes.hideContrastWarnings',

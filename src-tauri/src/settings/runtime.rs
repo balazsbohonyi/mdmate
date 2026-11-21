@@ -24,6 +24,9 @@ pub(crate) const MAX_RECENT: usize = 50;
 const MAX_EXCLUDED: usize = 200;
 const MAX_NAME: usize = 100;
 
+/// The longest path taken for the git program.
+const MAX_GIT_PATH: usize = 500;
+
 /// What the page sends: the keys Rust needs, already validated there.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -32,6 +35,8 @@ pub(crate) struct Applied {
     pub(crate) recent_files: usize,
     pub(crate) recent_folders: usize,
     pub(crate) excluded_folders: Vec<String>,
+    pub(crate) git_enabled: bool,
+    pub(crate) git_path: String,
     pub(crate) devtools: bool,
 }
 
@@ -42,6 +47,8 @@ pub(crate) struct Checked {
     pub(crate) recent_files: usize,
     pub(crate) recent_folders: usize,
     pub(crate) excluded_folders: Vec<String>,
+    pub(crate) git_enabled: bool,
+    pub(crate) git_path: String,
     pub(crate) devtools: bool,
 }
 
@@ -90,6 +97,35 @@ pub(crate) fn clean_paste_folder(raw: &str) -> Result<String, &'static str> {
     Ok(parts.join("/"))
 }
 
+/// The full path of the git program in its one spelling (trimmed), `""` for "find it", or why it
+/// is refused. It must be absolute (a drive letter and a slash, or a slash) and never a network
+/// path, which would make Windows contact that host. The page applies the same rule
+/// (`checkGitPath` in `lib/settingsFile.ts`); `tests/data/git-paths.json` holds the cases both read.
+pub(crate) fn clean_git_path(raw: &str) -> Result<String, &'static str> {
+    let text = raw.trim();
+    if text.is_empty() {
+        return Ok(String::new());
+    }
+    if text.chars().count() > MAX_GIT_PATH {
+        return Err("Use at most 500 characters.");
+    }
+    if text.chars().any(char::is_control) {
+        return Err("Use the full path of the git program.");
+    }
+    let mut chars = text.chars();
+    let first = chars.next().unwrap_or_default();
+    let second = chars.next();
+    let third = chars.next();
+    let drive =
+        first.is_ascii_alphabetic() && second == Some(':') && matches!(third, Some('/' | '\\'));
+    let rooted = first == '/' && second != Some('/');
+    if drive || rooted {
+        Ok(text.to_owned())
+    } else {
+        Err("Use the full path of the git program, or leave it empty.")
+    }
+}
+
 /// One name for the exclusion list: a name, not a path.
 fn clean_excluded_name(raw: &str) -> Option<String> {
     let text = raw.trim();
@@ -119,6 +155,8 @@ pub(crate) fn check(applied: &Applied) -> Result<Checked, AppError> {
             "workspace.excludedFolders: use at most {MAX_EXCLUDED} names"
         )));
     }
+    let git_path = clean_git_path(&applied.git_path)
+        .map_err(|why| AppError::Invalid(format!("git.path: {why}")))?;
     let mut excluded: Vec<String> = Vec::new();
     for raw in &applied.excluded_folders {
         let name = clean_excluded_name(raw).ok_or_else(|| {
@@ -133,6 +171,8 @@ pub(crate) fn check(applied: &Applied) -> Result<Checked, AppError> {
         recent_files: applied.recent_files,
         recent_folders: applied.recent_folders,
         excluded_folders: excluded,
+        git_enabled: applied.git_enabled,
+        git_path,
         devtools: applied.devtools,
     })
 }
@@ -142,6 +182,8 @@ pub(crate) fn check(applied: &Applied) -> Result<Checked, AppError> {
 pub(crate) struct Runtime {
     paste_folder: RwLock<String>,
     devtools: AtomicBool,
+    git_enabled: AtomicBool,
+    git_path: RwLock<String>,
 }
 
 impl Default for Runtime {
@@ -149,6 +191,8 @@ impl Default for Runtime {
         Self {
             paste_folder: RwLock::new(DEFAULT_PASTE_FOLDER.to_owned()),
             devtools: AtomicBool::new(false),
+            git_enabled: AtomicBool::new(true),
+            git_path: RwLock::new(String::new()),
         }
     }
 }
@@ -177,6 +221,27 @@ impl Runtime {
     pub(crate) fn set_devtools(&self, on: bool) {
         self.devtools.store(on, Ordering::Relaxed);
     }
+
+    /// Whether git may be run to read file status (`git.enabled`).
+    pub(crate) fn git_enabled(&self) -> bool {
+        self.git_enabled.load(Ordering::Relaxed)
+    }
+
+    /// The path the owner gave for the git program, or empty (`git.path`).
+    pub(crate) fn git_path(&self) -> String {
+        self.git_path
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    pub(crate) fn set_git(&self, enabled: bool, path: &str) {
+        self.git_enabled.store(enabled, Ordering::Relaxed);
+        *self
+            .git_path
+            .write()
+            .unwrap_or_else(PoisonError::into_inner) = path.to_owned();
+    }
 }
 
 #[cfg(test)]
@@ -201,13 +266,50 @@ mod tests {
         }
     }
 
+    #[derive(Deserialize)]
+    struct GitCase {
+        input: String,
+        path: Option<String>,
+    }
+
+    /// The cases the page's validator reads too (`tests/data/git-paths.json`): same answer on both sides.
+    #[test]
+    fn the_git_path_rules_are_the_pages_rules() {
+        let text = include_str!("../../../tests/data/git-paths.json");
+        let cases: Vec<GitCase> = serde_json::from_str(text).expect("the shared cases");
+        assert!(cases.len() > 15, "the shared cases are not empty");
+        for case in cases {
+            let got = clean_git_path(&case.input).ok();
+            assert_eq!(got, case.path, "{:?}", case.input);
+        }
+        assert!(clean_git_path(&"x".repeat(501)).is_err());
+        assert!(clean_git_path(&format!("/{}", "x".repeat(499))).is_ok());
+    }
+
     fn applied() -> Applied {
         Applied {
             paste_folder: "assets".into(),
             recent_files: 10,
             recent_folders: 5,
             excluded_folders: vec!["node_modules".into(), "Target".into(), "target".into()],
+            git_enabled: true,
+            git_path: String::new(),
             devtools: false,
+        }
+    }
+
+    #[test]
+    fn git_settings_are_checked_with_the_path_in_its_one_spelling() {
+        let mut sent = applied();
+        sent.git_enabled = false;
+        sent.git_path = "  /usr/bin/git ".into();
+        let checked = check(&sent).expect("fine");
+        assert!(!checked.git_enabled);
+        assert_eq!(checked.git_path, "/usr/bin/git");
+        for bad in ["git", "C:git.exe", "//host/share/git", "..\\git"] {
+            let mut wrong = applied();
+            wrong.git_path = bad.into();
+            assert!(check(&wrong).is_err(), "{bad}");
         }
     }
 
@@ -242,9 +344,14 @@ mod tests {
         let runtime = Runtime::default();
         assert_eq!(runtime.paste_folder(), "assets");
         assert!(!runtime.devtools());
+        assert!(runtime.git_enabled());
+        assert_eq!(runtime.git_path(), "");
         runtime.set_paste_folder("media/img");
         runtime.set_devtools(true);
+        runtime.set_git(false, "/usr/bin/git");
         assert_eq!(runtime.paste_folder(), "media/img");
         assert!(runtime.devtools());
+        assert!(!runtime.git_enabled());
+        assert_eq!(runtime.git_path(), "/usr/bin/git");
     }
 }
