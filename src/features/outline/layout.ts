@@ -35,6 +35,22 @@ export function levelsIn(headings: readonly OutlineHeading[]): number[] {
   return [...new Set(headings.map((heading) => heading.level))].sort((a, b) => a - b)
 }
 
+/**
+ * The levels drawn bold (P9.1-T24): the lowest level the document uses, always, also when it is the
+ * only one. When that level occurs once (a title, an H2 that stands alone), the next level used is
+ * bold too, so a lone title does not leave a bare run of lighter rows under it. One step and no
+ * chain: a level that occurs once under the next one does not carry the weight further down.
+ */
+export function boldLevels(headings: readonly OutlineHeading[]): ReadonlySet<number> {
+  const levels = levelsIn(headings)
+  const [lowest, next] = levels
+  if (lowest === undefined) return new Set()
+  const bold = new Set([lowest])
+  const lowestCount = headings.filter((heading) => heading.level === lowest).length
+  if (lowestCount === 1 && next !== undefined) bold.add(next)
+  return bold
+}
+
 /** The text color class of a heading's row; a selected row takes its color from the selection. */
 export function rowInk(level: number, levels: readonly number[], selected: boolean): string {
   if (selected) return ''
@@ -46,14 +62,16 @@ export function rowInk(level: number, levels: readonly number[], selected: boole
 export function rowStyle(
   level: number,
   levels: readonly number[],
+  bold: ReadonlySet<number>,
 ): { paddingLeft: string; fontSize: string; fontWeight?: string } {
   const rank = Math.max(0, levels.indexOf(level))
-  return {
+  const style: { paddingLeft: string; fontSize: string; fontWeight?: string } = {
     paddingLeft: `${String(BASE_INDENT + rank * RANK_STEP)}px`,
     fontSize: level <= 1 ? H1_SIZE : level === 2 ? H2_SIZE : H3_SIZE,
-    // The top rank is bold, but only where there is something under it to stand out from.
-    ...(rank === 0 && levels.length > 1 ? { fontWeight: '700' } : {}),
   }
+  // Which levels are bold is `boldLevels`' rule; sizes, indent and inks do not change with it.
+  if (bold.has(level)) style.fontWeight = '700'
+  return style
 }
 
 /**

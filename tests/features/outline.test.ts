@@ -701,31 +701,113 @@ describe('indent by rank (ISC-606)', () => {
   })
 })
 
-describe('sizes and bold (ISC-607)', () => {
+describe('sizes (ISC-607)', () => {
   it('gives H1, H2 and H3 three different sizes and H4 to H6 the H3 size', async () => {
     await showLayout('/work/h16.md')
     const all = sizes()
     expect(new Set(all.slice(0, 3)).size).toBe(3)
     expect(all.slice(3)).toEqual([all[2], all[2], all[2]])
   })
+})
 
-  it('makes the top rank bold only when more than one level is present', async () => {
-    await showLayout('/work/h2.md')
-    expect(weights().every((w) => w < 600)).toBe(true)
-    await openFile('/work/h23.md')
-    await flush()
-    expect(weights()[0]).toBeGreaterThanOrEqual(600)
-    expect(weights()[1]).toBeLessThan(600)
-    await openFile('/work/h123.md')
-    await flush()
-    expect(weights()[0]).toBeGreaterThanOrEqual(600)
-    expect(weights()[2]).toBeLessThan(600)
+describe('bold (ISC-639, ISC-640)', () => {
+  /** Which rows are bold, top to bottom, for a document's headings. */
+  async function boldRows(source: string): Promise<boolean[]> {
+    await start({ ...LAYOUT_FILES, '/work/bold.md': source })
+    await openFile('/work/bold.md')
+    await openOutline()
+    return weights().map((weight) => weight >= 600)
+  }
+
+  describe('the lowest level used is always bold (ISC-639)', () => {
+    it('bolds the top level when it is the only one, H2 here', async () => {
+      expect(await boldRows('## Only\n\n## Also\n')).toEqual([true, true])
+    })
+
+    it('bolds a lone heading', async () => {
+      expect(await boldRows('# Alone\n')).toEqual([true])
+    })
+
+    it('bolds H1 and H2 documents from H1 down', async () => {
+      expect((await boldRows('# a\n## b\n# c\n'))[0]).toBe(true)
+    })
+
+    it('bolds H3 when it is the only level', async () => {
+      expect(await boldRows('### a\n### b\n')).toEqual([true, true])
+    })
+
+    it('bolds H4 when it is the only level', async () => {
+      expect(await boldRows('#### a\n#### b\n')).toEqual([true, true])
+    })
+
+    it('does not bold the level under it when the lowest level occurs more than once', async () => {
+      expect(await boldRows('## a\n## b\n### c\n')).toEqual([true, true, false])
+    })
   })
 
-  it('bolds H2 when it is the top of H2 and H4', async () => {
-    await showLayout('/work/h24.md')
-    expect(weights()[0]).toBeGreaterThanOrEqual(600)
-    expect(weights()[1]).toBeLessThan(600)
+  describe('a lowest level that occurs once also bolds the next level (ISC-640)', () => {
+    it('one H1 with many H2 and H3 bolds H1 and H2 and not H3', async () => {
+      expect(await boldRows('# T\n## a\n## b\n### c\n### d\n')).toEqual([
+        true,
+        true,
+        true,
+        false,
+        false,
+      ])
+    })
+
+    it('one H2 and no H1, with H3 and H4, bolds H2 and H3 and not H4', async () => {
+      expect(await boldRows('## T\n### a\n#### b\n')).toEqual([true, true, false])
+    })
+
+    it('one H2 and many H3 bolds all of them', async () => {
+      expect(await boldRows('## T\n### a\n### b\n### c\n')).toEqual([true, true, true, true])
+    })
+
+    it('two H1 with H2 bolds H1 only', async () => {
+      expect(await boldRows('# a\n## x\n# b\n')).toEqual([true, false, true])
+    })
+
+    it('one H1 with one H2 and an H3 bolds H1 and H2 and does not chain on to H3', async () => {
+      expect(await boldRows('# a\n## b\n### c\n')).toEqual([true, true, false])
+    })
+
+    it('counts a level that is not next to the lowest: one H2 with H4 bolds H4 too', async () => {
+      expect(await boldRows('## a\n#### b\n#### c\n')).toEqual([true, true, true])
+    })
+  })
+
+  describe('boldLevels, the rule on its own', () => {
+    const heading = (level: number): { level: number; text: string; line: number } => ({
+      level,
+      text: 'x',
+      line: 1,
+    })
+    const bold = async (...levels: number[]): Promise<number[]> => {
+      const { boldLevels } = await import('@/features/outline/layout')
+      return [...boldLevels(levels.map(heading))].sort((a, b) => a - b)
+    }
+
+    it('has no bold level for no headings', async () => {
+      expect(await bold()).toEqual([])
+    })
+
+    it('bolds the one level of a document that has one', async () => {
+      expect(await bold(3)).toEqual([3])
+      expect(await bold(1, 1, 1)).toEqual([1])
+    })
+
+    it('takes one step and no more', async () => {
+      expect(await bold(1, 2, 3)).toEqual([1, 2])
+      expect(await bold(1, 2, 2, 3)).toEqual([1, 2])
+      expect(await bold(2, 3, 3, 4)).toEqual([2, 3])
+      expect(await bold(1, 1, 2, 3)).toEqual([1])
+    })
+
+    it('does not depend on the order of the headings', async () => {
+      expect(await bold(3, 2, 2, 1)).toEqual([1, 2])
+      expect(await bold(2, 1, 2)).toEqual([1, 2])
+    })
   })
 })
 

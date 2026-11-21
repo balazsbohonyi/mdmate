@@ -4,7 +4,7 @@ import { headingText } from '@/editor/headingSlug'
 import { FALLBACK_VIEWPORT_HEIGHT, visibleWindow } from '@/features/tree/model'
 import { MAX_OUTLINE_HEADINGS } from '@/platform'
 import '@/styles/outline.css'
-import { levelsIn, OUTLINE_ROW_HEIGHT as ROW_HEIGHT, rowInk, rowStyle } from './layout'
+import { boldLevels, levelsIn, OUTLINE_ROW_HEIGHT as ROW_HEIGHT, rowInk, rowStyle } from './layout'
 import {
   currentHeading,
   openHeading,
@@ -75,6 +75,7 @@ onMounted(() => {
 
 const total = computed(() => headings.value.length)
 const levels = computed(() => levelsIn(headings.value))
+const bold = computed(() => boldLevels(headings.value))
 const range = computed(() =>
   visibleWindow(scrollTop.value, viewportHeight.value, total.value, ROW_HEIGHT),
 )
@@ -240,7 +241,7 @@ const activeId = computed(() =>
           :style="{
             top: `${String(top)}px`,
             height: `${String(ROW_HEIGHT)}px`,
-            ...rowStyle(heading.level, levels),
+            ...rowStyle(heading.level, levels, bold),
           }"
           @click="onRowClick($event, index)"
           @dblclick="onRowDoubleClick(index)"
