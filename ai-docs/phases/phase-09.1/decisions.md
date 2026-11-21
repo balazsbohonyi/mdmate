@@ -45,3 +45,13 @@ Done as planned. A held Space acts once, like Enter and like the tree. Space wit
 - **Maximise before show.** `restore` maximises while the window is still hidden. Whether WebView2 keeps it hidden through that was not looked at; the owner watches the start for a blank frame.
 - **Known limit.** Dragging a window to the top edge to maximise it moves the window first, so the normal bounds saved are where the drag ended, not where it began. Windows keeps its own record of that, which would need Win32 `GetWindowPlacement`; not done.
 - **Open (not part of ISC-617/618).** The look in the real window: size, place, maximised, a second monitor, unplugged monitor. The owner checks it in `pnpm tauri dev`.
+
+## P9.1-T18: Restore the sidebar as it was left
+
+- **The marker already existed.** `expandedPlaces` is always written as an array, so "present" already means "saved", and an empty array means everything was collapsed. No new field was needed for the tree. `restoreWorkspace` opens all roots only when `places` is undefined, which is a first start, a missing or damaged session and a session from before places (those keep the bare `expanded` paths).
+- **Existing sessions.** A file written by an earlier build already lists the roots that were open, so the new rule reads it correctly. A root that was collapsed in such a file used to be reopened; now it stays collapsed.
+- **Gone folders.** `loadRestored` lists each restored folder, and one that cannot be listed (any error) is closed again with no toast. A root is never dropped: it keeps the reason under it, as before. A folder under two roots is two places, and the listing error removes every non-root place with that path.
+- **References becomes Folders.** The References tab exists only while a result is on screen, and the result is not saved. Restoring that panel would draw the folders with no tab pressed. So the snapshot writes `references` as the folders, and `restoreSidebar` reads it as the folders. This is narrower than the wording of ISC-621 ("References").
+- **Left out when default.** `sidebarVisible` is written only when false and `sidebarPanel` only for Search and Outline, like `sidebarWidth`, so existing snapshots and tests stay byte-identical.
+- **Journal.** It watches the sidebar's visibility and panel along with its width.
+- **Open (ISC-622).** The owner restarts `pnpm tauri dev` after collapsing roots, opening folders deep in others and hiding the sidebar.

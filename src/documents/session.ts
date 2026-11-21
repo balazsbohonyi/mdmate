@@ -2,7 +2,16 @@ import { watch } from 'vue'
 import type { Text } from '@codemirror/state'
 import { endingsOf } from '@/editor/lineEndings'
 import { expandedFolderPaths, expandedPlaces, restoreWorkspace } from '@/features/tree/store'
-import { currentWindowWidth, setSidebarWidth, sidebarWidth } from '@/workbench/sidebar'
+import {
+  currentWindowWidth,
+  isSidebarPanel,
+  restoreSidebar,
+  setSidebarWidth,
+  sidebarPanel,
+  sidebarVisible,
+  sidebarWidth,
+  type SidebarPanel,
+} from '@/workbench/sidebar'
 import {
   refreshWindowShape,
   resetWindowShape,
@@ -177,6 +186,12 @@ export function buildSnapshot(): string {
     expanded: expandedFolderPaths.value,
     expandedPlaces: expandedPlaces.value,
     ...(sidebarWidth.value === null ? {} : { sidebarWidth: sidebarWidth.value }),
+    // Left out while they are what a start gives: shown, with the folders (P9.1-T18). The
+    // References list is a result that is not kept, so it is written as the folders.
+    ...(sidebarVisible.value ? {} : { sidebarVisible: false }),
+    ...(sidebarPanel.value === 'folders' || sidebarPanel.value === 'references'
+      ? {}
+      : { sidebarPanel: sidebarPanel.value }),
   })
   // Where the window was, to open it there again (P9.1-T17). Left out until the host has said.
   const shape = windowShape.value === null ? '' : `,"window":${JSON.stringify(windowShape.value)}`
@@ -306,7 +321,7 @@ export async function startJournal(options: JournalOptions = {}): Promise<void> 
   onDocumentsTouched(touch)
   stopLayoutWatch = watch(workbenchLayout, touch)
   stopTreeWatch = watch(expandedPlaces, touch)
-  stopSidebarWatch = watch(sidebarWidth, touch)
+  stopSidebarWatch = watch([sidebarWidth, sidebarVisible, sidebarPanel], touch)
   stopRecordsWatch = watch(tabRecordsVersion, touch)
   stopShapeWatch = watch(windowShape, touch)
   try {
@@ -397,6 +412,10 @@ interface Snapshot {
   readonly places: readonly { readonly root: string; readonly path: string }[] | null
   /** How wide the sidebar was dragged, in px, or null for the default. */
   readonly sidebarWidth: number | null
+  /** False when the sidebar was hidden. A session from before has no value, and it is shown. */
+  readonly sidebarVisible: boolean
+  /** The panel the sidebar showed. A session from before has none, and it shows the folders. */
+  readonly sidebarPanel: SidebarPanel
   /** Where the window was, or null for a session from before it was kept. */
   readonly window: WindowGeometry | null
 }
@@ -485,6 +504,8 @@ function readSnapshot(text: string): Snapshot | null {
     expanded,
     places,
     sidebarWidth: readNumber(workspace.sidebarWidth),
+    sidebarVisible: workspace.sidebarVisible !== false,
+    sidebarPanel: isSidebarPanel(workspace.sidebarPanel) ? workspace.sidebarPanel : 'folders',
     window: parseWindowGeometry(value.window),
   }
 }
@@ -531,6 +552,7 @@ export async function restoreSession(): Promise<RestoreReport | null> {
     })
   }
   setSidebarWidth(snapshot?.sidebarWidth ?? null, currentWindowWidth())
+  restoreSidebar(snapshot?.sidebarVisible ?? true, snapshot?.sidebarPanel ?? 'folders')
   await restoreWorkspace(snapshot?.expanded ?? [], snapshot?.places ?? undefined).catch(
     (error: unknown) => {
       reportError(

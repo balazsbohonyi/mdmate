@@ -586,9 +586,31 @@ watch(
 )
 
 /**
+ * Lists a folder the session had open. One that cannot be read now (it is gone) is closed again
+ * without a word; a root stays, with the reason under it, as it always has.
+ */
+async function loadRestored(path: string): Promise<void> {
+  await loadFolder(path)
+  const key = keyOf(path)
+  const listing = listings.get(key)
+  if (listing === undefined || listing.error === null) return
+  const next = new Map(expanded.value)
+  for (const [at, place] of next) {
+    if (keyOf(place.path) === key && keyOf(place.root) !== key) next.delete(at)
+  }
+  if (next.size === expanded.value.size) return
+  expanded.value = next
+  listings.delete(key)
+}
+
+/**
  * Brings the workspace back at startup. Rust says which folders are roots (it kept the list
  * itself and granted them again); the session only says which folders were open, and a folder
  * outside every root is ignored. Listings run in the background so the window does not wait.
+ *
+ * `places` is the saved state when it is there: exactly those places are open, so a root the
+ * owner collapsed stays collapsed, and an empty list means everything was collapsed. Without it
+ * (a first start, or a session from before places) every root opens one level, as it always did.
  */
 export async function restoreWorkspace(
   open: readonly string[],
@@ -602,7 +624,7 @@ export async function restoreWorkspace(
   const add = (root: string, path: string): void => {
     next.set(placeKey(keyOf, root, path), { root, path })
   }
-  for (const root of found) add(root, root)
+  if (places === undefined) for (const root of found) add(root, root)
   if (places !== undefined) {
     for (const place of places) {
       const root = found.find((candidate) => keyOf(candidate) === keyOf(place.root))
@@ -616,7 +638,7 @@ export async function restoreWorkspace(
     }
   }
   expanded.value = next
-  for (const path of new Set([...next.values()].map((place) => place.path))) void loadFolder(path)
+  for (const path of new Set([...next.values()].map((place) => place.path))) void loadRestored(path)
   await subscribe().catch((error: unknown) => {
     reportError(`Could not watch the folders for changes: ${describe(error)}`)
   })

@@ -29,7 +29,11 @@ import {
   currentWindowWidth,
   resetSidebar,
   setSidebarWidth,
+  showSidebar,
+  sidebarPanel,
+  sidebarVisible,
   sidebarWidth,
+  toggleSidebar,
 } from '@/workbench/sidebar'
 import { allTabs, panesOf, pinnedCount } from '@/workbench/splitTree'
 import {
@@ -813,6 +817,53 @@ describe('untitled tabs (P6-T8)', () => {
     await restoreSession()
     const [tab] = allTabs(workbenchLayout.value)
     expect(textOf(tab!)).toBe('typed just now')
+  })
+})
+
+describe('the sidebar panel and visibility (P9.1-T18)', () => {
+  it('writes a hidden sidebar and a panel other than the folders, and reads them back', async () => {
+    await openPath(A)
+    showSidebar('outline')
+    toggleSidebar()
+    await flushSession()
+    expect(JSON.parse(host.session ?? '{}')).toMatchObject({
+      workspace: { sidebarVisible: false, sidebarPanel: 'outline' },
+    })
+    newRun(host)
+    resetSidebar()
+    await restoreSession()
+    expect(sidebarVisible.value).toBe(false)
+    expect(sidebarPanel.value).toBe('outline')
+  })
+
+  it('writes nothing for a shown sidebar with the folders, and an old session shows both', async () => {
+    await openPath(A)
+    await flushSession()
+    const written = JSON.parse(host.session ?? '{}') as { workspace: object }
+    expect(written.workspace).not.toHaveProperty('sidebarVisible')
+    expect(written.workspace).not.toHaveProperty('sidebarPanel')
+    showSidebar('search')
+    toggleSidebar()
+    newRun(host)
+    await restoreSession()
+    expect(sidebarVisible.value).toBe(true)
+    expect(sidebarPanel.value).toBe('folders')
+  })
+
+  it('is written when it changes, with nothing else changing', async () => {
+    vi.useFakeTimers()
+    await startJournal({ intervalMs: 1000 })
+    await vi.advanceTimersByTimeAsync(1100)
+    const before = journalStats.writes
+    showSidebar('search')
+    await vi.advanceTimersByTimeAsync(1100)
+    expect(journalStats.writes).toBe(before + 1)
+    toggleSidebar()
+    await vi.advanceTimersByTimeAsync(1100)
+    expect(journalStats.writes).toBe(before + 2)
+    expect(JSON.parse(host.session ?? '{}')).toMatchObject({
+      workspace: { sidebarVisible: false, sidebarPanel: 'search' },
+    })
   })
 })
 

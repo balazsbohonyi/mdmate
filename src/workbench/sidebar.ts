@@ -7,6 +7,11 @@ export type SidebarPanel = 'folders' | 'search' | 'outline' | 'references'
 
 const shown = ref<SidebarPanel>('folders')
 
+/** Whether a value read from a file is one of the panels. */
+export function isSidebarPanel(value: unknown): value is SidebarPanel {
+  return value === 'folders' || value === 'search' || value === 'outline' || value === 'references'
+}
+
 /** Whether the sidebar is on screen. A module-level store, shared by the shell and the commands. */
 export const sidebarVisible = computed(() => visible.value)
 
@@ -57,6 +62,15 @@ export function toggleSidebar(): void {
 export function showSidebar(panel?: SidebarPanel): void {
   visible.value = true
   if (panel !== undefined) shown.value = panel
+}
+
+/**
+ * Puts the sidebar as the last run left it (P9.1-T18). The References list is a result that is not
+ * kept, so a session never names it and it would have nothing to show; it comes back as Folders.
+ */
+export function restoreSidebar(isVisible: boolean, panel: SidebarPanel): void {
+  visible.value = isVisible
+  shown.value = panel === 'references' ? 'folders' : panel
 }
 
 /** Puts the sidebar back as it starts: on screen, showing the folders. For tests. */
