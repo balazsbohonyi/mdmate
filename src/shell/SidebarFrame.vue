@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { X } from '@lucide/vue'
-import { defineAsyncComponent, ref } from 'vue'
+import { defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import RewriteBanner from '@/features/links/RewriteBanner.vue'
 import ReferencesPanel from '@/features/references/ReferencesPanel.vue'
 import { closeReferences, referencesState } from '@/features/references/store'
@@ -9,10 +9,11 @@ import FileTree from '@/features/tree/FileTree.vue'
 import { workspaceRoots } from '@/features/tree/store'
 import {
   SIDEBAR_DEFAULT,
-  SIDEBAR_MIN,
+  setSidebarMinimum,
   setSidebarWidth,
   showSidebar,
   sidebarMax,
+  sidebarMinimum,
   sidebarPanel,
   sidebarWidth,
 } from '@/workbench/sidebar'
@@ -24,7 +25,9 @@ const SearchPanel = defineAsyncComponent(() => import('@/features/search/SearchP
 const OutlinePanel = defineAsyncComponent(() => import('@/features/outline/OutlinePanel.vue'))
 
 const frame = ref<HTMLElement | null>(null)
-const windowWidth = window.innerWidth
+const strip = ref<HTMLElement | null>(null)
+// The window's width for the handle's maximum; it follows the window as it is resized.
+const windowWidth = ref(window.innerWidth)
 const STEP = 16
 /** The drag in progress: where the pointer and the edge were when it began. */
 let drag: { readonly x: number; readonly width: number } | null = null
@@ -55,6 +58,58 @@ function resetWidth(): void {
   setSidebarWidth(null, window.innerWidth)
 }
 
+/**
+ * The width the tab strip needs: its padding, the tabs at their own width, the gaps between them
+ * and the frame's border. The strip has no overflow handling, so what its items measure is its
+ * natural width; read from the items, not from `scrollWidth`, which is no more than the strip when
+ * there is room to spare. The References tab and its close button are items while they are shown.
+ */
+function measure(): void {
+  const row = strip.value
+  const outer = frame.value
+  if (row === null || outer === null) return
+  const own = getComputedStyle(row)
+  const edge = getComputedStyle(outer)
+  const items = [...row.children]
+  const widths = items.reduce((sum, item) => sum + item.getBoundingClientRect().width, 0)
+  const gaps = (Number.parseFloat(own.columnGap) || 0) * Math.max(0, items.length - 1)
+  const padding =
+    (Number.parseFloat(own.paddingLeft) || 0) + (Number.parseFloat(own.paddingRight) || 0)
+  const borders =
+    (Number.parseFloat(edge.borderLeftWidth) || 0) + (Number.parseFloat(edge.borderRightWidth) || 0)
+  setSidebarMinimum(padding + widths + gaps + borders)
+  for (const item of items) observer?.observe(item)
+}
+
+// A tab's width changes with the font and the zoom: the observer sees that, and a resized window
+// is read again (it is also when the browser zoom changes).
+let observer: ResizeObserver | undefined
+
+function onResize(): void {
+  windowWidth.value = window.innerWidth
+  measure()
+}
+
+onMounted(() => {
+  if (typeof ResizeObserver !== 'undefined') observer = new ResizeObserver(measure)
+  window.addEventListener('resize', onResize)
+  measure()
+  // A web font that arrives after the first paint changes the widths.
+  void document.fonts?.ready.then(measure)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', onResize)
+  observer?.disconnect()
+  observer = undefined
+  setSidebarMinimum(null)
+})
+
+// The References tab and its close button join the strip, or leave it.
+watch(referencesState, () => {
+  void nextTick(measure)
+})
+
 function onKeydown(event: KeyboardEvent): void {
   const move = event.key === 'ArrowLeft' ? -STEP : event.key === 'ArrowRight' ? STEP : 0
   if (move === 0) return
@@ -67,10 +122,14 @@ function onKeydown(event: KeyboardEvent): void {
   <aside
     ref="frame"
     aria-label="Sidebar"
-    class="relative flex w-sidebar max-w-[50vw] min-w-48 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
-    :style="sidebarWidth === null ? undefined : { width: `${String(sidebarWidth)}px` }"
+    class="relative flex w-sidebar max-w-[50vw] shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
+    :style="{
+      minWidth: `${String(sidebarMinimum)}px`,
+      ...(sidebarWidth === null ? {} : { width: `${String(sidebarWidth)}px` }),
+    }"
   >
     <div
+      ref="strip"
       class="flex h-tabstrip shrink-0 items-center gap-3 border-b border-sidebar-border px-3 pt-2.5 text-xs font-medium tracking-wide text-muted-foreground uppercase select-none"
     >
       <button
@@ -160,9 +219,9 @@ function onKeydown(event: KeyboardEvent): void {
       role="separator"
       aria-orientation="vertical"
       aria-label="Resize sidebar"
-      :aria-valuemin="SIDEBAR_MIN"
+      :aria-valuemin="sidebarMinimum"
       :aria-valuemax="sidebarMax(windowWidth)"
-      :aria-valuenow="sidebarWidth ?? SIDEBAR_DEFAULT"
+      :aria-valuenow="Math.max(sidebarMinimum, sidebarWidth ?? SIDEBAR_DEFAULT)"
       tabindex="0"
       data-sidebar-handle
       class="absolute inset-y-0 -right-0.5 z-10 w-1 cursor-col-resize touch-none bg-handle outline-none hover:bg-handle-active focus-visible:bg-handle-active active:bg-handle-active"

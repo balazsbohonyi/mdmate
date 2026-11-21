@@ -14,8 +14,10 @@ import {
   SIDEBAR_DEFAULT,
   SIDEBAR_MIN,
   resetSidebar,
+  setSidebarMinimum,
   setSidebarWidth,
   sidebarMax,
+  sidebarMinimum,
   sidebarWidth,
   toggleSidebar,
 } from '@/workbench/sidebar'
@@ -199,5 +201,82 @@ describe('the handles between panes (ISC-241)', () => {
     const source = readFileSync(join(process.cwd(), 'src/workbench/SplitNodeView.vue'), 'utf8')
     expect(source).toContain('if (isDragging) document.getElementById(handleId)?.focus()')
     expect(source).toContain('onDragging(isDragging, `${node.id}-handle-${index}`)')
+  })
+})
+
+describe('the measured minimum (ISC-636, ISC-637)', () => {
+  beforeEach(() => {
+    resetSidebar()
+  })
+  afterEach(() => {
+    resetSidebar()
+  })
+
+  it('is the 12rem fallback while nothing measures the tab strip', () => {
+    expect(sidebarMinimum.value).toBe(SIDEBAR_MIN)
+    setSidebarWidth(100, WINDOW)
+    expect(sidebarWidth.value).toBe(SIDEBAR_MIN)
+  })
+
+  it('holds the width at the measured width of the tabs, above the fallback', () => {
+    setSidebarMinimum(211.2)
+    // Rounded up, so the last pixel of the strip is never cut.
+    expect(sidebarMinimum.value).toBe(212)
+    setSidebarWidth(100, WINDOW)
+    expect(sidebarWidth.value).toBe(212)
+    setSidebarWidth(300, WINDOW)
+    expect(sidebarWidth.value).toBe(300)
+  })
+
+  it('raises a saved width below it, which is how a session restore reaches it', () => {
+    setSidebarMinimum(212)
+    setSidebarWidth(150, WINDOW)
+    expect(sidebarWidth.value).toBe(212)
+  })
+
+  it('raises a width already set when the minimum grows past it, and leaves a wider one alone', () => {
+    setSidebarWidth(250, WINDOW)
+    setSidebarMinimum(212)
+    expect(sidebarWidth.value).toBe(250)
+    setSidebarMinimum(337)
+    expect(sidebarWidth.value).toBe(337)
+    setSidebarWidth(500, WINDOW)
+    setSidebarMinimum(337)
+    expect(sidebarWidth.value).toBe(500)
+  })
+
+  it('leaves the default width alone when the minimum grows, since the page holds it up', () => {
+    setSidebarMinimum(337)
+    expect(sidebarWidth.value).toBeNull()
+  })
+
+  it('lifts a saved width to a minimum that is measured after the restore', () => {
+    setSidebarWidth(150, WINDOW)
+    expect(sidebarWidth.value).toBe(SIDEBAR_MIN)
+    setSidebarMinimum(212)
+    expect(sidebarWidth.value).toBe(212)
+  })
+
+  it('falls back to the 12rem width when the strip is gone or reads nothing', () => {
+    setSidebarMinimum(337)
+    setSidebarMinimum(null)
+    expect(sidebarMinimum.value).toBe(SIDEBAR_MIN)
+    for (const bad of [0, -5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      setSidebarMinimum(bad)
+      expect(sidebarMinimum.value).toBe(SIDEBAR_MIN)
+    }
+  })
+
+  it('is also the limit of a narrow window, which half the window cannot go under', () => {
+    setSidebarMinimum(337)
+    expect(sidebarMax(400)).toBe(337)
+    setSidebarWidth(5000, 400)
+    expect(sidebarWidth.value).toBe(337)
+  })
+
+  it('is forgotten with the rest of the sidebar for the next test', () => {
+    setSidebarMinimum(337)
+    resetSidebar()
+    expect(sidebarMinimum.value).toBe(SIDEBAR_MIN)
   })
 })
