@@ -180,6 +180,25 @@ describe.each([...parsed])('%s theme colors', (name, theme) => {
     expect(contrast(separator, strip)).toBeGreaterThan(1.2)
   })
 
+  it('give the line numbers a strip and a color of their own, quiet and readable (ISC-630, ISC-631)', () => {
+    expect(theme.has('--gutter')).toBe(true)
+    expect(theme.has('--gutter-foreground')).toBe(true)
+    // The utilities of both are mapped to them.
+    expect(colorMapping().get('--color-gutter')).toBe('--gutter')
+    expect(colorMapping().get('--color-gutter-foreground')).toBe('--gutter-foreground')
+    const numbers = parseColor(resolveToken(theme, '--gutter-foreground'))
+    const strip = parseColor(resolveToken(theme, '--gutter'))
+    const page = parseColor(resolveToken(theme, '--background'))
+    const text = parseColor(resolveToken(theme, '--foreground'))
+    expect(contrast(numbers, strip)).toBeGreaterThanOrEqual(4.5)
+    // Muted: not the color of the body text, and well under its contrast.
+    expect(resolveToken(theme, '--gutter-foreground')).not.toBe(resolveToken(theme, '--foreground'))
+    expect(contrast(numbers, strip)).toBeLessThan(contrast(text, page))
+    // A subtle strip: it shows against the page, and is no heavy block.
+    expect(contrast(strip, page)).toBeGreaterThan(1.03)
+    expect(contrast(strip, page)).toBeLessThan(1.3)
+  })
+
   it('give a tooltip its own surface: lighter than the page in a dark theme, the popover color in a light one', () => {
     if (schemeOf(name) === 'light') {
       expect(resolveToken(theme, '--tooltip')).toBe(resolveToken(theme, '--popover'))

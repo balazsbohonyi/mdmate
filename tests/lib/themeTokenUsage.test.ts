@@ -10,6 +10,11 @@ describe('where each theme token is used (ISC-540)', () => {
     expect(missing).toEqual([])
   })
 
+  it('says what the two line-number tokens colour (ISC-630)', () => {
+    expect(usageOf('gutter')).toContain('line numbers')
+    expect(usageOf('gutter-foreground')).toContain('line numbers')
+  })
+
   it('has no sentence for a token that does not exist', () => {
     const stray = Object.keys(THEME_TOKEN_USAGE).filter((name) => !THEME_TOKEN_NAMES.has(name))
     expect(stray).toEqual([])

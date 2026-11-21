@@ -17,6 +17,7 @@ import {
 } from '@/editor/documentFonts'
 import { applySettingsText, resetSettingsState } from '@/features/settings/store'
 import { DEFAULT_SETTINGS, resetSettings } from '@/lib/settings'
+import { injectedRules, valuesOf } from '../helpers/editorRules'
 
 const root = (): CSSStyleDeclaration => document.documentElement.style
 
@@ -34,34 +35,8 @@ function open(doc = '# Title\n\ntext'): EditorView {
   return view
 }
 
-interface Rule {
-  readonly selectors: readonly string[]
-  readonly body: string
-}
-
-/** Every rule CodeMirror injected into the page, with its selectors split and its scope class cut. */
-function rules(): Rule[] {
-  const css = [...document.querySelectorAll('style')].map((style) => style.textContent).join('\n')
-  const found: Rule[] = []
-  for (const match of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-    const selectors = (match[1] ?? '').split(',').map((selector) =>
-      selector
-        .trim()
-        .replace(/^\.ͼ\d+/, '')
-        .trim(),
-    )
-    found.push({ selectors, body: match[2] ?? '' })
-  }
-  return found
-}
-
-/** The `line-height` value of the rules whose selector list holds exactly this selector. */
-function lineHeightOf(selector: string): string[] {
-  return rules()
-    .filter((rule) => rule.selectors.includes(selector))
-    .flatMap((rule) => [...rule.body.matchAll(/(?:^|;)\s*line-height:\s*([^;]+)/g)])
-    .map((match) => (match[1] ?? '').trim())
-}
+const rules = injectedRules
+const lineHeightOf = (selector: string): string[] => valuesOf(selector, 'line-height')
 
 beforeEach(() => {
   resetSettings()

@@ -78,3 +78,13 @@ Done as planned. A held Space acts once, like Enter and like the tree. Space wit
 - **Widget height estimates stay fixed.** `ROW_HEIGHT` (33), `TABLE_PADDING`, `PILL_HEIGHT` and the image estimates in `blocks/widgets.ts` do not read the font size, the font or now the line height; they are the rough first guess the code already calls one, and CodeMirror measures the real height after the first draw. `refreshDocumentFonts` makes every view measure again on a change, so a live line-height change is corrected there. Scaling only the line-height part would make the estimate follow one input of three. The scroll jump on a long file after a live change was not checked.
 - **Probe first.** None of the planned probe files held a line-height test before this task, so the tests were written first: 29 fail on the old sources (12 in `lineHeight.test.ts`, 4 in `settingsFile.test.ts`, 13 in `settingsView.test.ts`). Five more guard what must not change and pass on both (lists, quotes and tables carry no line height of their own; the code box does not read the body property; inline code has no line height; the label stays at 1.4; the heading sizes row is as it was).
 - **Open (ISC-629).** The owner looks at the line heights in the real window in the three themes.
+
+## P9.1-T21: Line-number look
+
+- **Probe first.** The planned probes did not exist (the tokens were not there), so the tests were written first; 10 of them fail on the old sources. Three more guard what already held.
+- **Colours.** Dark, Light and Sepia have a strip a little darker than the page (contrast against the page 1.05 to 1.12, held between 1.03 and 1.3 by a test) and numbers that read at 4.5:1 or more on it without being the body text. Sepia's numbers are the muted brown the theme already has.
+- **0.8 times the code size.** The plan said "0.8 times the code size (`--doc-code-ratio`)". The ratio is code size over text size, so the size is `ratio * text size * 0.8` (11.2 px at 14 over 15). The old `0.85 * text size` was 12.75 px. A test pins that `create.ts` has one use of the ratio and that it is this one.
+- **Strip only.** The background is on `.cm-gutters`, which holds the numbers, and nothing wider; with the centred column it sits against the column's left edge as before (T16).
+- **Active number.** It keeps `--foreground` on a transparent background, so the strip shows through.
+- **Open (ISC-633).** The owner's look in the real window.
+- **Probe files.** The Test Strategy rows of ISC-630 and ISC-631 named `themeColors.test.ts` and `colorPairs.test.ts`, which hold none of the new checks (colorPairs scans class pairs in sources). The rows now name `tests/lib/themes.test.ts` and `tests/styles/themes.test.ts`, where the tests are. The claims are as they were.

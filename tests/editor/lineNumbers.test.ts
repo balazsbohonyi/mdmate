@@ -13,6 +13,7 @@ import type { EditorView } from '@codemirror/view'
 import { refreshLineNumbers } from '@/editor/lineNumbers'
 import { applySettingsText, resetSettingsState } from '@/features/settings/store'
 import { DEFAULT_SETTINGS, resetSettings, settings } from '@/lib/settings'
+import { valuesOf } from '../helpers/editorRules'
 
 const parents: HTMLElement[] = []
 const views: EditorView[] = []
@@ -214,5 +215,47 @@ describe('wrapped lines, blocks and the active line (ISC-615)', () => {
     expect(active()).toEqual(['2'])
     view.dispatch({ selection: { anchor: view.state.doc.line(3).from } })
     expect(active()).toEqual(['3'])
+  })
+})
+
+describe('the look of the gutter (ISC-632)', () => {
+  const GUTTERS = '.cm-lineNumbersOn .cm-gutters'
+
+  it('paints the strip with its own background token, not the page color', () => {
+    markdown('a\nb')
+    expect(valuesOf(GUTTERS, 'background-color')).toEqual(['var(--gutter)'])
+  })
+
+  it('colors the numbers with their own token, which is not the body text or the muted text', () => {
+    markdown('a\nb')
+    expect(valuesOf(GUTTERS, 'color')).toEqual(['var(--gutter-foreground)'])
+  })
+
+  it('draws the numbers in the code font family', () => {
+    markdown('a\nb')
+    expect(valuesOf(GUTTERS, 'font-family')).toEqual(['var(--doc-font-code, var(--font-mono))'])
+  })
+
+  it('draws the numbers at 0.8 times the code size, which is the code ratio times the text size', () => {
+    markdown('a\nb')
+    expect(valuesOf(GUTTERS, 'font-size')).toEqual([
+      'calc(var(--doc-code-ratio, calc(14 / 15)) * var(--doc-size, 15px) * 0.8)',
+    ])
+  })
+
+  it('has the fallback of the size equal to 0.8 of the default code size', () => {
+    // 14 / 15 of a 15 px text is the 14 px default code size; 0.8 of it is 11.2 px.
+    expect(DEFAULT_SETTINGS.fonts.codeSize / DEFAULT_SETTINGS.fonts.size).toBeCloseTo(14 / 15, 10)
+    expect(DEFAULT_SETTINGS.fonts.codeSize * 0.8).toBeCloseTo(11.2, 10)
+  })
+
+  it('keeps the number of the line with the caret in the foreground color on no extra strip', () => {
+    markdown('a\nb')
+    expect(valuesOf('.cm-lineNumbersOn .cm-activeLineGutter', 'color')).toEqual([
+      'var(--foreground)',
+    ])
+    expect(valuesOf('.cm-lineNumbersOn .cm-activeLineGutter', 'background-color')).toEqual([
+      'transparent',
+    ])
   })
 })

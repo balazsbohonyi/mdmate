@@ -175,7 +175,12 @@ describe('ISC-563: inline code is at the size of the text around it', () => {
     ].filter((file) =>
       readFileSync(join('src/editor', file), 'utf8').includes(FONT_VARIABLES.codeRatio),
     )
-    expect(users).toEqual(['livePreview/box.ts'])
+    // The code block, and the line-number gutter, which sizes its numbers from the code size (T21).
+    expect(users).toEqual(['create.ts', 'livePreview/box.ts'])
+    const create = readFileSync(join('src/editor', 'create.ts'), 'utf8')
+    const uses = create.split('\n').filter((line) => line.includes(FONT_VARIABLES.codeRatio))
+    expect(uses).toHaveLength(1)
+    expect(uses[0]).toContain('* 0.8')
   })
 })
 

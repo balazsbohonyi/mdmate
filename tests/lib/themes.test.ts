@@ -9,6 +9,7 @@ import {
   slotKey,
   type UserThemeSlot,
 } from '@/lib/themes'
+import { THEME_TOKENS } from '@/lib/themeTokens'
 
 const NOTHING: ReadonlyMap<string, UserThemeSlot> = new Map()
 const LOADED = { systemDark: false, loaded: true }
@@ -106,6 +107,34 @@ describe('the themes a person can choose', () => {
     const after = resolveTheme('gone', NOTHING, LOADED)
     expect(after.palette).toBe('dark')
     expect(after.notice).toContain('gone')
+  })
+})
+
+describe('the line-number colors (ISC-630)', () => {
+  it('are in the editor group of the color editor', () => {
+    const names = THEME_TOKENS.filter((token) => token.group === 'editor').map(
+      (token) => token.name,
+    )
+    expect(names).toEqual(expect.arrayContaining(['gutter', 'gutter-foreground']))
+  })
+
+  it('come from the base theme for a custom theme that leaves them out', () => {
+    for (const base of ['dark', 'light', 'sepia'] as const) {
+      const slots = userSlot('Mine', base, { background: '#101418' })
+      const shown = resolveTheme('Mine', slots, LOADED)
+      const colors = effectiveTokens(shown)
+      expect(colors.get('gutter'), base).toBe(
+        effectiveTokens({ palette: base, overrides: new Map() }).get('gutter'),
+      )
+      expect(colors.get('gutter-foreground'), base).toBeDefined()
+      expect(colors.get('gutter')).not.toBe('#101418')
+    }
+  })
+
+  it('take a color from a custom theme that sets them', () => {
+    const slots = userSlot('Mine', 'dark', { gutter: '#202020', 'gutter-foreground': '#aaaaaa' })
+    const colors = effectiveTokens(resolveTheme('Mine', slots, LOADED))
+    expect([colors.get('gutter'), colors.get('gutter-foreground')]).toEqual(['#202020', '#aaaaaa'])
   })
 })
 

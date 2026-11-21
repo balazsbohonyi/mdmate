@@ -72,11 +72,12 @@ const frame = EditorView.theme({
   '&.cm-lineNumbersOn .cm-content.cm-lineWrapping': { marginInlineStart: '0' },
   '&.cm-lineNumbersOn .cm-gutters': {
     marginInlineStart: 'auto',
-    backgroundColor: 'var(--background)',
-    color: 'var(--muted-foreground)',
+    backgroundColor: 'var(--gutter)',
+    color: 'var(--gutter-foreground)',
     border: 'none',
     fontFamily: 'var(--doc-font-code, var(--font-mono))',
-    fontSize: 'calc(var(--doc-size, 15px) * 0.85)',
+    // 0.8 times the code size (`fonts.codeSize` as a ratio of the text size, times the text size).
+    fontSize: 'calc(var(--doc-code-ratio, calc(14 / 15)) * var(--doc-size, 15px) * 0.8)',
     // The height of one line of body text, as a length: a number sits on the middle of the line it
     // names at any line height, however small the number's own size is.
     lineHeight: 'calc(var(--doc-line-height, 1.4) * var(--doc-size, 15px))',

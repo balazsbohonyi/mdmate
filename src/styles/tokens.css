@@ -116,6 +116,8 @@
 
   --color-selection: var(--selection);
   --color-caret: var(--caret);
+  --color-gutter: var(--gutter);
+  --color-gutter-foreground: var(--gutter-foreground);
   --color-syntax-heading: var(--syntax-heading);
   --color-syntax-link: var(--syntax-link);
   --color-syntax-code: var(--syntax-code);
