@@ -139,7 +139,7 @@ Phase 9.1 collects the small fixes and rough edges found in daily use, between t
 - [x] P9.1-T14: Outline layout: taller rows, indent by rank, sizes, bold top level, muted deeper levels, current section marked — closes ISC-606 to ISC-610
 - [x] P9.1-T15: No `Failed to unregister class Chrome_WidgetWin_0` error when the window closes — closes ISC-611
 - [x] P9.1-T16: Line numbers (setting, off by default), frontmatter counted, collapsed pill unnumbered — closes ISC-612 to ISC-616
-- [ ] P9.1-T17: Remember window size, position and maximised state — closes ISC-617, ISC-618
+- [x] P9.1-T17: Remember window size, position and maximised state — closes ISC-617, ISC-618
 - [ ] P9.1-T18: Restore the sidebar as it was left: expanded folders, collapsed roots, visibility and active panel — closes ISC-619 to ISC-622
 - [ ] P9.1-T19: List markers `-`, `*` and `+` are drawn as an en dash — closes ISC-623, ISC-624
 

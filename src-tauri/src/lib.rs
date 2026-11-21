@@ -15,6 +15,7 @@ mod save_as;
 mod search;
 mod session;
 mod settings;
+mod window_state;
 mod workspace;
 
 use documents::AppState;
@@ -55,6 +56,7 @@ pub fn run() {
             app.manage(Arc::new(settings::KeybindingsStore::new(dir.clone())));
             app.manage(Arc::new(settings::themes::ThemeStore::new(dir.clone())));
             app.manage(Arc::new(session::SessionStore::new(dir)));
+            app.manage(Arc::new(window_state::WindowMemory::default()));
             // Reload, view source and the zoom keys belong to a browser, not to this app.
             if let Some(window) = app.get_webview_window("main") {
                 platform::current().disable_browser_keys(&window);
@@ -70,6 +72,16 @@ pub fn run() {
                 && let Some(state) = window.app_handle().try_state::<Arc<AppState>>()
             {
                 state.drops().record(paths);
+            }
+            // The normal bounds of the window, for the session (window_state.rs).
+            if matches!(
+                event,
+                tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_)
+            ) && let Some(memory) = window
+                .app_handle()
+                .try_state::<Arc<window_state::WindowMemory>>()
+            {
+                window_state::current(window, &memory);
             }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event
                 && let Some(hook) = window.app_handle().try_state::<Arc<session::CloseHook>>()
@@ -111,6 +123,8 @@ pub fn run() {
         commands::session_recover,
         commands::watch_close,
         commands::quit_app,
+        commands::window_geometry,
+        commands::window_restore,
         commands::describe_link,
         commands::follow_link,
         commands::check_links,
@@ -203,6 +217,8 @@ pub fn run() {
         commands::session_recover,
         commands::watch_close,
         commands::quit_app,
+        commands::window_geometry,
+        commands::window_restore,
         commands::describe_link,
         commands::follow_link,
         commands::check_links,

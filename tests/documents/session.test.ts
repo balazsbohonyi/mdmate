@@ -1229,3 +1229,145 @@ describe('pinned tabs (ISC-573)', () => {
 function panesOfLayout(): number {
   return panesOf(workbenchLayout.value).length
 }
+
+describe('the window geometry (P9.1-T17)', () => {
+  const NORMAL = { x: 120, y: 80, width: 1100, height: 720, maximized: false }
+  const BIG = { x: -8, y: -8, width: 1280, height: 800, maximized: true }
+
+  const saved = (): { window?: unknown } => JSON.parse(host.session ?? '{}') as { window?: unknown }
+
+  it('is written with the session: size, position and the maximised flag', async () => {
+    host.windowState.geometry = NORMAL
+    vi.useFakeTimers()
+    await startJournal({ intervalMs: 1000 })
+    await vi.advanceTimersByTimeAsync(1100)
+    expect(saved().window).toEqual(NORMAL)
+  })
+
+  it('writes a moved, a resized and a maximised window as each change comes', async () => {
+    host.windowState.geometry = NORMAL
+    vi.useFakeTimers()
+    await startJournal({ intervalMs: 1000 })
+    await vi.advanceTimersByTimeAsync(1100)
+    host.simulateWindowChange({ ...NORMAL, x: 300, y: 40 })
+    await vi.advanceTimersByTimeAsync(1100)
+    expect(saved().window).toEqual({ ...NORMAL, x: 300, y: 40 })
+    host.simulateWindowChange({ ...NORMAL, x: 300, y: 40, width: 900, height: 600 })
+    await vi.advanceTimersByTimeAsync(1100)
+    expect(saved().window).toEqual({ ...NORMAL, x: 300, y: 40, width: 900, height: 600 })
+    host.simulateWindowChange(BIG)
+    await vi.advanceTimersByTimeAsync(1100)
+    expect(saved().window).toEqual(BIG)
+  })
+
+  it('waits out a drag: many moves in a row are one write', async () => {
+    host.windowState.geometry = NORMAL
+    vi.useFakeTimers()
+    await startJournal({ intervalMs: 1000 })
+    await vi.advanceTimersByTimeAsync(1100)
+    const before = journalStats.writes
+    for (let x = 0; x < 30; x++) {
+      host.simulateWindowChange({ ...NORMAL, x })
+      await vi.advanceTimersByTimeAsync(20)
+    }
+    await vi.advanceTimersByTimeAsync(1100)
+    expect(journalStats.writes).toBe(before + 1)
+    expect(saved().window).toEqual({ ...NORMAL, x: 29 })
+  })
+
+  it('is read at the close, so the last move is kept', async () => {
+    host.windowState.geometry = NORMAL
+    await startJournal()
+    host.windowState.geometry = { ...NORMAL, x: 500 }
+    expect(host.requestClose()).toBe(true)
+    await settle()
+    await settle()
+    expect(host.quits).toBe(1)
+    expect(saved().window).toEqual({ ...NORMAL, x: 500 })
+  })
+
+  it('is put back before the window is shown, whatever the state it was', async () => {
+    host.windowState.geometry = BIG
+    await openPath(A)
+    await startJournal()
+    await flushSession()
+    newRun(host)
+    await restoreSession()
+    expect(host.windowState.restored).toEqual([BIG])
+    newRun(host)
+    host.session = JSON.stringify({ ...JSON.parse(host.session ?? '{}'), window: NORMAL })
+    await restoreSession()
+    expect(host.windowState.restored).toEqual([NORMAL])
+  })
+
+  it('is left out until the host has said, and a session from before has none to restore', async () => {
+    await openPath(A)
+    await flushSession()
+    expect(saved()).not.toHaveProperty('window')
+    newRun(host)
+    await restoreSession()
+    expect(host.windowState.restored).toEqual([])
+  })
+
+  it('still loads a session file without the field, with every other part back', async () => {
+    const a = await openPath(A)
+    typeInto(a, 0, 'x')
+    await flushSession()
+    const old = JSON.parse(host.session ?? '{}') as Record<string, unknown>
+    delete old.window
+    host.session = JSON.stringify(old)
+    newRun(host)
+    const report = await restoreSession()
+    expect(report?.tabs).toBe(1)
+    expect(report?.buffers).toBe(1)
+  })
+
+  it('does not trust a value that is not a window', async () => {
+    await openPath(A)
+    await flushSession()
+    const base = JSON.parse(host.session ?? '{}') as Record<string, unknown>
+    for (const bad of [
+      'big',
+      7,
+      null,
+      [],
+      {},
+      { x: 1, y: 2, width: 0, height: 100 },
+      { x: 1, y: 2, width: 100, height: -5 },
+      { x: 1.5, y: 2, width: 100, height: 100 },
+      { x: 1, y: 2, width: 100, height: 100, maximized: 'yes' },
+      { x: 1e12, y: 2, width: 100, height: 100 },
+    ]) {
+      newRun(host)
+      host.session = JSON.stringify({ ...base, window: bad })
+      const report = await restoreSession()
+      expect(report?.tabs).toBe(1)
+      expect(host.windowState.restored).toEqual([])
+    }
+  })
+
+  it('reads a maximised flag that is missing as not maximised', async () => {
+    await openPath(A)
+    await flushSession()
+    const base = JSON.parse(host.session ?? '{}') as Record<string, unknown>
+    newRun(host)
+    host.session = JSON.stringify({ ...base, window: { x: 1, y: 2, width: 800, height: 600 } })
+    await restoreSession()
+    expect(host.windowState.restored).toEqual([
+      { x: 1, y: 2, width: 800, height: 600, maximized: false },
+    ])
+  })
+
+  it('carries on when the host cannot place the window', async () => {
+    await openPath(A)
+    host.windowState.geometry = NORMAL
+    await startJournal()
+    await flushSession()
+    newRun(host)
+    host.restoreWindow = () => Promise.reject(new Error('no monitor'))
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const report = await restoreSession()
+    expect(report?.tabs).toBe(1)
+    quiet.mockRestore()
+  })
+})

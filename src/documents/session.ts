@@ -3,6 +3,14 @@ import type { Text } from '@codemirror/state'
 import { endingsOf } from '@/editor/lineEndings'
 import { expandedFolderPaths, expandedPlaces, restoreWorkspace } from '@/features/tree/store'
 import { currentWindowWidth, setSidebarWidth, sidebarWidth } from '@/workbench/sidebar'
+import {
+  refreshWindowShape,
+  resetWindowShape,
+  watchWindowShape,
+  windowShape,
+} from '@/workbench/windowShape'
+import { parseWindowGeometry } from '@/platform/windowGeometry'
+import type { WindowGeometry } from '@/platform'
 import { endingsEqual, joinWithEndings, readEndings, type Endings } from '@/lib/endings'
 import {
   DEFAULT_SETTINGS_CATEGORY,
@@ -170,7 +178,9 @@ export function buildSnapshot(): string {
     expandedPlaces: expandedPlaces.value,
     ...(sidebarWidth.value === null ? {} : { sidebarWidth: sidebarWidth.value }),
   })
-  return `{"version":${String(VERSION)},"layout":${JSON.stringify(serialize(layout))},"tabs":${JSON.stringify(tabs)},"buffers":[${buffers.join(',')}],"workspace":${workspace}}`
+  // Where the window was, to open it there again (P9.1-T17). Left out until the host has said.
+  const shape = windowShape.value === null ? '' : `,"window":${JSON.stringify(windowShape.value)}`
+  return `{"version":${String(VERSION)},"layout":${JSON.stringify(serialize(layout))},"tabs":${JSON.stringify(tabs)},"buffers":[${buffers.join(',')}],"workspace":${workspace}${shape}}`
 }
 
 /** What the journal has done, for the perf scenarios and the tests. */
@@ -199,6 +209,8 @@ let stopLayoutWatch: (() => void) | undefined
 let stopTreeWatch: (() => void) | undefined
 let stopSidebarWatch: (() => void) | undefined
 let stopRecordsWatch: (() => void) | undefined
+let stopShapeWatch: (() => void) | undefined
+let stopWindowEvents: (() => void) | undefined
 
 async function writeOnce(): Promise<void> {
   const began = performance.now()
@@ -270,6 +282,8 @@ function touch(): void {
 
 /** The window was asked to close: write the newest state, then end the app. No prompt. */
 async function closeRequested(): Promise<void> {
+  // The window as it is at the very end, which a debounced write may not have caught.
+  await refreshWindowShape()
   await flushSession()
   const host = await getHost()
   await host.quitApp()
@@ -294,6 +308,14 @@ export async function startJournal(options: JournalOptions = {}): Promise<void> 
   stopTreeWatch = watch(expandedPlaces, touch)
   stopSidebarWatch = watch(sidebarWidth, touch)
   stopRecordsWatch = watch(tabRecordsVersion, touch)
+  stopShapeWatch = watch(windowShape, touch)
+  try {
+    stopWindowEvents = await watchWindowShape()
+    await refreshWindowShape()
+  } catch (error) {
+    // Without it the window opens at its default size next time. Nothing else is lost.
+    console.error('Could not watch the window geometry', error)
+  }
   try {
     const host = await getHost()
     await host.watchClose(() => {
@@ -324,6 +346,10 @@ export function stopJournal(): void {
   stopSidebarWatch = undefined
   stopRecordsWatch?.()
   stopRecordsWatch = undefined
+  stopShapeWatch?.()
+  stopShapeWatch = undefined
+  stopWindowEvents?.()
+  stopWindowEvents = undefined
 }
 
 /** True when the session on disk is the one the workbench would write right now. */
@@ -334,6 +360,7 @@ export function journalIsCurrent(): boolean {
 /** Forgets what was written and zeroes the counters. Tests use it. */
 export function resetSession(): void {
   stopJournal()
+  resetWindowShape()
   wanted = false
   lastWritten = null
   Object.assign(journalStats, {
@@ -370,6 +397,8 @@ interface Snapshot {
   readonly places: readonly { readonly root: string; readonly path: string }[] | null
   /** How wide the sidebar was dragged, in px, or null for the default. */
   readonly sidebarWidth: number | null
+  /** Where the window was, or null for a session from before it was kept. */
+  readonly window: WindowGeometry | null
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -456,6 +485,7 @@ function readSnapshot(text: string): Snapshot | null {
     expanded,
     places,
     sidebarWidth: readNumber(workspace.sidebarWidth),
+    window: parseWindowGeometry(value.window),
   }
 }
 
@@ -493,6 +523,13 @@ export async function restoreSession(): Promise<RestoreReport | null> {
   const snapshot = text === null ? null : readSnapshot(text)
   // The roots come from Rust's own list, so they come back even when the snapshot is damaged or
   // missing. A failure here costs the sidebar, never the tabs.
+  // The window goes where it was before it is shown (App.vue shows it after this returns). A
+  // geometry Rust cannot use costs the position, never the start.
+  if (snapshot?.window != null) {
+    await host.restoreWindow(snapshot.window).catch((error: unknown) => {
+      console.error('Could not restore the window geometry', error)
+    })
+  }
   setSidebarWidth(snapshot?.sidebarWidth ?? null, currentWindowWidth())
   await restoreWorkspace(snapshot?.expanded ?? [], snapshot?.places ?? undefined).catch(
     (error: unknown) => {

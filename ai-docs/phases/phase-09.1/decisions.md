@@ -34,3 +34,14 @@ Done as planned. A held Space acts once, like Enter and like the tree. Space wit
 - **Frontmatter.** No extra work was needed to count its lines: numbers come from the source line of each row, so the first body line after five frontmatter lines is 6 whether the pill is drawn or not.
 - **Palette only.** The command "Toggle Line Numbers" is in the View group with no default shortcut and no menu entry, as the plan said.
 - **Open (ISC-616).** jsdom draws no layout. The owner checks the look, the centring, the caret and arrow keys, and scrolling a long file in `pnpm tauri dev`.
+
+## P9.1-T17: Remember the window size, position and maximised state
+
+- **Rust remembers the normal bounds.** A maximised window reports the whole screen, so `WindowMemory` keeps the last bounds seen while the window was not maximised, minimised or full screen (`window_state::current`, called on every `Moved` and `Resized` and by `window_geometry`). A maximised window is saved as those bounds plus `maximized: true`. The page does not track the normal size itself.
+- **Inner size, outer position.** `set_size` takes the content size and `set_position` the outer position, so the saved value is the pair Tauri takes back. The window has no frame, so the two sizes are the same.
+- **Where it is in the file.** `window` sits at the top of the snapshot, beside `workspace`, and is left out until the host has answered once. Old files have none and the version stays 1.
+- **Reachable, not inside.** The guard keeps a window that is partly off a monitor while at least 100x50 px of it lie on one (enough to grab the title bar). Entirely off every monitor, or larger than the monitor it mostly lies on, it is centred on the first monitor (the primary), at the saved size reduced to fit. The work area is used, so it does not go under the taskbar. A monitor smaller than the minimum cannot hold the window; it starts at that monitor's corner.
+- **Placement order.** Position, size, position: moving a window to a monitor with another scale can resize it, and the last move puts it back.
+- **Maximise before show.** `restore` maximises while the window is still hidden. Whether WebView2 keeps it hidden through that was not looked at; the owner watches the start for a blank frame.
+- **Known limit.** Dragging a window to the top edge to maximise it moves the window first, so the normal bounds saved are where the drag ended, not where it began. Windows keeps its own record of that, which would need Win32 `GetWindowPlacement`; not done.
+- **Open (not part of ISC-617/618).** The look in the real window: size, place, maximised, a second monitor, unplugged monitor. The owner checks it in `pnpm tauri dev`.

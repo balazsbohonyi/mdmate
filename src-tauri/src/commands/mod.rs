@@ -17,6 +17,7 @@ use crate::search;
 use crate::session::{self, CloseHook, SessionStore};
 use crate::settings::themes::{ThemeEntry, ThemeStore};
 use crate::settings::{KeybindingsStore, SettingsStore};
+use crate::window_state::{self, Geometry, WindowMemory};
 use crate::workspace::ops::{self, ClashAnswer, CopyReport, Moved};
 use crate::workspace::roots::{self, RootStore};
 use crate::workspace::tree::{self, TreeEntry};
@@ -458,6 +459,27 @@ pub(crate) async fn session_recover(
 #[tauri::command]
 pub(crate) fn watch_close(hook: State<'_, Arc<CloseHook>>, on_close: Channel<()>) {
     hook.set(Box::new(move || on_close.send(()).is_ok()));
+}
+
+/// The window's normal bounds and whether it is maximised now, for the session. Null before the
+/// window has reported any.
+#[tauri::command]
+pub(crate) fn window_geometry(
+    window: tauri::Window,
+    memory: State<'_, Arc<WindowMemory>>,
+) -> Option<Geometry> {
+    window_state::current(&window, &memory)
+}
+
+/// Puts the window where a saved geometry says, fitted to the monitors there are now. The page
+/// calls it before it shows the window, so nothing is seen moving.
+#[tauri::command]
+pub(crate) fn window_restore(
+    window: tauri::Window,
+    memory: State<'_, Arc<WindowMemory>>,
+    geometry: Geometry,
+) {
+    window_state::restore(&window, &memory, geometry);
 }
 
 /// Ends the app. The page calls it once the session is written.

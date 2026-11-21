@@ -16,6 +16,7 @@ export type {
   SavedFile,
   WindowControls,
 } from './host'
+export type { WindowGeometry } from './windowGeometry'
 export type { FollowedLink, LinkInfo, LinkRefusal } from './links'
 export type { IndexStatus } from './indexStatus'
 export { IDLE_INDEX } from './indexStatus'

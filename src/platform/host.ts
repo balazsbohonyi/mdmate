@@ -7,6 +7,7 @@ import type { ReferencesFound } from './references'
 import type { RewriteBuffer, RewriteChange, RewriteDone, RewritePlanned } from './rewrite'
 import type { OutlineAnswer, OutlineRequest } from './outline'
 import type { SearchBatch, SearchRequest, SearchSummary } from './search'
+import type { WindowGeometry } from './windowGeometry'
 import type {
   ClashAnswer,
   CopyReport,
@@ -81,6 +82,8 @@ export interface WindowControls {
   isMaximized(): Promise<boolean>
   /** Tells the handler each time the window is maximized or restored. Returns the stop function. */
   onMaximizedChange(handler: (maximized: boolean) => void): Promise<() => void>
+  /** Tells the handler each time the window is moved or resized. Returns the stop function. */
+  onGeometryChange(handler: () => void): Promise<() => void>
 }
 
 /** Why a document cannot be saved. Mirrors the Rust `ReadOnlyReason`. */
@@ -219,6 +222,17 @@ export interface Host {
   platformName(): Promise<string>
   /** Shows the window. It starts hidden so launch never flashes a blank frame. */
   showWindow(): Promise<void>
+  /**
+   * The window's normal bounds and whether it is maximised now, or null before the window has
+   * reported any. A maximised window gives the bounds it returns to, not the whole screen.
+   */
+  windowGeometry(): Promise<WindowGeometry | null>
+  /**
+   * Puts the window where a saved geometry says, fitted to the monitors there are now (one that
+   * lies on none is centred on a monitor, one too big is reduced, none goes below the minimum
+   * size). Call it before `showWindow`.
+   */
+  restoreWindow(geometry: WindowGeometry): Promise<void>
   /**
    * Scales the whole window to `percent` (100 is the normal size). The web view does it, so text
    * measuring and pointer positions stay right at any level.

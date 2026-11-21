@@ -53,6 +53,7 @@ mdmate/
 │  ├─ links/          Link guard (guard.rs), scanner (scan.rs), file walker (walk.rs), rewrite engine (rewrite.rs)
 │  ├─ session/        Hot-exit store
 │  ├─ settings/       Settings and keybinding files
+│  ├─ window_state.rs The window's normal bounds and the fit of a saved window to today's monitors
 │  ├─ paths.rs        Data folder: `MDMATE_DATA_DIR`, else `<exe dir>/data` beside an `mdmate.portable` file, else the app-data folder
 │  └─ platform/       Traits, windows/, macos/ and linux/ stubs
 ├─ scripts/           check-arch.mjs, check-isa.mjs, fixtures, perf
@@ -92,6 +93,7 @@ sequenceDiagram
 ### Hot exit
 
 - The page writes one snapshot of the session to `session.json` in the data folder: the split layout, each tab's file and caret, and every unsaved buffer with its text, its line endings and the hash of the file it was typed on. Rust adds the paths of the documents it has open, writes the file with the same temp-file-and-rename as a save, and at the next start grants exactly those paths. The data folder is Tauri's app data folder, or `MDMATE_DATA_DIR` when set.
+- The snapshot also holds where the window was (`window`: x, y, width, height in physical pixels, and `maximized`), so it opens the same way next time. Rust (`window_state.rs`) remembers the last normal bounds, because a maximised window reports the whole screen, and the page reads them with `window_geometry` when the window moves or resizes (`workbench/windowShape.ts`) and once more at the close. At the next start `restoreSession` hands the saved value to `window_restore` before `App.vue` shows the window; `fit` (pure, tested) maps it to today's monitors: it stays if its title bar is still reachable and it fits, otherwise it is centred on the first monitor at its saved size reduced to fit, and never below 480 by 320. A session without the field leaves the window at `tauri.conf.json`'s size.
 - The journal (`src/documents/session.ts`) writes 1000 ms after the last change (and at the latest 5000 ms after the first change when changes do not pause), one write at a time, and skips a snapshot equal to the last. Closing the window is stopped in Rust, the page flushes and calls `quit_app`, and Rust closes anyway after 3 s. The app never asks. Both ways end through `end_app` (`commands/mod.rs`), which destroys the windows and lets the event loop leave (`RunEvent::Exit` flushes the index cache); a hard `app.exit(0)` with the web view alive prints WebView2's `Failed to unregister class Chrome_WidgetWin_0. Error = 1412`.
 - A start restores before the first paint: files open, unsaved buffers go back into their documents, then the layout and tabs. A file that changed since the buffer was typed raises the P2-T5 conflict banner. Text that cannot go back in a tab is kept in `recovered/` with a notice.
 

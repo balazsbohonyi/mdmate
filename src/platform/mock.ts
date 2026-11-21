@@ -13,6 +13,7 @@ import type {
   WindowControls,
 } from './host'
 import { IDLE_INDEX, type IndexStatus } from './indexStatus'
+import type { WindowGeometry } from './windowGeometry'
 import type { LinkInfo } from './links'
 import type {
   ClashAnswer,
@@ -39,10 +40,19 @@ import { MAX_SEARCH_HITS, type SearchSummary } from './search'
  * Window controls for the browser. Maximize flips a flag so the title bar's icon can be seen
  * changing under pnpm dev; minimize and close do nothing, since a tab is not a window.
  */
-function mockWindowControls(): WindowControls {
+function mockWindowControls(
+  geometryListeners: ReadonlySet<() => void> = new Set(),
+): WindowControls {
   let maximized = false
   const listeners = new Set<(maximized: boolean) => void>()
   return {
+    onGeometryChange(handler) {
+      const set = geometryListeners as Set<() => void>
+      set.add(handler)
+      return Promise.resolve(() => {
+        set.delete(handler)
+      })
+    },
     minimize() {
       return Promise.resolve()
     },
@@ -168,6 +178,14 @@ export interface MockHost extends Host {
     /** Every level `setZoom` was given, in order. */
     readonly zooms: number[]
   }
+  /**
+   * The window, as the OS would hold it. `geometry` is what `windowGeometry` answers; set it, or
+   * call `simulateWindowChange`, to act as the user moving or resizing the window. `restored` is
+   * every geometry `restoreWindow` was given, in order.
+   */
+  windowState: { geometry: WindowGeometry | null; readonly restored: WindowGeometry[] }
+  /** Acts as the user moving, resizing or maximising the window: the page hears it. */
+  simulateWindowChange(geometry: WindowGeometry): void
 }
 
 /** Where the mock keeps the draft folders of untitled documents. */
@@ -480,6 +498,8 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     devtoolsOpened: 0,
     zooms: [],
   }
+  const windowState: MockHost['windowState'] = { geometry: null, restored: [] }
+  const geometryListeners = new Set<() => void>()
   const trimmed = (path: string): string => pathKey(path).replace(/\/$/, '')
   const slashes = (path: string): string => path.replaceAll('\\', '/').replace(/\/$/, '')
   const parentOf = (path: string): string => slashes(path).split('/').slice(0, -1).join('/')
@@ -1445,11 +1465,24 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     showWindow() {
       return Promise.resolve()
     },
+    windowState,
+    windowGeometry() {
+      return Promise.resolve(windowState.geometry)
+    },
+    restoreWindow(geometry) {
+      windowState.restored.push(geometry)
+      windowState.geometry = geometry
+      return Promise.resolve()
+    },
+    simulateWindowChange(geometry) {
+      windowState.geometry = geometry
+      for (const listener of [...geometryListeners]) listener()
+    },
     setZoom(percent) {
       runtime.zooms.push(percent)
       return Promise.resolve()
     },
-    windowControls: mockWindowControls(),
+    windowControls: mockWindowControls(geometryListeners),
     assetUrl(path) {
       const listed = options.images?.[files.canonicalPath(path) ?? path]
       if (listed !== undefined) return listed.url

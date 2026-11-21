@@ -19,6 +19,7 @@ import { parseLinksOnRename, parseRewriteDone, parseRewritePlanned } from './rew
 import { parseOutlineAnswer } from './outline'
 import { parseSearchBatch, parseSearchSummary } from './search'
 import { parseThemeEntries } from './themes'
+import { parseWindowGeometry } from './windowGeometry'
 import {
   parseCopyReport,
   parseDroppedItems,
@@ -100,10 +101,23 @@ export const tauriHost: Host = {
   async showWindow() {
     await getCurrentWindow().show()
   },
+  async windowGeometry() {
+    return parseWindowGeometry(await invoke<unknown>('window_geometry'))
+  },
+  async restoreWindow(geometry) {
+    await invoke('window_restore', { geometry })
+  },
   async setZoom(percent) {
     await getCurrentWebview().setZoom(percent / 100)
   },
   windowControls: {
+    async onGeometryChange(handler) {
+      const current = getCurrentWindow()
+      const stops = await Promise.all([current.onResized(handler), current.onMoved(handler)])
+      return () => {
+        for (const stop of stops) stop()
+      }
+    },
     async minimize() {
       await getCurrentWindow().minimize()
     },
