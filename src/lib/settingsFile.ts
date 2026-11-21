@@ -32,6 +32,7 @@ export interface SettingValueMap {
   'fonts.codeSize': number
   'fonts.headingScale': readonly number[]
   'editor.wordWrap': boolean
+  'editor.lineNumbers': boolean
   'editor.limitContentWidth': boolean
   'editor.contentMaxWidth': number
   'editor.highlightExtensions': readonly string[]
@@ -279,6 +280,13 @@ export const SETTING_DEFS: { readonly [K in SettingKey]: SettingDef<SettingValue
     key: 'editor.wordWrap',
     path: ['editor', 'wordWrap'],
     default: DEFAULT_SETTINGS.editor.wordWrap,
+    check: isBoolean,
+    equals: same,
+  },
+  'editor.lineNumbers': {
+    key: 'editor.lineNumbers',
+    path: ['editor', 'lineNumbers'],
+    default: DEFAULT_SETTINGS.editor.lineNumbers,
     check: isBoolean,
     equals: same,
   },

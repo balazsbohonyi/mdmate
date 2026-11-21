@@ -25,3 +25,12 @@ Done as planned. A held Space acts once, like Enter and like the tree. Space wit
 - **Confirmed cause.** `quit_app` ended the process with `app.exit(0)` while the WebView2 window was alive. Reproduced in `pnpm tauri dev` (stderr to a file, a close message to the window), then removed with `end_app`: destroy the windows, let the event loop leave. Three closes afterwards printed nothing; markers showed `CloseRequested`, `end_app` and `RunEvent::Exit` in order.
 - **Fallback.** A stuck page still cannot keep the app open: after the grace period `end_app` runs, and a second grace period later `app.exit(0)` ends it for certain.
 - **Open (ISC-611).** The release exe was not run, and a dirty document through the close was not tried, because no key presses could be sent to the window with certainty. The owner checks both.
+
+## P9.1-T16: Line numbers
+
+- **Own gutter, not `lineNumbers()`.** CodeMirror's built-in gutter cannot be switched by a setting without rebuilding the state, and it numbers every block widget it finds, the frontmatter pill included. `src/editor/lineNumbers.ts` is a `gutter` of its own: it reads `editor.lineNumbers` per line, and a refresh effect (sent by `refreshLineNumbers()` when the file changes the setting) makes every open view draw its markers again, as `wordWrap.ts` does. The block widgets are numbered through the gutter's `widgetMarker`, skipping `FrontmatterWidget`.
+- **Off takes no room.** The editor carries `cm-lineNumbersOn` while the setting is on; the theme gives `.cm-gutters` `display: none` without it.
+- **Placement.** With the gutter on, the wrapped column drops its `margin-inline-start: auto` and the gutter takes it, so the gutter and the column sit as a pair in the middle of the pane, numbers against the text. Without word wrap the column already runs from the left edge, and the gutter sits at the left of the pane.
+- **Frontmatter.** No extra work was needed to count its lines: numbers come from the source line of each row, so the first body line after five frontmatter lines is 6 whether the pill is drawn or not.
+- **Palette only.** The command "Toggle Line Numbers" is in the View group with no default shortcut and no menu entry, as the plan said.
+- **Open (ISC-616).** jsdom draws no layout. The owner checks the look, the centring, the caret and arrow keys, and scrolling a long file in `pnpm tauri dev`.

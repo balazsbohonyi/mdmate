@@ -805,6 +805,7 @@ describe('ISC-357: the search box filters the rows of every group', () => {
     await find('')
     expect(rowKeys()).toEqual([
       'editor.wordWrap',
+      'editor.lineNumbers',
       'editor.limitContentWidth',
       'editor.contentMaxWidth',
       'editor.highlightExtensions',

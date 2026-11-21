@@ -77,6 +77,7 @@ export const COMMAND_IDS = {
   focusSidebar: 'view.focusSidebar',
   toggleRawSource: 'view.toggleRawSource',
   toggleWordWrap: 'view.toggleWordWrap',
+  toggleLineNumbers: 'view.toggleLineNumbers',
   toggleContentWidth: 'view.toggleContentWidth',
   switchTheme: 'view.switchTheme',
   zoomIn: 'view.zoomIn',
@@ -321,6 +322,15 @@ export function registerDefaultCommands(): () => void {
       state: () => isToggleOn('editor.wordWrap'),
       run: async () => {
         await flipSetting('editor.wordWrap')
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.toggleLineNumbers,
+      group: 'View',
+      title: 'Toggle Line Numbers',
+      state: () => isToggleOn('editor.lineNumbers'),
+      run: async () => {
+        await flipSetting('editor.lineNumbers')
       },
     }),
     registerCommand({

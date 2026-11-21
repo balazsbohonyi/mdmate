@@ -21,6 +21,7 @@ import {
   FULL_WIDTH_CLASS,
   WIDTH_VARIABLE,
 } from './documentWidth'
+import { lineNumbers } from './lineNumbers'
 import { wordWrap } from './wordWrap'
 import { DEFAULT_SETTINGS } from '@/lib/settings'
 
@@ -60,6 +61,25 @@ const frame = EditorView.theme({
   '.cm-content:not(.cm-lineWrapping)': { maxWidth: 'none', marginInline: '0' },
   // The app's own JSON files keep the whole width (documentWidth.ts).
   [`&.${FULL_WIDTH_CLASS} .cm-content`]: { maxWidth: 'none', marginInline: '0' },
+  // The line-number gutter (lineNumbers.ts). Off, it takes no room. On, the gutter comes before the
+  // text column, which would be centered in what is left of the pane with the gutter at the edge of
+  // the window. The column steps off the left margin and the gutter takes that free space instead,
+  // so the pair sits in the middle with the numbers against the text.
+  '&:not(.cm-lineNumbersOn) .cm-gutters': { display: 'none' },
+  '&.cm-lineNumbersOn .cm-content.cm-lineWrapping': { marginInlineStart: '0' },
+  '&.cm-lineNumbersOn .cm-gutters': {
+    marginInlineStart: 'auto',
+    backgroundColor: 'var(--background)',
+    color: 'var(--muted-foreground)',
+    border: 'none',
+    fontFamily: 'var(--doc-font-code, var(--font-mono))',
+    fontSize: 'calc(var(--doc-size, 15px) * 0.85)',
+    userSelect: 'none',
+  },
+  '&.cm-lineNumbersOn .cm-activeLineGutter': {
+    backgroundColor: 'transparent',
+    color: 'var(--foreground)',
+  },
 })
 
 /**
@@ -97,6 +117,7 @@ const common: Extension = [
   history(),
   keymap.of([...editorKeymap, ...historyKeymap]),
   wordWrap,
+  lineNumbers,
   documentFonts,
   frame,
   drawSelection(),
@@ -152,6 +173,7 @@ const followerBase: Extension = [
   appKeys,
   keymap.of(editorKeymap),
   wordWrap,
+  lineNumbers,
   documentFonts,
   frame,
   drawSelection(),

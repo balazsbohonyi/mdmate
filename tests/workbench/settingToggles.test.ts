@@ -24,7 +24,13 @@ import { resetSettings, settings } from '@/lib/settings'
 import { setHost } from '@/platform'
 import { createMockHost, MOCK_SETTINGS_FILE, type MockHost } from '@/platform/mock'
 import { buildMenuEntries, findMenuItem } from '@/shell/menuEntries'
-import { clearCommands, commandState, isCommandEnabled, runCommand } from '@/workbench/commands'
+import {
+  clearCommands,
+  commandState,
+  getCommand,
+  isCommandEnabled,
+  runCommand,
+} from '@/workbench/commands'
 import { COMMAND_IDS, registerDefaultCommands } from '@/workbench/defaultCommands'
 import { resetWorkbench, settingsTabId } from '@/workbench/store'
 import { activeTabId } from '@/workbench/tabMenu'
@@ -86,6 +92,20 @@ describe('ISC-370: a toggle shows its state in the palette and the menu', () => 
     expect(settings.editor.wordWrap).toBe(true)
     expect(fileObject()).toEqual({})
     expect(menuState(COMMAND_IDS.toggleWordWrap)).toBe(true)
+  })
+
+  it('toggles line numbers from the palette, Off by default, with no shortcut (ISC-612)', async () => {
+    await start()
+    expect(paletteState(COMMAND_IDS.toggleLineNumbers)).toBe(false)
+    expect(isToggleOn('editor.lineNumbers')).toBe(false)
+    expect(await runCommand(COMMAND_IDS.toggleLineNumbers)).toBe(true)
+    expect(settings.editor.lineNumbers).toBe(true)
+    expect(fileObject()).toEqual({ editor: { lineNumbers: true } })
+    expect(paletteState(COMMAND_IDS.toggleLineNumbers)).toBe(true)
+    expect(getCommand(COMMAND_IDS.toggleLineNumbers)?.keybinding).toBeUndefined()
+    await runCommand(COMMAND_IDS.toggleLineNumbers)
+    expect(settings.editor.lineNumbers).toBe(false)
+    expect(fileObject()).toEqual({})
   })
 
   it('shows developer tools Off at the default, On after the toggle, and F12 follows it', async () => {

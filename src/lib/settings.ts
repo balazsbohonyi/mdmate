@@ -107,6 +107,8 @@ export interface Settings {
   }
   editor: {
     wordWrap: boolean
+    /** Whether each editor shows a gutter with the source line numbers. */
+    lineNumbers: boolean
     /** Whether the text column of a tab stops at `contentMaxWidth` and sits in the middle. */
     limitContentWidth: boolean
     /** The widest the text column gets, in px, not counting the padding round it. */
@@ -159,6 +161,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = {
   },
   editor: {
     wordWrap: true,
+    lineNumbers: false,
     // 900 px of text is about 107 to 117 characters of the built-in monospace body font at 14 px
     // (Consolas is 0.55 em wide, Courier New 0.6 em), and about 109 at the default 15 px.
     limitContentWidth: true,

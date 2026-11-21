@@ -10,6 +10,7 @@ import {
 import { updateDocumentFonts } from '@/editor/documentFonts'
 import { updateContentWidth } from '@/editor/documentWidth'
 import { refreshSourceLanguages } from '@/editor/sourceLanguage'
+import { refreshLineNumbers } from '@/editor/lineNumbers'
 import { refreshWordWrap } from '@/editor/wordWrap'
 import type { FileTemplate } from '@/lib/fileTemplate'
 import {
@@ -156,8 +157,10 @@ export function applySettingsText(text: string | null): void {
   for (const [key, checked] of parsed.present) if (!checked.ok) problems[key] = checked.why
   settingsFileState.problems = problems
   const wrapped = settings.editor.wordWrap
+  const numbered = settings.editor.lineNumbers
   assignSettings(settingsAfter(settings, parsed))
   if (settings.editor.wordWrap !== wrapped) refreshWordWrap()
+  if (settings.editor.lineNumbers !== numbered) refreshLineNumbers()
   updateDocumentFonts()
   updateContentWidth()
   updateZoom()

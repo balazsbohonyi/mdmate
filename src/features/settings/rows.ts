@@ -143,6 +143,13 @@ export const SETTING_ROWS: readonly SettingRowSpec[] = [
     control: { kind: 'switch' },
   },
   {
+    key: 'editor.lineNumbers',
+    category: 'editor',
+    label: 'Line numbers',
+    description: 'Show the line number of each line in a gutter beside the text.',
+    control: { kind: 'switch' },
+  },
+  {
     key: 'editor.limitContentWidth',
     category: 'editor',
     label: 'Limit content width',

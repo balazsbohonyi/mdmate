@@ -19,14 +19,14 @@ export async function changeSettingFromCommand<K extends SettingKey>(
 }
 
 /** The settings that are one plain on or off, and have a command that flips them. */
-export type ToggleKey = 'editor.wordWrap' | 'editor.limitContentWidth' | 'devtools'
+export type ToggleKey =
+  'editor.wordWrap' | 'editor.lineNumbers' | 'editor.limitContentWidth' | 'devtools'
 
 /** Whether a toggle is on now. Reads the live settings, so a computed or a command state follows it. */
 export function isToggleOn(key: ToggleKey): boolean {
   if (key === 'devtools') return settings.devtools
-  return key === 'editor.limitContentWidth'
-    ? settings.editor.limitContentWidth
-    : settings.editor.wordWrap
+  if (key === 'editor.limitContentWidth') return settings.editor.limitContentWidth
+  return key === 'editor.lineNumbers' ? settings.editor.lineNumbers : settings.editor.wordWrap
 }
 
 /** Turns a toggle the other way round. */

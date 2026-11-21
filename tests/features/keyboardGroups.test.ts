@@ -120,7 +120,7 @@ describe('ISC-414: the Keyboard category is grouped', () => {
     expect(titlesIn('File')).toHaveLength(10)
     expect(titlesIn('Find')).toHaveLength(5)
     expect(titlesIn('Formatting')).toHaveLength(7)
-    expect(titlesIn('View')).toHaveLength(11)
+    expect(titlesIn('View')).toHaveLength(12)
     expect(titlesIn('Tabs & Navigation')).toHaveLength(10)
     expect(titlesIn('App')).toHaveLength(6)
     const ids = rowIds()
@@ -158,6 +158,7 @@ describe('ISC-416: the search finds by title, id, group and shortcut', () => {
         COMMAND_IDS.toggleSidebar,
         COMMAND_IDS.toggleRawSource,
         COMMAND_IDS.toggleWordWrap,
+        COMMAND_IDS.toggleLineNumbers,
         COMMAND_IDS.toggleContentWidth,
       ].sort(),
     )
