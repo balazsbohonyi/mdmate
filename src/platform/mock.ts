@@ -333,6 +333,18 @@ function mockKindOf(path: string): FileKind {
  * something to open. It mirrors the Rust side: documents get ids, opening a file twice gives the
  * same id, and saves go by id.
  */
+/** The font families the browser mock reports: a few common ones, sorted, each once. */
+export const MOCK_FONT_FAMILIES: readonly string[] = [
+  'Arial',
+  'Cascadia Code',
+  'Consolas',
+  'Georgia',
+  'Inter',
+  'Segoe UI',
+  'Times New Roman',
+  'Verdana',
+]
+
 export function createMockHost(options: MockHostOptions = {}): MockHost {
   const files = new MockFiles(options.files)
   const ids = new Map<string, number>()
@@ -1253,6 +1265,10 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
         }
         revealed.push(path)
       })
+    },
+    listFontFamilies() {
+      // A short fixed list stands in for the system's fonts in a browser tab.
+      return Promise.resolve(MOCK_FONT_FAMILIES)
     },
     dragOut(paths) {
       return attempt(() => {

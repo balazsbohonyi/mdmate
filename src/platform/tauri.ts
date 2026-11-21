@@ -353,6 +353,9 @@ export const tauriHost: Host = {
   async revealEntry(path) {
     await invoke('reveal_entry', { path })
   },
+  async listFontFamilies() {
+    return invoke<string[]>('list_font_families')
+  },
   async dragOut(paths) {
     return invoke<boolean>('drag_out', { paths })
   },

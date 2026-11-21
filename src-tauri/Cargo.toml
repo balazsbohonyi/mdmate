@@ -16,6 +16,7 @@ crate-type = ["rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+fontdb = "=0.24.0"
 globset = "0.4"
 notify = "8"
 regex = "1"

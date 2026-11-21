@@ -45,6 +45,10 @@ impl Platform for Native {
         "windows"
     }
 
+    fn font_families(&self) -> std::io::Result<Vec<String>> {
+        Ok(super::fonts::installed_families())
+    }
+
     fn paths_ignore_case(&self) -> bool {
         true
     }

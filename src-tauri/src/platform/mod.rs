@@ -2,6 +2,7 @@
 
 use std::path::Path;
 
+pub(crate) mod fonts;
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(target_os = "macos")]
@@ -34,6 +35,15 @@ pub(crate) trait Platform {
     /// case and have no full stop.
     fn os_error_words(&self, _error: &std::io::Error) -> Option<&'static str> {
         None
+    }
+
+    /// The family names of the installed fonts, each once and sorted, for the font fields in
+    /// Settings. Where the OS has no font folders to read, it says so and the page offers no list.
+    fn font_families(&self) -> std::io::Result<Vec<String>> {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "listing the installed fonts is not available on this system",
+        ))
     }
 
     /// Hands a URL or a file path to the app the OS uses for it. Only the link guard calls this,

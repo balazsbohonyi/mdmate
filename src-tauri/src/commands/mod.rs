@@ -994,6 +994,18 @@ pub(crate) fn devtools_open(
     Ok(())
 }
 
+/// The installed font families, for the font fields in Settings: each once, sorted. Reading the
+/// font folders takes a moment, so it runs off the page's thread; the page asks when a font field
+/// first opens and keeps the answer.
+#[tauri::command]
+pub(crate) async fn list_font_families() -> Result<Vec<String>, AppError> {
+    use crate::platform::Platform as _;
+    tauri::async_runtime::spawn_blocking(|| platform::current().font_families())
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))?
+        .map_err(AppError::from)
+}
+
 /// Makes `settings.json` if it is missing and lets the page open it as a tab. Returns its path.
 /// It is the one file this grants, and the page cannot name another.
 #[tauri::command]

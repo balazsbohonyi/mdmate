@@ -4,6 +4,8 @@ import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { docMeta } from '@/documents/meta'
 import { languageChoices, type LanguageChoice } from '@/editor/codeLanguages'
 import { familyStack } from '@/editor/documentFonts'
+import FontPicker from './FontPicker.vue'
+import { fontFamilies } from './fontList'
 import { Button } from '@/components/ui/button'
 import {
   Combobox,
@@ -334,6 +336,16 @@ function removeFolder(name: string): void {
     FOLDERS,
     settings.workspace.excludedFolders.filter((have) => have !== name),
   )
+}
+
+/** The installed font families the font fields list: null until the first field opens. */
+const fonts = ref<readonly string[] | null>(null)
+
+function loadFonts(): void {
+  if (fonts.value !== null) return
+  void fontFamilies().then((list) => {
+    fonts.value = list
+  })
 }
 
 const EXTENSIONS = 'editor.highlightExtensions' as const
@@ -718,15 +730,15 @@ function openFile(): void {
                 v-else-if="spec.control.kind === 'font'"
                 class="flex flex-col gap-1"
               >
-                <Input
+                <FontPicker
                   :model-value="shownText(spec.key)"
-                  placeholder="Built-in"
-                  :aria-label="spec.label"
-                  :aria-invalid="refused[spec.key] !== undefined ? true : undefined"
-                  @update:model-value="(text: string | number) => onType(spec.key, text)"
-                  @change="accept(spec)"
-                  @keydown.enter="accept(spec)"
-                  @keydown.esc="revert(spec.key)"
+                  :label="spec.label"
+                  :invalid="refused[spec.key] !== undefined"
+                  :fonts="fonts"
+                  @update:model-value="(text: string) => onType(spec.key, text)"
+                  @accept="accept(spec)"
+                  @revert="revert(spec.key)"
+                  @open="loadFonts"
                 />
                 <p
                   class="truncate text-sm text-foreground"

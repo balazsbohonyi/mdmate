@@ -528,6 +528,11 @@ export interface Host {
   deleteEntry(path: string): Promise<void>
   /** Shows a file or folder in the system's file manager, selected. */
   revealEntry(path: string): Promise<void>
+  /**
+   * The installed font families, each once and sorted, for the font fields in Settings. Reading the
+   * system's font folders takes a moment, so ask when a field first opens and keep the answer.
+   */
+  listFontFamilies(): Promise<readonly string[]>
   /** Opens a folder itself in the system's file manager. A file is refused. */
   showFolder(path: string): Promise<void>
   /**

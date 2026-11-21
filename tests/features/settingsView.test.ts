@@ -18,6 +18,7 @@ import {
   watchDisk,
 } from '@/documents/store'
 import { resetDocumentFonts } from '@/editor/documentFonts'
+import { resetFontFamilies } from '@/features/settings/fontList'
 import { SETTING_ROWS } from '@/features/settings/rows'
 import SettingsView from '@/features/settings/SettingsView.vue'
 import {
@@ -39,7 +40,12 @@ import {
 import { SETTINGS_CATEGORIES, type SettingsCategory } from '@/lib/settingsCategories'
 import { SETTING_KEYS } from '@/lib/settingsFile'
 import { setHost } from '@/platform'
-import { createMockHost, MOCK_SETTINGS_FILE, type MockHost } from '@/platform/mock'
+import {
+  createMockHost,
+  MOCK_FONT_FAMILIES,
+  MOCK_SETTINGS_FILE,
+  type MockHost,
+} from '@/platform/mock'
 import { openSettingsTab, resetWorkbench, setSettingsCategory } from '@/workbench/store'
 import { tooltipApp } from '../helpers/tooltips'
 import { parseJsonc } from '../helpers/jsonc'
@@ -297,6 +303,126 @@ const buttonNamed = (name: string): HTMLButtonElement | undefined =>
   [...document.querySelectorAll<HTMLButtonElement>('button')].find(
     (button) => button.textContent.trim() === name || button.getAttribute('aria-label') === name,
   )
+describe('ISC-641 to ISC-643: the font pickers on the screen', () => {
+  const rootVar = (name: string): string => document.documentElement.style.getPropertyValue(name)
+  const optionsOf = (key: string): HTMLElement[] => [
+    ...rowOf(key).querySelectorAll<HTMLElement>('[data-font-option]'),
+  ]
+  const sampleFamily = (key: string): string =>
+    rowOf(key).querySelector<HTMLElement>('[data-font-sample]')?.style.fontFamily ?? ''
+  const open = async (key: string): Promise<void> => {
+    inputOf(key).dispatchEvent(new FocusEvent('focus'))
+    await flush()
+  }
+
+  beforeEach(() => {
+    resetDocumentFonts()
+    resetFontFamilies()
+  })
+
+  it('reads the families only when a font field first opens, and lists them with Built-in first', async () => {
+    await mountScreen('appearance')
+    const ask = vi.spyOn(host, 'listFontFamilies')
+    expect(ask).not.toHaveBeenCalled()
+    expect(rowOf('fonts.body').querySelector('[data-font-list]')).toBeNull()
+    await open('fonts.body')
+    expect(ask).toHaveBeenCalledTimes(1)
+    expect(optionsOf('fonts.body').map((option) => option.textContent.trim())).toEqual([
+      'Built-in',
+      ...MOCK_FONT_FAMILIES,
+    ])
+    // A second field uses the answer it already has.
+    await open('fonts.code')
+    expect(ask).toHaveBeenCalledTimes(1)
+    expect(optionsOf('fonts.code')).toHaveLength(MOCK_FONT_FAMILIES.length + 1)
+  })
+
+  it('narrows the list of the field typed in, and not the others', async () => {
+    await mountScreen('appearance')
+    await open('fonts.body')
+    await open('fonts.heading')
+    const field = inputOf('fonts.heading')
+    field.value = 'seg'
+    field.dispatchEvent(new Event('input', { bubbles: true }))
+    await flush()
+    expect(optionsOf('fonts.heading').map((option) => option.textContent.trim())).toEqual([
+      'Built-in',
+      'Segoe UI',
+    ])
+    expect(sampleFamily('fonts.heading')).toContain('seg')
+  })
+
+  it('picks a family: it is written, reaches the document, and is in the sample', async () => {
+    await mountScreen('appearance', '{"note": "mine"}')
+    await open('fonts.heading')
+    await click(
+      optionsOf('fonts.heading').find((option) => option.dataset.fontName === 'Georgia') ?? null,
+    )
+    expect(fileObject()).toEqual({ note: 'mine', fonts: { heading: 'Georgia' } })
+    expect(rootVar('--doc-font-heading')).toBe('"Georgia", monospace')
+    expect(inputOf('fonts.heading').value).toBe('Georgia')
+    expect(rowOf('fonts.heading').querySelector('[data-font-list]')).toBeNull()
+  })
+
+  it('picks Built-in: the key leaves the file and the built-in stack is back', async () => {
+    await mountScreen('appearance', '{"fonts": {"code": "Consolas"}}')
+    expect(rootVar('--doc-font-code')).toBe('"Consolas", var(--font-mono)')
+    await open('fonts.code')
+    await click(optionsOf('fonts.code')[0] ?? null)
+    expect(fileObject()).toEqual({})
+    expect(rootVar('--doc-font-code')).toBe('var(--font-mono)')
+    expect(inputOf('fonts.code').value).toBe('')
+  })
+
+  it('accepts a family that is not in the list, and a stack, as typed', async () => {
+    await mountScreen('appearance')
+    await typeAndLeave(inputOf('fonts.body'), 'Not In The List')
+    expect(fileObject()).toEqual({ fonts: { body: 'Not In The List' } })
+    await typeAndLeave(inputOf('fonts.heading'), 'Inter, sans-serif')
+    expect(fileObject()).toEqual({
+      fonts: { body: 'Not In The List', heading: 'Inter, sans-serif' },
+    })
+  })
+
+  it('shows a saved stack and a family that is not installed as saved, and keeps them', async () => {
+    const saved = '{"fonts": {"body": "Inter, sans-serif", "heading": "Not Installed Anywhere"}}'
+    await mountScreen('appearance', saved)
+    expect(inputOf('fonts.body').value).toBe('Inter, sans-serif')
+    expect(inputOf('fonts.heading').value).toBe('Not Installed Anywhere')
+    const before = host.files.read(MOCK_SETTINGS_FILE)
+    for (const key of ['fonts.body', 'fonts.heading']) {
+      await open(key)
+      inputOf(key).dispatchEvent(new FocusEvent('blur'))
+      await flush()
+    }
+    expect(inputOf('fonts.body').value).toBe('Inter, sans-serif')
+    expect(inputOf('fonts.heading').value).toBe('Not Installed Anywhere')
+    expect(host.files.read(MOCK_SETTINGS_FILE)).toBe(before)
+    expect(settings.fonts.body).toBe('Inter, sans-serif')
+    expect(settings.fonts.heading).toBe('Not Installed Anywhere')
+  })
+
+  it('opens the screen again with the same values (closed and opened)', async () => {
+    const saved = '{"fonts": {"body": "Inter, sans-serif", "code": "Not Installed Anywhere"}}'
+    await mountScreen('appearance', saved)
+    screen?.app.unmount()
+    screen?.root.remove()
+    screen = undefined
+    resetFontFamilies()
+    const root = document.createElement('div')
+    document.body.append(root)
+    const reopened = tooltipApp(SettingsView, { tabId })
+    reopened.mount(root)
+    screen = { app: reopened, root }
+    await flush()
+    expect(inputOf('fonts.body').value).toBe('Inter, sans-serif')
+    expect(inputOf('fonts.code').value).toBe('Not Installed Anywhere')
+    expect(fileObject()).toEqual({
+      fonts: { body: 'Inter, sans-serif', code: 'Not Installed Anywhere' },
+    })
+  })
+})
+
 describe('ISC-355: every row is the same row', () => {
   it('shows the label, the one-line description and the JSON key of every setting, in its group', async () => {
     await mountScreen()

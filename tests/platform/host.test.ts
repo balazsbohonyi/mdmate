@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mockHost } from '@/platform/mock'
+import { MOCK_FONT_FAMILIES, mockHost } from '@/platform/mock'
 
 describe('mock host', () => {
   it('reports the browser runtime', async () => {
@@ -32,5 +32,16 @@ describe('mock host', () => {
   it('treats minimize and close as no-ops in a browser tab', async () => {
     await expect(mockHost.windowControls.minimize()).resolves.toBeUndefined()
     await expect(mockHost.windowControls.close()).resolves.toBeUndefined()
+  })
+
+  it('lists the installed font families: each once, sorted, with no empty name (ISC-641)', async () => {
+    const families = await mockHost.listFontFamilies()
+    expect(families).toEqual(MOCK_FONT_FAMILIES)
+    expect(families.length).toBeGreaterThan(0)
+    expect(families.every((name) => name.trim() !== '')).toBe(true)
+    expect(new Set(families.map((name) => name.toLowerCase())).size).toBe(families.length)
+    expect([...families].sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }))).toEqual(
+      families,
+    )
   })
 })
