@@ -48,6 +48,8 @@
   /* The tab strip and the sidebar header beside it: 0.5rem of padding above the tabs, then 2rem of tab. */
   --spacing-tabstrip: 2.5rem;
   --spacing-statusbar: 1.5rem;
+  /* The Outline's row: 30 px. OUTLINE_ROW_HEIGHT in features/outline/layout.ts is the same number. */
+  --spacing-outline-row: 1.875rem;
   --spacing-sidebar: 15rem;
   --spacing-handle: 0.25rem;
 }

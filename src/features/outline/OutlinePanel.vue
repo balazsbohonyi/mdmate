@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { headingText } from '@/editor/headingSlug'
-import { FALLBACK_VIEWPORT_HEIGHT, ROW_HEIGHT, visibleWindow } from '@/features/tree/model'
+import { FALLBACK_VIEWPORT_HEIGHT, visibleWindow } from '@/features/tree/model'
 import { MAX_OUTLINE_HEADINGS } from '@/platform'
+import '@/styles/outline.css'
+import { levelsIn, OUTLINE_ROW_HEIGHT as ROW_HEIGHT, rowInk, rowStyle } from './layout'
 import {
+  currentHeading,
   openHeading,
   outlineFocusRequest,
   outlineState,
@@ -71,7 +74,10 @@ onMounted(() => {
 })
 
 const total = computed(() => headings.value.length)
-const range = computed(() => visibleWindow(scrollTop.value, viewportHeight.value, total.value))
+const levels = computed(() => levelsIn(headings.value))
+const range = computed(() =>
+  visibleWindow(scrollTop.value, viewportHeight.value, total.value, ROW_HEIGHT),
+)
 
 // A heading's words as the page shows them (`**bold**` is bold, a link is its text), made for the
 // rows on screen only and kept while they stay there.
@@ -222,17 +228,19 @@ const activeId = computed(() =>
           :data-level="heading.level"
           :data-line="heading.line"
           :aria-selected="index === selectedHeading"
+          :aria-current="index === currentHeading ? 'true' : undefined"
           class="absolute right-0 left-0 flex cursor-default items-center pr-3"
           :class="[
             index === selectedHeading
               ? 'bg-sidebar-accent/60 text-sidebar-accent-foreground group-focus-within/outline:bg-sidebar-accent'
               : 'hover:bg-sidebar-accent/50',
-            heading.level === 1 ? 'font-medium' : '',
+            index === currentHeading ? 'shadow-[inset_2px_0_0_0_var(--primary)]' : '',
+            rowInk(heading.level, levels, index === selectedHeading),
           ]"
           :style="{
             top: `${String(top)}px`,
             height: `${String(ROW_HEIGHT)}px`,
-            paddingLeft: `${String(12 + (heading.level - 1) * 12)}px`,
+            ...rowStyle(heading.level, levels),
           }"
           @click="onRowClick($event, index)"
           @dblclick="onRowDoubleClick(index)"

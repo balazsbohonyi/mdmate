@@ -1,11 +1,12 @@
 import type { Text } from '@codemirror/state'
-import { shallowRef, watch } from 'vue'
+import { computed, shallowRef, watch } from 'vue'
 import { describe, followerOfTab, activeDocument, watchDocuments } from '@/documents/store'
 import { getHost, type OutlineHeading, type OutlineRequest } from '@/platform'
 import { focusActiveEditor, holdingEditorFocus } from '@/workbench/focus'
 import { showSidebar } from '@/workbench/sidebar'
 import { workbenchLayout } from '@/workbench/store'
 import { findPane } from '@/workbench/splitTree'
+import { sectionIndex } from './layout'
 
 /**
  * The outline of the document in the active tab. The headings are Rust's scan of the whole file
@@ -36,6 +37,25 @@ export const outlineState = shallowRef<OutlineState>(IDLE)
 
 /** The number of the selected heading, from 0, or -1. */
 export const selectedHeading = shallowRef(-1)
+
+/** The line (from 1) the caret of the active tab is on, or 0 when there is no tab. */
+const caretLine = shallowRef(0)
+
+/** The heading whose section holds the caret, or -1 above the first heading or with no tab. */
+export const currentHeading = computed(() =>
+  caretLine.value === 0 ? -1 : sectionIndex(outlineState.value.headings, caretLine.value),
+)
+
+/** Reads the caret of the active tab. Every caret move notifies the document watchers. */
+function followCaret(): void {
+  const doc = current()
+  if (doc === undefined) {
+    caretLine.value = 0
+    return
+  }
+  const state = doc.master
+  caretLine.value = state.doc.lineAt(state.selection.main.head).number
+}
 
 /** Numbers the scans, so a slow one that was replaced cannot overwrite the newer answer. */
 let latest = 0
@@ -107,6 +127,7 @@ export function startOutline(): void {
   // A caret move or a save leaves the same text object, which costs one comparison.
   stops.push(
     watchDocuments(() => {
+      followCaret()
       const doc = current()
       if (doc === undefined) {
         seenText = null
@@ -129,6 +150,7 @@ export function startOutline(): void {
       return findPane(layout, layout.activePane)?.activeTab ?? null
     }, scanNow),
   )
+  followCaret()
   scanNow()
 }
 
@@ -197,6 +219,7 @@ export function resetOutline(): void {
   scanned = null
   seenText = null
   selectedHeading.value = -1
+  caretLine.value = 0
   outlineState.value = IDLE
   outlineFocusRequest.value = 0
   focusTaken = 0

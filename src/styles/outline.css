@@ -1,0 +1,13 @@
+/*
+ * The Outline's text colors, from the top heading rank down (P9.1-T14). Rank 0 is the sidebar's
+ * text and the last rank is the muted text, both ordinary tokens; the two between are mixes of
+ * the two, so a custom theme needs nothing more and both ends hold their contrast on the sidebar
+ * (CONTRAST_PAIRS). The mixes live here and not in tokens.css, which keeps every color function
+ * out so that a theme file is the only place a color changes.
+ */
+.outline-ink-1 {
+  color: color-mix(in oklab, var(--sidebar-foreground) 67%, var(--muted-foreground));
+}
+.outline-ink-2 {
+  color: color-mix(in oklab, var(--sidebar-foreground) 33%, var(--muted-foreground));
+}

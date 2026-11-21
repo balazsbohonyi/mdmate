@@ -132,6 +132,9 @@ export const CONTRAST_PAIRS: readonly (readonly [string, string, number])[] = [
   ['success', 'background', 4.5],
   ['sidebar-foreground', 'sidebar', 4.5],
   ['sidebar-accent-foreground', 'sidebar-accent', 4.5],
+  // The Outline mutes deeper headings toward this, on the sidebar and on its selected row.
+  ['muted-foreground', 'sidebar', 4.5],
+  ['muted-foreground', 'sidebar-accent', 4.5],
   ['titlebar-foreground', 'titlebar', 4.5],
   ['tab-foreground', 'tabstrip', 4.5],
   ['tab-active-foreground', 'tab-active', 7],

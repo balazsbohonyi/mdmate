@@ -213,9 +213,10 @@ export function visibleWindow(
   scrollTop: number,
   viewportHeight: number,
   total: number,
+  rowHeight: number = ROW_HEIGHT,
 ): { readonly start: number; readonly end: number } {
-  const first = Math.floor(Math.max(0, scrollTop) / ROW_HEIGHT)
-  const count = Math.ceil(Math.max(0, viewportHeight) / ROW_HEIGHT) + 1
+  const first = Math.floor(Math.max(0, scrollTop) / rowHeight)
+  const count = Math.ceil(Math.max(0, viewportHeight) / rowHeight) + 1
   return {
     start: Math.max(0, first - OVERSCAN),
     end: Math.min(total, first + count + OVERSCAN),
