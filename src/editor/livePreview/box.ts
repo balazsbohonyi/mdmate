@@ -135,5 +135,8 @@ export const boxTheme = EditorView.baseTheme({
   '.cm-md-box-code': {
     fontFamily: 'var(--doc-font-code, var(--font-mono))',
     fontSize: 'calc(var(--doc-code-ratio, calc(14 / 15)) * 1em)',
+    // Its own line height (`fonts.codeLineHeight`); the label above stays on a fixed 1.4, since it
+    // is out of the flow of the lines and only its own height depends on it.
+    lineHeight: 'var(--doc-code-line-height, 1.4)',
   },
 })

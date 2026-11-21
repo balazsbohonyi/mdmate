@@ -34,6 +34,12 @@ export const FONT_VARIABLES = {
    * not read it: it takes the size of its surroundings (P9.1-T5).
    */
   codeRatio: '--doc-code-ratio',
+  /**
+   * The line heights, unitless so each line takes them times its own size: a heading and a list
+   * item follow the body value, and only code blocks read the code one (P9.1-T20).
+   */
+  lineHeight: '--doc-line-height',
+  codeLineHeight: '--doc-code-line-height',
   headingScale: (level: number): string => `--doc-heading-${String(level)}`,
 } as const
 
@@ -104,6 +110,8 @@ export function documentFontVariables(
     [FONT_VARIABLES.code]: familyStack('code', fonts.code),
     [FONT_VARIABLES.size]: `${String(fonts.size)}px`,
     [FONT_VARIABLES.codeRatio]: String(fonts.codeSize / fonts.size),
+    [FONT_VARIABLES.lineHeight]: String(fonts.lineHeight),
+    [FONT_VARIABLES.codeLineHeight]: String(fonts.codeLineHeight),
   }
   fonts.headingScale.forEach((multiplier, index) => {
     variables[FONT_VARIABLES.headingScale(index + 1)] = String(multiplier)

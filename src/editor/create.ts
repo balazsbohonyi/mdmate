@@ -55,6 +55,9 @@ const frame = EditorView.theme({
     // equal to DEFAULT_SETTINGS).
     fontFamily: 'var(--doc-font-body, monospace)',
     fontSize: 'var(--doc-size, 15px)',
+    // One line height for everything in the text (headings, lists, quotes, tables inherit it);
+    // code blocks have their own (livePreview/box.ts). The fallback is CodeMirror's own 1.4.
+    lineHeight: 'var(--doc-line-height, 1.4)',
   },
   // Without wrapping there is no column to keep: a long line runs out of it, so the limit waits for
   // word wrap (documentWidth.ts).
@@ -74,6 +77,9 @@ const frame = EditorView.theme({
     border: 'none',
     fontFamily: 'var(--doc-font-code, var(--font-mono))',
     fontSize: 'calc(var(--doc-size, 15px) * 0.85)',
+    // The height of one line of body text, as a length: a number sits on the middle of the line it
+    // names at any line height, however small the number's own size is.
+    lineHeight: 'calc(var(--doc-line-height, 1.4) * var(--doc-size, 15px))',
     userSelect: 'none',
   },
   '&.cm-lineNumbersOn .cm-activeLineGutter': {

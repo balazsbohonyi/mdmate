@@ -102,6 +102,10 @@ export interface Settings {
     size: number
     /** The size of code in px. */
     codeSize: number
+    /** The line height of the text, headings included, as a multiple of the line's own size. */
+    lineHeight: number
+    /** The line height of code blocks, as a multiple of the line's own size. */
+    codeLineHeight: number
     /** One multiple of the body size for each heading level, H1 to H6. */
     headingScale: readonly number[]
   }
@@ -157,6 +161,9 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = {
     code: '',
     size: 15,
     codeSize: 14,
+    // What CodeMirror's scroller has always given every line (1.4), so the look is unchanged.
+    lineHeight: 1.4,
+    codeLineHeight: 1.4,
     headingScale: DEFAULT_HEADING_SCALE,
   },
   editor: {

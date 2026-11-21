@@ -142,7 +142,7 @@ Phase 9.1 collects the small fixes and rough edges found in daily use, between t
 - [x] P9.1-T17: Remember window size, position and maximised state — closes ISC-617, ISC-618
 - [x] P9.1-T18: Restore the sidebar as it was left: expanded folders, collapsed roots, visibility and active panel — closes ISC-619 to ISC-622
 - [x] P9.1-T19: List markers `-`, `*` and `+` are drawn as an en dash — closes ISC-623, ISC-624
-- [ ] P9.1-T20: Line height settings for the body and for code blocks, beside the size fields — closes ISC-625 to ISC-629
+- [x] P9.1-T20: Line height settings for the body and for code blocks, beside the size fields — closes ISC-625 to ISC-629
 - [ ] P9.1-T21: Line numbers: smaller, muted, on a subtle gutter background, in the code font, all themes — closes ISC-630 to ISC-633
 - [ ] P9.1-T22: Line selections stop at the text edges, not in the padding — closes ISC-634, ISC-635
 - [ ] P9.1-T23: The sidebar cannot be resized narrower than its tab strip — closes ISC-636 to ISC-638

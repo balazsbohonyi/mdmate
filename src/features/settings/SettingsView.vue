@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Check, ChevronsUpDown, Search, X } from '@lucide/vue'
+import { Check, ChevronsUpDown, RotateCcw, Search, X } from '@lucide/vue'
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { docMeta } from '@/documents/meta'
 import { languageChoices, type LanguageChoice } from '@/editor/codeLanguages'
@@ -255,11 +255,13 @@ function onType(key: SettingKey, text: string | number): void {
 
 /** Accepts what was typed when the field is left or Enter is pressed: checked, then written. */
 function accept(spec: SettingRowSpec): void {
-  const key = spec.key
+  acceptKey(spec.key, spec.control.kind === 'number')
+}
+
+function acceptKey(key: SettingKey, numeric: boolean): void {
   const text = drafts[key]
   if (text === undefined) return
-  const raw =
-    spec.control.kind === 'number' ? (text.trim() === '' ? undefined : Number(text)) : text
+  const raw = numeric ? (text.trim() === '' ? undefined : Number(text)) : text
   const checked = SETTING_DEFS[key].check(raw)
   if (!checked.ok) {
     refused[key] = checked.why
@@ -273,6 +275,25 @@ function accept(spec: SettingRowSpec): void {
 function revert(key: SettingKey): void {
   delete drafts[key]
   delete refused[key]
+}
+
+/** The two keys a paired row holds, with the words that name each field for a screen reader. */
+function pairFields(spec: SettingRowSpec): readonly { key: SettingKey; label: string }[] {
+  if (spec.control.kind !== 'pair') return []
+  return [
+    { key: spec.key, label: spec.control.labels[0] },
+    { key: spec.control.second, label: spec.control.labels[1] },
+  ]
+}
+
+/** Whether either setting of a paired row differs from its default. */
+function pairModified(spec: SettingRowSpec): boolean {
+  return pairFields(spec).some((field) => isModified(field.key))
+}
+
+/** The error shown in a row's heading: a paired row shows its errors under each field instead. */
+function rowError(spec: SettingRowSpec): string | null {
+  return spec.control.kind === 'pair' ? null : errorOf(spec.key)
 }
 
 const folderDraft = ref('')
@@ -658,9 +679,11 @@ function openFile(): void {
               :setting-key="spec.key"
               :label="spec.label"
               :description="spec.description"
-              :modified="isModified(spec.key)"
-              :error="errorOf(spec.key)"
+              :modified="spec.control.kind === 'pair' ? pairModified(spec) : isModified(spec.key)"
+              :error="rowError(spec)"
               :locked="lockOf(spec.key)"
+              :field-resets="spec.control.kind === 'pair'"
+              :also-key="spec.control.kind === 'pair' ? spec.control.second : undefined"
               @reset="reset(spec.key)"
             >
               <Switch
@@ -712,6 +735,55 @@ function openFile(): void {
                 >
                   The quick brown fox jumps over the lazy dog
                 </p>
+              </div>
+              <div
+                v-else-if="spec.control.kind === 'pair'"
+                class="grid grid-cols-[repeat(2,minmax(4.5rem,1fr))] gap-2"
+                data-setting-pair
+              >
+                <div
+                  v-for="field in pairFields(spec)"
+                  :key="field.key"
+                  class="flex min-w-0 flex-col gap-1"
+                  :data-pair-field="field.key"
+                >
+                  <span class="flex h-6 items-center gap-1 text-xs text-muted-foreground">
+                    {{ field.key === spec.key ? 'Size' : 'Line height' }}
+                    <HoverHint
+                      v-if="isModified(field.key)"
+                      text="Reset to the default"
+                    >
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        :aria-label="`Reset ${field.label}`"
+                        :data-setting-reset="field.key"
+                        @click="reset(field.key)"
+                      >
+                        <RotateCcw />
+                      </Button>
+                    </HoverHint>
+                  </span>
+                  <Input
+                    :model-value="shownText(field.key)"
+                    inputmode="decimal"
+                    :aria-label="field.label"
+                    :aria-invalid="errorOf(field.key) !== null ? true : undefined"
+                    @update:model-value="(text: string | number) => onType(field.key, text)"
+                    @change="acceptKey(field.key, true)"
+                    @keydown.enter="acceptKey(field.key, true)"
+                    @keydown.esc="revert(field.key)"
+                  />
+                  <p
+                    v-if="errorOf(field.key) !== null"
+                    role="alert"
+                    class="text-xs text-destructive"
+                    :data-setting-error="field.key"
+                  >
+                    {{ errorOf(field.key) }}
+                  </p>
+                </div>
               </div>
               <div
                 v-else-if="spec.control.kind === 'scale'"

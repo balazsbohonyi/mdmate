@@ -303,7 +303,10 @@ describe('ISC-355: every row is the same row', () => {
     for (const { id } of SETTINGS_CATEGORIES) {
       setSettingsCategory(tabId, id)
       await flush()
-      const expected = SETTING_ROWS.filter((row) => row.category === id && row.inEditor !== true)
+      // A key drawn inside another row (a line height beside its size) has no row of its own.
+      const expected = SETTING_ROWS.filter(
+        (row) => row.category === id && row.inEditor !== true && row.drawnIn === undefined,
+      )
       expect(rowKeys()).toEqual(expected.map((row) => row.key))
       for (const spec of expected) {
         const row = rowOf(spec.key)
@@ -626,6 +629,174 @@ describe('ISC-360 to ISC-363, ISC-393: the font rows', () => {
     host.files.write(MOCK_SETTINGS_FILE, '{"fonts": {"headingScale": [3, 2, 1.5, 1.2, 1, 0.8]}}')
     await flush()
     expect(scaleBoxes().map((box) => box.value)).toEqual(['3', '2', '1.5', '1.2', '1', '0.8'])
+  })
+})
+
+describe('ISC-628: the sizes and their line heights share a row', () => {
+  const PAIRS = [
+    { host: 'fonts.size', second: 'fonts.lineHeight', word: 'Text', size: 15 },
+    { host: 'fonts.codeSize', second: 'fonts.codeLineHeight', word: 'Code', size: 14 },
+  ] as const
+  const rootVar = (name: string): string => document.documentElement.style.getPropertyValue(name)
+
+  const fieldOf = (key: string): HTMLInputElement => {
+    const field = document.querySelector<HTMLInputElement>(`[data-pair-field="${key}"] input`)
+    if (field === null) throw new Error(`no field ${key}`)
+    return field
+  }
+  const resetOf = (key: string): Element | null =>
+    document.querySelector(`[data-setting-reset="${key}"]`)
+  const pairError = (key: string): string | null =>
+    document.querySelector(`[data-setting-error="${key}"]`)?.textContent.trim() ?? null
+
+  beforeEach(() => {
+    resetDocumentFonts()
+  })
+
+  it.each(PAIRS)('puts $second in the row of $host, as a second short field', async (pair) => {
+    await mountScreen('appearance')
+    const row = rowOf(pair.host)
+    expect(row.querySelectorAll('input')).toHaveLength(2)
+    expect(row.querySelector(`[data-pair-field="${pair.host}"] input`)).not.toBeNull()
+    expect(row.querySelector(`[data-pair-field="${pair.second}"] input`)).not.toBeNull()
+    expect(document.querySelector(`[data-setting-row="${pair.second}"]`)).toBeNull()
+    expect(row.textContent.toLowerCase()).toContain('line height')
+    expect(row.textContent).toContain(pair.word)
+    expect(fieldOf(pair.host).value).toBe(String(pair.size))
+    expect(fieldOf(pair.second).value).toBe('1.4')
+  })
+
+  it('names each field for a screen reader', async () => {
+    await mountScreen('appearance')
+    expect(fieldOf('fonts.size').getAttribute('aria-label')).toBe('Text size')
+    expect(fieldOf('fonts.lineHeight').getAttribute('aria-label')).toBe('Text line height')
+    expect(fieldOf('fonts.codeSize').getAttribute('aria-label')).toBe('Code size')
+    expect(fieldOf('fonts.codeLineHeight').getAttribute('aria-label')).toBe('Code line height')
+  })
+
+  it.each(PAIRS)(
+    'lays the two fields of $host side by side, each at most half the column',
+    async (pair) => {
+      await mountScreen('appearance')
+      const grid = rowOf(pair.host).querySelector<HTMLElement>('[data-setting-pair]')
+      if (grid === null) throw new Error('no pair')
+      const classes = [...grid.classList]
+      expect(classes).toContain('grid')
+      expect(classes).toContain('gap-2')
+      // Two equal columns that stop at two digits and a little room, and no field wider than a half.
+      const columns = classes.find((name) => name.startsWith('grid-cols-')) ?? ''
+      const floor = /minmax\((\d+(?:\.\d+)?)rem,1fr\)/.exec(columns)
+      expect(columns).toContain('repeat(2,')
+      expect(Number(floor?.[1])).toBeGreaterThanOrEqual(3)
+      for (const key of [pair.host, pair.second]) {
+        expect(fieldOf(key).closest('[data-pair-field]')?.parentElement).toBe(grid)
+      }
+    },
+  )
+
+  it('keeps the heading sizes row as it was: six boxes, one reset', async () => {
+    await mountScreen('appearance')
+    const row = rowOf('fonts.headingScale')
+    expect(row.querySelectorAll('[data-heading-scale] input')).toHaveLength(6)
+    expect(row.querySelector('[data-setting-pair]')).toBeNull()
+    expect(row.querySelectorAll('[data-pair-field]')).toHaveLength(0)
+  })
+
+  it('writes a line height as its own key and applies it at once', async () => {
+    await mountScreen('appearance', '{"note": "mine"}')
+    await typeAndLeave(fieldOf('fonts.lineHeight'), '1.8')
+    expect(fileObject()).toEqual({ note: 'mine', fonts: { lineHeight: 1.8 } })
+    expect(settings.fonts.lineHeight).toBe(1.8)
+    expect(rootVar('--doc-line-height')).toBe('1.8')
+    expect(rootVar('--doc-code-line-height')).toBe('1.4')
+    await typeAndLeave(fieldOf('fonts.codeLineHeight'), '1.5')
+    expect(fileObject()).toEqual({ note: 'mine', fonts: { lineHeight: 1.8, codeLineHeight: 1.5 } })
+    expect(rootVar('--doc-code-line-height')).toBe('1.5')
+    expect(fieldOf('fonts.size').value).toBe('15')
+  })
+
+  it('writes the size beside it with no change to the line height', async () => {
+    await mountScreen('appearance')
+    await typeAndLeave(fieldOf('fonts.size'), '18')
+    expect(fileObject()).toEqual({ fonts: { size: 18 } })
+    expect(rootVar('--doc-size')).toBe('18px')
+    expect(rootVar('--doc-line-height')).toBe('1.4')
+  })
+
+  it('refuses a line height under its own field, and leaves the size field and the file alone', async () => {
+    await mountScreen('appearance')
+    await typeAndLeave(fieldOf('fonts.lineHeight'), '3.5')
+    expect(pairError('fonts.lineHeight')).toBe('Use a number from 1 to 3 in steps of 0.05.')
+    expect(pairError('fonts.size')).toBeNull()
+    expect(fieldOf('fonts.lineHeight').getAttribute('aria-invalid')).toBe('true')
+    expect(fieldOf('fonts.size').getAttribute('aria-invalid')).toBeNull()
+    expect(host.files.read(MOCK_SETTINGS_FILE)).toBeUndefined()
+    await typeAndLeave(fieldOf('fonts.lineHeight'), '1.42')
+    expect(pairError('fonts.lineHeight')).toBe('Use a number from 1 to 3 in steps of 0.05.')
+    await typeAndLeave(fieldOf('fonts.lineHeight'), 'tall')
+    expect(pairError('fonts.lineHeight')).toBe('Use a number.')
+    fieldOf('fonts.lineHeight').dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+    )
+    await flush()
+    expect(pairError('fonts.lineHeight')).toBeNull()
+    expect(fieldOf('fonts.lineHeight').value).toBe('1.4')
+  })
+
+  it('refuses a size under the size field, and not under the line height', async () => {
+    await mountScreen('appearance')
+    await typeAndLeave(fieldOf('fonts.codeSize'), '4')
+    expect(pairError('fonts.codeSize')).toContain('8 to 40')
+    expect(pairError('fonts.codeLineHeight')).toBeNull()
+  })
+
+  it('gives each field its own reset, shown only while that field differs from its default', async () => {
+    await mountScreen('appearance')
+    expect(resetOf('fonts.size')).toBeNull()
+    expect(resetOf('fonts.lineHeight')).toBeNull()
+    await typeAndLeave(fieldOf('fonts.lineHeight'), '2')
+    expect(resetOf('fonts.lineHeight')).not.toBeNull()
+    expect(resetOf('fonts.size')).toBeNull()
+    expect(resetOf('fonts.codeLineHeight')).toBeNull()
+    await typeAndLeave(fieldOf('fonts.size'), '17')
+    expect(resetOf('fonts.size')).not.toBeNull()
+    await click(resetOf('fonts.lineHeight'))
+    expect(fileObject()).toEqual({ fonts: { size: 17 } })
+    expect(fieldOf('fonts.lineHeight').value).toBe('1.4')
+    expect(resetOf('fonts.lineHeight')).toBeNull()
+    expect(resetOf('fonts.size')).not.toBeNull()
+    expect(rootVar('--doc-line-height')).toBe('1.4')
+    await click(resetOf('fonts.size'))
+    expect(fileObject()).toEqual({})
+  })
+
+  it('marks the row as changed while either of its fields is', async () => {
+    await mountScreen('appearance')
+    expect(rowOf('fonts.codeSize').querySelector('[data-setting-modified]')).toBeNull()
+    await typeAndLeave(fieldOf('fonts.codeLineHeight'), '1.2')
+    expect(rowOf('fonts.codeSize').querySelector('[data-setting-modified]')).not.toBeNull()
+    expect(rowOf('fonts.size').querySelector('[data-setting-modified]')).toBeNull()
+  })
+
+  it('shows a hand edit of either field, and flags a bad one under its own field', async () => {
+    await mountScreen('appearance')
+    host.files.write(MOCK_SETTINGS_FILE, '{"fonts": {"lineHeight": 1.75, "codeLineHeight": 9}}')
+    await flush()
+    expect(fieldOf('fonts.lineHeight').value).toBe('1.75')
+    expect(pairError('fonts.codeLineHeight')).toBe('Use a number from 1 to 3 in steps of 0.05.')
+    expect(pairError('fonts.lineHeight')).toBeNull()
+    expect(settings.fonts.codeLineHeight).toBe(1.4)
+  })
+
+  it('is found by a search for line height, once for each row', async () => {
+    await mountScreen('appearance')
+    const search = document.querySelector<HTMLInputElement>('input[type="search"]')
+    if (search === null) throw new Error('no search box')
+    search.value = 'line height'
+    search.dispatchEvent(new Event('input', { bubbles: true }))
+    await flush()
+    expect(rowKeys()).toEqual(['fonts.size', 'fonts.codeSize'])
+    expect(document.querySelectorAll('[data-pair-field]')).toHaveLength(4)
   })
 })
 

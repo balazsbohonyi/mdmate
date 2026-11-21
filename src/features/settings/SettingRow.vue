@@ -9,7 +9,16 @@ import { Button } from '@/components/ui/button'
  * default, a dot and a reset icon. An error from the control or from the file shows under the
  * control. A locked row says why it cannot be changed. Loaded with the screen (settings-lazy).
  */
-const { settingKey, label, description, modified, error, locked } = defineProps<{
+const {
+  settingKey,
+  label,
+  description,
+  modified,
+  error,
+  locked,
+  fieldResets = false,
+  alsoKey = undefined,
+} = defineProps<{
   /** The key in the file, or null for a row that is an action and not a setting. */
   settingKey: string | null
   label: string
@@ -18,6 +27,13 @@ const { settingKey, label, description, modified, error, locked } = defineProps<
   error: string | null
   /** Why the row cannot be changed, or null. */
   locked: string | null
+  /**
+   * The row holds more than one setting and each field has its own reset, so the label shows the
+   * changed dot but no reset of its own.
+   */
+  fieldResets?: boolean
+  /** The key of a second setting the row holds, shown after the first. */
+  alsoKey?: string | undefined
 }>()
 
 const emit = defineEmits<{ reset: [] }>()
@@ -45,7 +61,7 @@ const emit = defineEmits<{ reset: [] }>()
           />
         </HoverHint>
         <HoverHint
-          v-if="modified && locked === null"
+          v-if="modified && locked === null && !fieldResets"
           text="Reset to the default"
         >
           <Button
@@ -66,6 +82,12 @@ const emit = defineEmits<{ reset: [] }>()
         class="text-xs text-muted-foreground/80"
         data-setting-key
         >{{ settingKey }}</code
+      >
+      <code
+        v-if="alsoKey !== undefined"
+        class="ml-2 text-xs text-muted-foreground/80"
+        data-setting-key-also
+        >{{ alsoKey }}</code
       >
     </div>
     <div class="flex min-w-0 flex-col items-stretch gap-1">

@@ -27,6 +27,9 @@ describe('the key table', () => {
   it('keeps the defaults of today: sizes, heading scale, wrapping and the built-in folder list', () => {
     expect(DEFAULT_SETTINGS.fonts.size).toBe(15)
     expect(DEFAULT_SETTINGS.fonts.codeSize).toBe(14)
+    // The line height CodeMirror's scroller has always given the text and the code blocks.
+    expect(DEFAULT_SETTINGS.fonts.lineHeight).toBe(1.4)
+    expect(DEFAULT_SETTINGS.fonts.codeLineHeight).toBe(1.4)
     expect(DEFAULT_SETTINGS.fonts.headingScale).toEqual([1.7, 1.45, 1.25, 1.1, 1, 0.95])
     expect(DEFAULT_SETTINGS.editor.wordWrap).toBe(true)
     expect(DEFAULT_SETTINGS.images.pasteFolder).toBe('assets')
@@ -121,6 +124,54 @@ describe('the value rules', () => {
     }
     expect(check('fonts.codeSize', 18)).toBe(true)
     expect(check('fonts.codeSize', 41)).toBe(false)
+  })
+
+  it('ISC-625: takes a line height from 1 to 3 in steps of 0.05 and refuses the rest', () => {
+    for (const key of ['fonts.lineHeight', 'fonts.codeLineHeight'] as const) {
+      for (const good of [1, 3, 1.45, 1.4, 1.05, 2.95, 1.6, 2]) {
+        expect(check(key, good), `${key} ${String(good)}`).toBe(true)
+      }
+      for (const bad of [
+        0.9,
+        3.5,
+        1.42,
+        1.01,
+        3.05,
+        0.95,
+        0,
+        -1,
+        Number.NaN,
+        Infinity,
+        '1.5',
+        null,
+        [],
+        true,
+      ]) {
+        expect(check(key, bad), `${key} ${String(bad)}`).toBe(false)
+      }
+    }
+  })
+
+  it('ISC-625: says why a line height is refused, in one sentence', () => {
+    const range = SETTING_DEFS['fonts.lineHeight'].check(3.5)
+    expect(range).toEqual({ ok: false, why: 'Use a number from 1 to 3 in steps of 0.05.' })
+    const step = SETTING_DEFS['fonts.codeLineHeight'].check(1.42)
+    expect(step).toEqual({ ok: false, why: 'Use a number from 1 to 3 in steps of 0.05.' })
+    const text = SETTING_DEFS['fonts.lineHeight'].check('1.5')
+    expect(text).toEqual({ ok: false, why: 'Use a number.' })
+  })
+
+  it('ISC-625: reads a line height from the file and flags a refused one, key by key', () => {
+    const parsed = parseSettingsText(
+      '{"fonts": {"lineHeight": 1.45, "codeLineHeight": 0.9, "size": 16}}',
+    )
+    expect(parsed.ok).toBe(true)
+    if (!parsed.ok) return
+    expect(parsed.present.get('fonts.lineHeight')).toEqual({ ok: true, value: 1.45 })
+    expect(parsed.present.get('fonts.codeLineHeight')?.ok).toBe(false)
+    expect(parsed.present.get('fonts.size')).toEqual({ ok: true, value: 16 })
+    const after = settingsAfter(cloneSettings(DEFAULT_SETTINGS), parsed)
+    expect([after.fonts.lineHeight, after.fonts.codeLineHeight]).toEqual([1.45, 1.4])
   })
 
   it('takes six heading multiples from 0.5 to 4', () => {

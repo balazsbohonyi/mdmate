@@ -15,19 +15,17 @@ export const previewTheme = EditorView.baseTheme({
     color: 'var(--syntax-heading)',
     fontFamily: 'var(--doc-font-heading, monospace)',
   },
+  // No line height here: a heading inherits the body's (`fonts.lineHeight`), times its own size.
   '.cm-md-h1': {
     fontSize: 'calc(var(--doc-heading-1, 1.7) * 1em)',
-    lineHeight: '1.35',
     paddingTop: '0.3em',
   },
   '.cm-md-h2': {
     fontSize: 'calc(var(--doc-heading-2, 1.45) * 1em)',
-    lineHeight: '1.4',
     paddingTop: '0.25em',
   },
   '.cm-md-h3': {
     fontSize: 'calc(var(--doc-heading-3, 1.25) * 1em)',
-    lineHeight: '1.45',
     paddingTop: '0.2em',
   },
   '.cm-md-h4': { fontSize: 'calc(var(--doc-heading-4, 1.1) * 1em)' },

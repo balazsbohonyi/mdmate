@@ -18,6 +18,16 @@ export type RowControl =
   | { readonly kind: 'font'; readonly family: FontKind }
   /** Six numbers, one for each heading level. */
   | { readonly kind: 'scale' }
+  /**
+   * A number that shares its row with a second one: this key's field, then `second`'s, side by
+   * side. `second` has a spec of its own (its words and place in the template) that says
+   * `drawnIn`. `labels` name the two fields for a screen reader.
+   */
+  | {
+      readonly kind: 'pair'
+      readonly second: SettingKey
+      readonly labels: readonly [string, string]
+    }
   | { readonly kind: 'choice'; readonly options: readonly { value: string; label: string }[] }
   | { readonly kind: 'folders' }
   /** File extensions as chips, added by picking a language from a searchable list. */
@@ -40,6 +50,12 @@ export interface SettingRowSpec {
    * being edited. It still has its key, default and place in the `settings.json` template.
    */
   readonly inEditor?: boolean
+  /**
+   * The key of the row this one is drawn inside (a line height beside its size). It has no row of
+   * its own on the screen, and a search finds the row that holds it. It keeps its own key, default
+   * and note in the `settings.json` template.
+   */
+  readonly drawnIn?: SettingKey
 }
 
 /** The environment variable that sets what a rename does about links for one run. */
@@ -82,16 +98,46 @@ export const SETTING_ROWS: readonly SettingRowSpec[] = [
     key: 'fonts.size',
     category: 'appearance',
     group: 'Fonts',
-    label: 'Text size',
-    description: 'The size of the document text, in pixels.',
+    label: 'Text size and line height',
+    description:
+      'The size of the document text, in pixels, then its line height as a multiple of the size.',
+    control: {
+      kind: 'pair',
+      second: 'fonts.lineHeight',
+      labels: ['Text size', 'Text line height'],
+    },
+  },
+  {
+    key: 'fonts.lineHeight',
+    category: 'appearance',
+    group: 'Fonts',
+    drawnIn: 'fonts.size',
+    label: 'Text line height',
+    description:
+      'The line height of the text, headings included, as a multiple of the size. From 1 to 3 in steps of 0.05.',
     control: { kind: 'number' },
   },
   {
     key: 'fonts.codeSize',
     category: 'appearance',
     group: 'Fonts',
-    label: 'Code size',
-    description: 'The size of code blocks, in pixels. Inline code follows the text size.',
+    label: 'Code size and line height',
+    description:
+      'The size of code blocks, in pixels, then their line height as a multiple of the size. Inline code follows the text.',
+    control: {
+      kind: 'pair',
+      second: 'fonts.codeLineHeight',
+      labels: ['Code size', 'Code line height'],
+    },
+  },
+  {
+    key: 'fonts.codeLineHeight',
+    category: 'appearance',
+    group: 'Fonts',
+    drawnIn: 'fonts.codeSize',
+    label: 'Code line height',
+    description:
+      'The line height of code blocks, as a multiple of the size. From 1 to 3 in steps of 0.05.',
     control: { kind: 'number' },
   },
   {
@@ -233,7 +279,7 @@ export const SETTING_ROWS: readonly SettingRowSpec[] = [
 
 /** The rows of one group, in the order they are shown. */
 export function rowsOf(category: SettingsCategory): readonly SettingRowSpec[] {
-  return SETTING_ROWS.filter((row) => row.category === category)
+  return SETTING_ROWS.filter((row) => row.category === category && row.drawnIn === undefined)
 }
 
 /** The rows whose label, description or key hold the text, whatever the case, across every group. */
@@ -241,7 +287,12 @@ export function rowsMatching(query: string): readonly SettingRowSpec[] {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean)
   if (words.length === 0) return []
   return SETTING_ROWS.filter((row) => {
-    const hay = `${row.label} ${row.description} ${row.key}`.toLowerCase()
+    if (row.drawnIn !== undefined) return false
+    // A key drawn inside this row is searched for here too: its key and its words.
+    const inside = SETTING_ROWS.filter((other) => other.drawnIn === row.key)
+      .map((other) => `${other.label} ${other.description} ${other.key}`)
+      .join(' ')
+    const hay = `${row.label} ${row.description} ${row.key} ${inside}`.toLowerCase()
     return words.every((word) => hay.includes(word))
   })
 }

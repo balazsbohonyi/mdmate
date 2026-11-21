@@ -30,6 +30,8 @@ export interface SettingValueMap {
   'fonts.code': string
   'fonts.size': number
   'fonts.codeSize': number
+  'fonts.lineHeight': number
+  'fonts.codeLineHeight': number
   'fonts.headingScale': readonly number[]
   'editor.wordWrap': boolean
   'editor.lineNumbers': boolean
@@ -72,6 +74,24 @@ function numberIn(min: number, max: number, whole: boolean): (value: unknown) =>
       return bad(`Use a number from ${String(min)} to ${String(max)}.`)
     return good(value)
   }
+}
+
+/** The line heights: a unitless multiple from 1 to 3, in steps of 0.05 (1.45 yes, 1.42 no). */
+export const LINE_HEIGHT_MIN = 1
+export const LINE_HEIGHT_MAX = 3
+export const LINE_HEIGHT_STEP = 0.05
+
+function checkLineHeight(value: unknown): Checked<number> {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return bad('Use a number.')
+  // Steps are counted from the minimum and compared with a little slack, since 1.45 is not exact.
+  const steps = (value - LINE_HEIGHT_MIN) / LINE_HEIGHT_STEP
+  const onStep = Math.abs(steps - Math.round(steps)) < 1e-9
+  if (value < LINE_HEIGHT_MIN || value > LINE_HEIGHT_MAX || !onStep) {
+    return bad(
+      `Use a number from ${String(LINE_HEIGHT_MIN)} to ${String(LINE_HEIGHT_MAX)} in steps of ${String(LINE_HEIGHT_STEP)}.`,
+    )
+  }
+  return good(value)
 }
 
 const isBoolean = (value: unknown): Checked<boolean> =>
@@ -267,6 +287,20 @@ export const SETTING_DEFS: { readonly [K in SettingKey]: SettingDef<SettingValue
     path: ['fonts', 'codeSize'],
     default: DEFAULT_SETTINGS.fonts.codeSize,
     check: numberIn(8, 40, false),
+    equals: same,
+  },
+  'fonts.lineHeight': {
+    key: 'fonts.lineHeight',
+    path: ['fonts', 'lineHeight'],
+    default: DEFAULT_SETTINGS.fonts.lineHeight,
+    check: checkLineHeight,
+    equals: same,
+  },
+  'fonts.codeLineHeight': {
+    key: 'fonts.codeLineHeight',
+    path: ['fonts', 'codeLineHeight'],
+    default: DEFAULT_SETTINGS.fonts.codeLineHeight,
+    check: checkLineHeight,
     equals: same,
   },
   'fonts.headingScale': {
