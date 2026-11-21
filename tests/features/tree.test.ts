@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { nextTick, type App } from 'vue'
 import { tooltipApp } from '../helpers/tooltips'
 import { resetDocuments } from '@/documents/store'
+import { BUILT_IN_HIDDEN_NAMES, cloneSettings, DEFAULT_SETTINGS, settings } from '@/lib/settings'
 import {
   flatten,
   isMarkdownName,
@@ -26,12 +27,16 @@ import FileTree from '@/features/tree/FileTree.vue'
 import {
   cancelNaming,
   expandedFolderPaths,
+  isHiddenByName,
   expandedPlaces,
   loadFolder,
   openFolderDialog,
   removeRootFolder,
   resetTree,
   restoreWorkspace,
+  revealPath,
+  scrollRequest,
+  select,
   selectedPath,
   toggleFolder,
   treeRows,
@@ -92,6 +97,7 @@ beforeEach(() => {
   resetTree()
   resetDocuments()
   resetWorkbench()
+  Object.assign(settings.workspace, cloneSettings(DEFAULT_SETTINGS).workspace)
 })
 
 afterEach(() => {
@@ -189,6 +195,162 @@ describe('the rows of the tree', () => {
     expect(middle.end - middle.start).toBeLessThan(40)
     expect(visibleWindow(0, 240, 3)).toEqual({ start: 0, end: 3 })
     expect(visibleWindow(-50, 240, 100).start).toBe(0)
+  })
+})
+
+describe('names the tree hides (ISC-646, ISC-647)', () => {
+  const PROJECT: Record<string, string> = {
+    '/p/.git/config': 'c',
+    '/p/.git/hooks/pre-commit': 'h',
+    '/p/.idea/workspace.xml': 'x',
+    '/p/.idea/todo-notes.md': '# todo\n',
+    '/p/.vscode/settings.json': '{}',
+    '/p/.github/workflows/ci.yml': 'y',
+    '/p/.gitignore': 'dist\n',
+    '/p/.env': 'A=1\n',
+    '/p/Thumbs.db': 'db',
+    '/p/node_modules/dep/index.js': 'j',
+    '/p/src/.git/inner': 'nested',
+    '/p/src/main.md': '# m\n',
+    '/p/src/Thumbs.DB': 'db',
+    '/p/readme.md': '# r\n',
+  }
+
+  async function open(roots: string[] = ['/p'], deep = ['/p', '/p/src']): Promise<void> {
+    start({ files: PROJECT, roots })
+    await restoreWorkspace([])
+    for (const folder of deep)
+      if (!expandedFolderPaths.value.includes(folder)) await toggleFolder(folder)
+    await flush()
+  }
+
+  it('hides the default names at the top and at depth, files and folders alike, case aside', async () => {
+    await open()
+    expect(names()).toEqual([
+      'p',
+      '  .github',
+      '  node_modules',
+      '  src',
+      '    main.md',
+      '  .env',
+      '  .gitignore',
+      '  readme.md',
+    ])
+  })
+
+  it('keeps what the list does not name: other dotfiles, node_modules, the files inside', async () => {
+    await open()
+    const shown = names().map((line) => line.trim())
+    for (const name of ['.github', '.gitignore', '.env', 'node_modules', 'readme.md'])
+      expect(shown, name).toContain(name)
+    for (const name of ['.git', '.idea', '.vscode', 'Thumbs.db', 'Thumbs.DB'])
+      expect(shown, name).not.toContain(name)
+  })
+
+  it('follows the setting live: a name added goes at once, a name taken out comes back', async () => {
+    await open()
+    settings.workspace.hiddenNames = [...settings.workspace.hiddenNames, 'README.MD']
+    await nextTick()
+    expect(names().map((line) => line.trim())).not.toContain('readme.md')
+    settings.workspace.hiddenNames = settings.workspace.hiddenNames.filter(
+      (name) => name !== '.git' && name !== 'README.MD',
+    )
+    await nextTick()
+    const shown = names().map((line) => line.trim())
+    expect(shown).toContain('.git')
+    expect(shown).toContain('readme.md')
+    expect(shown).not.toContain('.idea')
+  })
+
+  it('never hides a root, whatever its name, and still hides the names inside it', async () => {
+    await open(['/p/.git', '/p'], ['/p/.git', '/p/.git/hooks'])
+    const lines = names()
+    expect(lines[0]).toBe('.git')
+    expect(lines).toContain('  config')
+    expect(lines).toContain('  hooks')
+    expect(lines).toContain('    pre-commit')
+    // The other root, /p, is open and lists its children, and its own child named .git is hidden there.
+    expect(lines).toContain('p')
+    expect(lines).toContain('  .github')
+    expect(lines).toContain('  readme.md')
+    expect(lines.filter((line) => line.trim() === '.git')).toEqual(['.git'])
+  })
+
+  it('lets go of a selected row that becomes hidden, and of one inside a hidden folder', async () => {
+    await open()
+    select('/p/src', '/p')
+    expect(selectedPath.value).toBe('/p/src')
+    settings.workspace.hiddenNames = [...settings.workspace.hiddenNames, 'SRC']
+    await nextTick()
+    expect(selectedPath.value).toBeNull()
+    // A file inside the hidden folder goes with it.
+    settings.workspace.hiddenNames = [...BUILT_IN_HIDDEN_NAMES]
+    await nextTick()
+    select('/p/src/main.md', '/p')
+    settings.workspace.hiddenNames = [...settings.workspace.hiddenNames, 'src']
+    await nextTick()
+    expect(selectedPath.value).toBeNull()
+  })
+
+  it('keeps a selected row that stays visible when another name is hidden', async () => {
+    await open()
+    select('/p/readme.md', '/p')
+    settings.workspace.hiddenNames = [...settings.workspace.hiddenNames, 'src']
+    await nextTick()
+    expect(selectedPath.value).toBe('/p/readme.md')
+  })
+
+  it('does not reveal a file inside a hidden folder: nothing is opened, selected or scrolled to', async () => {
+    await open()
+    const before = scrollRequest.value
+    await revealPath('/p/.idea/todo-notes.md')
+    await flush()
+    expect(selectedPath.value).toBeNull()
+    expect(scrollRequest.value).toBe(before)
+    expect(expandedFolderPaths.value).not.toContain('/p/.idea')
+    expect(toasts.last).toBeNull()
+    // The same call on a file that is shown still reveals it.
+    await revealPath('/p/src/main.md')
+    expect(selectedPath.value).toBe('/p/src/main.md')
+  })
+
+  it('tells a hidden path from a shown one under a Windows root, with either slash, and never counts the root', () => {
+    expect(isHiddenByName('C:\\p\\.git\\config', 'C:\\p')).toBe(true)
+    expect(isHiddenByName('C:\\p\\src\\.IDEA\\x.md', 'C:\\p\\')).toBe(true)
+    expect(isHiddenByName('C:/p/Thumbs.db', 'C:\\p')).toBe(true)
+    expect(isHiddenByName('C:\\p\\src\\a.md', 'C:\\p')).toBe(false)
+    expect(isHiddenByName('C:\\p\\.github\\ci.yml', 'C:\\p')).toBe(false)
+    // The root's own name is never tested, only what is below it.
+    expect(isHiddenByName('C:\\w\\.git', 'C:\\w\\.git')).toBe(false)
+    expect(isHiddenByName('C:\\w\\.git\\a.md', 'C:\\w\\.git')).toBe(false)
+    // A path outside the root is not this root's to hide.
+    expect(isHiddenByName('C:\\other\\.git', 'C:\\p')).toBe(false)
+  })
+
+  it('shows everything when the list is empty', async () => {
+    settings.workspace.hiddenNames = []
+    await open()
+    const shown = names().map((line) => line.trim())
+    for (const name of ['.git', '.idea', '.vscode', 'Thumbs.db'])
+      expect(shown, name).toContain(name)
+  })
+
+  it('leaves the listing whole: the page asked for and got every entry, and so does the host', async () => {
+    await open()
+    const listed = (await host.listDir('/p')).map((entry) => entry.name)
+    for (const name of ['.git', '.idea', '.vscode', '.github', 'Thumbs.db'])
+      expect(listed, name).toContain(name)
+    // Quick Open and the file index see a file inside a folder the tree hides.
+    const found = await host.quickOpenQuery('todo-notes', 10)
+    expect(JSON.stringify(found)).toContain('todo-notes')
+  })
+
+  it('does not change how many rows a hidden folder costs: a hidden folder is not opened or drawn', async () => {
+    await open()
+    const inside = (name: string): boolean =>
+      treeRows.value.some((row) => row.path.split('/').includes(name))
+    expect(inside('.git')).toBe(false)
+    expect(inside('.idea')).toBe(false)
   })
 })
 

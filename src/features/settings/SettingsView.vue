@@ -35,7 +35,6 @@ import {
 } from '@/lib/settingsCategories'
 import {
   checkExtension,
-  checkFolderName,
   getSettingFrom,
   SETTING_DEFS,
   type SettingKey,
@@ -298,43 +297,53 @@ function rowError(spec: SettingRowSpec): string | null {
   return spec.control.kind === 'pair' ? null : errorOf(spec.key)
 }
 
-const folderDraft = ref('')
-/** The chips, A to Z whatever the case. Shown sorted; the file keeps the order it was written in. */
-const sortedFolders = computed(() =>
-  [...settings.workspace.excludedFolders].sort((a, b) =>
-    a.localeCompare(b, undefined, { sensitivity: 'base' }),
-  ),
-)
-const FOLDERS = 'workspace.excludedFolders' as const
+/** The two lists of names, each drawn as chips with an add field. */
+type NameListKey = 'workspace.excludedFolders' | 'workspace.hiddenNames'
+const nameDrafts = reactive<Record<NameListKey, string>>({
+  'workspace.excludedFolders': '',
+  'workspace.hiddenNames': '',
+})
 
-function addFolder(): void {
-  const name = folderDraft.value.trim()
-  if (name === '') return
-  const checked = checkFolderName(name)
-  if (!checked.ok) {
-    refused[FOLDERS] = checked.why
-    return
-  }
-  const list = [...settings.workspace.excludedFolders]
-  if (list.some((have) => have.toLowerCase() === checked.value.toLowerCase())) {
-    refused[FOLDERS] = `${checked.value} is already in the list.`
-    return
-  }
-  const next = SETTING_DEFS[FOLDERS].check([...list, checked.value])
-  if (!next.ok) {
-    refused[FOLDERS] = next.why
-    return
-  }
-  delete refused[FOLDERS]
-  folderDraft.value = ''
-  set(FOLDERS, next.value)
+/** The setting a names row stands for. */
+function nameKey(key: SettingKey): NameListKey {
+  return key === 'workspace.hiddenNames' ? key : 'workspace.excludedFolders'
 }
 
-function removeFolder(name: string): void {
-  delete refused[FOLDERS]
+/** The names a list holds now. */
+function namesOf(key: NameListKey): readonly string[] {
+  return key === 'workspace.hiddenNames'
+    ? settings.workspace.hiddenNames
+    : settings.workspace.excludedFolders
+}
+
+/** The chips, A to Z whatever the case. Shown sorted; the file keeps the order it was written in. */
+function sortedNames(key: NameListKey): string[] {
+  return [...namesOf(key)].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+}
+
+function addName(key: NameListKey): void {
+  const name = nameDrafts[key].trim()
+  if (name === '') return
+  const list = [...namesOf(key)]
+  if (list.some((have) => have.toLowerCase() === name.toLowerCase())) {
+    refused[key] = `${name} is already in the list.`
+    return
+  }
+  const next = SETTING_DEFS[key].check([...list, name])
+  if (!next.ok) {
+    refused[key] = next.why
+    return
+  }
+  delete refused[key]
+  nameDrafts[key] = ''
+  set(key, next.value)
+}
+
+function removeName(key: NameListKey, name: string): void {
+  delete refused[key]
   set(
-    FOLDERS,
-    settings.workspace.excludedFolders.filter((have) => have !== name),
+    key,
+    namesOf(key).filter((have) => have !== name),
   )
 }
 
@@ -846,21 +855,21 @@ function openFile(): void {
               <div
                 v-else-if="spec.control.kind === 'folders'"
                 class="flex flex-col gap-2"
-                data-excluded-folders
+                data-name-list
               >
                 <ul class="flex flex-wrap gap-1">
                   <li
-                    v-for="name in sortedFolders"
+                    v-for="name in sortedNames(nameKey(spec.key))"
                     :key="name"
                     class="flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground"
-                    data-excluded-chip
+                    data-name-chip
                   >
                     {{ name }}
                     <button
                       type="button"
                       class="cursor-default rounded-sm text-muted-foreground hover:text-foreground"
                       :aria-label="`Remove ${name}`"
-                      @click="removeFolder(name)"
+                      @click="removeName(nameKey(spec.key), name)"
                     >
                       <X class="size-3" />
                     </button>
@@ -868,15 +877,16 @@ function openFile(): void {
                 </ul>
                 <div class="flex gap-1">
                   <Input
-                    v-model="folderDraft"
-                    placeholder="Add a folder name"
-                    aria-label="Add an excluded folder"
-                    @keydown.enter.prevent="addFolder"
+                    v-model="nameDrafts[nameKey(spec.key)]"
+                    placeholder="Add a name"
+                    :aria-label="`Add to ${spec.label}`"
+                    @keydown.enter.prevent="addName(nameKey(spec.key))"
                   />
                   <Button
                     type="button"
                     variant="outline"
-                    @click="addFolder"
+                    data-name-add
+                    @click="addName(nameKey(spec.key))"
                   >
                     Add
                   </Button>
@@ -886,7 +896,7 @@ function openFile(): void {
                   type="button"
                   variant="outline"
                   size="sm"
-                  data-excluded-reset
+                  data-name-reset
                   @click="reset(spec.key)"
                 >
                   Reset to built-in list

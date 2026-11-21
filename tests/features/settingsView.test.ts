@@ -32,6 +32,7 @@ import {
 } from '@/features/settings/store'
 import {
   BUILT_IN_EXCLUDED_FOLDERS,
+  BUILT_IN_HIDDEN_NAMES,
   DEFAULT_HIGHLIGHT_EXTENSIONS,
   resetSettings,
   settings,
@@ -1125,7 +1126,9 @@ describe('ISC-357: the search box filters the rows of every group', () => {
 
 describe('ISC-367: the excluded folders are chips with an add field and a reset', () => {
   const chips = (): string[] =>
-    [...document.querySelectorAll('[data-excluded-chip]')].map((chip) => chip.textContent.trim())
+    [...rowOf('workspace.excludedFolders').querySelectorAll('[data-name-chip]')].map((chip) =>
+      chip.textContent.trim(),
+    )
 
   it('starts on the built-in list, which is 21 names', async () => {
     await mountScreen('files')
@@ -1135,7 +1138,7 @@ describe('ISC-367: the excluded folders are chips with an add field and a reset'
         a.localeCompare(b, undefined, { sensitivity: 'base' }),
       ),
     )
-    expect(document.querySelector('[data-excluded-reset]')).toBeNull()
+    expect(rowOf('workspace.excludedFolders').querySelector('[data-name-reset]')).toBeNull()
   })
 
   it('adds a name, removes a name, and Reset to built-in list takes the key out', async () => {
@@ -1152,7 +1155,7 @@ describe('ISC-367: the excluded folders are chips with an add field and a reset'
     expect(
       rowOf('workspace.excludedFolders').querySelector('[data-setting-modified]'),
     ).not.toBeNull()
-    await click(document.querySelector('[data-excluded-reset]'))
+    await click(rowOf('workspace.excludedFolders').querySelector('[data-name-reset]'))
     expect(fileObject()).toEqual({})
     expect([...chips()].sort()).toEqual([...BUILT_IN_EXCLUDED_FOLDERS].sort())
     expect(settings.workspace.excludedFolders).toEqual([...BUILT_IN_EXCLUDED_FOLDERS])
@@ -1168,6 +1171,71 @@ describe('ISC-367: the excluded folders are chips with an add field and a reset'
     }
     expect(host.files.read(MOCK_SETTINGS_FILE)).toBe(before)
     expect([...chips()].sort()).toEqual([...BUILT_IN_EXCLUDED_FOLDERS].sort())
+  })
+})
+
+describe('ISC-645: the hidden names are chips with an add field and a reset', () => {
+  const KEY = 'workspace.hiddenNames'
+  const chips = (): string[] =>
+    [...rowOf(KEY).querySelectorAll('[data-name-chip]')].map((chip) => chip.textContent.trim())
+  const sorted = (names: readonly string[]): string[] =>
+    [...names].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+
+  it('is a row of Files and workspace, after the excluded folders, on the eight default names', async () => {
+    await mountScreen('files')
+    expect(rowKeys()).toContain(KEY)
+    expect(rowKeys().indexOf(KEY)).toBe(rowKeys().indexOf('workspace.excludedFolders') + 1)
+    expect(chips()).toEqual(sorted(BUILT_IN_HIDDEN_NAMES))
+    expect(chips()).toHaveLength(8)
+    expect(rowOf(KEY).querySelector('[data-name-reset]')).toBeNull()
+    // The two lists have chips of their own.
+    expect(rowOf('workspace.excludedFolders').querySelectorAll('[data-name-chip]')).toHaveLength(21)
+  })
+
+  it('says in its description that search and the index still see the names', async () => {
+    await mountScreen('files')
+    expect(rowOf(KEY).textContent).toMatch(/still/i)
+  })
+
+  it('adds a name, removes a name, and the reset takes the key out', async () => {
+    await mountScreen('files')
+    await typeAndLeave(inputOf(KEY), 'drafts')
+    await click(rowOf(KEY).querySelector<HTMLElement>('[data-name-add]'))
+    expect(chips()).toContain('drafts')
+    expect(fileObject()).toMatchObject({
+      workspace: { hiddenNames: expect.arrayContaining(['drafts']) as unknown },
+    })
+    expect(settings.workspace.hiddenNames).toContain('drafts')
+    // The other list is untouched.
+    expect(settings.workspace.excludedFolders).toEqual([...BUILT_IN_EXCLUDED_FOLDERS])
+    await click(buttonNamed('Remove Thumbs.db') ?? null)
+    expect(chips()).not.toContain('Thumbs.db')
+    expect(rowOf(KEY).querySelector('[data-setting-modified]')).not.toBeNull()
+    await click(rowOf(KEY).querySelector('[data-name-reset]'))
+    expect(fileObject()).toEqual({})
+    expect(chips()).toEqual(sorted(BUILT_IN_HIDDEN_NAMES))
+    expect(settings.workspace.hiddenNames).toEqual([...BUILT_IN_HIDDEN_NAMES])
+  })
+
+  it('takes a file name as well as a folder name, and refuses a path and a name already in the list', async () => {
+    await mountScreen('files')
+    await typeAndLeave(inputOf(KEY), 'desktop.ini')
+    await click(rowOf(KEY).querySelector<HTMLElement>('[data-name-add]'))
+    expect(chips()).toContain('desktop.ini')
+    const before = host.files.read(MOCK_SETTINGS_FILE)
+    for (const bad of ['a/b', 'a' + String.fromCharCode(92) + 'b', 'THUMBS.DB', '..']) {
+      await typeAndLeave(inputOf(KEY), bad)
+      await click(rowOf(KEY).querySelector<HTMLElement>('[data-name-add]'))
+      expect(errorOf(KEY), bad).not.toBeNull()
+    }
+    expect(host.files.read(MOCK_SETTINGS_FILE)).toBe(before)
+    expect(chips()).toHaveLength(9)
+  })
+
+  it('refuses a value in the file that is not a list, and keeps the last good list', async () => {
+    await mountScreen('files', '{"workspace": {"hiddenNames": "nope"}}')
+    expect(errorOf(KEY)).not.toBeNull()
+    expect(settings.workspace.hiddenNames).toEqual([...BUILT_IN_HIDDEN_NAMES])
   })
 })
 

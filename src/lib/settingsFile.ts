@@ -1,6 +1,7 @@
 import { parse, printParseErrorCode, type ParseError } from 'jsonc-parser'
 import {
   BUILT_IN_EXCLUDED_FOLDERS,
+  BUILT_IN_HIDDEN_NAMES,
   cloneSettings,
   COLOR_FORMATS,
   type ColorFormat,
@@ -44,6 +45,7 @@ export interface SettingValueMap {
   'recent.files': number
   'recent.folders': number
   'workspace.excludedFolders': readonly string[]
+  'workspace.hiddenNames': readonly string[]
   'themes.hideContrastWarnings': boolean
   'themes.colorFormat': ColorFormat
   'view.zoom': number
@@ -169,18 +171,23 @@ function checkHeadingScale(value: unknown): Checked<readonly number[]> {
 export const MAX_EXCLUDED_FOLDERS = 200
 const MAX_FOLDER_NAME = 100
 
-/** One folder name for the exclusion list: a name, not a path. */
-export function checkFolderName(value: unknown): Checked<string> {
-  if (typeof value !== 'string') return bad('Use folder names in quotes.')
+/** One name for a list of names: a name, not a path. `noun` is what the messages call it. */
+function checkNameIn(value: unknown, noun: string): Checked<string> {
+  if (typeof value !== 'string') return bad(`Use ${noun}s in quotes.`)
   const text = value.trim()
-  if (text === '') return bad('A folder name cannot be empty.')
+  if (text === '') return bad(`A ${noun} cannot be empty.`)
   if (text.length > MAX_FOLDER_NAME)
     return bad(`Use at most ${String(MAX_FOLDER_NAME)} characters.`)
   // eslint-disable-next-line no-control-regex -- control characters are exactly what is refused
-  if (/[/\\\u0000-\u001f\u007f]/u.test(text)) return bad('Use a folder name, not a path.')
-  // These two name a place, not a folder: no directory entry is called either, so they exclude nothing.
-  if (text === '.' || text === '..') return bad('Use a folder name, not a path.')
+  if (/[/\\\u0000-\u001f\u007f]/u.test(text)) return bad(`Use a ${noun}, not a path.`)
+  // These two name a place, not an entry: no directory entry is called either, so they match nothing.
+  if (text === '.' || text === '..') return bad(`Use a ${noun}, not a path.`)
   return good(text)
+}
+
+/** One folder name for the exclusion list: a name, not a path. */
+export function checkFolderName(value: unknown): Checked<string> {
+  return checkNameIn(value, 'folder name')
 }
 
 function checkExcludedFolders(value: unknown): Checked<readonly string[]> {
@@ -198,6 +205,31 @@ function checkExcludedFolders(value: unknown): Checked<readonly string[]> {
     seen.add(key)
     names.push(checked.value)
   }
+  return good(names)
+}
+
+/** The most names the hidden-names list holds. A name is as long as a folder name may be. */
+export const MAX_HIDDEN_NAMES = 200
+
+/**
+ * The names the tree hides: a list of file and folder names, not paths. A blank is dropped without
+ * a word, as is a second spelling of a name the list already has (the tree compares without regard
+ * to case); a path, `.`, `..`, a name that is not text or a value that is not a list is refused.
+ */
+function checkHiddenNames(value: unknown): Checked<readonly string[]> {
+  if (!Array.isArray(value)) return bad('Use a list of names.')
+  const names: string[] = []
+  const seen = new Set<string>()
+  for (const item of value as unknown[]) {
+    if (typeof item === 'string' && item.trim() === '') continue
+    const checked = checkNameIn(item, 'name')
+    if (!checked.ok) return checked
+    const key = checked.value.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    names.push(checked.value)
+  }
+  if (names.length > MAX_HIDDEN_NAMES) return bad(`Use at most ${String(MAX_HIDDEN_NAMES)} names.`)
   return good(names)
 }
 
@@ -388,6 +420,18 @@ export const SETTING_DEFS: { readonly [K in SettingKey]: SettingDef<SettingValue
     check: checkExcludedFolders,
     // Case and order are part of a list the user wrote, but the index treats the names as a set.
     equals: (a, b) => sameList([...a].sort(), [...b].sort()),
+  },
+  'workspace.hiddenNames': {
+    key: 'workspace.hiddenNames',
+    path: ['workspace', 'hiddenNames'],
+    default: BUILT_IN_HIDDEN_NAMES,
+    check: checkHiddenNames,
+    // The tree compares names without regard to case and ignores the order they are written in.
+    equals: (a, b) =>
+      sameList(
+        a.map((name) => name.toLowerCase()).sort(),
+        b.map((name) => name.toLowerCase()).sort(),
+      ),
   },
   'themes.hideContrastWarnings': {
     key: 'themes.hideContrastWarnings',

@@ -4,7 +4,12 @@
  */
 import { describe, expect, it } from 'vitest'
 import pasteFolders from '../data/paste-folders.json'
-import { BUILT_IN_EXCLUDED_FOLDERS, cloneSettings, DEFAULT_SETTINGS } from '@/lib/settings'
+import {
+  BUILT_IN_EXCLUDED_FOLDERS,
+  BUILT_IN_HIDDEN_NAMES,
+  cloneSettings,
+  DEFAULT_SETTINGS,
+} from '@/lib/settings'
 import {
   checkPasteFolder,
   describeSyntax,
@@ -281,6 +286,59 @@ describe('the value rules', () => {
     }
   })
 
+  it('ISC-645: hides eight names by default, apart from the excluded folders', () => {
+    expect(BUILT_IN_HIDDEN_NAMES).toEqual([
+      '.git',
+      '.idea',
+      '.vscode',
+      '.vs',
+      '.svn',
+      '.hg',
+      '.DS_Store',
+      'Thumbs.db',
+    ])
+    expect(DEFAULT_SETTINGS.workspace.hiddenNames).toEqual([...BUILT_IN_HIDDEN_NAMES])
+    expect(SETTING_DEFS['workspace.hiddenNames'].default).toEqual([...BUILT_IN_HIDDEN_NAMES])
+    // The two lists are separate: node_modules, dist and target stay in the tree.
+    for (const name of ['node_modules', 'dist', 'target'])
+      expect(BUILT_IN_HIDDEN_NAMES).not.toContain(name)
+    for (const name of ['.env', '.gitignore', '.github'])
+      expect(BUILT_IN_HIDDEN_NAMES).not.toContain(name)
+  })
+
+  it('ISC-645: takes a list of names, drops blanks and repeats whatever the case, refuses the rest', () => {
+    expect(
+      SETTING_DEFS['workspace.hiddenNames'].check([
+        'a',
+        ' ',
+        'B',
+        'b',
+        '',
+        ' c ',
+        'A',
+        '.GIT',
+        '.git',
+      ]),
+    ).toEqual({ ok: true, value: ['a', 'B', 'c', '.GIT'] })
+    expect(check('workspace.hiddenNames', [])).toBe(true)
+    for (const bad of [
+      'a',
+      null,
+      { a: 1 },
+      ['a/b'],
+      ['a\\b'],
+      ['.'],
+      ['..'],
+      [' .. '],
+      [1],
+      [null],
+      ['x'.repeat(101)],
+      Array.from({ length: 201 }, (_, i) => `f${String(i)}`),
+    ]) {
+      expect(check('workspace.hiddenNames', bad), JSON.stringify(bad).slice(0, 30)).toBe(false)
+    }
+  })
+
   it('takes a theme name and refuses a path', () => {
     expect(check('theme', 'sepia')).toBe(true)
     expect(check('theme', 'my theme')).toBe(true)
@@ -312,6 +370,8 @@ describe('settingsAfter', () => {
     const after = settingsAfter(base, parseSettingsText('{}'))
     expect(after.fonts.headingScale).not.toBe(DEFAULT_SETTINGS.fonts.headingScale)
     expect(after.workspace.excludedFolders).not.toBe(BUILT_IN_EXCLUDED_FOLDERS)
+    expect(after.workspace.hiddenNames).not.toBe(BUILT_IN_HIDDEN_NAMES)
+    expect(after.workspace.hiddenNames).not.toBe(base.workspace.hiddenNames)
   })
 })
 

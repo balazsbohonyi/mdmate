@@ -1,6 +1,7 @@
 import { computed, shallowReactive, shallowRef, watch } from 'vue'
 import { describe, openInActivePane, provideImageBoundary } from '@/documents/store'
 import { watchIndexStatus } from '@/features/index/status'
+import { settings } from '@/lib/settings'
 import { getHost } from '@/platform'
 import { focusActiveEditor, holdingEditorFocus } from '@/workbench/focus'
 import {
@@ -194,9 +195,35 @@ export function requestScroll(
   scrollRequest.value = { path, root: root ?? undefined, kind, n: ++scrollCount }
 }
 
+/**
+ * The names the tree hides (`workspace.hiddenNames`), lower case. Read here and not when a folder
+ * is listed, so a change to the setting reaches the rows at once with no new listing, and the
+ * listings keep every entry for what else reads them.
+ */
+const hiddenNames = computed(
+  () => new Set(settings.workspace.hiddenNames.map((name) => name.toLowerCase())),
+)
+
+/**
+ * Whether a path is a name the tree hides, or lies inside a folder it hides, counting only what is
+ * below its root (a root is drawn whatever its name). `root` is the innermost one by default.
+ */
+export function isHiddenByName(path: string, root: string | undefined = rootOf(path)): boolean {
+  if (root === undefined || !isInside(path, root)) return false
+  const rest = path.slice(root.replace(/[\\/]+$/, '').length)
+  return rest
+    .split(/[\\/]/)
+    .some((part) => part !== '' && hiddenNames.value.has(part.toLowerCase()))
+}
+
+// A row that becomes hidden must not stay selected: Delete and F2 would act on a row nobody sees.
+watch(hiddenNames, () => {
+  dropSelected((place) => isHiddenByName(place.path, place.root))
+})
+
 /** The rows on screen, top to bottom. */
 export const treeRows = computed<TreeRow[]>(() => {
-  const rows = flatten(roots.value, expanded.value, listings, keyOf)
+  const rows = flatten(roots.value, expanded.value, listings, keyOf, hiddenNames.value)
   const typing = naming.value
   if (typing === null || typing.kind === 'rename') return rows
   return withNewRow(
@@ -317,11 +344,13 @@ export async function openFolderRow(path: string, root?: string | null): Promise
 
 /**
  * Selects a file or folder and brings its row into view, opening the folders above it first. Does
- * nothing for a path outside every root.
+ * nothing for a path outside every root, or one the tree hides by name.
  */
 export async function revealPath(path: string): Promise<void> {
   const root = rootOf(path)
   if (root === undefined) return
+  // A row the tree hides has nothing to select or scroll to.
+  if (isHiddenByName(path, root)) return
   const parent = parentPath(path)
   const trail: string[] = []
   for (

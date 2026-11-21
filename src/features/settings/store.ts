@@ -116,6 +116,7 @@ function assignSettings(next: typeof settings): void {
   Object.assign(settings.themes, next.themes)
   Object.assign(settings.view, next.view)
   settings.workspace.excludedFolders = next.workspace.excludedFolders
+  settings.workspace.hiddenNames = next.workspace.hiddenNames
   settings.devtools = next.devtools
 }
 

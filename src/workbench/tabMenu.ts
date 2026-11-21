@@ -9,7 +9,7 @@ import {
 import { findFileReferences } from '@/features/references/store'
 import { separatorOf } from '@/features/tree/model'
 import { renameRow, revealInFileManager } from '@/features/tree/ops'
-import { revealPath, rootOf } from '@/features/tree/store'
+import { isHiddenByName, revealPath, rootOf } from '@/features/tree/store'
 import { getHost } from '@/platform'
 import { showSidebar } from './sidebar'
 import { findPane, paneOfTab, pinnedCount, type PaneNode, type TabId } from './splitTree'
@@ -39,6 +39,10 @@ export function activeTabId(): TabId | null {
 
 /** Why Rename is off for a file outside every open folder. Shown as the item's tooltip. */
 export const RENAME_OUTSIDE_FOLDER = 'Only a file in an open folder can be renamed.'
+
+/** What Rename and Reveal say for a file the tree hides by name (`workspace.hiddenNames`). */
+export const HIDDEN_BY_NAME =
+  'The tree hides this file. Take its name out of Hidden names in Settings to show it there.'
 
 /** The tabs of a pane that are not pinned, in order. The Close commands other than Close leave pinned tabs open. */
 function unpinnedTabs(pane: PaneNode): readonly TabId[] {
@@ -189,6 +193,10 @@ export async function revealTabInExplorer(tabId: TabId): Promise<void> {
 export async function revealTabInSidebar(tabId: TabId): Promise<void> {
   const path = tabPath(tabId)
   if (path === null || rootOf(path) === undefined) return
+  if (isHiddenByName(path)) {
+    reportWarning(HIDDEN_BY_NAME)
+    return
+  }
   showSidebar('folders')
   await revealPath(path)
 }
@@ -207,6 +215,10 @@ export async function renameTab(tabId: TabId): Promise<void> {
   const path = tabPath(tabId)
   if (path === null || rootOf(path) === undefined) {
     reportWarning(RENAME_OUTSIDE_FOLDER)
+    return
+  }
+  if (isHiddenByName(path)) {
+    reportWarning(HIDDEN_BY_NAME)
     return
   }
   showSidebar('folders')

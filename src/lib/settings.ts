@@ -19,6 +19,23 @@ export type ColorFormat = 'hex' | 'oklch'
 export const COLOR_FORMATS: readonly ColorFormat[] = ['hex', 'oklch']
 
 /**
+ * The names the file tree does not show, files and folders alike, until the user changes the list
+ * (P9.1-T26). Only the tree reads it: search, Quick Open, link scans and the index see these entries
+ * as before, and Rust is not told. It is separate from the excluded folders, which would also hide
+ * `node_modules`, `dist` and `target`.
+ */
+export const BUILT_IN_HIDDEN_NAMES: readonly string[] = [
+  '.git',
+  '.idea',
+  '.vscode',
+  '.vs',
+  '.svn',
+  '.hg',
+  '.DS_Store',
+  'Thumbs.db',
+]
+
+/**
  * The folder names the workspace index, folder search and link scans leave out until the user
  * changes the list. Rust holds the same list (`fs/exclude.rs`, `EXCLUDED_DIRS`) and a test keeps
  * the two equal.
@@ -138,6 +155,8 @@ export interface Settings {
   workspace: {
     /** The folder names the workspace index leaves out. */
     excludedFolders: readonly string[]
+    /** The file and folder names the tree does not show, whatever the case. Only the tree reads it. */
+    hiddenNames: readonly string[]
   }
   themes: {
     /** Whether the color editor leaves out its lines about a pair of colors that is hard to read. */
@@ -179,7 +198,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = {
   links: { onRename: 'never' },
   files: { largeFileMB: 3 },
   recent: { files: 10, folders: 5 },
-  workspace: { excludedFolders: BUILT_IN_EXCLUDED_FOLDERS },
+  workspace: { excludedFolders: BUILT_IN_EXCLUDED_FOLDERS, hiddenNames: BUILT_IN_HIDDEN_NAMES },
   themes: { hideContrastWarnings: true, colorFormat: 'hex' },
   view: { zoom: 100 },
   devtools: false,
@@ -195,7 +214,10 @@ export function cloneSettings(from: Readonly<Settings>): Settings {
     links: { ...from.links },
     files: { ...from.files },
     recent: { ...from.recent },
-    workspace: { excludedFolders: [...from.workspace.excludedFolders] },
+    workspace: {
+      excludedFolders: [...from.workspace.excludedFolders],
+      hiddenNames: [...from.workspace.hiddenNames],
+    },
     themes: { ...from.themes },
     view: { ...from.view },
     devtools: from.devtools,

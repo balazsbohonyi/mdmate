@@ -148,7 +148,7 @@ Phase 9.1 collects the small fixes and rough edges found in daily use, between t
 - [x] P9.1-T23: The sidebar cannot be resized narrower than its tab strip — closes ISC-636 to ISC-638
 - [x] P9.1-T24: Outline: the lowest level is always bold, and the next one too when it occurs once — closes ISC-639, ISC-640 (ISC-607 gives up its bold clause)
 - [x] P9.1-T25: Searchable font comboboxes for heading, body and code fonts, from an installed-font list — closes ISC-641 to ISC-644
-- [ ] P9.1-T26: Hide names in the tree (`.git`, `.idea`, `.vscode` and more) through a setting — closes ISC-645 to ISC-648
+- [x] P9.1-T26: Hide names in the tree (`.git`, `.idea`, `.vscode` and more) through a setting — closes ISC-645 to ISC-648
 - [ ] P9.1-T27: Git status backend: find git and repositories, read status, `git.enabled` and `git.path` settings — closes ISC-649 to ISC-654
 - [ ] P9.1-T28: Color tree rows by git status: added, changed, conflicted, ignored; tokens, refresh, many repositories — closes ISC-655 to ISC-660
 

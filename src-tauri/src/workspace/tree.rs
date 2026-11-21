@@ -116,6 +116,32 @@ mod tests {
         assert!(list_dir(dir.path()).expect("lists").is_empty());
     }
 
+    /// The tree hides `.git`, `.idea`, `Thumbs.db` and the like in the page (`workspace.hiddenNames`,
+    /// P9.1-T26), and the git status work needs `.git`, so the listing keeps every entry.
+    #[test]
+    fn names_the_tree_hides_are_still_listed() {
+        let dir = temp();
+        for folder in [".git", ".idea", ".vscode", ".github"] {
+            std::fs::create_dir(dir.path().join(folder)).expect("creates");
+        }
+        for file in ["Thumbs.db", ".DS_Store", ".gitignore", "a.md"] {
+            std::fs::write(dir.path().join(file), b"x").expect("writes");
+        }
+        let listed = names(&list_dir(dir.path()).expect("lists"));
+        for name in [
+            ".git/",
+            ".idea/",
+            ".vscode/",
+            ".github/",
+            "Thumbs.db",
+            ".DS_Store",
+            ".gitignore",
+            "a.md",
+        ] {
+            assert!(listed.contains(&name.to_owned()), "{name} in {listed:?}");
+        }
+    }
+
     #[test]
     fn a_file_is_not_a_folder() {
         let dir = temp();

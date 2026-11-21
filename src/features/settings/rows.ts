@@ -269,6 +269,14 @@ export const SETTING_ROWS: readonly SettingRowSpec[] = [
     control: { kind: 'folders' },
   },
   {
+    key: 'workspace.hiddenNames',
+    category: 'files',
+    label: 'Hidden names',
+    description:
+      'Files and folders the file tree does not show, by name, whatever the case. Search and the file index still see them.',
+    control: { kind: 'folders' },
+  },
+  {
     key: 'devtools',
     category: 'advanced',
     label: 'Developer tools',

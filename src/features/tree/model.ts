@@ -163,17 +163,22 @@ export function pathKeyer(ignoreCase: boolean): (path: string) => string {
   }
 }
 
+/** No name hidden. */
+const NO_NAMES: ReadonlySet<string> = new Set()
+
 /**
  * The rows on screen, top to bottom. A root or folder shows its children when its place (see
  * `placeKey`) is in `expanded`; a folder that is open but not listed yet shows a loading line,
  * and one whose listing failed shows the reason. Listings are by path alone: both copies of a
- * folder show the same files.
+ * folder show the same files. `hidden` holds lower-case names the tree leaves out (files and
+ * folders, at any depth); a root is drawn whatever its name, and the listings stay whole.
  */
 export function flatten(
   roots: readonly string[],
   expanded: { has(key: string): boolean },
   listings: ReadonlyMap<string, Listing>,
   keyOf: (path: string) => string,
+  hidden: ReadonlySet<string> = NO_NAMES,
 ): TreeRow[] {
   const rows: TreeRow[] = []
   const add = (root: string, path: string, kind: 'root' | 'folder', depth: number): void => {
@@ -191,6 +196,7 @@ export function flatten(
       return
     }
     for (const entry of listing.entries) {
+      if (hidden.has(entry.name.toLowerCase())) continue
       const child = joinPath(path, entry.name)
       if (entry.kind === 'folder') add(root, child, 'folder', depth + 1)
       else {

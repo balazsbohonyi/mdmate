@@ -46,6 +46,7 @@ import {
   copyTabPath,
   copyTabRelativePath,
   findTabReferences,
+  HIDDEN_BY_NAME,
   keepNameBoxFocus,
   RENAME_OUTSIDE_FOLDER,
   relativePathOf,
@@ -83,6 +84,7 @@ const FILES: Record<string, string> = {
   '/work/pic.png': 'png',
   '/outside/o.md': 'o\n',
   '/work/inner/x.md': 'x\n',
+  '/work/.idea/n.md': 'n\n',
 }
 
 let host: MockHost
@@ -473,6 +475,21 @@ describe('Rename and Find File References from the menu', () => {
     await flush()
     expect(naming.value).toMatchObject({ kind: 'rename', path: '/work/deep/er/d.md' })
     expect(sidebarPanel.value).toBe('folders')
+  })
+
+  it('Rename and Reveal on a file inside a folder the tree hides say so and open no name box', async () => {
+    await start()
+    const n = await openPath('/work/.idea/n.md')
+    selectedPath.value = null
+    await renameTab(n)
+    await flush()
+    expect(toasts.last).toBe(HIDDEN_BY_NAME)
+    expect(naming.value).toBeNull()
+    expect(selectedPath.value).toBeNull()
+    await revealTabInSidebar(n)
+    await flush()
+    expect(toasts.last).toBe(HIDDEN_BY_NAME)
+    expect(selectedPath.value).toBeNull()
   })
 
   it('Rename shows a hidden sidebar and the folders panel before the name box', async () => {

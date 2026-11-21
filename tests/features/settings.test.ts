@@ -321,6 +321,19 @@ describe('the behaviour behind each key (P8-T1b)', () => {
     expect(sent()).toBe(base + 2)
   })
 
+  it('ISC-647: workspace.hiddenNames belongs to the page alone: a change sends nothing to Rust', async () => {
+    await start()
+    const base = host.runtime.calls.length
+    expect(Object.keys(host.runtime.values)).not.toContain('hiddenNames')
+    expect(await changeSetting('workspace.hiddenNames', ['.git', 'drafts'])).toBe(true)
+    await settledRuntime()
+    expect(host.runtime.calls.length).toBe(base)
+    expect(host.runtime.values.excludedFolders).toEqual([...BUILT_IN_EXCLUDED_FOLDERS])
+    expect(await resetSetting('workspace.hiddenNames')).toBe(true)
+    await settledRuntime()
+    expect(host.runtime.calls.length).toBe(base)
+  })
+
   it('applies what the file holds to Rust at start, before anything is pasted or restored', async () => {
     await start({
       [MOCK_SETTINGS_FILE]:

@@ -1760,6 +1760,12 @@ const DEMO_FILES: Readonly<Record<string, string>> = {
   '/demo/crlf.md': '# Windows file\r\n\r\nEvery line here ends in CRLF.\r\nSo does this one.\r\n',
   '/demo/mixed.md': 'LF line\nCRLF line\r\nold Mac line\rlast line\n',
   '/demo/roadmap.md': '# Roadmap\n\n1. Documents\n2. Preview\n3. Links\n',
+  // Names the tree hides by default (workspace.hiddenNames), and two dotfiles it keeps.
+  '/demo/.git/config': '[core]\n',
+  '/demo/.idea/workspace.xml': '<project/>',
+  '/demo/Thumbs.db': 'thumbs',
+  '/demo/.gitignore': 'dist\n',
+  '/demo/.github/ci.yml': 'name: ci\n',
   // Not Markdown, and one level down: they give the sidebar something to dim and to open.
   '/demo/docs/guide.md': '# Guide\n\nA file in a folder.\n',
   '/demo/docs/todo.txt': 'buy milk\n',

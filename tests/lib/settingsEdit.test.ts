@@ -27,6 +27,7 @@ const SETTING_PATHS: readonly (readonly string[])[] = [
   ['fonts', 'headingScale'],
   ['editor', 'wordWrap'],
   ['workspace', 'excludedFolders'],
+  ['workspace', 'hiddenNames'],
   ['links', 'onRename'],
 ]
 
