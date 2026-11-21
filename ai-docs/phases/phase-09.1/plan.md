@@ -10,7 +10,7 @@
 - **Plan first, then add to this file.** The owner writes a small plan for each fix. Its task gets a section below and a line in `ai-docs/tasks.md` before the code changes.
 - **Every fix has a claim.** A bug reopens the claim that should have caught it, or adds a new one (`ai-docs/standards/isa.md`). The probe fails on the old code first.
 - **Scope stays small.** A fix that grows into a feature moves to Phase 10 or a phase of its own.
-- **Order:** T2 to T10 run in order. T10 starts with a spike and may move to Phase 10 (recorded in `ISA.md` Decisions). T11 was added later and touches nothing the others do, so it can run before T9.
+- **Order:** T2 to T10 run in order. T10 starts with a spike and may move to Phase 10 (recorded in `ISA.md` Decisions). T11 was added later and touches nothing the others do, so it can run before T9. T12 to T19 were added on 2026-11-21 (owner review) and run in order; each is independent of the others, except that T17 and T18 both add fields to the session snapshot (`src/documents/session.ts`), so they run one after the other.
 - **Claims:** a task's claims are added to `ISA.md` in the task's own commit, as P9.1-T1 did. The sections below name the claims a task reopens and the areas where new ones go.
 - **Branch:** `feat/phase-09.1-polish`.
 
@@ -193,3 +193,116 @@
 - Each new test fails on the old `scan.ts`.
 
 **Done when:** the new tests fail on the old code and pass on the new, `decisions.md` shows its tables in `pnpm dev` (Dark and Light), the owner confirms in the real window, and `pnpm check` and `pnpm test:web` are green.
+
+## P9.1-T12: Ctrl+Tab cycles the tab-list menu
+
+**The change:** Ctrl+Tab and Ctrl+Shift+Tab step through the focused pane's tabs the way VS Code does, through the same menu the chevron next to the tab strip opens.
+
+- Ctrl+Tab opens that menu (`data-tab-list-menu` in `src/workbench/TabStrip.vue`) with the next tab marked. Each further Tab press, or Down, moves the mark on, wrapping after the last tab. Ctrl+Shift+Tab opens it with the previous tab marked and moves back. **Releasing Ctrl switches to the marked tab** and closes the menu. Escape closes it with no switch.
+- Order is the strip order the menu already has (pinned tabs first). A pane with one tab does nothing. Only the focused pane is touched.
+- Ctrl+PageDown and Ctrl+PageUp select the next and previous tab in strip order at once, with no menu, wrapping at the ends. They are added to `REPEATING` in `src/workbench/keyboard.ts` so a held key repeats.
+- All four chords are commands in the 'Tabs & Navigation' group (`COMMAND_IDS` and `registerCommand` in `src/workbench/defaultCommands.ts`), so they show in the palette and the Keyboard screen and can be rebound.
+
+**How:** the menu is a Reka `DropdownMenu`, which commits on Enter or click and not on a key release, so the open state, the marked row and the Ctrl release are driven from our own state: a controlled `open` on the menu in `TabStrip.vue`, a small cycle state in `src/workbench/` (pure, testable: start, step, commit, cancel over a list of tab ids), and a `keyup` listener in `keyboard.ts` that commits when the Ctrl (Mod) key goes up. Use `panesOf`, `selectTab` and the pane's `tabs` from `splitTree.ts` and `store.ts`. A chord rebound to a key without Ctrl commits on the release of its modifier, whichever it is.
+
+**Risks to check first:** that Ctrl+Tab reaches the page in the real WebView2 window. `disable_browser_keys` is set (P9.1-T2) but nothing has tried this chord. While the menu is open the focus is in the menu, so the Tab key must be taken by our handler and not move focus.
+
+**Tests:** `tests/workbench/tabCycle.test.ts` for the cycle state (wrap, backwards, one tab, escape, pinned first, release commits), command registration and default bindings, and `TabStrip` marking the row. The real-window check goes in ISA Verification.
+
+**Done when:** the tests fail on the old code and pass on the new; in `pnpm tauri dev` with four tabs Ctrl+Tab, Tab and release switches tabs, Ctrl+Shift+Tab goes back, Escape cancels, and Ctrl+PageUp and Ctrl+PageDown switch directly; the checks are green. Closes ISC-601 to ISC-604.
+
+## P9.1-T13: Space on an outline heading jumps there
+
+**The change:** in the Outline, Space on the selected heading scrolls the editor to it and leaves focus in the Outline, as Space does on a file in the Folders tree. Enter stays as it is (jump and focus the editor). The arrow keys still only move the selection.
+
+**How:** `OutlinePanel.vue` (key handler, about `:133-165`) calls `openHeading(at, { focusEditor: false })` for Space and calls `preventDefault` so the list does not scroll. Mirror the tree: `keyAction` in `src/features/tree/model.ts:343` returns `focusEditor: false` for Space and `true` for Enter, and repeated Space or Enter is ignored (`FileTree.vue:310`). `reveal` in `src/features/outline/store.ts:145-173` already runs inside `holdingEditorFocus` when `focusEditor` is off, so no new jump code is needed.
+
+**Tests:** `tests/features/outline.test.ts`: Space jumps and focus stays in the list, Enter jumps and focuses the editor, an arrow key does not jump, Space with Ctrl, Alt or Shift passes through.
+
+**Done when:** the test fails on the old code and passes on the new, and the checks are green. Closes ISC-605.
+
+## P9.1-T14: Outline layout
+
+**The change** (`src/features/outline/OutlinePanel.vue`, helpers in `src/features/tree/model.ts` or a new pure `src/features/outline/layout.ts`):
+
+- **Row height:** the Outline has its own fixed row height from a token (about 30 px). The list is virtual, so the height stays constant across levels. Today it shares `ROW_HEIGHT = 24` with the tree, so "the same as the tree" would change nothing.
+- **Indent by rank:** a heading is indented by its rank among the levels the document uses, with a bigger step than today's 12 px. A document of H2 and H4 gets two steps, a lone level none.
+- **Sizes:** H1, H2 and H3 get three different sizes, and H4 to H6 take the H3 size. All fit in the row height.
+- **Bold:** the top-ranked level is bold, and only when the document has more than one level (H2 alone is not bold).
+- **Muting:** deeper ranks get a progressively more muted text color, from tokens in `src/styles/tokens.css` and the theme files, and the text keeps its contrast (`tests/styles/colorPairs.test.ts`).
+- **Current section:** the row of the section that holds the caret is marked, following the active editor's selection and heading edits. Nothing is marked above the first heading. This needs the outline store to follow the caret of the active tab's follower.
+
+**Not in this task:** collapsing sections of the Outline.
+
+**Tests:** `tests/features/outline.test.ts` (indent by rank for H1 to H3, H2 only, H2 and H4, H1 to H6; sizes; bold rule; row height used by the virtual list; caret section) and the color-pair scan.
+
+**Done when:** the tests fail on the old code and pass on the new, the owner finds the layout right in Dark, Light and Sepia in the real window, and the checks are green. Closes ISC-606 to ISC-610.
+
+## P9.1-T15: No error 1412 when the window closes
+
+**The problem:** closing mdmate prints `[..:ERROR:ui\gfx\win\window_impl.cc:172] Failed to unregister class Chrome_WidgetWin_0. Error = 1412` (1412 is `ERROR_CLASS_HAS_WINDOWS`).
+
+**Where to look:** the close path is `CloseRequested` in `src-tauri/src/lib.rs:64-87` (the session flush, a `CLOSE_GRACE` thread of 3 s, then `app.exit(0)`), the page's `closeRequested` in `src/documents/session.ts:272` and `host.quitApp()` (`app.exit(0)` in `src-tauri/src/commands/mod.rs:465`). The guess, **not yet verified**, is that the process exits while a WebView2 window of that class is still alive, so Chromium cannot unregister it. A fix would destroy or close the window first and leave through the event loop and not through a hard exit, and keep the flush of the session and the index cache (`RunEvent::Exit`, `lib.rs:263-272`).
+
+**Steps:** (1) reproduce in `pnpm tauri dev` and in a release build and record the exact line and the way of closing that shows it (X button, Alt+F4, last tab, File → Exit if there is one); (2) try the smallest change that removes it; (3) check that unsaved work is still saved on every way of closing. If the cause is in WebView2 or Tauri and not in our code, stop and report it, with what was tried, and do not hide the line.
+
+**Tests:** a Rust test for any new ordering logic that can be tested. The line is on stderr of the real process, so the check is `manual` and goes in ISA Verification with the OS and the build.
+
+**Done when:** the line is gone in `pnpm tauri dev` and in the release exe for every way of closing, unsaved work is still saved, and `pnpm check`, `pnpm check:rust` and `pnpm test:rust` are green. Closes ISC-611.
+
+## P9.1-T16: Line numbers
+
+**The change:** an optional line-number gutter.
+
+- **Setting:** `editor.lineNumbers`, off by default. Add it in `src/lib/settings.ts` (`Settings.editor`, `DEFAULT_SETTINGS`, `cloneSettings`), `src/lib/settingsFile.ts` (`SettingValueMap`, `SETTING_DEFS`), a switch row in `src/features/settings/rows.ts` and the live refresh in `src/features/settings/store.ts`. A palette command (no default shortcut) toggles it like Toggle Word Wrap (`defaultCommands.ts`, `quick.ts` `ToggleKey`).
+- **Extension:** a live extension modelled on `src/editor/wordWrap.ts` (a setting read per view and a refresh that dispatches to each view), added to `followerBase` and `common` in `src/editor/create.ts`. It applies to all panes.
+- **Placement:** all text tabs (Markdown, plain text, JSON). When word wrap centres the column (`frame` theme in `create.ts`, `marginInline: auto`), the gutter sits against the left edge of the column and not at the window edge; otherwise at the left of the pane.
+- **Numbers:** source line numbers. A wrapped line shows its number once, on its first row. The line with the caret has its number marked. A block widget (table, image) shows the number of its first source line, and the lines it hides are skipped.
+- **Frontmatter:** its lines are counted, so the first body line after a 5-line frontmatter is 6. While the frontmatter pill is shown (`blocks/field.ts:68`, a block replace over the whole range) the pill has no number; with the caret inside, the raw lines show and are numbered 1 to 5. The gutter has to know whether the pill is drawn, so it reads the block field.
+
+**Risks:** the gutter must not disturb the caret, the arrow keys (the `.cm-line` padding rule in AGENTS.md), the centring math of the column or `estimatedHeight` of widgets. Check a long file for scroll jumps.
+
+**Tests:** `tests/editor/lineNumbers.test.ts` (off by default, live toggle, the three file kinds, gutter next to the column, frontmatter counted and pill unnumbered, wrap, block first line, active line) and `tests/lib/settings.test.ts` for validation.
+
+**Done when:** the tests fail on the old code and pass on the new, the owner finds the gutter right in Dark, Light and Sepia in the real window, and the checks are green. Closes ISC-612 to ISC-616.
+
+## P9.1-T17: Remember the window size, position and maximised state
+
+**The change:** mdmate opens with the size, position and maximised state it was closed with. The window is declared at 1100x720 in `src-tauri/tauri.conf.json` and nothing stores its geometry today. There is no window-state plugin and `src-tauri/Cargo.toml` has no plugins, so this is our own code.
+
+**How:** store a `window` value (`{ x, y, width, height, maximized }`, physical pixels with the monitor's scale noted) with the session. The reader in `src/documents/session.ts` (`readSnapshot`) ignores unknown fields, so the version stays 1 and old files still load. The window starts hidden and `App.vue:39` shows it after the restore, so the geometry is applied before `host.showWindow()`. Reading and setting the size and position needs a Rust command (preferred, behind the `src-tauri/src/platform/` trait) or new permissions in `src-tauri/capabilities/default.json`. Save on the close path, together with the session flush, and debounced while the window is resized or moved so a crash keeps the last known size. A maximised window saves its restored (normal) size and the flag.
+
+**Off-screen guard:** if the saved rectangle does not lie on any monitor (a monitor was unplugged), or is larger than the monitor, centre the window on a monitor at the saved size reduced to fit, and never below the minimum size (480x320).
+
+**Tests:** Rust unit tests for the guard (pure: rectangle, monitors, minimum), a session round-trip test, and an old file without the field. The look in the real window is verified by the owner (resize, maximise, move, close, start).
+
+**Done when:** the tests fail on the old code and pass on the new, the real window comes back at the same size and place, and `pnpm check`, `pnpm check:rust`, `pnpm test:rust` and `pnpm test:web` are green. Closes ISC-617 and ISC-618.
+
+## P9.1-T18: Restore the sidebar as it was left
+
+**The problem:** `restoreWorkspace` in `src/features/tree/store.ts` (`:593-623`) always opens every root at start (`for (const root of found) add(root, root)`, line 605), so a root the owner collapsed is open again. The sidebar's visibility and active panel (`src/workbench/sidebar.ts`) are not saved at all.
+
+**The change:**
+
+- **Expansion:** when a saved workspace state exists, restore exactly its `expandedPlaces`, which includes collapsed roots and folders at any depth. When nothing was saved (a first start), or for a root added in this session, open it one level as today. The code must tell "nothing saved" from "everything collapsed", so the saved state carries a marker (for instance an `expandedPlaces` array that is present, even when empty). Old files that only have the bare `expanded` paths keep today's behaviour.
+- **Gone folders:** a saved folder that no longer exists is dropped without a message. Each root keeps its own set (a folder under two roots is two places).
+- **Panel and visibility:** save whether the sidebar is shown and which panel is active (Folders, Search, Outline, References) in `session.ts` `workspace`, and restore them before the first paint.
+- **Out of scope:** the scroll position and the selected row.
+
+**How:** `buildSnapshot` and `readSnapshot` in `src/documents/session.ts` (`workspace`, unknown fields are ignored so the version stays 1), `restoreWorkspace` and `loadFolder` for the lazy reads of the deeper folders, `sidebar.ts` for the two refs. The journal already watches `expandedPlaces`; add the new values to what it watches. Runs after T17 because both change the snapshot.
+
+**Tests:** `tests/features/treeRestore.test.ts` (all collapsed, two of three open, nothing saved, deep folders, a missing folder, a folder under two roots, an old file) and `tests/documents/session.test.ts` (panel and visibility round-trip).
+
+**Done when:** the tests fail on the old code and pass on the new; the owner collapses all roots, opens a few folders deep in others, hides the sidebar, restarts, and finds it as it was; the checks are green. Closes ISC-619 to ISC-622.
+
+## P9.1-T19: List markers are drawn as an en dash
+
+**The change:** a list item written with `-`, `*` or `+` shows an en dash "–" in place of the marker, longer than the hyphen. Ordered lists, task checkboxes and the text are unchanged.
+
+**Today:** `ListMark` in `src/editor/livePreview/scan.ts:288-291` only becomes a `mark` item with `.cm-md-list-mark` (`livePreview/theme.ts:71`), so the source character shows as it was typed.
+
+**How:** replace the mark with a widget, the pattern of `CheckboxWidget` and the `TaskMarker` branch in `scan.ts:293` and `decorationsFor` in `src/editor/livePreview/index.ts:25-61`: a `Decoration.replace` with a small widget that has `eq()` and draws "–" in the `--syntax-marker` color and the bold weight of today's rule. It is shown only when the selection does not touch the marker (`touched`), so the raw marker shows under the caret and the caret never sticks inside it (add it to the atomic set `hiddenFor` the way the checkbox is). Nested lists use the same widget. The widget's width should leave the text where the hyphen left it, or the continuation lines of a wrapped item will not line up: check this with a long wrapped item. Copying gives the Markdown text.
+
+**Tests:** `tests/editor/listMarker.test.ts`: all three markers, nested, with a task item and an ordered list around, the caret on and off the marker, a selection across items, the caret never inside the marker, and copy.
+
+**Done when:** the tests fail on the old code and pass on the new, the owner finds the dash right in Dark, Light and Sepia, and the checks are green. Closes ISC-623 and ISC-624.
