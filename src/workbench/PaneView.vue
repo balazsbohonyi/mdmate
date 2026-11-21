@@ -13,6 +13,7 @@ import { isRaw } from './rawMode'
 import { focusPane, selectTab, tabInfo, tabRecord, tabTitle, unpinTabById } from './store'
 import { docIdOf } from './tabs'
 import { beginTabDrag, tabDrag } from './tabDrag'
+import { cancelCycle, markedTab, tabCycle } from './tabCycle'
 import TabStrip from './TabStrip.vue'
 
 // The Settings screen loads the first time its tab is shown (check-arch: settings-lazy), so a
@@ -33,6 +34,11 @@ const tabs = computed(() =>
 const activeRecord = computed(() =>
   pane.activeTab === null ? undefined : tabRecord(pane.activeTab),
 )
+/** The tab Ctrl+Tab has marked in this pane, or null when no cycle is open here. */
+const cycleMark = computed(() => {
+  const cycle = tabCycle.value
+  return cycle !== null && cycle.paneId === pane.id ? markedTab(cycle) : null
+})
 /** The document the pane's active tab shows, if it shows one. */
 const activeDocId = computed(() => docIdOf(activeRecord.value) ?? null)
 /** The image the pane's active tab shows, if it shows one. */
@@ -76,11 +82,13 @@ function startDrag(id: string, event: PointerEvent): void {
       :active-id="pane.activeTab"
       :focused="active"
       :dragging-id="tabDrag?.tabId ?? null"
+      :cycle-mark="cycleMark"
       @select="onSelect"
       @close="requestCloseTab"
       @unpin="unpinTabById"
       @press="startDrag"
       @new="void newUntitledTab(pane.id)"
+      @cycle-cancel="cancelCycle"
     />
     <div
       data-pane-body

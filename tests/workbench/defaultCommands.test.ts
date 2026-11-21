@@ -107,6 +107,10 @@ describe('the default commands', () => {
       [COMMAND_IDS.splitDown]: 'Alt+Shift+8',
       [COMMAND_IDS.closeTab]: 'Ctrl+W',
       [COMMAND_IDS.closeAll]: 'Ctrl+Shift+W',
+      [COMMAND_IDS.cycleTabs]: 'Ctrl+Tab',
+      [COMMAND_IDS.cycleTabsBack]: 'Ctrl+Shift+Tab',
+      [COMMAND_IDS.nextTab]: 'Ctrl+PageDown',
+      [COMMAND_IDS.previousTab]: 'Ctrl+PageUp',
       [COMMAND_IDS.find]: 'Ctrl+F',
       [COMMAND_IDS.replace]: 'Ctrl+H',
       [COMMAND_IDS.findNext]: 'F3',
@@ -136,10 +140,10 @@ describe('the default commands', () => {
   it('can be registered a second time before the first is removed, as hot reload does', () => {
     const removeOld = removeCommands
     removeCommands = registerDefaultCommands()
-    expect(listCommands()).toHaveLength(45)
+    expect(listCommands()).toHaveLength(49)
     // The old shell unmounts after the new one has mounted, and removes what it registered.
     removeOld()
-    expect(listCommands()).toHaveLength(45)
+    expect(listCommands()).toHaveLength(49)
     expect(shortcutLabel(COMMAND_IDS.toggleSidebar, 'other')).toBe('Ctrl+Shift+B')
   })
 
@@ -147,7 +151,7 @@ describe('the default commands', () => {
     removeCommands()
     expect(listCommands()).toEqual([])
     removeCommands = registerDefaultCommands()
-    expect(listCommands()).toHaveLength(45)
+    expect(listCommands()).toHaveLength(49)
   })
 })
 
@@ -379,6 +383,10 @@ describe('ISC-412: every command is in one of the six groups', () => {
         'splitDown',
         'closeTab',
         'closeAll',
+        'cycleTabs',
+        'cycleTabsBack',
+        'nextTab',
+        'previousTab',
         'back',
         'forward',
       ),
@@ -392,9 +400,9 @@ describe('ISC-412: every command is in one of the six groups', () => {
       ),
     })
     expect(Object.values(byGroup).map((list) => list.length)).toEqual(
-      expect.arrayContaining([10, 5, 7, 11, 6, 6]),
+      expect.arrayContaining([10, 5, 7, 11, 10, 6]),
     )
-    expect(listCommands()).toHaveLength(45)
+    expect(listCommands()).toHaveLength(49)
   })
 
   it('has a group for every id the table names, so none is left out of the page', () => {

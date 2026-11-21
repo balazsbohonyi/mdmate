@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Check, ChevronDown, Plus } from '@lucide/vue'
-import { nextTick, onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 import HoverHint from '@/components/HoverHint.vue'
 import {
   ContextMenu,
@@ -39,17 +39,22 @@ import {
 } from './tabMenu'
 import type { TabInfo } from './tabs'
 
-/** `focused` is true when this strip's pane is the active pane; `draggingId` is the tab being dragged. */
+/**
+ * `focused` is true when this strip's pane is the active pane; `draggingId` is the tab being dragged.
+ * `cycleMark` is the tab Ctrl+Tab has marked: while it is set the tab-list menu is open on that row.
+ */
 const {
   tabs,
   activeId,
   focused = true,
   draggingId = null,
+  cycleMark = null,
 } = defineProps<{
   tabs: readonly TabInfo[]
   activeId: string | null
   focused?: boolean
   draggingId?: string | null
+  cycleMark?: string | null
 }>()
 const emit = defineEmits<{
   select: [id: string]
@@ -59,7 +64,52 @@ const emit = defineEmits<{
   press: [id: string, event: PointerEvent]
   /** The + button: a new file in this pane. */
   new: []
+  /** The tab-list menu was dismissed (a click outside it) while Ctrl+Tab had it open. */
+  cycleCancel: []
 }>()
+
+/** True while the chevron button has the tab-list menu open. */
+const listOpen = ref(false)
+/** The menu is open for the chevron's own open state, or for a Ctrl+Tab cycle. */
+const menuOpen = computed(() => listOpen.value || cycleMark !== null)
+
+function onMenuOpenChange(open: boolean): void {
+  if (!open && cycleMark !== null) emit('cycleCancel')
+  listOpen.value = open && cycleMark === null
+}
+
+/**
+ * A menu a Ctrl+Tab cycle opened leaves the focus where it was: the keys that drive it are read by
+ * the page, and the editor keeps its caret. The menu of the chevron keeps Reka's focus handling.
+ */
+let wasCycling = false
+watch(
+  () => cycleMark !== null,
+  (now) => {
+    if (now) wasCycling = true
+  },
+  { flush: 'sync' },
+)
+function openAutoFocus(event: Event): void {
+  if (cycleMark !== null) event.preventDefault()
+}
+function closeAutoFocus(event: Event): void {
+  if (wasCycling) event.preventDefault()
+  wasCycling = false
+}
+
+/** The marked row stays inside the menu's own scroll. */
+watch(
+  () => cycleMark,
+  async (id) => {
+    if (id === null) return
+    await nextTick()
+    document.body
+      .querySelector<HTMLElement>(`[data-tab-list-item="${CSS.escape(id)}"]`)
+      ?.scrollIntoView?.({ block: 'nearest' })
+  },
+  { flush: 'post' },
+)
 
 const scroller = useTemplateRef<HTMLElement>('scroller')
 
@@ -261,7 +311,10 @@ function run(action: () => Promise<unknown> | void): void {
         side="bottom"
       >
         <span class="flex">
-          <DropdownMenu>
+          <DropdownMenu
+            :open="menuOpen"
+            @update:open="onMenuOpenChange"
+          >
             <DropdownMenuTrigger as-child>
               <button
                 type="button"
@@ -277,12 +330,15 @@ function run(action: () => Promise<unknown> | void): void {
               align="end"
               class="w-auto max-w-96 min-w-56"
               data-tab-list-menu
+              @open-auto-focus="openAutoFocus"
+              @close-auto-focus="closeAutoFocus"
             >
               <DropdownMenuItem
                 v-for="tab in tabs"
                 :key="tab.id"
-                class="whitespace-nowrap"
+                class="whitespace-nowrap data-[marked=true]:bg-accent data-[marked=true]:text-accent-foreground"
                 :data-tab-list-item="tab.id"
+                :data-marked="tab.id === cycleMark"
                 @select="emit('select', tab.id)"
               >
                 <Check

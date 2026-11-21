@@ -121,7 +121,7 @@ describe('ISC-414: the Keyboard category is grouped', () => {
     expect(titlesIn('Find')).toHaveLength(5)
     expect(titlesIn('Formatting')).toHaveLength(7)
     expect(titlesIn('View')).toHaveLength(11)
-    expect(titlesIn('Tabs & Navigation')).toHaveLength(6)
+    expect(titlesIn('Tabs & Navigation')).toHaveLength(10)
     expect(titlesIn('App')).toHaveLength(6)
     const ids = rowIds()
     expect(ids).toHaveLength(listCommands().length)

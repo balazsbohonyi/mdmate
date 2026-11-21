@@ -44,6 +44,7 @@ import { findPane } from './splitTree'
 import { openSettingsTab, splitActivePane, workbenchLayout } from './store'
 import { toggleRaw } from './rawMode'
 import { showSidebar, toggleSidebar } from './sidebar'
+import { canCycleTabs, cycleTabs, stepTabs } from './tabCycle'
 import { activeTabId, findTabReferences, renameTab, tabMenuState, tabPath } from './tabMenu'
 
 export const COMMAND_IDS = {
@@ -68,6 +69,10 @@ export const COMMAND_IDS = {
   splitDown: 'workbench.splitDown',
   closeTab: 'workbench.closeTab',
   closeAll: 'workbench.closeAll',
+  cycleTabs: 'workbench.cycleTabs',
+  cycleTabsBack: 'workbench.cycleTabsBack',
+  nextTab: 'workbench.nextTab',
+  previousTab: 'workbench.previousTab',
   toggleSidebar: 'view.toggleSidebar',
   focusSidebar: 'view.focusSidebar',
   toggleRawSource: 'view.toggleRawSource',
@@ -464,6 +469,49 @@ export function registerDefaultCommands(): () => void {
       enabled: activePaneHasTabs,
       run: async () => {
         await closeAllTabs()
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.cycleTabs,
+      group: 'Tabs & Navigation',
+      title: 'Cycle Tabs',
+      // Opens the tab list of the focused pane with the next tab marked; each press moves the mark
+      // and letting go of Ctrl switches. From the palette there is no key to let go of, so it just
+      // switches to the next tab.
+      keybinding: 'Mod+Tab',
+      enabled: canCycleTabs,
+      run: () => {
+        cycleTabs('next')
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.cycleTabsBack,
+      group: 'Tabs & Navigation',
+      title: 'Cycle Tabs Backward',
+      keybinding: 'Mod+Shift+Tab',
+      enabled: canCycleTabs,
+      run: () => {
+        cycleTabs('previous')
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.nextTab,
+      group: 'Tabs & Navigation',
+      title: 'Next Tab',
+      keybinding: 'Mod+PageDown',
+      enabled: canCycleTabs,
+      run: () => {
+        stepTabs('next')
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.previousTab,
+      group: 'Tabs & Navigation',
+      title: 'Previous Tab',
+      keybinding: 'Mod+PageUp',
+      enabled: canCycleTabs,
+      run: () => {
+        stepTabs('previous')
       },
     }),
     registerCommand({
