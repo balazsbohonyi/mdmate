@@ -135,7 +135,7 @@ Phase 9.1 collects the small fixes and rough edges found in daily use, between t
 - [x] P9.1-T10: Drag selected files and folders out to the desktop as copies (spike first; may move to Phase 10) — closes the new claims
 - [x] P9.1-T11: Tables inside list items are drawn as tables, at the item's indent — closes the new claims (owner request; independent of T9 and T10)
 - [x] P9.1-T12: Ctrl+Tab and Ctrl+Shift+Tab cycle the pane's tab-list menu, Ctrl+PageUp and Ctrl+PageDown switch tabs directly — closes ISC-601 to ISC-604
-- [ ] P9.1-T13: Space on an outline heading jumps there and keeps focus in the outline — closes ISC-605
+- [x] P9.1-T13: Space on an outline heading jumps there and keeps focus in the outline — closes ISC-605
 - [ ] P9.1-T14: Outline layout: taller rows, indent by rank, sizes, bold top level, muted deeper levels, current section marked — closes ISC-606 to ISC-610
 - [ ] P9.1-T15: No `Failed to unregister class Chrome_WidgetWin_0` error when the window closes — closes ISC-611
 - [ ] P9.1-T16: Line numbers (setting, off by default), frontmatter counted, collapsed pill unnumbered — closes ISC-612 to ISC-616

@@ -157,6 +157,10 @@ function onKeydown(event: KeyboardEvent): void {
     case 'Enter':
       if (!event.repeat && at >= 0) void openHeading(at, { focusEditor: true })
       break
+    case ' ':
+      // As in the tree: show the heading and stay in the list, so the arrows go on from here.
+      if (!event.repeat && at >= 0) void openHeading(at, { focusEditor: false })
+      break
     default:
       return
   }

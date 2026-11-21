@@ -342,6 +342,71 @@ describe('moving to a heading', () => {
     expect(editorHasFocus()).toBe(true)
   })
 
+  it('Space jumps to the selected heading and leaves focus in the list (ISC-605)', async () => {
+    await start()
+    await openFile('/work/a.md')
+    await openOutline()
+    list().focus()
+    await press('ArrowDown')
+    await press('ArrowDown')
+    expect(selectedHeading.value).toBe(1)
+    const space = await press(' ')
+    expect(space.defaultPrevented).toBe(true)
+    expect(caretLine()).toBe(5)
+    expect(document.activeElement).toBe(list())
+    expect(editorHasFocus()).toBe(false)
+    await press('ArrowDown')
+    expect(selectedHeading.value).toBe(2)
+    expect(caretLine()).toBe(5)
+    await press(' ')
+    expect(caretLine()).toBe(9)
+    expect(document.activeElement).toBe(list())
+  })
+
+  it('Space with nothing selected does not jump, and does not scroll the list', async () => {
+    await start()
+    await openFile('/work/a.md')
+    await openOutline()
+    list().focus()
+    const before = caretLine()
+    const space = await press(' ')
+    expect(space.defaultPrevented).toBe(true)
+    expect(caretLine()).toBe(before)
+    expect(selectedHeading.value).toBe(-1)
+  })
+
+  it('a held Space or Enter jumps once, and Enter still moves focus to the editor (ISC-605)', async () => {
+    await start()
+    await openFile('/work/a.md')
+    await openOutline()
+    list().focus()
+    await press('ArrowDown')
+    await press('ArrowDown')
+    await press(' ', { repeat: true })
+    expect(caretLine()).not.toBe(5)
+    await press('Enter')
+    expect(caretLine()).toBe(5)
+    expect(editorHasFocus()).toBe(true)
+  })
+
+  it('Space with Ctrl, Alt, Meta or Shift passes through', async () => {
+    await start()
+    await openFile('/work/a.md')
+    await openOutline()
+    list().focus()
+    await press('ArrowDown')
+    const before = caretLine()
+    for (const init of [
+      { ctrlKey: true },
+      { altKey: true },
+      { metaKey: true },
+      { shiftKey: true },
+    ]) {
+      expect((await press(' ', init)).defaultPrevented).toBe(false)
+    }
+    expect(caretLine()).toBe(before)
+  })
+
   it('the arrow keys, Home, End and the page keys move the selection and leave the caret alone', async () => {
     await start()
     await openFile('/work/a.md')
