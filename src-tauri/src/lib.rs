@@ -81,6 +81,9 @@ pub fn run() {
                 let app = window.app_handle().clone();
                 std::thread::spawn(move || {
                     std::thread::sleep(CLOSE_GRACE);
+                    commands::end_app(&app);
+                    // The windows were asked to go; if the loop has not ended soon after, end it.
+                    std::thread::sleep(CLOSE_GRACE);
                     app.exit(0);
                 });
             }

@@ -463,7 +463,27 @@ pub(crate) fn watch_close(hook: State<'_, Arc<CloseHook>>, on_close: Channel<()>
 /// Ends the app. The page calls it once the session is written.
 #[tauri::command]
 pub(crate) fn quit_app(app: tauri::AppHandle) {
-    app.exit(0);
+    end_app(&app);
+}
+
+/// Ends the app by destroying its windows and letting the event loop leave when the last one is
+/// gone. A plain `app.exit(0)` ends the process while the web view's window is still alive, and
+/// WebView2 then prints `Failed to unregister class Chrome_WidgetWin_0. Error = 1412` (`ERROR_CLASS_HAS_WINDOWS`)
+/// on every close. The app still ends with `app.exit(0)` when there is no window to destroy, and
+/// the exit work (`RunEvent::Exit` in `lib.rs`) runs on either path.
+pub(crate) fn end_app(app: &tauri::AppHandle) {
+    use tauri::Manager as _;
+    let windows = app.webview_windows();
+    if windows.is_empty() {
+        app.exit(0);
+        return;
+    }
+    for window in windows.values() {
+        if window.destroy().is_err() {
+            // A window that cannot be destroyed must not keep the app alive.
+            app.exit(0);
+        }
+    }
 }
 
 /// The folder of an open document, from Rust's own record of it. Links resolve against it.
