@@ -69,6 +69,16 @@ export const previewTheme = EditorView.baseTheme({
     textDecoration: 'none',
   },
   '.cm-md-list-mark': { color: 'var(--syntax-marker)', fontWeight: '700' },
+  // The en dash of a bullet (bullet.ts): a hidden hyphen gives it the width of the marker it
+  // stands for, and the dash is laid over that.
+  '.cm-md-bullet': {
+    position: 'relative',
+    display: 'inline-block',
+    color: 'var(--syntax-marker)',
+    fontWeight: '700',
+  },
+  '.cm-md-bullet-width': { visibility: 'hidden' },
+  '.cm-md-bullet-dash': { position: 'absolute', left: '0', top: '0' },
   '.cm-md-checkbox': {
     margin: '0 0.35em 0 0',
     verticalAlign: 'middle',

@@ -12,7 +12,7 @@ import { FrontmatterWidget } from '@/editor/livePreview/blocks/widgets'
 import { FRONTMATTER_MAX_LINES, frontmatterEnd } from '@/editor/livePreview/frontmatter'
 import { blockStateOf, drawn, mountPreview } from '../helpers/blocks'
 import { scanPreview } from '@/editor/livePreview/scan'
-import { lineClasses, markedText, scanAll, stateOf } from '../helpers/preview'
+import { bulletsOf, lineClasses, scanAll, stateOf } from '../helpers/preview'
 
 const views: EditorView[] = []
 afterEach(() => {
@@ -195,7 +195,8 @@ describe('the inline layer leaves the block alone', () => {
     const state = stateOf(doc, doc.length)
     const items = scanAll(state)
     expect(lineClasses(state, items)).toEqual([`7: cm-md-h cm-md-h1`])
-    expect(markedText(state, items)).toContain('cm-md-list-mark: -')
+    // The bullet of the last item is drawn as a dash (P9.1-T19).
+    expect(bulletsOf(state, items)).toEqual(['-'])
   })
 
   it('marks every line of the block as plain while a caret touches it, and none otherwise', () => {

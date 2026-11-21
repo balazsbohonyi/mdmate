@@ -55,3 +55,12 @@ Done as planned. A held Space acts once, like Enter and like the tree. Space wit
 - **Left out when default.** `sidebarVisible` is written only when false and `sidebarPanel` only for Search and Outline, like `sidebarWidth`, so existing snapshots and tests stay byte-identical.
 - **Journal.** It watches the sidebar's visibility and panel along with its width.
 - **Open (ISC-622).** The owner restarts `pnpm tauri dev` after collapsing roots, opening folders deep in others and hiding the sidebar.
+
+## P9.1-T19: List markers are drawn as an en dash
+
+- **Width.** The widget is a hidden hyphen that sets the width, with the en dash laid over it (`bullet.ts`). In a monospace font the two glyphs are equally wide. In a proportional body font the dash is wider than a hyphen and overhangs into the space after the marker; the text does not move, so continuation lines of a wrapped item still line up. This was not looked at on screen.
+- **A new item type.** The scan returns `bullet` (like `checkbox`) instead of the `mark` for `-`, `*` and `+` when the selection is away. The raw marker with `cm-md-list-mark` is the same as before while it is touched, and ordered markers (`1.`, `2)`) never change.
+- **Caret.** The bullet is added to the set the caret steps over (`hiddenFor`), like hidden syntax. Because a selection that touches the marker (edges included) shows the raw marker instead, the caret never sits inside a drawn dash; a walk with the arrow keys visits every position.
+- **Click.** The widget ignores no events (`ignoreEvent` false), so a click on the dash puts the caret by the marker, which then shows raw.
+- **Copy.** Copying reads the document, so it gives the Markdown text. CodeMirror answers a copy only for a focused editor, so the copy tests focus the view.
+- **Open.** There is no manual claim for T19. The plan's "the owner finds the dash right in Dark, Light and Sepia" is the owner's look at the real window.

@@ -51,6 +51,14 @@ export function lineClasses(state: EditorState, items: readonly PreviewItem[]): 
     .sort()
 }
 
+/** The bullet markers drawn as a dash, as the characters they stand for, in document order. */
+export function bulletsOf(state: EditorState, items: readonly PreviewItem[]): string[] {
+  return items
+    .filter((item) => item.type === 'bullet')
+    .sort((a, b) => a.from - b.from)
+    .map((item) => state.doc.sliceString(item.from, item.to))
+}
+
 /** The marked text, as `class: text`, in document order. */
 export function markedText(state: EditorState, items: readonly PreviewItem[]): string[] {
   return items

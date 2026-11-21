@@ -18,6 +18,7 @@ import {
 } from '@codemirror/view'
 import { blockLayer } from './blocks'
 import { boxTheme } from './box'
+import { BulletWidget } from './bullet'
 import { CheckboxWidget } from './checkbox'
 import { previewTheme } from './theme'
 import { scanPreview, type PreviewItem } from './scan'
@@ -27,6 +28,7 @@ const checkboxes = {
   open: Decoration.replace({ widget: new CheckboxWidget(false) }),
   done: Decoration.replace({ widget: new CheckboxWidget(true) }),
 }
+const bullet = Decoration.replace({ widget: new BulletWidget() })
 const marks = new Map<string, Decoration>()
 const lines = new Map<string, Decoration>()
 
@@ -48,6 +50,8 @@ export function decorationsFor(items: readonly PreviewItem[]): DecorationSet {
       ranges.push(hide.range(item.from, item.to))
     } else if (item.type === 'checkbox') {
       ranges.push((item.checked ? checkboxes.done : checkboxes.open).range(item.from, item.to))
+    } else if (item.type === 'bullet') {
+      ranges.push(bullet.range(item.from, item.to))
     } else if (item.type === 'mark') {
       const decoration = shared(marks, item.class, () => Decoration.mark({ class: item.class }))
       ranges.push(decoration.range(item.from, item.to))
@@ -70,7 +74,8 @@ export function decorationsFor(items: readonly PreviewItem[]): DecorationSet {
 export function hiddenFor(items: readonly PreviewItem[]): DecorationSet {
   const ranges: Range<Decoration>[] = []
   for (const item of items) {
-    if (item.type === 'hide') ranges.push(hide.range(item.from, item.to))
+    // A bullet is one character the caret steps over, like hidden syntax.
+    if (item.type === 'hide' || item.type === 'bullet') ranges.push(hide.range(item.from, item.to))
   }
   return Decoration.set(ranges, true)
 }

@@ -6,32 +6,25 @@ import { EditorView, keymap } from '@codemirror/view'
 import { describe, expect, it } from 'vitest'
 import { createFollowerState, createState } from '@/editor/create'
 import { continueList, indentListItem, outdentListItem } from '@/editor/lists'
-import { hidden, markedText, scanAll, stateOf } from '../helpers/preview'
+import { bulletsOf, hidden, markedText, scanAll, stateOf } from '../helpers/preview'
 
 describe('lists', () => {
   it('styles bullet and number markers and hides nothing', () => {
     const doc = '- one\n* two\n+ three\n\n1. first\n2) second\n\nend'
     const state = stateOf(doc)
     const items = scanAll(state)
-    expect(markedText(state, items)).toEqual([
-      'cm-md-list-mark: -',
-      'cm-md-list-mark: *',
-      'cm-md-list-mark: +',
-      'cm-md-list-mark: 1.',
-      'cm-md-list-mark: 2)',
-    ])
+    // A bullet is drawn as a dash (P9.1-T19); the numbers keep their mark.
+    expect(bulletsOf(state, items)).toEqual(['-', '*', '+'])
+    expect(markedText(state, items)).toEqual(['cm-md-list-mark: 1.', 'cm-md-list-mark: 2)'])
     expect(hidden(items)).toEqual([])
   })
 
   it('styles nested markers and the marker of a task item', () => {
     const doc = '- a\n  - b\n    1. c\n- [ ] task\n\nend'
     const state = stateOf(doc)
-    expect(markedText(state, scanAll(state))).toEqual([
-      'cm-md-list-mark: -',
-      'cm-md-list-mark: -',
-      'cm-md-list-mark: 1.',
-      'cm-md-list-mark: -',
-    ])
+    const items = scanAll(state)
+    expect(bulletsOf(state, items)).toEqual(['-', '-', '-'])
+    expect(markedText(state, items)).toEqual(['cm-md-list-mark: 1.'])
   })
 
   it('does not treat a dash inside text as a marker', () => {

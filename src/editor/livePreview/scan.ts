@@ -48,7 +48,14 @@ export interface CheckboxItem {
   readonly checked: boolean
 }
 
-export type PreviewItem = HideItem | MarkItem | LineItem | CheckboxItem
+/** A bullet list marker (`-`, `*`, `+`) drawn as an en dash. Shown only while no selection touches it. */
+export interface BulletItem {
+  readonly type: 'bullet'
+  readonly from: number
+  readonly to: number
+}
+
+export type PreviewItem = HideItem | MarkItem | LineItem | CheckboxItem | BulletItem
 
 /** The class names the layer puts on the page. The theme and the tests both read them from here. */
 export const classes = {
@@ -77,6 +84,9 @@ const wrapped: Record<string, { class: string; mark: string }> = {
   Strikethrough: { class: classes.strike, mark: 'StrikethroughMark' },
   InlineCode: { class: classes.code, mark: 'CodeMark' },
 }
+
+/** The characters that start a bullet list item. */
+const BULLETS: ReadonlySet<string> = new Set(['-', '*', '+'])
 
 /** True when any selection range touches `[from, to]`, edges included. */
 export function touched(ranges: readonly SelectionRange[], from: number, to: number): boolean {
@@ -286,6 +296,15 @@ export function scanPreview(
         }
 
         if (name === 'ListMark') {
+          // A bullet is drawn as a dash; the raw marker shows while the selection touches it, and
+          // the numbers of an ordered list are always the text.
+          if (
+            BULLETS.has(doc.sliceString(node.from, node.to)) &&
+            !touched(selection, node.from, node.to)
+          ) {
+            items.push({ type: 'bullet', from: node.from, to: node.to })
+            return
+          }
           items.push({ type: 'mark', from: node.from, to: node.to, class: classes.listMark })
           return
         }
