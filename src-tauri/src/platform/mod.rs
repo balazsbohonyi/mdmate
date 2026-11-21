@@ -51,6 +51,21 @@ pub(crate) trait Platform {
     /// the same call on a file would launch the program the OS has for it.
     fn show_folder(&self, path: &Path) -> std::io::Result<()>;
 
+    /// Starts a native drag of these files out of the window, as copies, and returns when it ends:
+    /// true when they were dropped somewhere, false when it was cancelled. It blocks while the
+    /// OS runs the drag, so it must be called on the thread that owns the window. The caller has
+    /// checked every path. Where this OS has no such drag, it says so and nothing starts.
+    fn drag_files_out(
+        &self,
+        _window: &tauri::WebviewWindow,
+        _paths: Vec<std::path::PathBuf>,
+    ) -> std::io::Result<bool> {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "dragging files out of the window is not available on this system",
+        ))
+    }
+
     /// Turns off the web view's own browser shortcuts (reload, view source, zoom, find and the
     /// like), so only the app's keybindings act. Developer tools stay reachable through
     /// `open_devtools`. Where the web view has no such shortcuts, this does nothing.

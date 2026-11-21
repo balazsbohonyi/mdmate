@@ -4,7 +4,7 @@ import { getHost, type Point } from '@/platform'
 import { EditorView } from '@codemirror/view'
 import type { PaneId } from '@/workbench/splitTree'
 import { parentPath } from './tree/model'
-import { copyDropInto } from './tree/ops'
+import { copyDropInto, draggingOut } from './tree/ops'
 import { addRootFromDrop } from './tree/store'
 import { reportError } from '@/shell/toasts'
 
@@ -109,6 +109,8 @@ export async function installFileDrop(): Promise<() => void> {
   const host = await getHost()
   return host.onFileDrag((event) => {
     if (event.type !== 'drop' || event.paths === undefined || event.position === undefined) return
+    // A drop that ends a drag out of this window is not a file from Explorer.
+    if (draggingOut.value) return
     void handleDrop(event.paths, event.position)
   })
 }

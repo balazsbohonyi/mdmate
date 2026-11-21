@@ -339,6 +339,9 @@ export const tauriHost: Host = {
   async revealEntry(path) {
     await invoke('reveal_entry', { path })
   },
+  async dragOut(paths) {
+    return invoke<boolean>('drag_out', { paths })
+  },
   async showFolder(path) {
     await invoke('show_folder', { path })
   },

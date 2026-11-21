@@ -1264,6 +1264,38 @@ pub(crate) async fn delete_entry(
     .map_err(|error| AppError::Task(error.to_string()))?
 }
 
+/// Starts a native drag of files and folders of the workspace out of the window, to copy them to
+/// the Desktop or any file manager window. Answers when the drag ends: true when it was dropped
+/// somewhere, false when it was cancelled. The sources never change.
+#[tauri::command]
+pub(crate) async fn drag_out(
+    window: tauri::WebviewWindow,
+    state: State<'_, Arc<AppState>>,
+    paths: Vec<String>,
+) -> Result<bool, AppError> {
+    let state = state.inner().clone();
+    let resolved = ops::drag_out_paths(&state, &paths)?;
+    let (sender, receiver) = std::sync::mpsc::channel();
+    // The drag belongs to the thread that owns the window. The registry is told first, so the
+    // drop that may land back on this window is not taken for one from outside.
+    state.drops().set_own_drag(true);
+    let on_window = window.clone();
+    let scheduled = window.run_on_main_thread(move || {
+        let _ = sender.send(platform::current().drag_files_out(&on_window, resolved));
+    });
+    let outcome = match scheduled {
+        Ok(()) => tauri::async_runtime::spawn_blocking(move || receiver.recv())
+            .await
+            .map_err(|error| AppError::Task(error.to_string()))
+            .and_then(|received| {
+                received.map_err(|_| AppError::Task("the drag did not finish".into()))
+            }),
+        Err(error) => Err(AppError::Task(error.to_string())),
+    };
+    state.drops().set_own_drag(false);
+    Ok(outcome??)
+}
+
 /// Shows a file or folder in the system's file manager.
 #[tauri::command]
 pub(crate) fn reveal_entry(state: State<'_, Arc<AppState>>, path: String) -> Result<(), AppError> {

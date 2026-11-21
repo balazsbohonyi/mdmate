@@ -160,6 +160,7 @@ pub fn run() {
         commands::rewrite_discard,
         commands::delete_entry,
         commands::reveal_entry,
+        commands::drag_out,
         commands::show_folder,
         commands::copy_clashes,
         commands::copy_dropped,
@@ -251,6 +252,7 @@ pub fn run() {
         commands::rewrite_discard,
         commands::delete_entry,
         commands::reveal_entry,
+        commands::drag_out,
         commands::show_folder,
         commands::copy_clashes,
         commands::copy_dropped

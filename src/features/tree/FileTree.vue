@@ -42,6 +42,7 @@ import {
   deleteSelected,
   moveProblem,
   moveRow,
+  dragOutOfWindow,
   moveRows,
   newFileIn,
   newFolderIn,
@@ -381,6 +382,12 @@ function onPointerMove(event: PointerEvent): void {
     dragPaths = selectedTargets().paths
     if (dragPaths.length === 0) dragPaths = [press.path]
   }
+  // Past the edge of the window the drag is no longer ours: the OS takes it, to copy the rows
+  // wherever they are dropped, and the pointer events stop until it ends.
+  if (isOutsideWindow(event.clientX, event.clientY)) {
+    handOver()
+    return
+  }
   const folder = folderAt(event.clientX, event.clientY)
   // The folder takes the drag when at least one of the rows can go there; the others are skipped.
   dropFolder.value =
@@ -388,6 +395,18 @@ function onPointerMove(event: PointerEvent): void {
       ? folder
       : null
   setDragCursor(dropFolder.value === null ? 'blocked' : 'move')
+}
+
+function isOutsideWindow(x: number, y: number): boolean {
+  return x < 0 || y < 0 || x >= window.innerWidth || y >= window.innerHeight
+}
+
+/** Ends the drag in the page and gives what it carries to the OS. */
+function handOver(): void {
+  const paths = dragPaths
+  // The OS takes the button release, so no click follows and there is nothing to swallow.
+  stopDrag()
+  void dragOutOfWindow(paths)
 }
 
 function onPointerUp(): void {

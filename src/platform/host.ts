@@ -517,6 +517,12 @@ export interface Host {
   /** Opens a folder itself in the system's file manager. A file is refused. */
   showFolder(path: string): Promise<void>
   /**
+   * Starts a native drag of files and folders of the workspace out of the window, as copies, and
+   * answers when it ends: true when they were dropped somewhere, false when it was cancelled. The
+   * paths must all lie inside a workspace folder, or nothing starts.
+   */
+  dragOut(paths: readonly string[]): Promise<boolean>
+  /**
    * Every link in the open folders that leads to `path`, by file and line, read with the rule a
    * rename uses. `buffers` are the open documents with unsaved edits: their text is read instead of
    * the file's.

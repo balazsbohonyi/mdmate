@@ -142,6 +142,8 @@ export interface MockHost extends Host {
   readonly revealed: string[]
   /** The folders opened in the file manager, in order. */
   readonly openedFolders: string[]
+  /** The paths of every native drag out of the window the page started, in order. */
+  readonly draggedOut: string[][]
   /** Every text the page put on the clipboard, in order. */
   readonly clipboard: string[]
   /** What the host would offer in Open Recent, newest first, with no check that the entries exist. */
@@ -461,6 +463,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
   const recycled: { path: string; raw: string }[] = []
   const revealed: string[] = []
   const openedFolders: string[] = []
+  const draggedOut: string[][] = []
   const clipboard: string[] = []
   const pastedImages: { path: string; bytes: Uint8Array }[] = []
   const copiedImages: string[] = []
@@ -746,6 +749,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     recycled,
     revealed,
     openedFolders,
+    draggedOut,
     clipboard,
     recent,
     saveDialogs,
@@ -1228,6 +1232,15 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
           throw hostError('not-allowed', `access to ${path} is not allowed`)
         }
         revealed.push(path)
+      })
+    },
+    dragOut(paths) {
+      return attempt(() => {
+        // Rust refuses the whole drag for one path outside a workspace folder.
+        if (paths.length === 0) throw hostError('invalid', 'nothing to drag')
+        for (const path of paths) entryInRoot(path)
+        draggedOut.push([...paths])
+        return true
       })
     },
     showFolder(path) {

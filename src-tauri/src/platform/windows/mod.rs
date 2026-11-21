@@ -125,6 +125,33 @@ impl Platform for Native {
         Ok(())
     }
 
+    fn drag_files_out(
+        &self,
+        window: &tauri::WebviewWindow,
+        paths: Vec<std::path::PathBuf>,
+    ) -> std::io::Result<bool> {
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicBool, Ordering};
+        // OLE's drag runs its own message loop inside this call and reports through the callback
+        // before it returns. Copy is the only effect offered, so a drop can never move the file.
+        let dropped = Arc::new(AtomicBool::new(false));
+        let seen = Arc::clone(&dropped);
+        drag::start_drag(
+            window,
+            drag::DragItem::Files(paths),
+            drag::Image::Raw(Vec::new()),
+            move |result, _| {
+                seen.store(
+                    matches!(result, drag::DragResult::Dropped),
+                    Ordering::SeqCst,
+                )
+            },
+            drag::Options::default(),
+        )
+        .map_err(std::io::Error::other)?;
+        Ok(dropped.load(Ordering::SeqCst))
+    }
+
     fn show_folder(&self, path: &Path) -> std::io::Result<()> {
         let shown = crate::access::display_path(path);
         if shown.contains('"') || shown.contains('\0') {

@@ -346,6 +346,35 @@ export async function deleteRow(path: string): Promise<void> {
   restoreTreeFocus()
 }
 
+/**
+ * True while a drag that left the window is under way, and a moment after, so the drop events it
+ * may cause on this window are not taken for files dragged in from Explorer. Rust refuses to
+ * record such a drop as well; this keeps the page from asking.
+ */
+export const draggingOut = shallowRef(false)
+
+/** How long after a drag out ends the window still ignores drops, for an event that lags it. */
+const DRAG_OUT_SETTLE_MS = 500
+
+/**
+ * Hands a drag of these rows to the OS, which copies them wherever they are dropped. Returns when
+ * the drag ends. The rows in the tree stay where they are.
+ */
+export async function dragOutOfWindow(paths: readonly string[]): Promise<void> {
+  if (draggingOut.value || paths.length === 0) return
+  draggingOut.value = true
+  try {
+    const host = await getHost()
+    await host.dragOut(paths)
+  } catch (error) {
+    reportError(`Could not drag out: ${describe(error)}`)
+  } finally {
+    setTimeout(() => {
+      draggingOut.value = false
+    }, DRAG_OUT_SETTLE_MS)
+  }
+}
+
 /** Shows a file or folder in the system's file manager. */
 export async function revealInFileManager(path: string): Promise<void> {
   try {

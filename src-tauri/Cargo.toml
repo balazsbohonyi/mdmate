@@ -29,6 +29,8 @@ xxhash-rust = { version = "0.8.19", features = ["xxh3"] }
 
 # The same versions Tauri's own webview already pulls in, so nothing new is built.
 [target.'cfg(windows)'.dependencies]
+# Starts a native file drag (OLE) out of the window. Its own `windows` is an older one than Tauri's.
+drag = "2"
 webview2-com = "0.39"
 windows-core = "0.62"
 

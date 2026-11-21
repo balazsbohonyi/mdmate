@@ -11,6 +11,7 @@ use crate::access::display_path;
 use crate::error::AppError;
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, PoisonError};
 
 /// How many drops are remembered. A person drops one thing at a time, and acting on a drop takes
@@ -21,6 +22,9 @@ const KEPT: usize = 4;
 pub(crate) struct DropRegistry {
     ignore_case: bool,
     recent: Mutex<VecDeque<Vec<PathBuf>>>,
+    /// True while a drag that started in this window is under way. A drop that ends it, on this
+    /// window or any other, did not come from outside and must never be copied in.
+    own_drag: AtomicBool,
 }
 
 impl DropRegistry {
@@ -28,7 +32,13 @@ impl DropRegistry {
         Self {
             ignore_case,
             recent: Mutex::new(VecDeque::new()),
+            own_drag: AtomicBool::new(false),
         }
+    }
+
+    /// Notes that a drag out of this window starts (`true`) or has ended (`false`).
+    pub(crate) fn set_own_drag(&self, active: bool) {
+        self.own_drag.store(active, Ordering::SeqCst);
     }
 
     /// How two spellings of one path compare: the way people read it, folded where the file
@@ -44,7 +54,7 @@ impl DropRegistry {
 
     /// Notes the paths of one native drop. Only the window's own drop event calls this.
     pub(crate) fn record(&self, paths: &[PathBuf]) {
-        if paths.is_empty() {
+        if paths.is_empty() || self.own_drag.load(Ordering::SeqCst) {
             return;
         }
         let mut recent = self.recent.lock().unwrap_or_else(PoisonError::into_inner);
@@ -90,6 +100,21 @@ mod tests {
                 .expect_err("never dropped")
                 .kind(),
             "not-allowed"
+        );
+    }
+
+    #[test]
+    fn a_drop_that_ends_a_drag_out_of_this_window_is_not_recorded() {
+        let registry = DropRegistry::new(false);
+        registry.set_own_drag(true);
+        registry.record(&paths(&["/a/one.md"]));
+        assert!(registry.lookup("/a/one.md").is_err());
+        registry.set_own_drag(false);
+        registry.record(&paths(&["/a/two.md"]));
+        assert!(registry.lookup("/a/two.md").is_ok());
+        assert!(
+            registry.lookup("/a/one.md").is_err(),
+            "and it stays unknown"
         );
     }
 

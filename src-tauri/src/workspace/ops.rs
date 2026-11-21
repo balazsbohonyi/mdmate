@@ -346,6 +346,42 @@ pub(crate) fn show_folder(
     Ok(())
 }
 
+/// The paths a drag out of the window may carry, as Rust spells them: every one inside a workspace
+/// root and present on disk, each once, and none inside another one that is also there (the
+/// folder takes it along). A workspace folder itself is allowed: its copy is the whole folder.
+/// Anything else is a refusal, and the whole drag is refused with it.
+pub(crate) fn drag_out_paths(state: &AppState, paths: &[String]) -> Result<Vec<PathBuf>, AppError> {
+    if paths.is_empty() {
+        return Err(AppError::Invalid("nothing to drag".into()));
+    }
+    let mut found: Vec<Resolved> = Vec::new();
+    {
+        let access = state.access();
+        for path in paths {
+            let resolved = access.check_in_root(Path::new(path))?;
+            if !resolved.path.exists() {
+                return Err(AppError::Invalid(format!(
+                    "{} does not exist",
+                    display_path(&resolved.path)
+                )));
+            }
+            if !found.iter().any(|one| one.key == resolved.key) {
+                found.push(resolved);
+            }
+        }
+    }
+    let outer: Vec<PathBuf> = found
+        .iter()
+        .filter(|one| {
+            !found
+                .iter()
+                .any(|other| other.key != one.key && is_inside(&one.key, &other.key))
+        })
+        .map(|one| one.path.clone())
+        .collect();
+    Ok(outer)
+}
+
 /// The paths a native drop delivered, or a refusal for any other.
 fn dropped_sources(state: &AppState, paths: &[String]) -> Result<Vec<PathBuf>, AppError> {
     paths
@@ -626,6 +662,100 @@ mod tests {
 
     fn edit_frame(text: &str) -> Vec<u8> {
         frame::encode(Map::new(), &Endings::uniform(Ending::Lf), text)
+    }
+
+    // ---- dragging out of the window ----
+
+    fn texts(paths: &[&Path]) -> Vec<String> {
+        paths.iter().map(|path| as_text(path)).collect()
+    }
+
+    #[test]
+    fn a_drag_out_carries_files_and_folders_of_the_workspace() {
+        let w = workspace();
+        write(&w.root.join("a.md"), "a");
+        write(&w.root.join("docs/b.md"), "b");
+        let got = drag_out_paths(
+            &w.state,
+            &texts(&[&w.root.join("a.md"), &w.root.join("docs")]),
+        )
+        .expect("allowed");
+        assert_eq!(got, vec![w.root.join("a.md"), w.root.join("docs")]);
+    }
+
+    #[test]
+    fn a_drag_out_names_each_path_once_and_leaves_out_what_a_folder_takes_along() {
+        let w = workspace();
+        write(&w.root.join("docs/b.md"), "b");
+        write(&w.root.join("docsx.md"), "x");
+        let got = drag_out_paths(
+            &w.state,
+            &texts(&[
+                &w.root.join("docs/b.md"),
+                &w.root.join("docs"),
+                &w.root.join("docs"),
+                &w.root.join("docsx.md"),
+            ]),
+        )
+        .expect("allowed");
+        // `docsx.md` only starts like `docs`: it is not inside it.
+        assert_eq!(got, vec![w.root.join("docs"), w.root.join("docsx.md")]);
+    }
+
+    #[test]
+    fn a_drag_out_of_a_workspace_folder_carries_the_folder() {
+        let w = workspace();
+        write(&w.root.join("a.md"), "a");
+        let got = drag_out_paths(&w.state, &texts(&[&w.root])).expect("allowed");
+        assert_eq!(got, vec![w.root.clone()]);
+    }
+
+    #[test]
+    fn a_drag_out_is_refused_whole_for_one_path_outside_the_workspace() {
+        let w = workspace();
+        write(&w.root.join("a.md"), "a");
+        write(&w.outside.join("o.md"), "o");
+        let error = drag_out_paths(
+            &w.state,
+            &texts(&[&w.root.join("a.md"), &w.outside.join("o.md")]),
+        )
+        .expect_err("outside");
+        assert_eq!(error.kind(), "not-allowed");
+    }
+
+    #[test]
+    fn a_drag_out_is_refused_for_a_file_opened_by_hand_that_is_not_in_a_root() {
+        let w = workspace();
+        let loose = w.outside.join("loose.md");
+        write(&loose, "l");
+        w.state.access().grant_file(&loose).expect("granted");
+        let error = drag_out_paths(&w.state, &texts(&[&loose])).expect_err("not in a root");
+        assert_eq!(error.kind(), "not-allowed");
+    }
+
+    #[test]
+    fn a_drag_out_is_refused_for_nothing_and_for_a_path_that_is_gone() {
+        let w = workspace();
+        assert_eq!(
+            drag_out_paths(&w.state, &[]).expect_err("empty").kind(),
+            "invalid"
+        );
+        let error =
+            drag_out_paths(&w.state, &texts(&[&w.root.join("gone.md")])).expect_err("missing");
+        assert!(
+            matches!(error.kind(), "invalid" | "not-found"),
+            "{}",
+            error.kind()
+        );
+    }
+
+    #[test]
+    fn a_drag_out_is_refused_for_a_path_that_climbs_out_with_dots() {
+        let w = workspace();
+        write(&w.outside.join("o.md"), "o");
+        let sneaky = format!("{}/../outside/o.md", as_text(&w.root));
+        let error = drag_out_paths(&w.state, &[sneaky]).expect_err("outside");
+        assert_eq!(error.kind(), "not-allowed");
     }
 
     // ---- names ----
