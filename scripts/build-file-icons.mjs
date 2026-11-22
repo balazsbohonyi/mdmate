@@ -29,6 +29,9 @@ for (const id of allFileIconIds()) {
   const viewBox = /\bviewBox="([^"]+)"/.exec(open[1] ?? '')?.[1]
   if (viewBox === undefined) throw new Error(`${id}.svg has no viewBox`)
   let inner = svg.slice(open[0].length, -'</svg>'.length)
+  // Some Material icons start with a bare `<path d="M0 0h24v24H0z"/>`, a box with no fill. SVG paints
+  // that black, so it shows as a dark square behind the icon on a light sidebar. Drop it.
+  inner = inner.replace(/<path d="M0 0h\d+v\d+H0z"\/>/g, '')
   // Make the ids inside this icon its own: `id="a"` and every `url(#a)` or `href="#a"` that uses it.
   for (const match of inner.matchAll(/\bid="([^"]+)"/g)) {
     const old = match[1] ?? ''

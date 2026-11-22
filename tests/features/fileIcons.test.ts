@@ -116,6 +116,23 @@ describe('the sprite the icons come from (ISC-577)', () => {
     expect(sprite.match(/<symbol id="[^"]+" viewBox="[-\d. ]+">/g)?.length).toBe(symbolIds.length)
   })
 
+  it('paints no background box: no symbol has an unfilled path that covers its view box (ISC-662)', () => {
+    // An SVG path with no fill is black, so a bare `M0 0h24v24H0z` is a black square behind the icon.
+    const symbols = [...sprite.matchAll(/<symbol id="([^"]+)" viewBox="([^"]+)">(.*?)<\/symbol>/gs)]
+    const boxes = symbols
+      .filter(([, , viewBox = '', inner = '']) => {
+        const width = Number(viewBox.split(' ')[2])
+        return [...inner.matchAll(/<path([^>]*)>/g)].some(([, attributes = '']) => {
+          if (attributes.includes('fill=')) return false
+          const box = /d="M0 0h(\d+(?:\.\d+)?)v(\d+(?:\.\d+)?)H0z"/i.exec(attributes)
+          return box !== null && Number(box[1]) >= width
+        })
+      })
+      .map(([, id]) => id)
+    expect(symbols.length).toBe(symbolIds.length)
+    expect(boxes).toEqual([])
+  })
+
   it('holds nothing that loads from the network or runs: no links, scripts, images or handlers', () => {
     expect(sprite).not.toMatch(/https?:\/\/(?!www\.w3\.org\/)/)
     expect(sprite).not.toMatch(/<script|<image|<foreignObject|<style|\bon\w+=/i)
