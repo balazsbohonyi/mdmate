@@ -8,7 +8,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { EditorState } from '@codemirror/state'
 import type { EditorView } from '@codemirror/view'
-import { createFollowerState, createState, createView } from '@/editor/create'
+import { createFollowerState, createState, createView, drawnSelection } from '@/editor/create'
 
 const views: EditorView[] = []
 
@@ -56,40 +56,44 @@ const KINDS: [string, () => EditorState][] = [
   ],
 ]
 
-describe('the selection and the caret are drawn, in the theme colors (ISC-500, ISC-501)', () => {
-  it.each(KINDS)('draws both in %s', (_name, state) => {
-    const view = open(state())
+describe('the selection and the caret, in the theme colors (ISC-500, ISC-501, ISC-689)', () => {
+  it.each(KINDS)(
+    'leaves both to the browser in %s: no drawn layer, so a selection covers only the text',
+    (_name, state) => {
+      const view = open(state())
+      expect(view.dom.querySelector('.cm-selectionLayer')).toBeNull()
+      expect(view.dom.querySelector('.cm-cursorLayer')).toBeNull()
+    },
+  )
+
+  it('draws both where the editor shows a sample, the theme preview, which is never focused', () => {
+    const view = open(
+      createFollowerState({
+        doc: EditorState.create({ doc: DOC }).doc,
+        extensions: [drawnSelection],
+      }),
+    )
     expect(view.dom.querySelector('.cm-selectionLayer')).not.toBeNull()
     expect(view.dom.querySelector('.cm-cursorLayer')).not.toBeNull()
   })
 
-  it('colors the drawn caret from --caret, for the cursor and the drop cursor', () => {
-    open(createState(DOC, [], { preview: true }))
-    expect(sets('.cm-cursor', 'border-left-color:var(--caret)')).toBe(true)
-    expect(sets('.cm-dropCursor', 'border-left-color:var(--caret)')).toBe(true)
-  })
-
-  it('colors the drawn selection from --selection, focused or not, and inside a widget', () => {
-    open(createState(DOC, [], { preview: true }))
-    expect(sets('.cm-selectionBackground', 'background:var(--selection)')).toBe(true)
-    expect(
-      sets(
-        '.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground',
-        'background:var(--selection)',
-      ),
-    ).toBe(true)
-    expect(sets('.cm-content ::selection', 'background:var(--selection)')).toBe(true)
-  })
-
-  it('leaves the caret to the drawn one: no native caret color is set that would do nothing', () => {
+  it('colors the native caret from --caret, and the drawn one of the preview and the drop cursor too', () => {
     open(createState(DOC, [], { preview: true }))
     expect(
       rules().some(
         (rule) =>
-          rule.selector.endsWith('.cm-content') &&
-          rule.body.includes('caret-color:var(--foreground)'),
+          rule.selector.endsWith('.cm-content') && rule.body.includes('caret-color:var(--caret)'),
       ),
-    ).toBe(false)
+    ).toBe(true)
+    expect(sets('.cm-cursor', 'border-left-color:var(--caret)')).toBe(true)
+    expect(sets('.cm-dropCursor', 'border-left-color:var(--caret)')).toBe(true)
+  })
+
+  it('colors the selected text from --selection, in the lines and inside a widget', () => {
+    open(createState(DOC, [], { preview: true }))
+    expect(sets('.cm-content ::selection', 'background:var(--selection)')).toBe(true)
+    // The preview's drawn selection keeps its color too.
+    expect(sets('.cm-selectionBackground', 'background:var(--selection)')).toBe(true)
   })
 })
 

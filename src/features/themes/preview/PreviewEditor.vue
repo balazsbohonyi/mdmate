@@ -3,7 +3,7 @@ import { EditorState, Prec, Text } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { onBeforeUnmount, onMounted, useTemplateRef } from 'vue'
 import { brokenLinks, LinkStatus, linkStatus } from '@/editor/brokenLinks'
-import { createFollowerState, createView } from '@/editor/create'
+import { createFollowerState, createView, drawnSelection } from '@/editor/create'
 import { EMPTY_FIND, FIND_COUNT_EVENT, findEffect } from '@/editor/find'
 import { PREVIEW_FIND, PREVIEW_MISSING, PREVIEW_NOTE, previewSelection } from './previewNote'
 
@@ -39,6 +39,7 @@ onMounted(() => {
     doc: Text.of(PREVIEW_NOTE.split('\n')),
     selection: previewSelection(),
     extensions: [
+      drawnSelection,
       EditorState.readOnly.of(true),
       EditorView.editable.of(false),
       // A read-only view still moves its selection on a click or a key; the preview's three ranges

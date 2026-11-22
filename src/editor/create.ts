@@ -41,13 +41,16 @@ const frame = EditorView.theme({
   // stays at the pane's edge. Above and below the room is padding on the content, which CodeMirror
   // counts in its heights.
   '.cm-scroller': { overflow: 'auto', paddingInline: CONTENT_PADDING_X },
-  // The selection and the caret are drawn by CodeMirror (`drawSelection`, in `common` and
-  // `followerBase`), which hides the browser's own, so the theme's Selection and Caret colors apply
-  // here. The focused rule is as specific as CodeMirror's own, and wins by coming from the theme.
+  // The selection and the caret are the browser's own, so a selection covers only the characters
+  // (and a stub for each line break it takes), as in Obsidian: CodeMirror's drawn selection fills
+  // every selected line to the edge. The theme's Selection and Caret colors apply through
+  // `::selection` and `caret-color`. The theme preview, which is never focused, draws its own
+  // (`drawnSelection`), and those rules color the drawn parts.
   '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--caret)' },
   '.cm-selectionBackground, &.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-content ::selection':
     { background: 'var(--selection)' },
   '.cm-content': {
+    caretColor: 'var(--caret)',
     padding: '1.25rem 0',
     // The text column stops at the width from settings.json and sits in the middle (documentWidth.ts).
     // The fallback is the default, for the moment before the file is read or when it cannot be.
@@ -95,10 +98,10 @@ const frame = EditorView.theme({
     paddingLeft: '10px',
     paddingRight: '10px',
   },
+  ...headingGutterRules(),
   '&.cm-lineNumbersOn .cm-activeLineGutter': {
     backgroundColor: 'transparent',
     color: 'var(--foreground)',
-  ...headingGutterRules(),
   },
 })
 
@@ -131,6 +134,12 @@ const tabKeys: Extension = [
   indentUnit.of('\t'),
 ]
 
+/**
+ * CodeMirror's own selection and caret, drawn in layers. Only the theme preview takes it: that view
+ * is never focused, so the browser would draw nothing, and it must show a selection and a caret.
+ */
+export const drawnSelection: Extension = drawSelection()
+
 /** What every document gets, with or without the Markdown parser. */
 const common: Extension = [
   appKeys,
@@ -140,7 +149,6 @@ const common: Extension = [
   lineNumbers,
   documentFonts,
   frame,
-  drawSelection(),
   tabKeys,
   textDrag(),
   findSupport(),
@@ -196,7 +204,6 @@ const followerBase: Extension = [
   lineNumbers,
   documentFonts,
   frame,
-  drawSelection(),
   tabKeys,
   // Drag-to-move for selected text, on pointer events (P5-T7).
   textDrag(),
