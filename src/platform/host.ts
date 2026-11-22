@@ -252,6 +252,11 @@ export interface Host {
    */
   pickFiles(): Promise<string[]>
   /**
+   * Shows the open dialog for a program (the Git program in Settings) and returns the path chosen,
+   * or null when the user cancels. It grants no access to the file: the path is only text.
+   */
+  pickExecutable(): Promise<string | null>
+  /**
    * Opens a file the user chose. Opening the same file again returns the same document id.
    * `remember` puts the file on the Open Recent list, for a file the user chose to open; a
    * restored session does not pass it.

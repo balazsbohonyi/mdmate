@@ -273,6 +273,18 @@ function acceptKey(key: SettingKey, numeric: boolean): void {
   set(key, checked.value as never)
 }
 
+/** Asks the host for a program with the system's file dialog, then takes it as if it were typed. */
+async function browse(spec: SettingRowSpec): Promise<void> {
+  try {
+    const picked = await (await getHost()).pickExecutable()
+    if (picked === null) return
+    onType(spec.key, picked)
+    accept(spec)
+  } catch {
+    refused[spec.key] = 'The file dialog could not be opened.'
+  }
+}
+
 function revert(key: SettingKey): void {
   delete drafts[key]
   delete refused[key]
@@ -724,6 +736,31 @@ function openFile(): void {
                 @keydown.enter="accept(spec)"
                 @keydown.esc="revert(spec.key)"
               />
+              <div
+                v-else-if="spec.control.kind === 'text' && spec.control.browse === true"
+                class="flex items-center gap-2"
+              >
+                <Input
+                  :model-value="shownText(spec.key)"
+                  :placeholder="spec.control.placeholder"
+                  :aria-label="spec.label"
+                  :aria-invalid="refused[spec.key] !== undefined ? true : undefined"
+                  class="min-w-0 flex-1"
+                  @update:model-value="(text: string | number) => onType(spec.key, text)"
+                  @change="accept(spec)"
+                  @keydown.enter="accept(spec)"
+                  @keydown.esc="revert(spec.key)"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  :aria-label="`Browse for ${spec.label}`"
+                  data-browse
+                  @click="browse(spec)"
+                >
+                  Browse…
+                </Button>
+              </div>
               <Input
                 v-else-if="spec.control.kind === 'text'"
                 :model-value="shownText(spec.key)"

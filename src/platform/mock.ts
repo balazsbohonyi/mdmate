@@ -305,6 +305,8 @@ export interface MockHostOptions {
   readonly pick?: () => string[]
   /** What the folder dialog returns each time it is shown. Default: null, as if cancelled. */
   readonly pickFolder?: () => string | null
+  /** What the program dialog returns each time it is shown. Default: null, as if cancelled. */
+  readonly pickExecutable?: () => string | null
   /** Workspace roots the host already has, as if the last run left them. */
   readonly roots?: readonly string[]
   /**
@@ -1543,6 +1545,9 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     },
     pickFiles() {
       return Promise.resolve(options.pick?.() ?? [])
+    },
+    pickExecutable() {
+      return Promise.resolve(options.pickExecutable?.() ?? null)
     },
     openFile(path, rememberIt): Promise<OpenedFile> {
       const raw = files.read(path)

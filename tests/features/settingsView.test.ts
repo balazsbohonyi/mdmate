@@ -1276,6 +1276,47 @@ describe('ISC-653: the Git rows on Files and workspace', () => {
   })
 })
 
+describe('ISC-667: Browse on the Git program row', () => {
+  const GIT = 'C:/Program Files/Git/cmd/git.exe'
+  const browseOf = (key: string): HTMLButtonElement | null =>
+    rowOf(key).querySelector<HTMLButtonElement>('[data-browse]')
+
+  it('puts the picked program in the field and writes it through the same check', async () => {
+    await mountScreen('files')
+    vi.spyOn(host, 'pickExecutable').mockResolvedValue(GIT)
+    await click(browseOf('git.path'))
+    expect(inputOf('git.path').value).toBe(GIT)
+    expect(errorOf('git.path')).toBeNull()
+    expect(fileObject()).toEqual({ git: { path: GIT } })
+    await settledRuntime()
+    expect(host.runtime.values).toMatchObject({ gitPath: GIT })
+  })
+
+  it('changes nothing when the dialog is cancelled', async () => {
+    await mountScreen('files')
+    const pick = vi.spyOn(host, 'pickExecutable').mockResolvedValue(null)
+    await click(browseOf('git.path'))
+    expect(pick).toHaveBeenCalledTimes(1)
+    expect(inputOf('git.path').value).toBe('')
+    expect(errorOf('git.path')).toBeNull()
+    expect(host.files.read(MOCK_SETTINGS_FILE)).toBeUndefined()
+  })
+
+  it('shows the usual error for a picked path that fails the check, and writes nothing', async () => {
+    await mountScreen('files')
+    vi.spyOn(host, 'pickExecutable').mockResolvedValue('git.exe')
+    await click(browseOf('git.path'))
+    expect(errorOf('git.path')).not.toBeNull()
+    expect(host.files.read(MOCK_SETTINGS_FILE)).toBeUndefined()
+  })
+
+  it('is on the Git program row and no other text row', async () => {
+    await mountScreen('files')
+    const rows = rowKeys().filter((key) => browseOf(key) !== null)
+    expect(rows).toEqual(['git.path'])
+  })
+})
+
 describe('ISC-369: an environment override makes the Links row read-only', () => {
   it('disables the control, names the variable, and shows the value in force', async () => {
     await mountScreen('files', '{"links": {"onRename": "ask"}}', 'update')

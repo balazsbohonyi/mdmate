@@ -13,7 +13,8 @@ import type { SettingsCategory } from '@/lib/settingsCategories'
 export type RowControl =
   | { readonly kind: 'switch' }
   | { readonly kind: 'number' }
-  | { readonly kind: 'text'; readonly placeholder: string }
+  /** A text field. With `browse`, a Browse button beside it picks a program from a file dialog. */
+  | { readonly kind: 'text'; readonly placeholder: string; readonly browse?: true }
   /** A font family, with a sample line in the family typed. */
   | { readonly kind: 'font'; readonly family: FontKind }
   /** Six numbers, one for each heading level. */
@@ -289,8 +290,8 @@ export const SETTING_ROWS: readonly SettingRowSpec[] = [
     category: 'files',
     label: 'Git program',
     description:
-      'The full path of git. Empty finds it on the PATH and in the usual install folders.',
-    control: { kind: 'text', placeholder: 'Find automatically' },
+      'The full path of git. Empty finds it on the PATH and in the usual install folders. Browse picks the program from a file dialog.',
+    control: { kind: 'text', placeholder: 'Find automatically', browse: true },
     group: 'Git',
   },
   {

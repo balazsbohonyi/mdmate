@@ -399,6 +399,9 @@ export const tauriHost: Host = {
   async pickFiles() {
     return invoke<string[]>('pick_files')
   },
+  async pickExecutable() {
+    return invoke<string | null>('pick_executable')
+  },
   async openFile(path, remember) {
     return openedFromFrame(
       decodeFrame(await invoke<ArrayBuffer>('open_file', { path, remember: remember === true })),

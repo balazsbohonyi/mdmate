@@ -80,6 +80,28 @@ pub(crate) async fn pick_files(
     Ok(paths)
 }
 
+/// Shows the system's open dialog for a program (the Git program in Settings) and returns the path
+/// the user chose, or nothing when the dialog is cancelled. Unlike `pick_files` it grants no access:
+/// the path is only text for a setting, and `git.path` is checked on both sides before it is run.
+#[tauri::command]
+pub(crate) async fn pick_executable(
+    window: tauri::WebviewWindow,
+) -> Result<Option<String>, AppError> {
+    let picked = tauri::async_runtime::spawn_blocking(move || {
+        let mut dialog = rfd::FileDialog::new()
+            .set_parent(&window)
+            .set_title("Choose a program");
+        let extensions = platform::current().program_extensions();
+        if !extensions.is_empty() {
+            dialog = dialog.add_filter("Programs", extensions);
+        }
+        dialog.add_filter("All files", &["*"]).pick_file()
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?;
+    Ok(picked.map(|path| display_path(&path)))
+}
+
 /// Opens a file and returns its document frame: header, line endings and text with a plain newline as its only break.
 #[tauri::command]
 pub(crate) async fn open_file(

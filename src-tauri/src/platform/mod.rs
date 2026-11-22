@@ -55,6 +55,12 @@ pub(crate) trait Platform {
         Vec::new()
     }
 
+    /// The file extensions (no dot) of programs the system runs, for the filter of the dialog that
+    /// picks one. Empty where a program has no extension to go by.
+    fn program_extensions(&self) -> &'static [&'static str] {
+        &[]
+    }
+
     /// Hands a URL or a file path to the app the OS uses for it. Only the link guard calls this,
     /// with a target it approved (`links::guard::Approved`); nothing else may.
     fn open_external(&self, target: &str) -> std::io::Result<()>;
@@ -211,6 +217,16 @@ mod tests {
             "linux"
         };
         assert_eq!(current().name(), expected);
+    }
+
+    #[test]
+    fn pick_executable_filters_by_exe_on_windows_and_by_nothing_elsewhere() {
+        let expected: &[&str] = if cfg!(target_os = "windows") {
+            &["exe"]
+        } else {
+            &[]
+        };
+        assert_eq!(current().program_extensions(), expected);
     }
 
     #[test]

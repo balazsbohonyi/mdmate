@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MOCK_FONT_FAMILIES, mockHost } from '@/platform/mock'
+import { createMockHost, MOCK_FONT_FAMILIES, mockHost } from '@/platform/mock'
 
 describe('mock host', () => {
   it('reports the browser runtime', async () => {
@@ -32,6 +32,12 @@ describe('mock host', () => {
   it('treats minimize and close as no-ops in a browser tab', async () => {
     await expect(mockHost.windowControls.minimize()).resolves.toBeUndefined()
     await expect(mockHost.windowControls.close()).resolves.toBeUndefined()
+  })
+
+  it('picks a program: the path the dialog gives, and null when it is cancelled (ISC-666)', async () => {
+    expect(await mockHost.pickExecutable()).toBeNull()
+    const picked = createMockHost({ pickExecutable: () => 'C:/Program Files/Git/cmd/git.exe' })
+    expect(await picked.pickExecutable()).toBe('C:/Program Files/Git/cmd/git.exe')
   })
 
   it('lists the installed font families: each once, sorted, with no empty name (ISC-641)', async () => {

@@ -103,6 +103,10 @@ impl Platform for Native {
         git_install_paths(|name| std::env::var_os(name))
     }
 
+    fn program_extensions(&self) -> &'static [&'static str] {
+        &["exe"]
+    }
+
     fn open_external(&self, target: &str) -> std::io::Result<()> {
         if target.contains('\0') {
             return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput));
