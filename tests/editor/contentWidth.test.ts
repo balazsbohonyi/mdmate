@@ -57,9 +57,9 @@ afterEach(() => {
 })
 
 describe('ISC-439: the column stops at the width, not counting the padding', () => {
-  it('puts the default 900px plus the padding on both sides on the root', () => {
+  it('puts the default 1024px plus the padding on both sides on the root', () => {
     applySettingsText('{}')
-    expect(rootValue()).toBe('900px')
+    expect(rootValue()).toBe('1024px')
   })
 
   it('follows the width that was set', () => {
@@ -91,7 +91,7 @@ describe('ISC-440: with the limit off the column uses the whole width', () => {
     load({ limitContentWidth: false })
     expect(rootValue()).toBe('none')
     load({ limitContentWidth: true })
-    expect(rootValue()).toBe('900px')
+    expect(rootValue()).toBe('1024px')
   })
 
   it('ignores the width while the limit is off', () => {
@@ -121,7 +121,7 @@ describe('ISC-441: a change reaches the open tabs at once', () => {
     applySettingsText('{"editor": {"contentMaxWidth": 640}}')
     expect(rootValue()).toBe('640px')
     applySettingsText('{}')
-    expect(rootValue()).toBe('900px')
+    expect(rootValue()).toBe('1024px')
   })
 })
 
@@ -174,9 +174,9 @@ describe('ISC-442: the two JSON files keep the whole width', () => {
 
 describe('ISC-443: the fallback is the default', () => {
   it('has the default width in the theme, for a file that is not read yet or cannot be', () => {
-    expect(contentWidthValue(DEFAULT_SETTINGS.editor)).toBe('900px')
+    expect(contentWidthValue(DEFAULT_SETTINGS.editor)).toBe('1024px')
     expect(DEFAULT_SETTINGS.editor.limitContentWidth).toBe(true)
-    expect(DEFAULT_SETTINGS.editor.contentMaxWidth).toBe(900)
+    expect(DEFAULT_SETTINGS.editor.contentMaxWidth).toBe(1024)
   })
 
   it('is what the view has before any setting is applied', () => {

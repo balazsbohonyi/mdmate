@@ -82,7 +82,7 @@ describe('the highlight of a whole line starts and ends at the text edges (ISC-6
 
   it('gives the column the width from settings and no more, since the room is no longer inside it', () => {
     const view = mount(KINDS['plain text'] ?? '')
-    expect(valuesOf('.cm-content', 'max-width')).toEqual(['var(--doc-content-max, 900px)'])
+    expect(valuesOf('.cm-content', 'max-width')).toEqual(['var(--doc-content-max, 1024px)'])
     expect(view.contentDOM.isConnected).toBe(true)
   })
 })

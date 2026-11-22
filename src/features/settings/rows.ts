@@ -208,7 +208,7 @@ export const SETTING_ROWS: readonly SettingRowSpec[] = [
     category: 'editor',
     label: 'Maximum content width',
     description:
-      'The widest the text column gets, in pixels. 900 is about 110 characters at the default size. Used when the limit is on.',
+      'The widest the text column gets, in pixels. 1024 is about 120 characters at the default size. Used when the limit is on.',
     control: { kind: 'number' },
   },
   {
