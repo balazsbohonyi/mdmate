@@ -64,7 +64,7 @@ function onDragging(isDragging: boolean, handleId: string): void {
       <ResizableHandle
         v-if="index > 0"
         :id="`${node.id}-handle-${index}`"
-        class="bg-handle after:min-w-1.5 hover:bg-handle-active data-[state=drag]:bg-handle-active"
+        class="bg-handle before:pointer-events-none before:absolute before:inset-y-0 before:left-1/2 before:z-10 before:w-1 before:-translate-x-1/2 before:bg-handle-active before:opacity-0 after:min-w-1.5 hover:bg-handle-active hover:before:opacity-100 focus-visible:ring-0 focus-visible:before:opacity-100 data-[state=drag]:bg-handle-active data-[state=drag]:before:opacity-100 data-[orientation=vertical]:before:inset-y-auto data-[orientation=vertical]:before:top-1/2 data-[orientation=vertical]:before:left-0 data-[orientation=vertical]:before:h-1 data-[orientation=vertical]:before:w-full data-[orientation=vertical]:before:translate-x-0 data-[orientation=vertical]:before:-translate-y-1/2"
         @dragging="(isDragging: boolean) => onDragging(isDragging, `${node.id}-handle-${index}`)"
       />
       <ResizablePanel
