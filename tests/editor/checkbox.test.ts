@@ -15,6 +15,8 @@ import { joinWithEndings } from '@/lib/endings'
 import type { OpenedFile, ReadOnlyReason } from '@/platform'
 import { PaneEditor } from '@/workbench/paneEditor'
 import { splitRaw } from '../helpers/endings'
+import { mountPreview } from '../helpers/blocks'
+import { valuesOf } from '../helpers/editorRules'
 import { hidden, scanAll, stateOf } from '../helpers/preview'
 
 describe('which markers become checkboxes', () => {
@@ -284,5 +286,23 @@ describe('a read-only document (ISC-184)', () => {
     expect(r.doc.dirty).toBe(false)
     expect(r.follower.undo()).toBe(false)
     expect(r.boxes().map((box) => box.checked)).toEqual([false, true])
+  })
+})
+
+describe('the size and the place of the box (P9.1-T19 round 2, ISC-683)', () => {
+  it('is a little bigger than the browser default and sits on the middle of the capital letters', () => {
+    const view = mountPreview('- [ ] one\n- [x] two\n\nend\n', 20)
+    try {
+      expect(view.contentDOM.querySelectorAll('input.cm-md-checkbox')).toHaveLength(2)
+      // 1em wide and high (the owner found 1.1em too big; the browser default is about 0.87em); its
+      // bottom edge is 0.15em under the baseline, which puts the middle of the box 0.35em over it:
+      // the middle of a capital letter, and of a digit, in most fonts.
+      expect(valuesOf('.cm-md-checkbox', 'width')).toEqual(['1em'])
+      expect(valuesOf('.cm-md-checkbox', 'height')).toEqual(['1em'])
+      expect(valuesOf('.cm-md-checkbox', 'vertical-align')).toEqual(['-0.15em'])
+    } finally {
+      view.destroy()
+      document.body.replaceChildren()
+    }
   })
 })

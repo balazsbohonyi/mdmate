@@ -90,9 +90,13 @@ export const previewTheme = EditorView.baseTheme({
     borderRadius: 'var(--radius-sm)',
     backgroundColor: 'var(--swatch)',
   },
+  // Bottom edge 0.15em under the baseline: the middle of the box is then 0.35em over it, the middle
+  // of a capital letter or a digit, which `vertical-align: middle` (the x-height) put too low.
   '.cm-md-checkbox': {
+    width: '1em',
+    height: '1em',
     margin: '0 0.35em 0 0',
-    verticalAlign: 'middle',
+    verticalAlign: '-0.15em',
     cursor: 'pointer',
     accentColor: 'var(--primary)',
   },
