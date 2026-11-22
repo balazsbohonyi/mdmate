@@ -21,7 +21,7 @@ import {
   FULL_WIDTH_CLASS,
   WIDTH_VARIABLE,
 } from './documentWidth'
-import { lineNumbers } from './lineNumbers'
+import { headingGutterRules, lineNumbers } from './lineNumbers'
 import { wordWrap } from './wordWrap'
 import { DEFAULT_SETTINGS } from '@/lib/settings'
 
@@ -98,6 +98,7 @@ const frame = EditorView.theme({
   '&.cm-lineNumbersOn .cm-activeLineGutter': {
     backgroundColor: 'transparent',
     color: 'var(--foreground)',
+  ...headingGutterRules(),
   },
 })
 

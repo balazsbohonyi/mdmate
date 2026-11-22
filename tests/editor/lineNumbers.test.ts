@@ -220,6 +220,111 @@ describe('wrapped lines, blocks and the active line (ISC-615)', () => {
   })
 })
 
+describe('the number of a heading line is centered on the heading (ISC-687)', () => {
+  const DOC = [
+    '# One', // 1
+    '',
+    'text', // 3
+    '',
+    '## Two', // 5
+    '',
+    '### Three', // 7
+    '',
+    '#### Four', // 9
+    '',
+    '##### Five', // 11
+    '',
+    '###### Six', // 13
+    '',
+    'Setext', // 15
+    '======',
+    '',
+    '> # Quoted', // 18
+    '',
+    'end', // 20
+  ].join('\n')
+
+  /** The classes of the gutter element of each numbered line, by its number. */
+  function classesByNumber(view: EditorView): Map<string, string[]> {
+    const found = new Map<string, string[]>()
+    for (const element of view.dom.querySelectorAll<HTMLElement>(
+      '.cm-lineNumbers .cm-gutterElement',
+    )) {
+      const text = element.textContent.trim()
+      if (text !== '') found.set(text, [...element.classList])
+    }
+    return found
+  }
+
+  it('marks the gutter element of each heading line with its level, and no other line', () => {
+    load({ lineNumbers: true })
+    const view = markdown(DOC)
+    view.dispatch({ selection: { anchor: view.state.doc.length } })
+    const marks = classesByNumber(view)
+    const levelOf = (number: string): string | undefined =>
+      marks.get(number)?.find((name) => /^cm-gutter-h\d$/.test(name))
+    expect(levelOf('1')).toBe('cm-gutter-h1')
+    expect(levelOf('5')).toBe('cm-gutter-h2')
+    expect(levelOf('7')).toBe('cm-gutter-h3')
+    expect(levelOf('9')).toBe('cm-gutter-h4')
+    expect(levelOf('11')).toBe('cm-gutter-h5')
+    expect(levelOf('13')).toBe('cm-gutter-h6')
+    // The text line of a Setext heading, not its underline; a heading in a quote.
+    expect(levelOf('15')).toBe('cm-gutter-h1')
+    expect(levelOf('16')).toBeUndefined()
+    expect(levelOf('18')).toBe('cm-gutter-h1')
+    for (const number of ['2', '3', '4', '20']) expect(levelOf(number), number).toBeUndefined()
+  })
+
+  it('marks a heading line while the caret is on it, when its hashes show', () => {
+    load({ lineNumbers: true })
+    const view = markdown(DOC)
+    view.dispatch({ selection: { anchor: 3 } })
+    expect(classesByNumber(view).get('1')).toContain('cm-gutter-h1')
+  })
+
+  it('follows an edit: a line turned into a heading is marked, one turned back is not', () => {
+    load({ lineNumbers: true })
+    const view = markdown('plain\n\nend')
+    view.dispatch({ selection: { anchor: view.state.doc.length } })
+    expect(classesByNumber(view).get('1')).not.toContain('cm-gutter-h2')
+    view.dispatch({ changes: { from: 0, insert: '## ' } })
+    expect(classesByNumber(view).get('1')).toContain('cm-gutter-h2')
+    view.dispatch({ changes: { from: 0, to: 3 } })
+    expect(classesByNumber(view).get('1')).not.toContain('cm-gutter-h2')
+  })
+
+  it('moves the number down by the heading line top padding and half of what its taller line adds', () => {
+    markdown('# One\n\nend')
+    const element = '.cm-lineNumbersOn .cm-lineNumbers .cm-gutterElement'
+    // Heading line: top padding P*S*text + half of ((S-1) * line height * text), so the middle of the
+    // number meets the middle of the heading's first row. (H1: P = 0.3em, S = the level 1 scale.)
+    expect(valuesOf(`${element}.cm-gutter-h1`, 'padding-top')).toEqual([
+      'calc(0.3 * var(--doc-heading-1, 1.7) * var(--doc-size, 15px) + (var(--doc-heading-1, 1.7) - 1) * var(--doc-line-height, 1.4) * var(--doc-size, 15px) / 2)',
+    ])
+    expect(valuesOf(`${element}.cm-gutter-h4`, 'padding-top')).toEqual([
+      'calc(0 * var(--doc-heading-4, 1.1) * var(--doc-size, 15px) + (var(--doc-heading-4, 1.1) - 1) * var(--doc-line-height, 1.4) * var(--doc-size, 15px) / 2)',
+    ])
+  })
+
+  it('uses the same top padding for a heading line that the editor gives the line itself', () => {
+    markdown('# One\n\nend')
+    const paddings = ['0.3em', '0.25em', '0.2em']
+    paddings.forEach((padding, index) => {
+      expect(
+        valuesOf(`.cm-md-h${String(index + 1)}`, 'padding-top'),
+        `h${String(index + 1)}`,
+      ).toEqual([padding])
+      expect(
+        valuesOf(
+          `.cm-lineNumbersOn .cm-lineNumbers .cm-gutterElement.cm-gutter-h${String(index + 1)}`,
+          'padding-top',
+        )[0],
+      ).toContain(`calc(${padding.replace('em', '')} *`)
+    })
+  })
+})
+
 describe('the look of the gutter (ISC-632, ISC-669)', () => {
   const GUTTERS = '.cm-lineNumbersOn .cm-gutters'
 
