@@ -205,12 +205,6 @@ describe('the app menu', () => {
         shortcut: 'Ctrl+,',
         disabled: false,
       },
-      {
-        kind: 'item',
-        id: COMMAND_IDS.openSettingsFile,
-        label: 'Open settings.json',
-        disabled: false,
-      },
       { kind: 'item', id: COMMAND_IDS.switchTheme, label: 'Switch Theme', disabled: false },
       {
         kind: 'item',
@@ -253,16 +247,13 @@ describe('the app menu', () => {
     ])
   })
 
-  it('lists Open Settings and Open settings.json in the menu and in the palette rows (ISC-347)', () => {
+  it('lists Open Settings but not Open settings.json in the menu, and both in the palette rows (ISC-347)', () => {
     const inMenu = buildMenuEntries('other').flatMap((entry) =>
       entry.kind === 'item' ? [[entry.id, entry.label]] : [],
     )
-    expect(inMenu).toEqual(
-      expect.arrayContaining([
-        [COMMAND_IDS.openSettings, 'Open Settings'],
-        [COMMAND_IDS.openSettingsFile, 'Open settings.json'],
-      ]),
-    )
+    expect(inMenu).toEqual(expect.arrayContaining([[COMMAND_IDS.openSettings, 'Open Settings']]))
+    expect(inMenu.map(([id]) => id)).not.toContain(COMMAND_IDS.openSettingsFile)
+    expect(inMenu.map(([, label]) => label)).not.toContain('Open settings.json')
     const inPalette = commandRows('').map((row) => [row.key, row.label, row.disabled])
     expect(inPalette).toEqual(
       expect.arrayContaining([

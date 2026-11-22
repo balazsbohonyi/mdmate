@@ -27,7 +27,7 @@ A change from the screen writes only the key it touched and keeps every other ke
 
 ## P8-T1c: The Settings tab
 
-A new tab kind `settings`, a singleton. Opening it again focuses it (ISC-343); it restores with the session at the same category (ISC-344); splitting does not clone it (ISC-345). Opened by `Mod+,` (ISC-346), the title bar menu and the palette, which also offer Open settings.json (ISC-347), and a gear button (ISC-348). The view loads lazily, like the palette and the search panel.
+A new tab kind `settings`, a singleton. Opening it again focuses it (ISC-343); it restores with the session at the same category (ISC-344); splitting does not clone it (ISC-345). Opened by `Mod+,` (ISC-346), the title bar menu and the palette, a gear button (ISC-348), and Open settings.json in the palette only (ISC-347; it left the menu on 2026-11-22). The view loads lazily, like the palette and the search panel.
 
 ## P8-T1d: The screen
 

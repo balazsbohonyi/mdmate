@@ -70,7 +70,6 @@ const MENU_LAYOUT: readonly string[] = [
   COMMAND_IDS.zoomReset,
   '-',
   COMMAND_IDS.openSettings,
-  COMMAND_IDS.openSettingsFile,
   COMMAND_IDS.switchTheme,
   COMMAND_IDS.toggleDevtools,
   '-',

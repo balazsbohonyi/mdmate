@@ -3,7 +3,7 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 643/681
+progress: 644/681
 started: 2026-11-07T00:30:52Z
 updated: 2026-11-21T20:00:00Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
@@ -1051,7 +1051,7 @@ Why: the look must be yours to change without rebuilding, which is why everythin
 - [x] ISC-344: A Settings tab comes back after a restart in the same pane, at the same category.
 - [x] ISC-345: Splitting the pane of the Settings tab opens no second Settings tab.
 - [x] ISC-346: `Mod+,` opens Settings.
-- [ ] ISC-347: The title bar menu lists Open Settings but not Open settings.json, while the command palette still lists and runs both.
+- [x] ISC-347: The title bar menu lists Open Settings but not Open settings.json, while the command palette still lists and runs both.
 - [x] ISC-348: A gear button opens Settings.
 - [x] ISC-349: Changing a control writes only that key to `settings.json` and keeps every other key, unknown ones included.
 - [x] ISC-350: A control set back to its default removes its key from `settings.json`.
@@ -1700,6 +1700,7 @@ Why: a folder of projects is easier to read when new, changed and ignored files 
 - 2026-11-22: refined: Phase 9.1 polish round three (owner review after T28), ten items sorted into follow-ups on done tasks and two new tasks. Follow-ups, each committed under the tag of the task it amends and each reopening the claim it makes false: the "Open settings.json" menu entry goes (P8-T1c; ISC-347 reworded and reopened, the command, the palette entry and the Settings buttons stay); the README and `.txt` icons draw a black box in Light and Sepia because five sprite symbols (`document`, `readme`, `log`, `settings`, `diff`) start with an unfilled full-box path (P9.1-T8; ISC-578 and ISC-579 reopened, ISC-662 added); the default content width becomes 1024 (Phase 8; ISC-682 added, the probe rows of ISC-439 and ISC-443 now say 1024, their texts stay true); a Browse button for the Git program (P9.1-T27; ISC-666 to ISC-668); the pane handle is 1px at rest and 4px on hover and drag, as the sidebar edge, with no second line (P1-T4 and P8-T6; ISC-663 and ISC-664; ISC-34 and ISC-502 stay true); the font list opens scrolled to the selected font (P9.1-T25; ISC-665); the gutter takes the page background, 0.9 of the code size and 10px each side (P9.1-T21; ISC-632 reworded and reopened, ISC-633 reopened, ISC-669 added); the list marker box is as wide as the en dash (P9.1-T19; ISC-670 and ISC-671). New tasks: P9.1-T29 tables (taller header, rounded corners, striped rows with `editor.stripedTables`, ISC-672 to ISC-677) and P9.1-T30 a colour square before inline hex colours (ISC-678 to ISC-681). All twenty-one new claims are open and `progress` is 643/681 (five claims reopened).
 
 ## Verification
+- P8-T1c follow-up (2026-11-22): ISC-347 closed again with its new wording (the menu lists Open Settings and not Open settings.json; the palette lists and runs both). Fail-first: on the old source `tests/shell/menuEntries.test.ts` failed 2 of 6 (the menu layout and the ISC-347 test); now `pnpm test:web tests/shell` passes (76) and `pnpm check` exits 0. The command, the palette entry, the Settings error banner and the Advanced page button are unchanged (their tests pass). Not looked at: the real window menu.
 - ISC-660 (2026-11-22): the owner looked in the real window at the recoloured tree (red untracked, orange conflicts, green added, blue modified, muted ignored) and found it right. Closed on that; I did not see the real window myself.
 - Owner confirmation (2026-11-22): the owner looked in the real window and found ISC-629, 633, 635, 638, 644 and 648 right, and said the earlier manual claims ISC-575, 604, 610, 611, 616 and 622 are verified and passing; all twelve are closed on that. ISC-660 passed with the old colours and is open until the owner sees red untracked and orange conflicted names.
 - P9.1-T28 recolour (2026-11-22): `treeGit.test.ts` (40, now with a staged file so added is checked too), `themes.test.ts`, `tests/lib/themes.test.ts` and `themeTokenUsage.test.ts` check the new look and tokens; `pnpm check` and `pnpm test:web` (3793) exit 0. Looked at in `pnpm dev` on port 5199 (mock host, `/demo`): in Dark, Light and Sepia the computed colours of notes (untracked) are `oklch(0.72 0.17 25)`, `oklch(0.5 0.19 27)`, `oklch(0.5 0.18 27)`, roadmap (conflicted) `oklch(0.8 0.15 65)`, `oklch(0.52 0.13 55)`, `oklch(0.5 0.12 60)`, README and docs blue as before; Dark screenshot read, Light and Sepia checked by computed colour and a small zoom. Not looked at: the real window; red and orange side by side at Light and Sepia in the real window (an orange that reads 4.5:1 on the light sidebars is brownish, so the two are closer there than in Dark).
