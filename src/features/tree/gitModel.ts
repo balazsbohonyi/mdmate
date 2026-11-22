@@ -6,8 +6,8 @@ import type { GitEntry, GitReport } from '@/platform'
  * then a few lookups.
  *
  * The rules:
- * - Untracked and added names are green (`added`), modified and renamed ones blue (`modified`), a
- *   conflict is the destructive color (`conflicted`), an ignored name is muted (`ignored`).
+ * - Untracked names are red (`untracked`), added ones green (`added`), modified and renamed ones
+ *   blue (`modified`), a conflict is orange (`conflicted`), an ignored name is muted (`ignored`).
  * - Git reports an untracked or ignored folder as one entry, so everything inside it takes that
  *   status. That includes a folder entry above the root: a root inside an ignored folder is muted.
  * - A folder that holds a change (anything but ignored: untracked and added count too) is blue
@@ -20,7 +20,7 @@ import type { GitEntry, GitReport } from '@/platform'
  */
 
 /** What a name is drawn as. A name git says nothing about has no look. */
-export type GitLook = 'added' | 'modified' | 'conflicted' | 'ignored'
+export type GitLook = 'added' | 'untracked' | 'modified' | 'conflicted' | 'ignored'
 
 /** What kind of row a name is on. */
 export type GitRowKind = 'root' | 'folder' | 'file'
@@ -38,6 +38,7 @@ export const NO_LOOKS: GitIndex = {
 function lookOf(status: GitEntry['status']): GitLook {
   switch (status) {
     case 'untracked':
+      return 'untracked'
     case 'added':
       return 'added'
     case 'modified':

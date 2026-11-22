@@ -74,8 +74,8 @@ describe('how a name is drawn (ISC-656)', () => {
   const look = (path: string, kind: 'root' | 'folder' | 'file' = 'file'): GitLook | undefined =>
     index.look(path, kind)
 
-  it('is green for new names, blue for changed ones, the destructive color for a conflict, muted for ignored', () => {
-    expect(look('C:/w/new.md')).toBe('added')
+  it('is red for untracked names, green for added ones, blue for changed ones, orange for a conflict, muted for ignored', () => {
+    expect(look('C:/w/new.md')).toBe('untracked')
     expect(look('C:/w/staged.md')).toBe('added')
     expect(look('C:/w/mod.md')).toBe('modified')
     expect(look('C:/w/ren.md')).toBe('modified')
@@ -89,15 +89,15 @@ describe('how a name is drawn (ISC-656)', () => {
     expect(look('C:/w/dist/out.js')).toBe('ignored')
     expect(look('C:/w/dist/deep/er/x.js')).toBe('ignored')
     expect(look('C:/w/dist/deep', 'folder')).toBe('ignored')
-    expect(look('C:/w/scratch', 'folder')).toBe('added')
-    expect(look('C:/w/scratch/t.md')).toBe('added')
+    expect(look('C:/w/scratch', 'folder')).toBe('untracked')
+    expect(look('C:/w/scratch/t.md')).toBe('untracked')
   })
 
-  it('makes a folder that holds a change blue, and a folder that is untracked itself green', () => {
+  it('makes a folder that holds a change blue, and a folder that is untracked itself red', () => {
     expect(look('C:/w/notes', 'folder')).toBe('modified')
     expect(look('C:/w/notes/changed.md')).toBe('modified')
     // It holds a change (the files inside are new) and is untracked itself: its own status wins.
-    expect(look('C:/w/scratch', 'folder')).toBe('added')
+    expect(look('C:/w/scratch', 'folder')).toBe('untracked')
   })
 
   it('never lets an ignored name color a folder above it', () => {
@@ -149,8 +149,8 @@ describe('the innermost repository decides (ISC-656, ISC-658)', () => {
   )
 
   it('colors the folder the outer repository reported, and nothing it does not hold', () => {
-    expect(index.look('C:/w/projects', 'folder')).toBe('added')
-    expect(index.look('C:/w/projects/loose.md', 'file')).toBe('added')
+    expect(index.look('C:/w/projects', 'folder')).toBe('untracked')
+    expect(index.look('C:/w/projects/loose.md', 'file')).toBe('untracked')
   })
 
   it("does not hand the outer folder's status to what lies in the inner repository", () => {
@@ -189,6 +189,7 @@ async function tick(ms = GIT_DEBOUNCE_MS + 10): Promise<void> {
 const FILES: Record<string, string> = {
   '/work/mod.md': '# mod\n',
   '/work/new.md': '# new\n',
+  '/work/staged.md': '# staged\n',
   '/work/clash.md': '# clash\n',
   '/work/clean.md': '# clean\n',
   '/work/trace.log': 'log\n',
@@ -206,6 +207,7 @@ const WORK_REPORT: GitReport = {
   entries: [
     entry('/work/mod.md', 'modified'),
     entry('/work/new.md', 'untracked'),
+    entry('/work/staged.md', 'added'),
     entry('/work/clash.md', 'conflicted'),
     entry('/work/trace.log', 'ignored'),
     entry('/work/notes/changed.md', 'modified'),
@@ -300,7 +302,8 @@ describe('what the tree draws (ISC-656)', () => {
     start()
     await open('/work/notes', '/work/dist', '/work/dist/deep', '/work/scratch', '/work/only')
     expect(lookOf('/work/mod.md')).toBe('modified')
-    expect(lookOf('/work/new.md')).toBe('added')
+    expect(lookOf('/work/new.md')).toBe('untracked')
+    expect(lookOf('/work/staged.md')).toBe('added')
     expect(lookOf('/work/clash.md')).toBe('conflicted')
     expect(lookOf('/work/trace.log')).toBe('ignored')
     expect(lookOf('/work/clean.md')).toBeUndefined()
@@ -312,9 +315,9 @@ describe('what the tree draws (ISC-656)', () => {
     expect(lookOf('/work/dist')).toBe('ignored')
     expect(lookOf('/work/dist/out.js')).toBe('ignored')
     expect(lookOf('/work/dist/deep/more.js')).toBe('ignored')
-    // An untracked folder is green, and so is what is in it.
-    expect(lookOf('/work/scratch')).toBe('added')
-    expect(lookOf('/work/scratch/t.md')).toBe('added')
+    // An untracked folder is red, and so is what is in it.
+    expect(lookOf('/work/scratch')).toBe('untracked')
+    expect(lookOf('/work/scratch/t.md')).toBe('untracked')
     // An ignored child colors no parent, and a clean sibling stays plain.
     expect(lookOf('/work/only')).toBeUndefined()
     expect(lookOf('/work/only/cache.log')).toBe('ignored')
@@ -326,11 +329,12 @@ describe('what the tree draws (ISC-656)', () => {
   it('puts the colors on the name as classes written out whole', async () => {
     start()
     await open()
-    expect(classOf('/work/new.md')).toContain('text-git-added')
+    expect(classOf('/work/new.md')).toContain('text-git-untracked')
+    expect(classOf('/work/staged.md')).toContain('text-git-added')
     expect(classOf('/work/mod.md')).toContain('text-git-modified')
-    expect(classOf('/work/clash.md')).toContain('text-destructive')
+    expect(classOf('/work/clash.md')).toContain('text-git-conflicted')
     expect(classOf('/work/trace.log')).toContain('text-git-ignored')
-    expect(classOf('/work/clean.md')).not.toMatch(/text-(git|destructive)/)
+    expect(classOf('/work/clean.md')).not.toMatch(/text-git/)
   })
 
   it("keeps the color on a selected row, which only changes the row's fill", async () => {
@@ -548,7 +552,7 @@ describe('a root with several repositories (ISC-658)', () => {
     expect(lookOf('/many/one/a.md')).toBe('modified')
     expect(lookOf('/many/one/b.md')).toBeUndefined()
     expect(lookOf('/many/one')).toBe('modified')
-    expect(lookOf('/many/two/c.md')).toBe('added')
+    expect(lookOf('/many/two/c.md')).toBe('untracked')
     expect(lookOf('/many/two/d.md')).toBeUndefined()
     expect(lookOf('/many/two')).toBe('modified')
     expect(lookOf('/many/plain.md')).toBeUndefined()

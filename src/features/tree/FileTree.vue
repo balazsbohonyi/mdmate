@@ -187,10 +187,12 @@ function gitClass(row: TreeRow): string {
   switch (gitLookOf(row)) {
     case 'added':
       return 'text-git-added'
+    case 'untracked':
+      return 'text-git-untracked'
     case 'modified':
       return 'text-git-modified'
     case 'conflicted':
-      return 'text-destructive'
+      return 'text-git-conflicted'
     case 'ignored':
       return 'text-git-ignored'
     case undefined:

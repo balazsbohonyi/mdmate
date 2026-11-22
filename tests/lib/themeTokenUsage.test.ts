@@ -15,11 +15,12 @@ describe('where each theme token is used (ISC-540)', () => {
     expect(usageOf('gutter-foreground')).toContain('line numbers')
   })
 
-  it('says where the three git colors are used (ISC-655)', () => {
+  it('says where the five git colors are used (ISC-655)', () => {
     expect(usageOf('git-added')).toContain('file tree')
+    expect(usageOf('git-untracked')).toContain('file tree')
+    expect(usageOf('git-conflicted')).toContain('file tree')
     expect(usageOf('git-modified')).toContain('file tree')
     expect(usageOf('git-ignored')).toContain('file tree')
-    expect(usageOf('git-ignored')).toContain('destructive')
   })
 
   it('has no sentence for a token that does not exist', () => {

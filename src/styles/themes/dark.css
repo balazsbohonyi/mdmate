@@ -44,6 +44,8 @@
   --sidebar-border: oklch(0.29 0.013 262);
   /* Names in the file tree: new, changed, and ignored by git. */
   --git-added: oklch(0.8 0.15 150);
+  --git-untracked: oklch(0.72 0.17 25);
+  --git-conflicted: oklch(0.8 0.15 65);
   --git-modified: oklch(0.78 0.11 235);
   --git-ignored: oklch(0.62 0.02 262);
 

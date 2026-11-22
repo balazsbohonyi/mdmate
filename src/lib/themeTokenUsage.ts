@@ -56,11 +56,14 @@ export const THEME_TOKEN_USAGE: Readonly<Record<string, string>> = {
   'sidebar-accent-foreground': 'Text on a highlighted sidebar row.',
   'sidebar-border': 'The lines inside the sidebar and the edge between it and the editor.',
   'git-added':
-    'Names in the file tree that git sees as new: files and folders that are untracked or added.',
+    'Names in the file tree that git has been told about but not yet committed: files and folders that are staged as new.',
+  'git-untracked':
+    'Names in the file tree that git does not know yet: new files and folders that are not staged.',
+  'git-conflicted': 'Names in the file tree that git sees in conflict after a merge or rebase.',
   'git-modified':
     'Names in the file tree that git sees as changed or renamed, and folders that hold a change.',
   'git-ignored':
-    'Names in the file tree that a .gitignore hides from git, and everything inside an ignored folder. A name in conflict uses the destructive color.',
+    'Names in the file tree that a .gitignore hides from git, and everything inside an ignored folder.',
 
   // Chrome
   titlebar: 'The title bar at the top of the window.',

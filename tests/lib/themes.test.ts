@@ -111,7 +111,7 @@ describe('the themes a person can choose', () => {
 })
 
 describe('the git colors (ISC-655)', () => {
-  const GIT = ['git-added', 'git-modified', 'git-ignored']
+  const GIT = ['git-added', 'git-untracked', 'git-conflicted', 'git-modified', 'git-ignored']
 
   it('are in the sidebar group of the color editor', () => {
     const names = THEME_TOKENS.filter((token) => token.group === 'sidebar').map(
