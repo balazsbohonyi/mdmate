@@ -187,7 +187,8 @@ describe('the inline layer leaves the block alone', () => {
     const state = stateOf(doc, doc.length)
     const end = doc.indexOf('\n\n# Real')
     for (const item of scanAll(state)) {
-      expect(item.from, `${item.type} at ${String(item.from)}`).toBeGreaterThan(end)
+      const from = item.type === 'swatch' ? item.at : item.from
+      expect(from, `${item.type} at ${String(from)}`).toBeGreaterThan(end)
     }
   })
 

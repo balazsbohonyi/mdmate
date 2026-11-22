@@ -77,6 +77,19 @@ export const previewTheme = EditorView.baseTheme({
   },
   '.cm-md-bullet-width': { visibility: 'hidden' },
   '.cm-md-bullet-dash': { position: 'absolute', left: '0', top: '0' },
+  // The colour square before a hex colour in inline code (swatch.ts). The colour is the custom
+  // property its element carries; the border keeps a light colour visible on a light page.
+  '.cm-md-swatch': {
+    display: 'inline-block',
+    boxSizing: 'border-box',
+    width: '0.8em',
+    height: '0.8em',
+    margin: '0 0.3em 0 0',
+    verticalAlign: '-0.05em',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-sm)',
+    backgroundColor: 'var(--swatch)',
+  },
   '.cm-md-checkbox': {
     margin: '0 0.35em 0 0',
     verticalAlign: 'middle',

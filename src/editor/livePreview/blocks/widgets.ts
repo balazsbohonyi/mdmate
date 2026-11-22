@@ -2,6 +2,7 @@ import { WidgetType, type EditorView } from '@codemirror/view'
 import { freshImageSrc, imageSizeOf, rememberImageSize, type ImageSize } from './image'
 import { cancelDrag, createHandle } from './imageHandle'
 import { selectImage } from './imageSelect'
+import { createSwatch, hexColor } from '../swatch'
 import type { BlockItem, ImageItem, Inline, TableModel } from './scan'
 
 /** Common ground of the block widgets: what kind of block this is, for the field and the tests. */
@@ -35,6 +36,9 @@ function appendRuns(parent: HTMLElement, runs: readonly Inline[]): void {
     if (run.type === 'text') {
       parent.append(document.createTextNode(run.text))
     } else if (run.type === 'code') {
+      // A hex colour gets the same square as in body text, before the code (swatch.ts).
+      const color = hexColor(run.text)
+      if (color !== null) parent.append(createSwatch(color))
       const code = document.createElement('code')
       code.textContent = run.text
       parent.append(code)

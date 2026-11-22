@@ -20,6 +20,7 @@ import { blockLayer } from './blocks'
 import { boxTheme } from './box'
 import { BulletWidget } from './bullet'
 import { CheckboxWidget } from './checkbox'
+import { SwatchWidget } from './swatch'
 import { previewTheme } from './theme'
 import { scanPreview, type PreviewItem } from './scan'
 
@@ -52,6 +53,11 @@ export function decorationsFor(items: readonly PreviewItem[]): DecorationSet {
       ranges.push((item.checked ? checkboxes.done : checkboxes.open).range(item.from, item.to))
     } else if (item.type === 'bullet') {
       ranges.push(bullet.range(item.from, item.to))
+    } else if (item.type === 'swatch') {
+      // A point widget before the span (side -1), so it sits outside the code and not on the caret.
+      ranges.push(
+        Decoration.widget({ widget: new SwatchWidget(item.color), side: -1 }).range(item.at),
+      )
     } else if (item.type === 'mark') {
       const decoration = shared(marks, item.class, () => Decoration.mark({ class: item.class }))
       ranges.push(decoration.range(item.from, item.to))

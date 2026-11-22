@@ -12,6 +12,7 @@ import type { EditorState, SelectionRange } from '@codemirror/state'
 import { languageName } from '../codeLanguages'
 import { boxLines } from './box'
 import { frontmatterEnd } from './frontmatter'
+import { hexColor } from './swatch'
 
 /** A node of the syntax tree. `@lezer/common` is not a direct dependency, so the type comes from here. */
 type SyntaxNode = ReturnType<ReturnType<typeof syntaxTree>['resolve']>
@@ -55,7 +56,15 @@ export interface BulletItem {
   readonly to: number
 }
 
-export type PreviewItem = HideItem | MarkItem | LineItem | CheckboxItem | BulletItem
+/** A colour square before an inline code span that is a hex colour. It takes no place in the text. */
+export interface SwatchItem {
+  readonly type: 'swatch'
+  /** Where it is drawn: the start of the code span, before the opening backtick. */
+  readonly at: number
+  readonly color: string
+}
+
+export type PreviewItem = HideItem | MarkItem | LineItem | CheckboxItem | BulletItem | SwatchItem
 
 /** The class names the layer puts on the page. The theme and the tests both read them from here. */
 export const classes = {
@@ -132,6 +141,19 @@ function codeMarks(
     at = end
   }
   if (at < to) items.push({ type: 'mark', from: at, to, class: classes.code })
+}
+
+/**
+ * The colour square for an inline code span whose text between its backticks is a hex colour. The
+ * fences are the span's own `CodeMark` children, so a longer fence is read the same way.
+ */
+function swatchOf(items: PreviewItem[], state: EditorState, span: SyntaxNode): void {
+  const first = span.firstChild
+  const last = span.lastChild
+  if (first === null || last === null || first === last) return
+  if (first.name !== 'CodeMark' || last.name !== 'CodeMark') return
+  const color = hexColor(state.doc.sliceString(first.to, last.from))
+  if (color !== null) items.push({ type: 'swatch', at: span.from, color })
 }
 
 /** The first number in `[from, limit)` after a run of spaces and tabs that starts at `from`. */
@@ -362,8 +384,10 @@ export function scanPreview(
 
         const wrap = wrapped[name]
         if (wrap !== undefined) {
-          if (name === 'InlineCode') codeMarks(items, selection, node.from, node.to)
-          else items.push({ type: 'mark', from: node.from, to: node.to, class: wrap.class })
+          if (name === 'InlineCode') {
+            codeMarks(items, selection, node.from, node.to)
+            swatchOf(items, state, node.node)
+          } else items.push({ type: 'mark', from: node.from, to: node.to, class: wrap.class })
           // The markers show while the caret is in the element, edges included.
           if (touched(selection, node.from, node.to)) return
           for (let child = node.node.firstChild; child; child = child.nextSibling) {
