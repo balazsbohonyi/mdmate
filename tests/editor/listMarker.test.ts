@@ -110,11 +110,16 @@ describe('which markers become a dash (ISC-623)', () => {
     expect(view.dom.querySelectorAll('.cm-md-list-mark')).toHaveLength(1)
   })
 
-  it('has the width of a hyphen: a hidden hyphen sets it and the dash is laid over it', () => {
+  it('has the width of the en dash it draws: a hidden dash sets it and the dash is laid over it (ISC-670)', () => {
     const view = mount('- one\n\nend')
     const bullet = view.dom.querySelector('.cm-md-bullet')
     expect(bullet?.children).toHaveLength(2)
-    expect(bullet?.querySelector('.cm-md-bullet-width')?.textContent).toBe('-')
+    // The same glyph, so in a proportional font the dash fills its box and does not overhang the
+    // space after it; in a monospace font the hyphen and the dash are as wide as each other.
+    expect(bullet?.querySelector('.cm-md-bullet-width')?.textContent).toBe('\u2013')
+    expect(bullet?.querySelector('.cm-md-bullet-width')?.textContent).toBe(
+      bullet?.querySelector('.cm-md-bullet-dash')?.textContent,
+    )
     const theme = readFileSync(
       join(import.meta.dirname, '../../src/editor/livePreview/theme.ts'),
       'utf8',
