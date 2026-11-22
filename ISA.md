@@ -3,7 +3,7 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 654/681
+progress: 659/681
 started: 2026-11-07T00:30:52Z
 updated: 2026-11-21T20:00:00Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
@@ -900,9 +900,9 @@ Why: documents mix prose with tables, images and code, and a page full of raw sy
 - [x] ISC-587: What cannot be drawn without losing its line prefix stays source: a table in a quote or in a list in a quote, and one that starts on the list marker's line; and a top-level table, a picture and a paragraph beside a list are drawn as before.
 - [x] ISC-588: The three tables of `ai-docs/phases/phase-00/decisions.md`, which sit under bullets, are drawn in `pnpm dev`, level with the text of their bullets.
 - [x] ISC-589: The owner finds the tables in list items right in the real window.
-- [ ] ISC-674: Table header cells have more vertical padding than a body cell, and the height a table is estimated at counts the taller header.
-- [ ] ISC-675: A table has rounded outer corners (the radius token) with its borders intact, also in a list item.
-- [ ] ISC-676: With `editor.stripedTables` on, every second body row of a table is drawn in the stripe colour and the header and the other rows are not; with it off none is, and the change is live.
+- [x] ISC-674: Table header cells have more vertical padding than a body cell, and the height a table is estimated at counts the taller header.
+- [x] ISC-675: A table has rounded outer corners (the radius token) with its borders intact, also in a list item.
+- [x] ISC-676: With `editor.stripedTables` on, every second body row of a table is drawn in the stripe colour and the header and the other rows are not; with it off none is, and the change is live.
 - [ ] ISC-677: The owner finds the tables right in the real window in Dark, Light and Sepia: taller header, rounded corners, alternating rows, and the setting turning the rows off.
 
 ### F5 · Link navigation
@@ -1286,8 +1286,8 @@ Why: the look must be yours to change without rebuilding, which is why everythin
 - [x] ISC-644: The owner picks a font for each of the three fields in the real window and finds the list searchable, the options drawn in their own fonts, and the editor following the choice live.
 - [x] ISC-665: Opening the list of a font field shows the option that is the field's value scrolled into view, also when that family is past the first 60.
 - [x] ISC-669: The line-number gutter has the same room on the right of the digits as on the left, 10px each, inside the gutter.
-- [ ] ISC-672: Setting `editor.stripedTables` exists, is a switch that is on by default, is validated, sits in the Editor category, and changes the open editors live.
-- [ ] ISC-673: A theme token for the stripe colour of tables exists in Dark, Light and Sepia and in the theme editor's editor group with usage text, and the text colour reads at 4.5:1 or more on it.
+- [x] ISC-672: Setting `editor.stripedTables` exists, is a switch that is on by default, is validated, sits in the Editor category, and changes the open editors live.
+- [x] ISC-673: A theme token for the stripe colour of tables exists in Dark, Light and Sepia and in the theme editor's editor group with usage text, and the text colour reads at 4.5:1 or more on it.
 - [x] ISC-682: The default of `editor.contentMaxWidth` is 1024.
 
 ### F10 · Image authoring
@@ -1700,6 +1700,7 @@ Why: a folder of projects is easier to read when new, changed and ignored files 
 - 2026-11-22: refined: Phase 9.1 polish round three (owner review after T28), ten items sorted into follow-ups on done tasks and two new tasks. Follow-ups, each committed under the tag of the task it amends and each reopening the claim it makes false: the "Open settings.json" menu entry goes (P8-T1c; ISC-347 reworded and reopened, the command, the palette entry and the Settings buttons stay); the README and `.txt` icons draw a black box in Light and Sepia because five sprite symbols (`document`, `readme`, `log`, `settings`, `diff`) start with an unfilled full-box path (P9.1-T8; ISC-578 and ISC-579 reopened, ISC-662 added); the default content width becomes 1024 (Phase 8; ISC-682 added, the probe rows of ISC-439 and ISC-443 now say 1024, their texts stay true); a Browse button for the Git program (P9.1-T27; ISC-666 to ISC-668); the pane handle is 1px at rest and 4px on hover and drag, as the sidebar edge, with no second line (P1-T4 and P8-T6; ISC-663 and ISC-664; ISC-34 and ISC-502 stay true); the font list opens scrolled to the selected font (P9.1-T25; ISC-665); the gutter takes the page background, 0.9 of the code size and 10px each side (P9.1-T21; ISC-632 reworded and reopened, ISC-633 reopened, ISC-669 added); the list marker box is as wide as the en dash (P9.1-T19; ISC-670 and ISC-671). New tasks: P9.1-T29 tables (taller header, rounded corners, striped rows with `editor.stripedTables`, ISC-672 to ISC-677) and P9.1-T30 a colour square before inline hex colours (ISC-678 to ISC-681). All twenty-one new claims are open and `progress` is 643/681 (five claims reopened).
 
 ## Verification
+- P9.1-T29 (2026-11-22), table styling: ISC-672 to ISC-676 closed (progress 659/681); ISC-677 is the owner's. Fail-first: the new `tests/editor/tableStyle.test.ts` and the added theme, token-usage and theme-editor tests failed on the old code (11 of them); now they pass with `tests/editor`, `tests/styles`, `tests/lib` and `settingsView.test.ts` (980 + 838), and `pnpm check` exits 0. In `pnpm dev` (port 5199, mock host, a table in a new document), in Dark, Light and Sepia: only every second body row of the table has a fill (the first row transparent, the second the stripe token), header cell padding 7.84px against 4.28px in a body cell, outer radius 4px. Not looked at: the setting's switch in the Settings screen against a real table (the live change is read from the root property in a test), a table in a list item on screen, a long table's scroll, and the real window (ISC-677).
 - P8-T6 follow-up (2026-11-22), pane handle: ISC-663 closed (progress 654/681). Fail-first: of the 5 tests in the new `tests/workbench/splitHandle.test.ts`, 4 failed on the old classes; now all pass with `tests/styles` (56). In `pnpm dev` (port 5199, mock host, one split made with the palette) the handle's layout width is 1px, its `::before` is 4px wide, in the active colour, `opacity 0` at rest and `1` with `data-state=drag` set by hand, and it has no box-shadow ring. Not looked at: a real hover and a real drag (the automation's pointer does not set `:hover` or start the splitter's drag), the column split, and the real window: ISC-664 is the owner's claim. The cause of the second line the owner saw was not reproduced; the likeliest is the focus ring (`focus-visible:ring-1`) that the shadcn handle draws, which is now off.
 - P9.1-T27 follow-up, ISC-666 closed (progress 653/681): `pnpm test:rust pick_executable` passes (1 test: the dialog filter is `exe` on Windows and empty elsewhere), run with `CARGO_TARGET_DIR` set to a scratch folder because the usual lib test binary is locked by a `cargo test` from 2026-11-21 22:17 that is still running (left alone, not mine). The command's lack of `grant_file` was read in `commands/mod.rs`; the dialog itself cannot run headless.
 - P9.1-T27 follow-up (2026-11-22), Browse on the Git program row: ISC-667 closed (progress 652/681). Fail-first: 5 tests failed on the old code (the mock host had no `pickExecutable`, the row had no Browse button); now `tests/platform/host.test.ts` and `tests/features/settingsView.test.ts` pass (136 together), `pnpm check` and `pnpm check:rust` exit 0 (fmt, clippy, clippy with perf). ISC-666 stays open until the Rust test of the command's filter has run: the lib test binary in `src-tauri/target` is locked by a `cargo test` from last night that is still running, so it runs in another target dir. Not looked at: the real native dialog (ISC-668, the owner's claim).

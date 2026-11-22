@@ -77,7 +77,15 @@ const NAMES: Readonly<Record<ThemeGroup, readonly string[]>> = {
     'scrollbar-thumb-hover',
     'drop-preview',
   ],
-  editor: ['selection', 'find-match', 'find-match-active', 'caret', 'gutter', 'gutter-foreground'],
+  editor: [
+    'selection',
+    'find-match',
+    'find-match-active',
+    'caret',
+    'gutter',
+    'gutter-foreground',
+    'table-stripe',
+  ],
   syntax: [
     'syntax-heading',
     'syntax-link',
@@ -158,6 +166,8 @@ export const CONTRAST_PAIRS: readonly (readonly [string, string, number])[] = [
   ['statusbar-foreground', 'statusbar', 4.5],
   // The line numbers sit on their own strip, not on the page.
   ['gutter-foreground', 'gutter', 4.5],
+  // The text of a striped table row sits on the stripe.
+  ['foreground', 'table-stripe', 4.5],
   ['syntax-heading', 'background', 4.5],
   ['syntax-link', 'background', 4.5],
   ['syntax-code', 'syntax-code-background', 4.5],

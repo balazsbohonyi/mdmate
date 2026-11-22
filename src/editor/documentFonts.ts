@@ -40,6 +40,12 @@ export const FONT_VARIABLES = {
    */
   lineHeight: '--doc-line-height',
   codeLineHeight: '--doc-code-line-height',
+  /**
+   * The fill of every second body row of a table: the theme token when `editor.stripedTables` is
+   * on, transparent when it is off (P9.1-T29). It rides with the fonts because the editor's theme
+   * reads the same root properties and the views are asked to measure again together.
+   */
+  tableStripe: '--doc-table-stripe',
   headingScale: (level: number): string => `--doc-heading-${String(level)}`,
 } as const
 
@@ -103,6 +109,7 @@ export function familyStack(kind: FontKind, written: string, bodyWritten = ''): 
 /** Every custom property and its value, for the fonts in force. */
 export function documentFontVariables(
   fonts: Readonly<Settings['fonts']> = settings.fonts,
+  editor: Readonly<Settings['editor']> = settings.editor,
 ): Record<string, string> {
   const variables: Record<string, string> = {
     [FONT_VARIABLES.body]: familyStack('body', fonts.body),
@@ -112,6 +119,7 @@ export function documentFontVariables(
     [FONT_VARIABLES.codeRatio]: String(fonts.codeSize / fonts.size),
     [FONT_VARIABLES.lineHeight]: String(fonts.lineHeight),
     [FONT_VARIABLES.codeLineHeight]: String(fonts.codeLineHeight),
+    [FONT_VARIABLES.tableStripe]: editor.stripedTables ? 'var(--table-stripe)' : 'transparent',
   }
   fonts.headingScale.forEach((multiplier, index) => {
     variables[FONT_VARIABLES.headingScale(index + 1)] = String(multiplier)

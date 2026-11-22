@@ -71,6 +71,8 @@
   /* The strip behind the line numbers: the page's own color, so there is no box. */
   --gutter: var(--background);
   --gutter-foreground: oklch(0.64 0.02 262);
+  /* The fill of every second body row of a table: a faint tint of the page, under the header fill. */
+  --table-stripe: oklch(0.235 0.012 262);
   --syntax-heading: oklch(0.83 0.1 80);
   --syntax-link: oklch(0.78 0.12 235);
   --syntax-code: oklch(0.8 0.1 150);

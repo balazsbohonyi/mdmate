@@ -197,6 +197,13 @@ export const SETTING_ROWS: readonly SettingRowSpec[] = [
     control: { kind: 'switch' },
   },
   {
+    key: 'editor.stripedTables',
+    category: 'editor',
+    label: 'Striped table rows',
+    description: 'Shade every second row of a table, so a long row is easier to follow across.',
+    control: { kind: 'switch' },
+  },
+  {
     key: 'editor.limitContentWidth',
     category: 'editor',
     label: 'Limit content width',

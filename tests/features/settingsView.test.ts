@@ -1105,6 +1105,7 @@ describe('ISC-357: the search box filters the rows of every group', () => {
     expect(rowKeys()).toEqual([
       'editor.wordWrap',
       'editor.lineNumbers',
+      'editor.stripedTables',
       'editor.limitContentWidth',
       'editor.contentMaxWidth',
       'editor.highlightExtensions',

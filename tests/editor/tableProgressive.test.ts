@@ -7,7 +7,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { EditorView } from '@codemirror/view'
 import { blocksOf } from '@/editor/livePreview/blocks'
-import { FIRST_ROWS, ROW_HEIGHT } from '@/editor/livePreview/blocks/widgets'
+import { FIRST_ROWS, HEADER_EXTRA, ROW_HEIGHT } from '@/editor/livePreview/blocks/widgets'
 import { blockStateOf, mountPreview } from '../helpers/blocks'
 
 const views: EditorView[] = []
@@ -140,7 +140,7 @@ describe('a big table, drawn in two steps (ISC-6)', () => {
   it('keeps the height it gives CodeMirror, whatever has been drawn so far', () => {
     const doc = tableDoc(FIRST_ROWS + 250)
     const widget = blocksOf(blockStateOf(doc, doc.length - 2))[0]
-    expect(widget?.estimatedHeight).toBe((FIRST_ROWS + 250 + 1) * ROW_HEIGHT + 16)
+    expect(widget?.estimatedHeight).toBe((FIRST_ROWS + 250 + 1) * ROW_HEIGHT + HEADER_EXTRA + 16)
   })
 
   it('stops filling when the table goes away, and does not touch the page afterwards', async () => {

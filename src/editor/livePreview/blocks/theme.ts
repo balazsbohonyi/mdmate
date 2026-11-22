@@ -16,7 +16,10 @@ export const blockTheme = EditorView.baseTheme({
     padding: '0.45em 0',
   },
   '.cm-md-table': {
-    borderCollapse: 'collapse',
+    // Separate, not collapsed, so the outer corners can be rounded; each cell draws its own right
+    // and bottom edge and the first row and column the top and left ones, which gives the same grid.
+    borderCollapse: 'separate',
+    borderSpacing: '0',
     fontSize: '0.95em',
     color: 'var(--foreground)',
     // The editor wraps lines anywhere, which would squeeze every column to a few letters.
@@ -25,15 +28,28 @@ export const blockTheme = EditorView.baseTheme({
     wordBreak: 'normal',
   },
   '.cm-md-table th, .cm-md-table td': {
-    border: '1px solid var(--border)',
+    borderRight: '1px solid var(--border)',
+    borderBottom: '1px solid var(--border)',
     padding: '0.3em 0.8em',
     textAlign: 'left',
     verticalAlign: 'top',
   },
+  '.cm-md-table thead th': { borderTop: '1px solid var(--border)' },
+  '.cm-md-table tr > :first-child': { borderLeft: '1px solid var(--border)' },
   '.cm-md-table th': {
     backgroundColor: 'var(--muted)',
     fontWeight: '650',
+    // A taller header: the extra is `HEADER_EXTRA` in widgets.ts, which the estimate counts.
+    padding: '0.55em 0.8em',
   },
+  // Every second body row; the variable is the stripe token or transparent (editor.stripedTables).
+  '.cm-md-table tbody tr:nth-child(even) td': {
+    backgroundColor: 'var(--doc-table-stripe, transparent)',
+  },
+  '.cm-md-table thead tr:first-child th:first-child': { borderTopLeftRadius: 'var(--radius)' },
+  '.cm-md-table thead tr:first-child th:last-child': { borderTopRightRadius: 'var(--radius)' },
+  '.cm-md-table tbody tr:last-child td:first-child': { borderBottomLeftRadius: 'var(--radius)' },
+  '.cm-md-table tbody tr:last-child td:last-child': { borderBottomRightRadius: 'var(--radius)' },
   '.cm-md-frontmatter': { padding: '0.4em 0 0.4em 6px' },
   '.cm-md-frontmatter-pill': {
     display: 'inline-flex',

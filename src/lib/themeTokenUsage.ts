@@ -98,6 +98,8 @@ export const THEME_TOKEN_USAGE: Readonly<Record<string, string>> = {
     'The strip behind the line numbers, beside the text. It starts as the page color, so there is no box. It shows only while line numbers are on.',
   'gutter-foreground':
     'The line numbers. The number of the line with the cursor uses the main text color instead.',
+  'table-stripe':
+    'The fill of every second body row of a table in a document. The Striped table rows setting turns it off.',
 
   // Syntax
   'syntax-heading': 'Markdown headings in the editor, and the warning icon on a toast.',

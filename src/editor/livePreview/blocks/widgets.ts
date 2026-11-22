@@ -23,6 +23,11 @@ const filling = new WeakMap<HTMLElement, () => void>()
 const wrapOf = new WeakMap<HTMLElement, HTMLElement>()
 /** The padding above and below a table, in px. */
 const TABLE_PADDING = 16
+/**
+ * What the header row is taller than a body row, in px: its cells have 0.55em of padding above and
+ * below where a body cell has 0.3em, at 0.95 of a 15 px text (the theme in `theme.ts`).
+ */
+export const HEADER_EXTRA = 7
 
 /** Builds `runs` into `parent` as DOM nodes: text nodes and elements only, never markup strings. */
 function appendRuns(parent: HTMLElement, runs: readonly Inline[]): void {
@@ -75,7 +80,7 @@ export class TableWidget extends BlockWidget {
   }
 
   override get estimatedHeight(): number {
-    return (this.model.rows.length + 1) * ROW_HEIGHT + TABLE_PADDING
+    return (this.model.rows.length + 1) * ROW_HEIGHT + HEADER_EXTRA + TABLE_PADDING
   }
 
   override toDOM(view: EditorView): HTMLElement {

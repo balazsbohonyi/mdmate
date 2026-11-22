@@ -70,6 +70,8 @@
   /* The strip behind the line numbers: the page's own color, so there is no box. */
   --gutter: var(--background);
   --gutter-foreground: #6f5a44;
+  /* The fill of every second body row of a table: a faint tint of the page, under the header fill. */
+  --table-stripe: #f8f0dc;
   --syntax-heading: oklch(0.4 0.09 55);
   --syntax-link: #8b5e3c;
   --syntax-code: oklch(0.44 0.09 135);

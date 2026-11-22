@@ -130,6 +130,8 @@ export interface Settings {
     wordWrap: boolean
     /** Whether each editor shows a gutter with the source line numbers. */
     lineNumbers: boolean
+    /** Whether every second body row of a table is drawn in the stripe colour. */
+    stripedTables: boolean
     /** Whether the text column of a tab stops at `contentMaxWidth` and sits in the middle. */
     limitContentWidth: boolean
     /** The widest the text column gets, in px, not counting the padding round it. */
@@ -194,6 +196,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = {
   editor: {
     wordWrap: true,
     lineNumbers: false,
+    stripedTables: true,
     // 1024 px of text is about 114 to 124 characters of the built-in monospace body font at the
     // default 15 px (Consolas is 0.55 em wide, Courier New 0.6 em).
     limitContentWidth: true,

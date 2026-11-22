@@ -13,6 +13,7 @@ describe('where each theme token is used (ISC-540)', () => {
   it('says what the two line-number tokens colour (ISC-630)', () => {
     expect(usageOf('gutter')).toContain('line numbers')
     expect(usageOf('gutter-foreground')).toContain('line numbers')
+    expect(usageOf('table-stripe')).toContain('table')
   })
 
   it('says where the five git colors are used (ISC-655)', () => {

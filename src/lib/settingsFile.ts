@@ -36,6 +36,7 @@ export interface SettingValueMap {
   'fonts.headingScale': readonly number[]
   'editor.wordWrap': boolean
   'editor.lineNumbers': boolean
+  'editor.stripedTables': boolean
   'editor.limitContentWidth': boolean
   'editor.contentMaxWidth': number
   'editor.highlightExtensions': readonly string[]
@@ -380,6 +381,13 @@ export const SETTING_DEFS: { readonly [K in SettingKey]: SettingDef<SettingValue
     key: 'editor.lineNumbers',
     path: ['editor', 'lineNumbers'],
     default: DEFAULT_SETTINGS.editor.lineNumbers,
+    check: isBoolean,
+    equals: same,
+  },
+  'editor.stripedTables': {
+    key: 'editor.stripedTables',
+    path: ['editor', 'stripedTables'],
+    default: DEFAULT_SETTINGS.editor.stripedTables,
     check: isBoolean,
     equals: same,
   },

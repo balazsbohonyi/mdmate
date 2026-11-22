@@ -144,7 +144,7 @@ describe('the line-number colors (ISC-630)', () => {
     const names = THEME_TOKENS.filter((token) => token.group === 'editor').map(
       (token) => token.name,
     )
-    expect(names).toEqual(expect.arrayContaining(['gutter', 'gutter-foreground']))
+    expect(names).toEqual(expect.arrayContaining(['gutter', 'gutter-foreground', 'table-stripe']))
   })
 
   it('come from the base theme for a custom theme that leaves them out', () => {
