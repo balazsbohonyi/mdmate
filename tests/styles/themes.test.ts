@@ -194,9 +194,9 @@ describe.each([...parsed])('%s theme colors', (name, theme) => {
     // Muted: not the color of the body text, and well under its contrast.
     expect(resolveToken(theme, '--gutter-foreground')).not.toBe(resolveToken(theme, '--foreground'))
     expect(contrast(numbers, strip)).toBeLessThan(contrast(text, page))
-    // A subtle strip: it shows against the page, and is no heavy block.
-    expect(contrast(strip, page)).toBeGreaterThan(1.03)
-    expect(contrast(strip, page)).toBeLessThan(1.3)
+    // The strip has the page's own color: no box behind the numbers (owner, 2026-11-22). The token
+    // stays, so a custom theme can still tint it.
+    expect(resolveToken(theme, '--gutter')).toBe(resolveToken(theme, '--background'))
   })
 
   it('give the git names five colors of their own, readable on the sidebar and on its selected row (ISC-655)', () => {

@@ -82,12 +82,18 @@ const frame = EditorView.theme({
     color: 'var(--gutter-foreground)',
     border: 'none',
     fontFamily: 'var(--doc-font-code, var(--font-mono))',
-    // 0.8 times the code size (`fonts.codeSize` as a ratio of the text size, times the text size).
-    fontSize: 'calc(var(--doc-code-ratio, calc(14 / 15)) * var(--doc-size, 15px) * 0.8)',
+    // 0.9 times the code size (`fonts.codeSize` as a ratio of the text size, times the text size).
+    fontSize: 'calc(var(--doc-code-ratio, calc(14 / 15)) * var(--doc-size, 15px) * 0.9)',
     // The height of one line of body text, as a length: a number sits on the middle of the line it
     // names at any line height, however small the number's own size is.
     lineHeight: 'calc(var(--doc-line-height, 1.4) * var(--doc-size, 15px))',
     userSelect: 'none',
+  },
+  // The same room on both sides of the digits (CodeMirror's own is 5px on the left and 3px on the
+  // right, and the numbers are right-aligned).
+  '&.cm-lineNumbersOn .cm-lineNumbers .cm-gutterElement': {
+    paddingLeft: '10px',
+    paddingRight: '10px',
   },
   '&.cm-lineNumbersOn .cm-activeLineGutter': {
     backgroundColor: 'transparent',

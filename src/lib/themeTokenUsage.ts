@@ -95,7 +95,7 @@ export const THEME_TOKEN_USAGE: Readonly<Record<string, string>> = {
     'The match you are on in the Find bar, the marks along the scrollbar that show where the matches are, and the match a folder search result jumps to.',
   caret: 'The text cursor in the editor.',
   gutter:
-    'The strip behind the line numbers, beside the text. It shows only while line numbers are on.',
+    'The strip behind the line numbers, beside the text. It starts as the page color, so there is no box. It shows only while line numbers are on.',
   'gutter-foreground':
     'The line numbers. The number of the line with the cursor uses the main text color instead.',
 

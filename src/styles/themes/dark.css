@@ -68,8 +68,8 @@
   --find-match: oklch(0.8 0.15 80 / 62%);
   --find-match-active: oklch(0.66 0.14 65 / 85%);
   --caret: oklch(0.82 0.11 182);
-  /* The strip behind the line numbers: a little darker than the page. */
-  --gutter: oklch(0.215 0.013 262);
+  /* The strip behind the line numbers: the page's own color, so there is no box. */
+  --gutter: var(--background);
   --gutter-foreground: oklch(0.64 0.02 262);
   --syntax-heading: oklch(0.83 0.1 80);
   --syntax-link: oklch(0.78 0.12 235);

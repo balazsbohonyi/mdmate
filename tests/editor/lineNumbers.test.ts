@@ -220,7 +220,7 @@ describe('wrapped lines, blocks and the active line (ISC-615)', () => {
   })
 })
 
-describe('the look of the gutter (ISC-632)', () => {
+describe('the look of the gutter (ISC-632, ISC-669)', () => {
   const GUTTERS = '.cm-lineNumbersOn .cm-gutters'
 
   it('paints the strip with its own background token, not the page color', () => {
@@ -238,17 +238,24 @@ describe('the look of the gutter (ISC-632)', () => {
     expect(valuesOf(GUTTERS, 'font-family')).toEqual(['var(--doc-font-code, var(--font-mono))'])
   })
 
-  it('draws the numbers at 0.8 times the code size, which is the code ratio times the text size', () => {
+  it('draws the numbers at 0.9 times the code size, which is the code ratio times the text size', () => {
     markdown('a\nb')
     expect(valuesOf(GUTTERS, 'font-size')).toEqual([
-      'calc(var(--doc-code-ratio, calc(14 / 15)) * var(--doc-size, 15px) * 0.8)',
+      'calc(var(--doc-code-ratio, calc(14 / 15)) * var(--doc-size, 15px) * 0.9)',
     ])
   })
 
-  it('has the fallback of the size equal to 0.8 of the default code size', () => {
-    // 14 / 15 of a 15 px text is the 14 px default code size; 0.8 of it is 11.2 px.
+  it('has the fallback of the size equal to 0.9 of the default code size', () => {
+    // 14 / 15 of a 15 px text is the 14 px default code size; 0.9 of it is 12.6 px.
     expect(DEFAULT_SETTINGS.fonts.codeSize / DEFAULT_SETTINGS.fonts.size).toBeCloseTo(14 / 15, 10)
-    expect(DEFAULT_SETTINGS.fonts.codeSize * 0.8).toBeCloseTo(11.2, 10)
+    expect(DEFAULT_SETTINGS.fonts.codeSize * 0.9).toBeCloseTo(12.6, 10)
+  })
+
+  it('gives the digits the same room on both sides, 10 px each (ISC-669)', () => {
+    markdown('a\nb')
+    const element = '.cm-lineNumbersOn .cm-lineNumbers .cm-gutterElement'
+    expect(valuesOf(element, 'padding-left')).toEqual(['10px'])
+    expect(valuesOf(element, 'padding-right')).toEqual(['10px'])
   })
 
   it('keeps the number of the line with the caret in the foreground color on no extra strip', () => {

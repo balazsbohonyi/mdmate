@@ -180,7 +180,7 @@ describe('ISC-563: inline code is at the size of the text around it', () => {
     const create = readFileSync(join('src/editor', 'create.ts'), 'utf8')
     const uses = create.split('\n').filter((line) => line.includes(FONT_VARIABLES.codeRatio))
     expect(uses).toHaveLength(1)
-    expect(uses[0]).toContain('* 0.8')
+    expect(uses[0]).toContain('* 0.9')
   })
 })
 
