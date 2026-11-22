@@ -40,7 +40,11 @@ const frame = EditorView.theme({
   // inside the content box got painted. The content box is the text column. The scrollbar still
   // stays at the pane's edge. Above and below the room is padding on the content, which CodeMirror
   // counts in its heights.
-  '.cm-scroller': { overflow: 'auto', paddingInline: CONTENT_PADDING_X },
+  '.cm-scroller': {
+    overflow: 'auto',
+    overscrollBehavior: 'none',
+    paddingInline: CONTENT_PADDING_X,
+  },
   // The selection and the caret are the browser's own, so a selection covers only the characters
   // (and a stub for each line break it takes), as in Obsidian: CodeMirror's drawn selection fills
   // every selected line to the edge. The theme's Selection and Caret colors apply through

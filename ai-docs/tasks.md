@@ -153,6 +153,7 @@ Phase 9.1 collects the small fixes and rough edges found in daily use, between t
 - [x] P9.1-T28: Color tree rows by git status: added, changed, conflicted, ignored; tokens, refresh, many repositories — closes ISC-655 to ISC-660
 - [x] P9.1-T29: Tables: taller header, rounded corners, striped rows with a setting — closes ISC-672 to ISC-677
 - [x] P9.1-T30: A colour square before inline code that is a hex colour — closes ISC-678 to ISC-681
+- [x] P9.1-T31: Stop touchpad overscroll from shifting the whole window — closes ISC-691, ISC-692
 
 ## Phase 10: Ship ([plan](phases/phase-10/plan.md))
 

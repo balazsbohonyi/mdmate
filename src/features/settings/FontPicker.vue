@@ -176,7 +176,7 @@ const isCurrent = (value: string): boolean =>
       ref="list"
       role="listbox"
       :aria-label="`${label} list`"
-      class="absolute inset-x-0 top-full z-30 mt-1 max-h-60 overflow-y-auto rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
+      class="absolute inset-x-0 top-full z-30 mt-1 max-h-60 overflow-y-auto overscroll-none rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
       data-font-list
       @mousedown.prevent
     >

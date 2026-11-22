@@ -12,7 +12,7 @@ import StatesStrip from './StatesStrip.vue'
 
 <template>
   <div
-    class="@container min-h-0 flex-1 overflow-y-auto bg-background p-6 text-foreground"
+    class="@container min-h-0 flex-1 overflow-y-auto overscroll-none bg-background p-6 text-foreground"
     data-theme-preview
   >
     <h1 class="text-lg font-semibold">Theme preview</h1>

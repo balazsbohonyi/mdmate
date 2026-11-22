@@ -66,7 +66,7 @@ const summary = computed(() => {
         {{ summary }}
       </div>
     </div>
-    <div class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+    <div class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-none">
       <div
         v-for="group in groups"
         :key="group.path"

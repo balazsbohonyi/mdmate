@@ -462,6 +462,23 @@
 
 **Done when:** the tests fail on the old code and pass on the new, the owner finds the squares right in Dark, Light and Sepia, and the checks are green. Closes ISC-678 to ISC-681.
 
+## P9.1-T31: Stop touchpad overscroll from shifting the whole window
+
+**The bug:** scrolling with a Windows Precision Touchpad past the top, bottom, left or right edge of a document (including horizontal swipes with word wrap on) shifts the entire window (title bar, tab strip, status bar and editor) inside the OS frame. Does not happen with a mouse wheel.
+
+**Cause:** `html` and `body` in `src/styles/tokens.css` set neither `overflow: hidden` nor `overscroll-behavior: none`, and `.cm-scroller` (`src/editor/create.ts`) and the scrollable chrome panels set no `overscroll-behavior`. Touchpad overscroll chains out to the root viewport and triggers Chromium/WebView2 elastic rubber-banding on the whole page.
+
+**Fix (CSS first, WebView2 fallback only if needed):**
+- `src/styles/tokens.css`: lock `html, body` with `overflow: hidden; overscroll-behavior: none;`.
+- `src/editor/create.ts`: add `overscrollBehavior: 'none'` on `.cm-scroller`.
+- `src/editor/livePreview/blocks/theme.ts`: add `overscrollBehaviorX: 'contain'` on `.cm-md-table-wrap` (X only, so vertical scroll over a table still chains to the document).
+- Scrollable chrome (`TabStrip.vue`, `FileTree.vue`, `OutlinePanel.vue`, `SearchPanel.vue`, `ReferencesPanel.vue`, `SettingsView.vue`, `PaletteHost.vue`, `ThemePreview.vue`, `FontPicker.vue`): add `overscroll-none` (`overscroll-x-none` on `TabStrip.vue`).
+- If real-touchpad testing in `pnpm tauri dev` still bounces, fall back to `"additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,ElasticOverscroll"` in `src-tauri/tauri.conf.json` (preserving wry defaults) and record it in `decisions.md`.
+
+**Tests:** `tests/styles/overscroll.test.ts` (root CSS, `.cm-scroller`, `.cm-md-table-wrap` X-only, scrollable chrome templates).
+
+**Done when:** the tests fail on the old code and pass on the new, the owner tests with a touchpad in `pnpm tauri dev` and sees no window shift on any edge, and `pnpm check`, `pnpm check:rust` and `pnpm test:web` are green. Closes ISC-691 and ISC-692.
+
 ## Follow-ups on done tasks (2026-11-22)
 
 Not tasks. Each one reopens or adds the claim named, fails its probe on the old code first, and is committed as `[P9.1-Tn] ...` with the tag of the task it amends.

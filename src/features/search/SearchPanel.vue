@@ -455,7 +455,7 @@ const activeId = computed(() =>
       data-search-results
       tabindex="0"
       :aria-activedescendant="activeId"
-      class="group/results min-h-0 flex-1 overflow-x-hidden overflow-y-auto outline-none select-none"
+      class="group/results min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-none outline-none select-none"
       @scroll.passive="onScroll"
       @keydown="onKeydown"
     >

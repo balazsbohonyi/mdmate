@@ -558,7 +558,7 @@ function rowHint(row: TreeRow): string | null {
         :aria-activedescendant="
           selectedPath === null ? undefined : rowDomId(selectedPath, selectedRoot)
         "
-        class="group/tree min-h-0 flex-1 overflow-x-hidden overflow-y-auto text-chrome outline-none select-none"
+        class="group/tree min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-none text-chrome outline-none select-none"
         @scroll.passive="onScroll"
         @contextmenu.capture="onContextMenu"
         @keydown="onKeydown"

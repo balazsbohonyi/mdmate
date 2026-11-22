@@ -604,7 +604,7 @@ function openFile(): void {
     <div class="flex min-h-0 flex-1">
       <nav
         aria-label="Settings groups"
-        class="flex w-52 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border p-2"
+        class="flex w-52 shrink-0 flex-col gap-0.5 overflow-y-auto overscroll-none border-r border-border p-2"
       >
         <div class="relative mb-1.5">
           <Search
@@ -639,7 +639,7 @@ function openFile(): void {
       </nav>
       <section
         :aria-label="heading"
-        class="min-w-0 flex-1 overflow-y-auto p-6"
+        class="min-w-0 flex-1 overflow-y-auto overscroll-none p-6"
         data-settings-panel
       >
         <div class="flex items-center justify-between gap-3">

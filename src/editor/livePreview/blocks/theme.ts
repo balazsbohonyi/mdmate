@@ -5,7 +5,13 @@ import { EditorView } from '@codemirror/view'
  * CodeMirror cannot measure a vertical margin on a block, and the heights it tracks would drift.
  */
 export const blockTheme = EditorView.baseTheme({
-  '.cm-md-table-wrap': { padding: '0.45em 0', overflowX: 'auto', overflowY: 'hidden' },
+  '.cm-md-table-wrap': {
+    padding: '0.45em 0',
+    overflowX: 'auto',
+    overflowY: 'hidden',
+    // Contain horizontal overscroll at the table edge without blocking vertical scroll chaining.
+    overscrollBehaviorX: 'contain',
+  },
   // A table in a list item: a row of the invisible indent and the table, which scrolls by itself.
   '.cm-md-table-indented': { display: 'flex', alignItems: 'flex-start' },
   '.cm-md-table-indented > .cm-md-table-wrap': { flex: '1 1 auto', minWidth: '0' },

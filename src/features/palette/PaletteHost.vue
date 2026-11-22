@@ -229,7 +229,7 @@ function onKeydown(event: KeyboardEvent): void {
         ref="list"
         role="listbox"
         :aria-label="title"
-        class="min-h-0 flex-1 overflow-y-auto py-1"
+        class="min-h-0 flex-1 overflow-y-auto overscroll-none py-1"
       >
         <li
           v-for="(row, index) in rows"

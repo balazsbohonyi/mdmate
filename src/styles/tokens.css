@@ -144,6 +144,15 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /*
+   * Lock the root viewport so precision-touchpad overscroll never chains to the document and
+   * rubber-bands the entire window chrome inside its frame (P9.1-T31, ISC-691).
+   */
+  html,
+  body {
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
   body {
     @apply bg-background text-chrome text-foreground;
   }

@@ -211,7 +211,7 @@ const activeId = computed(() =>
       data-outline-list
       tabindex="0"
       :aria-activedescendant="activeId"
-      class="group/outline min-h-0 flex-1 overflow-x-hidden overflow-y-auto outline-none select-none"
+      class="group/outline min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-none outline-none select-none"
       :class="total === 0 ? 'hidden' : ''"
       @scroll.passive="onScroll"
       @keydown="onKeydown"

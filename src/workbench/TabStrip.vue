@@ -176,7 +176,7 @@ function run(action: () => Promise<unknown> | void): void {
     <div
       ref="scroller"
       role="tablist"
-      class="flex min-w-0 flex-1 items-stretch overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      class="flex min-w-0 flex-1 items-stretch overflow-x-auto overscroll-x-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       <ContextMenu
         v-for="tab in tabs"
