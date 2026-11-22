@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Check } from '@lucide/vue'
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { Input } from '@/components/ui/input'
 import { cssFamilyList } from '@/editor/documentFonts'
 
@@ -33,6 +33,8 @@ const emit = defineEmits<{
 
 /** Options drawn at most, each in its own family: a list of hundreds is narrowed by typing. */
 const MAX_OPTIONS = 60
+/** When the value is further down than the cap, the list runs this far past it, so it shows. */
+const PAST_VALUE = 20
 
 const listId = `font-list-${String(Math.random()).slice(2, 8)}`
 const open = ref(false)
@@ -47,10 +49,39 @@ const matches = computed<readonly string[]>(() => {
   if (!narrowing.value || typed === '') return all
   return all.filter((name) => name.toLowerCase().includes(typed))
 })
-const shown = computed(() => matches.value.slice(0, MAX_OPTIONS))
+/**
+ * The options drawn: the first `MAX_OPTIONS`, or, while the list is only opened and the field holds
+ * a family that comes later, everything up to a few options past it, so the list can open on it.
+ */
+const shown = computed(() => {
+  let count = MAX_OPTIONS
+  if (!narrowing.value) {
+    const at = matches.value.findIndex(isCurrent)
+    if (at >= 0) count = Math.max(count, at + 1 + PAST_VALUE)
+  }
+  return matches.value.slice(0, count)
+})
 const hidden = computed(() => matches.value.length - shown.value.length)
 /** Built-in, then the families drawn: what the arrow keys walk over. */
 const values = computed<readonly string[]>(() => ['', ...shown.value])
+
+const list = ref<HTMLElement | null>(null)
+
+/** Scrolls the list so the option that is the value is in the middle of it. */
+function reveal(): void {
+  const box = list.value
+  const chosen = box?.querySelector<HTMLElement>('[aria-selected="true"]')
+  if (box === null || box === undefined || chosen === null || chosen === undefined) return
+  box.scrollTop = Math.max(0, chosen.offsetTop - box.clientHeight / 2 + chosen.offsetHeight / 2)
+}
+
+// When the list opens on the field's value, or arrives after it opened, it starts at that option.
+// Typing narrows the list and the user is steering it then, so it is left alone.
+watch([open, () => props.fonts], async ([isOpen, fonts]) => {
+  if (!isOpen || fonts === null || narrowing.value) return
+  await nextTick()
+  reveal()
+})
 
 function show(): void {
   if (!open.value) {
@@ -142,6 +173,7 @@ const isCurrent = (value: string): boolean =>
     <ul
       v-if="open && fonts !== null"
       :id="listId"
+      ref="list"
       role="listbox"
       :aria-label="`${label} list`"
       class="absolute inset-x-0 top-full z-30 mt-1 max-h-60 overflow-y-auto rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"

@@ -6,7 +6,7 @@
  * `settingsView.test.ts`.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createApp, defineComponent, h, nextTick, ref, type App } from 'vue'
+import { createApp, defineComponent, h, nextTick, ref, type App, type Ref } from 'vue'
 import FontPicker from '@/features/settings/FontPicker.vue'
 import { fontFamilies, resetFontFamilies } from '@/features/settings/fontList'
 import { setHost } from '@/platform'
@@ -30,16 +30,17 @@ interface Log {
 function mount(
   initial = '',
   fonts: readonly string[] | null = FONTS,
-): { log: Log; text: () => string } {
+): { log: Log; text: () => string; fonts: Ref<readonly string[] | null> } {
   const log: Log = { updates: [], accepts: 0, reverts: 0, opens: 0, accepted: [] }
   const text = ref(initial)
+  const fontList = ref(fonts)
   const Parent = defineComponent({
     render: () =>
       h(FontPicker, {
         modelValue: text.value,
         label: 'Body font',
         invalid: false,
-        fonts,
+        fonts: fontList.value,
         'onUpdate:modelValue': (value: string) => {
           log.updates.push(value)
           text.value = value
@@ -60,7 +61,7 @@ function mount(
   document.body.append(root)
   app = createApp(Parent)
   app.mount(root)
-  return { log, text: () => text.value }
+  return { log, text: () => text.value, fonts: fontList }
 }
 
 const input = (): HTMLInputElement => {
@@ -333,5 +334,118 @@ describe('reading the families once (ISC-641)', () => {
     expect(await fontFamilies()).toEqual([])
     expect(await fontFamilies()).toEqual(MOCK_FONT_FAMILIES)
     expect(ask).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('the list opens at the value (ISC-665)', () => {
+  const MANY = Array.from({ length: 200 }, (_, at) => `Font ${String(at).padStart(3, '0')}`)
+
+  it('lists the family of the value even when it is past the first 60', async () => {
+    mount('Font 150', MANY)
+    await focus()
+    expect(names()).toContain('Font 150')
+    expect(names()).toContain('Font 000')
+    // The selected one is marked, and the footer still says there are more.
+    expect(
+      options()
+        .filter((option) => option.getAttribute('aria-selected') === 'true')
+        .map((option) => option.dataset.fontName),
+    ).toEqual(['Font 150'])
+    expect(root?.querySelector('[data-font-more]')).not.toBeNull()
+  })
+
+  it('keeps the first 60 when the value comes early, is a stack or is not listed', async () => {
+    mount('Font 003', MANY)
+    await focus()
+    expect(names()).toHaveLength(1 + 60)
+    app?.unmount()
+    root?.remove()
+    mount('Inter, sans-serif', MANY)
+    await focus()
+    expect(names()).toHaveLength(1 + 60)
+  })
+
+  describe('scrolling', () => {
+    const tops = new WeakMap<Element, number>()
+    let restore: (() => void)[] = []
+
+    /** jsdom has no layout: give the options a place and the list a height, and record the scroll. */
+    function fakeLayout(): void {
+      const define = (target: object, name: string, descriptor: PropertyDescriptor): void => {
+        const before = Object.getOwnPropertyDescriptor(target, name)
+        Object.defineProperty(target, name, { configurable: true, ...descriptor })
+        restore.push(() => {
+          if (before === undefined) Reflect.deleteProperty(target, name)
+          else Object.defineProperty(target, name, before)
+        })
+      }
+      define(HTMLElement.prototype, 'offsetTop', {
+        get(this: HTMLElement) {
+          const at = this.id.split('-').at(-1)
+          return this.dataset.fontOption === undefined ? 0 : Number(at) * 28
+        },
+      })
+      define(HTMLElement.prototype, 'offsetHeight', { get: () => 28 })
+      define(HTMLElement.prototype, 'clientHeight', { get: () => 240 })
+      define(Element.prototype, 'scrollTop', {
+        get(this: Element) {
+          return tops.get(this) ?? 0
+        },
+        set(this: Element, value: number) {
+          tops.set(this, value)
+        },
+      })
+    }
+
+    beforeEach(() => {
+      restore = []
+      fakeLayout()
+    })
+    afterEach(() => {
+      for (const undo of restore.reverse()) undo()
+    })
+
+    it('puts the selected option in the middle of the list when it opens', async () => {
+      mount('Font 150', MANY)
+      await focus()
+      await nextTick()
+      const at = names().indexOf('Font 150')
+      expect(at).toBeGreaterThan(60 - 1)
+      const ul = list()
+      expect(ul).not.toBeNull()
+      // offsetTop of the option is its place times 28; the list is 240 high, the option 28.
+      expect(ul?.scrollTop).toBe(at * 28 - 240 / 2 + 28 / 2)
+    })
+
+    it('leaves the list at the top when the field holds nothing, or a name that is not listed', async () => {
+      mount('', MANY)
+      await focus()
+      await nextTick()
+      expect(list()?.scrollTop).toBe(0)
+    })
+
+    it('scrolls when the list arrives after the field opened', async () => {
+      const { fonts } = mount('Font 150', null)
+      await focus()
+      expect(list()).toBeNull()
+      fonts.value = MANY
+      await nextTick()
+      await nextTick()
+      await nextTick()
+      expect(list()?.scrollTop).toBeGreaterThan(0)
+    })
+
+    it('does not move the list while the user is typing', async () => {
+      mount('Font 150', MANY)
+      await focus()
+      await nextTick()
+      await type('Font 1')
+      await nextTick()
+      const ul = list()
+      const before = ul?.scrollTop
+      await type('Font 15')
+      await nextTick()
+      expect(list()?.scrollTop).toBe(before)
+    })
   })
 })
