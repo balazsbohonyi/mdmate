@@ -187,12 +187,11 @@ describe.each([...parsed])('%s theme colors', (name, theme) => {
     const page = parseColor(resolveToken(theme, '--background'))
     const text = parseColor(resolveToken(theme, '--foreground'))
     expect(contrast(text, stripe)).toBeGreaterThanOrEqual(4.5)
-    // A tint of the page: it differs from it, and stays quieter than the header fill.
+    // A tint of the page that is plainly there: the owner found the first one too faint (T29 round 2).
     expect(resolveToken(theme, '--table-stripe')).not.toBe(resolveToken(theme, '--background'))
-    expect(contrast(stripe, page)).toBeGreaterThan(1.01)
-    expect(contrast(stripe, page)).toBeLessThanOrEqual(
-      contrast(parseColor(resolveToken(theme, '--muted')), page),
-    )
+    expect(contrast(stripe, page)).toBeGreaterThanOrEqual(1.08)
+    // It is a quiet fill, not a block: it stays well short of the borders' own weight.
+    expect(contrast(stripe, page)).toBeLessThan(1.25)
   })
 
   it('give the line numbers a strip and a color of their own, quiet and readable (ISC-630, ISC-631)', () => {
