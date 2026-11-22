@@ -273,6 +273,12 @@ function acceptKey(key: SettingKey, numeric: boolean): void {
   set(key, checked.value as never)
 }
 
+/** Scrolls a field to the end of its text, so the file name of a long path shows (not while typing). */
+function showEnd(field: HTMLElement): void {
+  if (field !== document.activeElement) field.scrollLeft = field.scrollWidth
+}
+const vEndVisible = { mounted: showEnd, updated: showEnd }
+
 /** Asks the host for a program with the system's file dialog, then takes it as if it were typed. */
 async function browse(spec: SettingRowSpec): Promise<void> {
   try {
@@ -741,13 +747,15 @@ function openFile(): void {
                 class="flex items-center gap-2"
               >
                 <Input
+                  v-end-visible
                   :model-value="shownText(spec.key)"
                   :placeholder="spec.control.placeholder"
                   :aria-label="spec.label"
                   :aria-invalid="refused[spec.key] !== undefined ? true : undefined"
-                  class="min-w-0 flex-1"
+                  class="min-w-0 flex-1 text-right"
                   @update:model-value="(text: string | number) => onType(spec.key, text)"
                   @change="accept(spec)"
+                  @blur="(event: FocusEvent) => showEnd(event.target as HTMLElement)"
                   @keydown.enter="accept(spec)"
                   @keydown.esc="revert(spec.key)"
                 />

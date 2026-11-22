@@ -1311,6 +1311,25 @@ describe('ISC-667: Browse on the Git program row', () => {
     expect(host.files.read(MOCK_SETTINGS_FILE)).toBeUndefined()
   })
 
+  it('shows the end of a long path: the text is right-aligned and the field is scrolled to its end', async () => {
+    await mountScreen('files')
+    const input = inputOf('git.path')
+    expect(input.classList.contains('text-right')).toBe(true)
+    // jsdom has no layout: give the field a width of text wider than itself, then let it take a value.
+    let left = 0
+    Object.defineProperty(input, 'scrollWidth', { configurable: true, value: 640 })
+    Object.defineProperty(input, 'scrollLeft', {
+      configurable: true,
+      get: () => left,
+      set: (value: number) => {
+        left = value
+      },
+    })
+    vi.spyOn(host, 'pickExecutable').mockResolvedValue(GIT)
+    await click(browseOf('git.path'))
+    expect(left).toBe(640)
+  })
+
   it('is on the Git program row and no other text row', async () => {
     await mountScreen('files')
     const rows = rowKeys().filter((key) => browseOf(key) !== null)
