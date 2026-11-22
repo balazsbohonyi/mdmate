@@ -151,6 +151,8 @@ Phase 9.1 collects the small fixes and rough edges found in daily use, between t
 - [x] P9.1-T26: Hide names in the tree (`.git`, `.idea`, `.vscode` and more) through a setting — closes ISC-645 to ISC-648
 - [x] P9.1-T27: Git status backend: find git and repositories, read status, `git.enabled` and `git.path` settings — closes ISC-649 to ISC-654
 - [x] P9.1-T28: Color tree rows by git status: added, changed, conflicted, ignored; tokens, refresh, many repositories — closes ISC-655 to ISC-660
+- [ ] P9.1-T29: Tables: taller header, rounded corners, striped rows with a setting — closes ISC-672 to ISC-677
+- [ ] P9.1-T30: A colour square before inline code that is a hex colour — closes ISC-678 to ISC-681
 
 ## Phase 10: Ship ([plan](phases/phase-10/plan.md))
 

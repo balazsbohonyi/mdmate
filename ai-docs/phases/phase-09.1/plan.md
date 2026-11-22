@@ -10,7 +10,7 @@
 - **Plan first, then add to this file.** The owner writes a small plan for each fix. Its task gets a section below and a line in `ai-docs/tasks.md` before the code changes.
 - **Every fix has a claim.** A bug reopens the claim that should have caught it, or adds a new one (`ai-docs/standards/isa.md`). The probe fails on the old code first.
 - **Scope stays small.** A fix that grows into a feature moves to Phase 10 or a phase of its own.
-- **Order:** T2 to T10 run in order. T10 starts with a spike and may move to Phase 10 (recorded in `ISA.md` Decisions). T11 was added later and touches nothing the others do, so it can run before T9. T12 to T19 were added on 2026-11-21 (owner review) and run in order; each is independent of the others, except that T17 and T18 both add fields to the session snapshot (`src/documents/session.ts`), so they run one after the other. T20 to T28 were added on 2026-11-21 (owner review) and run in order: T20, T25 and T26 all add Settings rows, T27 follows T26 (it reads what the tree lists), and T28 follows T27 and T21 (it adds theme tokens the way T21 does).
+- **Order:** T2 to T10 run in order. T10 starts with a spike and may move to Phase 10 (recorded in `ISA.md` Decisions). T11 was added later and touches nothing the others do, so it can run before T9. T12 to T19 were added on 2026-11-21 (owner review) and run in order; each is independent of the others, except that T17 and T18 both add fields to the session snapshot (`src/documents/session.ts`), so they run one after the other. T20 to T28 were added on 2026-11-21 (owner review) and run in order: T20, T25 and T26 all add Settings rows, T27 follows T26 (it reads what the tree lists), and T28 follows T27 and T21 (it adds theme tokens the way T21 does). T29 and T30 were added on 2026-11-22 (owner review) and run in order; both touch the live-preview themes. The same review gave eight follow-ups to done tasks (below), which are not tasks: each reopens the claim it makes false and is committed under the tag of the task it amends.
 - **Claims:** a task's claims are written open in `ISA.md` when the task is planned (as for T12 to T28), and the task's own commit sets them to `[x]`. P9.1-T1 to T11 added theirs in the task's commit; `ai-docs/standards/isa.md` says before code.
 - **Branch:** `feat/phase-09.1-polish`.
 
@@ -429,3 +429,52 @@
 **Tests:** `tests/features/treeGit.test.ts` with a fake host (states, propagation, refresh triggers, out-of-order replies, two repositories, off); theme scans as for T21. `architecture.md` gets a Git section in the same commit.
 
 **Done when:** the tests fail on the old code and pass on the new, the owner finds the colours right in Dark, Light and Sepia on a root of several repositories (selected row included, and after a commit in a terminal), and the checks are green. Closes ISC-655 to ISC-660.
+
+## P9.1-T29: Table styling
+
+**The change:** table header cells get more vertical padding, the table gets rounded outer corners, and every second body row can take a stripe colour. The stripe is controlled by a new setting `editor.stripedTables` (a switch, on by default).
+
+**Today:** tables are a block widget (`blocks/widgets.ts:81-105`) styled in `src/editor/livePreview/blocks/theme.ts:8-36`: `th, td` padding `0.3em 0.8em`, `border-collapse: collapse`, a `--muted` header fill, no radius and no body-row fill. Nothing stripes. `ROW_HEIGHT = 33` and `TABLE_PADDING = 16` (`widgets.ts:13,25,78`) feed `estimatedHeight`.
+
+**How:**
+- Setting: `src/lib/settings.ts` (interface, defaults), `src/lib/settingsFile.ts` (`SettingValueMap`, `SETTING_DEFS`, as `editor.lineNumbers`), `src/features/settings/rows.ts` (Editor category). Live through a `--doc-table-stripe` variable (`var(--table-stripe)` when on, `transparent` when off) in the `documentFonts.ts` machinery, reached from `applySettingsFile` (`src/features/settings/store.ts:162-170`). No Rust change.
+- Token `table-stripe` in the five places of T21 (three theme files, `tokens.css`, `themeTokens.ts` editor group, `themeTokenUsage.ts`), with a contrast pair for the text on it (4.5).
+- CSS: header padding about `0.55em 0.8em`; `border-collapse: separate; border-spacing: 0` with the outer border and `border-radius: var(--radius)` and corner-cell radii (the wrap scrolls sideways, so check the clip); `tbody tr:nth-child(even) td` takes `var(--doc-table-stripe, transparent)`. The class names `cm-md-table-wrap`, `cm-md-table-indented` and `cm-md-table-indent` stay (ISC-585).
+- Update `ROW_HEIGHT` and `TABLE_PADDING` for the taller header.
+
+**Risks:** the scroll jump on a long table, tables inside list items (T11), progressive rows, the caret and selection tests, `--doc-line-height` (ISC-626), inline code in cells (ISC-563, ISC-581).
+
+**Tests:** `tests/editor/tableStyle.test.ts` (padding, radius, stripes on and off, live change, list item), plus the settings, settingsFile, settingsView, themes and usage tests.
+
+**Done when:** the tests fail on the old code and pass on the new, the owner finds the tables right in Dark, Light and Sepia, and the checks are green. Closes ISC-672 to ISC-677.
+
+## P9.1-T30: Colour square before inline hex colours
+
+**The change:** an inline code span whose whole text is a hex colour (`#rgb`, `#rgba`, `#rrggbb` or `#rrggbbaa`, any case, `#` included) shows a small rounded square of that colour before it, as WebStorm does. It is shown in body text and in table cells, always, with no setting.
+
+**How:**
+- `scan.ts:363-373` (the `InlineCode` branch): test the text between the backticks and emit a new `swatch` item at the span's start. `decorationsFor` (`livePreview/index.ts:26-67`) turns it into `Decoration.widget({widget, side: -1})`, a point widget placed before the opening backtick, outside the code, so it shows whether or not the selection touches the span. It is not atomic and replaces nothing. A new `swatch.ts` holds the widget (`eq` compares the colour, `ignoreEvent` is true).
+- CSS `.cm-md-swatch` in `livePreview/theme.ts`: inline block, about 0.8em square, `1px solid var(--border)`, small radius, a margin, the colour as an inline background (alpha is drawn plainly over the page). The `.cm-md-code` rules stay as they are (ISC-563 reads them).
+- Table cells build their code through `appendRuns` (`blocks/widgets.ts:46`), not `scan.ts`: add the same square there.
+- Fenced code, links and spans with more text than the colour get nothing.
+
+**Tests:** `tests/editor/colorSwatch.test.ts` (the four lengths, `#12`, `#ggg`, `red`, extra text, a fenced block, a table cell, the selection on and off, caret walk, copy).
+
+**Done when:** the tests fail on the old code and pass on the new, the owner finds the squares right in Dark, Light and Sepia, and the checks are green. Closes ISC-678 to ISC-681.
+
+## Follow-ups on done tasks (2026-11-22)
+
+Not tasks. Each one reopens or adds the claim named, fails its probe on the old code first, and is committed as `[P9.1-Tn] ...` with the tag of the task it amends.
+
+| Follow-up | Amends | Claims | Where |
+|---|---|---|---|
+| Remove "Open settings.json" from the menu; palette and Settings buttons stay | P8-T1c | ISC-347 reworded | `src/shell/menuEntries.ts:73`, `tests/shell/menuEntries.test.ts` |
+| README and `.txt` icons draw a black box in Light and Sepia | P9.1-T8 | ISC-578, ISC-579 reopened; ISC-662 | five sprite symbols start with `<path d="M0 0h24v24H0z"/>`; strip it in `scripts/build-file-icons.mjs` and regenerate `public/file-icons.svg` |
+| Content width default 1024 | Phase 8 | ISC-682; probe rows of ISC-439, ISC-443 | `src/lib/settings.ts:200`, `rows.ts:211`, `contentWidth.test.ts`, `selectionEdge.test.ts:85`; only the default moves |
+| Browse button on the Git program row | P9.1-T27 | ISC-666 to ISC-668 | host `pickExecutable` (`host.ts`, `tauri.ts`, `mock.ts`), Rust `pick_executable` with `rfd` and no file grant, a `path` control kind in `rows.ts`, `SettingsView.vue` |
+| Pane handle 1px at rest, 4px on hover and drag, no second line | P1-T4, P8-T6 | ISC-663, ISC-664 | diagnose first (`data-state` against `:hover`); `ResizableHandle.vue`, `SplitNodeView.vue` |
+| Font list opens scrolled to the selected font | P9.1-T25 | ISC-665 | `FontPicker.vue`: scroll the selected option into view on open; keep the selected family in the list past the cap of 60 |
+| Gutter on the page background, 0.9 of the code size, 10px each side | P9.1-T21 | ISC-632 reworded, ISC-633 reopened; ISC-669 | `--gutter` equal to `--background` in the three themes (the token stays), `create.ts:79-95`, `lineNumbers.test.ts`, `documentFonts.test.ts:178-183`, the subtle-strip check in `themes.test.ts` |
+| List marker box as wide as the en dash | P9.1-T19 | ISC-670, ISC-671 | `bullet.ts` and `theme.ts:72-79`; the pinned test `listMarker.test.ts:113-126` changes |
+
+Order: the follow-ups from the smallest up (menu, width, icons, marker, gutter, font list, Browse, pane handle), then T29, then T30.
