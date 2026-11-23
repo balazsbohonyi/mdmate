@@ -97,6 +97,14 @@ describe('the header cell (ISC-674)', () => {
     expect(verticalEm(head)).toBeGreaterThan(verticalEm(body))
   })
 
+  it('gives a body cell room above and below, so inline code in it stays clear of the lines (P9.1-T37)', () => {
+    mount(TABLE)
+    const [body] = valuesOf('.cm-md-table td', 'padding')
+    expect(verticalEm(body)).toBe(0.4)
+    // The header keeps the padding it had.
+    expect(verticalEm(valuesOf('.cm-md-table th', 'padding').at(-1))).toBe(0.55)
+  })
+
   it('is counted in the height a table is estimated at', () => {
     const doc = `${TABLE}
 `

@@ -46,7 +46,7 @@ export const previewTheme = EditorView.baseTheme({
     border: '1px solid var(--syntax-code-border)',
     borderRadius: 'var(--radius)',
     // Room inside the border; a span that wraps keeps its border and padding on both pieces.
-    padding: '2px 3px',
+    padding: '1px 2px',
     boxDecorationBreak: 'clone',
   },
   // Selected code reads as selected text: the span's background would hide the selection behind it.

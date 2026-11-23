@@ -36,7 +36,9 @@ export const blockTheme = EditorView.baseTheme({
   '.cm-md-table th, .cm-md-table td': {
     borderRight: '1px solid var(--border)',
     borderBottom: '1px solid var(--border)',
-    padding: '0.3em 0.8em',
+    // Room above and below, so inline code (which has a border and padding of its own) stays clear
+    // of the row lines. The header cell sets its own below.
+    padding: '0.4em 0.8em',
     textAlign: 'left',
     verticalAlign: 'top',
   },
@@ -135,7 +137,7 @@ export const blockTheme = EditorView.baseTheme({
     backgroundColor: 'var(--syntax-code-background)',
     border: '1px solid var(--syntax-code-border)',
     borderRadius: 'var(--radius)',
-    padding: '2px 3px',
+    padding: '1px 2px',
     boxDecorationBreak: 'clone',
   },
   '.cm-md-table .cm-md-link': {

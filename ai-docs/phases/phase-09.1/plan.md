@@ -565,6 +565,14 @@
 
 **Done when:** the tests fail on the old code and pass on the new, the owner finds the borders right in Dark, Light and Sepia, and the checks are green. Closes ISC-710 to ISC-713.
 
+## P9.1-T37: Inline code padding, table cell padding
+
+**The request (owner, 2026-11-23, after T36):** inline code padding `1px 2px` instead of `2px 3px`; body cells of a table get top and bottom padding, because inline code sits too close to the row lines (screenshot of a table of colour tokens). The header cells are left out.
+
+**The change:** `.cm-md-code` and `.cm-md-table code` padding `1px 2px`; `.cm-md-table td` vertical padding `0.3em` to `0.4em` (the header keeps `0.55em`); `ROW_HEIGHT` and `HEADER_EXTRA` in `widgets.ts` follow the drawn rows (measured, not guessed).
+
+**Tests:** `inlineCodeBorder.test.ts` (padding), `tableStyle.test.ts` (body 0.4em, header 0.55em). **Closes** ISC-714; ISC-711 reworded.
+
 ## Follow-ups on done tasks (2026-11-22)
 
 Not tasks. Each one reopens or adds the claim named, fails its probe on the old code first, and is committed as `[P9.1-Tn] ...` with the tag of the task it amends.
