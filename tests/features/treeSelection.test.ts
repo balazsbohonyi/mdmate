@@ -381,7 +381,7 @@ describe('clicks and keys on the tree (P9.1-T9)', () => {
     expect(document.querySelector('[data-name-input]')).toBeNull()
   })
 
-  it('the menu of a row inside the selection acts on all of it, and offers Delete alone', async () => {
+  it('the menu of a row inside the selection acts on all of it, and offers Open All and Delete', async () => {
     await start()
     const root = mount(FileTree)
     await flush()
@@ -396,9 +396,10 @@ describe('clicks and keys on the tree (P9.1-T9)', () => {
     const items = [...document.body.querySelectorAll<HTMLElement>('[role=menuitem]')].map((el) =>
       el.textContent.replace(/\s+/g, ' ').trim(),
     )
-    expect(items).toHaveLength(1)
-    expect(items[0]).toMatch(/^Delete 2 items/)
-    document.body.querySelector<HTMLElement>('[role=menuitem]')?.click()
+    expect(items).toHaveLength(2)
+    expect(items[0]).toMatch(/^Open All/)
+    expect(items[1]).toMatch(/^Delete 2 items/)
+    ;[...document.body.querySelectorAll<HTMLElement>('[role=menuitem]')][1]?.click()
     await flush()
     expect(deletePrompt.value?.paths).toEqual(['/work/a.md', '/work/c.md'])
   })

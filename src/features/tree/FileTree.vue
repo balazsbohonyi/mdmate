@@ -60,12 +60,14 @@ import {
   collapseSelection,
   isSelectedPlace,
   naming,
+  openAllSelected,
   removeRootFolder,
   samePath,
   scrollRequest,
   requestScroll,
   select,
   selectedPath,
+  selectedFiles,
   selectedPlaces,
   selectedRoot,
   selectRangeTo,
@@ -173,8 +175,11 @@ function onContextMenu(event: MouseEvent): void {
   menuRow.value = row
 }
 
-/** Whether the menu is for several rows, when only Delete makes sense. */
+/** Whether the menu is for several rows, when Open All and Delete are what make sense. */
 const manyRows = computed(() => selectedPlaces.value.length > 1)
+
+/** Open All needs two files; selected folders take no part in it. */
+const canOpenAll = computed(() => selectedFiles.value.length > 1)
 
 /** How git colors a row's name, or undefined for a row git has nothing to say about. */
 function gitLookOf(row: TreeRow): ReturnType<typeof gitLook> {
@@ -228,6 +233,9 @@ function menuDelete(): void {
   }
   const path = menuPath()
   if (path !== null) void requestDelete(path)
+}
+function menuOpenAll(): void {
+  void openAllSelected()
 }
 function menuReveal(): void {
   const path = menuPath()
@@ -322,6 +330,12 @@ function onKeydown(event: KeyboardEvent): void {
       selectRangeTo(treeRows.value, action.path, action.root)
       requestScroll(action.path, 'row', action.root)
     }
+    return
+  }
+  // Enter on two or more selected files opens them all, as Open All does.
+  if (event.key === 'Enter' && !event.shiftKey && canOpenAll.value) {
+    event.preventDefault()
+    if (!event.repeat) void openAllSelected({ focusEditor: true })
     return
   }
   if (event.key === 'Escape' && manyRows.value) {
@@ -674,6 +688,13 @@ function rowHint(row: TreeRow): string | null {
     </ContextMenuTrigger>
     <ContextMenuContent @close-auto-focus="onMenuClosed">
       <template v-if="manyRows">
+        <template v-if="canOpenAll">
+          <ContextMenuItem @select="menuOpenAll">
+            Open All
+            <ContextMenuShortcut>Enter</ContextMenuShortcut>
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+        </template>
         <ContextMenuItem @select="menuDelete">
           Delete {{ selectedPlaces.length }} items
           <ContextMenuShortcut>{{ TREE_DELETE_KEY }}</ContextMenuShortcut>

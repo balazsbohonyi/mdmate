@@ -551,6 +551,62 @@ export function activateRow(row: TreeRow, how: { focusEditor?: boolean } = {}): 
   return opening
 }
 
+/**
+ * The selected files, in the order the tree shows them and each path once: what Open All opens.
+ * Folders and workspace roots take no part, and a file selected under two roots is one file.
+ */
+export const selectedFiles = computed<string[]>(() => {
+  const seen = new Set<string>()
+  const files: string[] = []
+  for (const row of treeRows.value) {
+    if (row.kind !== 'file' || !isSelectedPlace(row.root, row.path)) continue
+    const key = keyOf(row.path)
+    if (seen.has(key)) continue
+    seen.add(key)
+    files.push(row.path)
+  }
+  return files
+})
+
+/**
+ * Open All: shows the selected files, in the active pane and in tree order, and ends with the first
+ * of them as the active tab (a file that is already open just takes the focus of its tab). A file
+ * that cannot be opened is reported and the others still open. Like `activateRow`, it keeps focus
+ * in the tree unless `focusEditor` is set (Enter), and it runs after any open still in progress.
+ */
+export function openAllSelected(how: { focusEditor?: boolean } = {}): Promise<void> {
+  const paths = selectedFiles.value
+  if (paths.length < 2) return Promise.resolve()
+  const focusEditor = how.focusEditor === true
+  const run = async (): Promise<void> => {
+    const opened: string[] = []
+    for (const path of paths) {
+      try {
+        await openInActivePane(path)
+        opened.push(path)
+      } catch (error) {
+        reportError(`Could not open ${path}: ${describe(error)}`)
+      }
+    }
+    const first = opened[0]
+    if (first === undefined || opened.length < 2) return
+    try {
+      await openInActivePane(first)
+    } catch (error) {
+      reportError(`Could not open ${first}: ${describe(error)}`)
+    }
+  }
+  opening = opening.then(async () => {
+    if (focusEditor) {
+      await run()
+      focusActiveEditor()
+    } else {
+      await holdingEditorFocus(run)
+    }
+  })
+  return opening
+}
+
 // ---- keeping the keyboard in the tree ----
 
 /** A request for the tree to take keyboard focus. `force` takes it from whatever has it. */
