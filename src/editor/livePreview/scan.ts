@@ -12,6 +12,7 @@ import type { EditorState, SelectionRange } from '@codemirror/state'
 import { languageName } from '../codeLanguages'
 import { boxLines } from './box'
 import { frontmatterEnd } from './frontmatter'
+import { codeCopy } from './codeCopy'
 import { hexColor } from './swatch'
 
 /** A node of the syntax tree. `@lezer/common` is not a direct dependency, so the type comes from here. */
@@ -64,7 +65,14 @@ export interface SwatchItem {
   readonly color: string
 }
 
-export type PreviewItem = HideItem | MarkItem | LineItem | CheckboxItem | BulletItem | SwatchItem
+/** The copy button of a fenced code block, drawn at the start of its opening fence. It takes no place in the text. */
+export interface CopyItem {
+  readonly type: 'copy'
+  readonly at: number
+}
+
+export type PreviewItem =
+  HideItem | MarkItem | LineItem | CheckboxItem | BulletItem | SwatchItem | CopyItem
 
 /** The class names the layer puts on the page. The theme and the tests both read them from here. */
 export const classes = {
@@ -81,6 +89,8 @@ export const classes = {
   quote: 'cm-md-quote',
   rule: 'cm-md-hr',
   frontmatter: 'cm-md-frontmatter-line',
+  /** The line a copy button is placed on when its block has no container to hold it. */
+  copyHost: 'cm-md-copy-host',
 } as const
 
 /** Nodes that carry their own address, so a URL inside them is not a bare URL. */
@@ -201,6 +211,7 @@ function fencedCode(
     else if (child.name === 'CodeInfo') info = child
   }
   const shown = touched(state.selection.ranges, node.from, node.to)
+  if (state.facet(codeCopy) !== null) items.push({ type: 'copy', at: node.from })
   const word = info === null ? '' : (/\S+/.exec(doc.sliceString(info.from, info.to))?.[0] ?? '')
   const label = shown || word === '' ? undefined : (languageName(word) ?? word)
   items.push(...boxLines(doc, node.from, node.to, visible, { kind: 'code', label }))
@@ -369,7 +380,18 @@ export function scanPreview(
         if (name === 'FencedCode') {
           // Fences inside a list or a quote keep the plain look: the container is drawn across the
           // whole line, which would cover the indent or the quote bar.
-          if (node.node.parent?.name !== 'Document') return false
+          if (node.node.parent?.name !== 'Document') {
+            // The button is still there, on a line of its own host, since there is no container.
+            if (state.facet(codeCopy) !== null) {
+              items.push({
+                type: 'line',
+                from: doc.lineAt(node.from).from,
+                class: classes.copyHost,
+              })
+              items.push({ type: 'copy', at: node.from })
+            }
+            return false
+          }
           fencedCode(state, items, node.node, { from, to })
           return false
         }

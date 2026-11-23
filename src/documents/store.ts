@@ -224,6 +224,7 @@ function documentOptions(
     imageBoundary: (path) => imageBoundaryOf(path),
     followLink: (tabId, href) => linkFollower?.(tabId, href),
     checkLinks: (hrefs) => host.checkLinks(id, hrefs),
+    copyText: (text) => host.writeClipboard(text),
     saveImage: async (bytes, stamp) => (await host.savePastedImage(id, bytes, stamp)).link,
     dropImage: async (path, stamp) => (await host.dropImage(id, path, stamp)).link,
     notify: (message, level) => {

@@ -123,7 +123,7 @@ export const boxTheme = EditorView.baseTheme({
     content: 'attr(data-box-label)',
     position: 'absolute',
     top: `calc(${GAP} + 0.35em)`,
-    right: '1em',
+    left: '1em',
     fontFamily: 'var(--font-sans)',
     fontSize: '0.8em',
     lineHeight: '1.4',

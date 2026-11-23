@@ -88,6 +88,26 @@ export const previewTheme = EditorView.baseTheme({
     borderRadius: 'var(--radius-sm)',
     backgroundColor: 'var(--swatch)',
   },
+  // The copy button of a fenced block (codeCopy.ts): out of the flow at the block's top right, so it
+  // takes no room. A block with no container puts it on its first line, which is then the anchor.
+  '.cm-md-copy-host': { position: 'relative' },
+  '.cm-md-copy': {
+    position: 'absolute',
+    top: 'calc(var(--box-gap, 0px) + 0.2em)',
+    right: '0.5em',
+    zIndex: '1',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '24px',
+    height: '24px',
+    borderRadius: 'var(--radius)',
+    color: 'var(--muted-foreground)',
+    cursor: 'pointer',
+    userSelect: 'none',
+  },
+  '.cm-md-copy:hover': { color: 'var(--foreground)', backgroundColor: 'var(--accent)' },
+  '.cm-md-copy[data-copied="true"]': { color: 'var(--success)' },
   // Bottom edge 0.15em under the baseline: the middle of the box is then 0.35em over it, the middle
   // of a capital letter or a digit, which `vertical-align: middle` (the x-height) put too low.
   '.cm-md-checkbox': {

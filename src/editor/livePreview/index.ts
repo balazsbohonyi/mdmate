@@ -20,6 +20,7 @@ import { blockLayer } from './blocks'
 import { boxTheme } from './box'
 import { BulletWidget } from './bullet'
 import { CheckboxWidget } from './checkbox'
+import { CopyWidget } from './codeCopy'
 import { SwatchWidget } from './swatch'
 import { previewTheme } from './theme'
 import { scanPreview, type PreviewItem } from './scan'
@@ -30,6 +31,7 @@ const checkboxes = {
   done: Decoration.replace({ widget: new CheckboxWidget(true) }),
 }
 const bullet = Decoration.replace({ widget: new BulletWidget() })
+const copyButton = Decoration.widget({ widget: new CopyWidget(), side: -1 })
 const marks = new Map<string, Decoration>()
 const lines = new Map<string, Decoration>()
 
@@ -58,6 +60,9 @@ export function decorationsFor(items: readonly PreviewItem[]): DecorationSet {
       ranges.push(
         Decoration.widget({ widget: new SwatchWidget(item.color), side: -1 }).range(item.at),
       )
+    } else if (item.type === 'copy') {
+      // A point widget before the opening fence, drawn out of the flow: it is no step for the caret.
+      ranges.push(copyButton.range(item.at))
     } else if (item.type === 'mark') {
       const decoration = shared(marks, item.class, () => Decoration.mark({ class: item.class }))
       ranges.push(decoration.range(item.from, item.to))

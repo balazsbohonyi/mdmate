@@ -12,6 +12,7 @@ import {
 import { createFollowerState, createMasterState } from '@/editor/create'
 import { imageSink, imageStamp } from '@/editor/imagePaste'
 import { imageContext, imagesMoved } from '@/editor/livePreview/blocks'
+import { codeCopy } from '@/editor/livePreview/codeCopy'
 import { brokenLinks, LinkStatus, linkStatus } from '@/editor/brokenLinks'
 import { linkNavigation } from '@/editor/links'
 import { renameEdits } from './draftLinks'
@@ -106,6 +107,8 @@ export interface DocumentOptions {
   readonly dropImage?: (path: string, stamp: string) => Promise<string>
   /** Shows the user a message about something that did not work: a warning for a refusal, an error for a failure. */
   readonly notify?: (message: string, level: 'warning' | 'error') => void
+  /** Puts text on the clipboard, for the copy button of code blocks. Without it, no button is drawn. */
+  readonly copyText?: (text: string) => Promise<void>
   /** Says which link targets are missing files, for the broken-link style. Without it, none is drawn. */
   readonly checkLinks?: (hrefs: readonly string[]) => Promise<readonly boolean[]>
 }
@@ -219,6 +222,7 @@ export class Document implements FollowerHost {
             this.#imageSinkSupport(),
             this.#linkSupport(tabId),
             this.#brokenLinkSupport(),
+            this.#codeCopySupport(),
             this.#options.extensions ?? [],
           ],
         }),
@@ -238,6 +242,14 @@ export class Document implements FollowerHost {
     if (check === undefined || this.#options.parser === false) return []
     this.#linkStatus ??= new LinkStatus(check)
     return [linkStatus.of(this.#linkStatus), brokenLinks()]
+  }
+
+  /** The copy button of code blocks, for documents with a parser and a way to write the clipboard. */
+  #codeCopySupport(): Extension {
+    const write = this.#options.copyText
+    if (write === undefined || this.#options.parser === false) return []
+    const notify = this.#options.notify
+    return codeCopy.of({ write, notify: (message) => notify?.(message, 'error') })
   }
 
   /** Ctrl+click on a link in this tab. Without a `followLink` option, links are only text. */
