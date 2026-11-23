@@ -38,7 +38,7 @@ export const blockTheme = EditorView.baseTheme({
     borderBottom: '1px solid var(--border)',
     // Room above and below, so inline code (which has a border and padding of its own) stays clear
     // of the row lines. The header cell sets its own below.
-    padding: '0.4em 0.8em',
+    padding: '0.5em 0.8em',
     textAlign: 'left',
     verticalAlign: 'top',
   },
@@ -137,7 +137,7 @@ export const blockTheme = EditorView.baseTheme({
     backgroundColor: 'var(--syntax-code-background)',
     border: '1px solid var(--syntax-code-border)',
     borderRadius: 'var(--radius)',
-    padding: '1px 2px',
+    padding: '0 2px',
     boxDecorationBreak: 'clone',
   },
   '.cm-md-table .cm-md-link': {

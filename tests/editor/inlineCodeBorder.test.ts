@@ -48,11 +48,11 @@ const bodyOf = (selector: string): string =>
     .join(';')
 
 describe('inline code has a border and padding (ISC-711)', () => {
-  it('draws a 1px border in the code border token with 1px above and below and 2px at the sides', () => {
+  it('draws a 1px border in the code border token with no padding above and below and 2px at the sides', () => {
     open()
     const body = bodyOf('.cm-md-code')
     expect(body).toContain('border:1pxsolidvar(--syntax-code-border)')
-    expect(body).toContain('padding:1px2px')
+    expect(body).toContain('padding:02px')
     // Still the size of the text around it.
     expect(body).toContain('font-size:1em')
   })
@@ -61,7 +61,7 @@ describe('inline code has a border and padding (ISC-711)', () => {
     open()
     const body = bodyOf('.cm-md-table code')
     expect(body).toContain('border:1pxsolidvar(--syntax-code-border)')
-    expect(body).toContain('padding:1px2px')
+    expect(body).toContain('padding:02px')
     expect(body).toContain('font-size:1em')
   })
 
