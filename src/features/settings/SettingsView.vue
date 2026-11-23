@@ -3,8 +3,10 @@ import { Check, ChevronsUpDown, RotateCcw, Search, X } from '@lucide/vue'
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { docMeta } from '@/documents/meta'
 import { languageChoices, type LanguageChoice } from '@/editor/codeLanguages'
-import { familyStack } from '@/editor/documentFonts'
+import { familyStack, type FontKind } from '@/editor/documentFonts'
+import { FONT_PRESETS, type FontPresetId } from '@/lib/fontPresets'
 import FontPicker from './FontPicker.vue'
+import FontPresetCards from './FontPresetCards.vue'
 import { fontFamilies } from './fontList'
 import { Button } from '@/components/ui/button'
 import {
@@ -59,6 +61,7 @@ import {
 import {
   isModified,
   pendingSettingChange,
+  requestFontPreset,
   requestResetAllSettings,
   requestResetSetting,
   requestSettingChange,
@@ -212,10 +215,27 @@ function reset(key: SettingKey): void {
   void requestResetSetting(key)
 }
 
+/** Whether any individual heading, body or code font override is currently set. */
+const fontOverridesActive = computed(
+  () => settings.fonts.heading !== '' || settings.fonts.body !== '' || settings.fonts.code !== '',
+)
+
+function chooseFontPreset(preset: FontPresetId): void {
+  for (const key of ['fonts.heading', 'fonts.body', 'fonts.code'] as const) {
+    delete drafts[key]
+    delete refused[key]
+  }
+  void requestFontPreset(preset)
+}
+
+function fontDefaultLabel(family: FontKind): string {
+  return `Preset default (${FONT_PRESETS[settings.fonts.preset][family].name})`
+}
+
 /** The font stack the sample line under a family field is drawn in: what is typed, then the fallbacks. */
 function sampleStack(spec: SettingRowSpec): string {
   if (spec.control.kind !== 'font') return ''
-  return familyStack(spec.control.family, shownText(spec.key), settings.fonts.body)
+  return familyStack(spec.control.family, shownText(spec.key), settings.fonts.preset)
 }
 
 const HEADING_SCALE = 'fonts.headingScale' as const
@@ -723,10 +743,17 @@ function openFile(): void {
               :locked="lockOf(spec.key)"
               :field-resets="spec.control.kind === 'pair'"
               :also-key="spec.control.kind === 'pair' ? spec.control.second : undefined"
+              :stacked="spec.control.kind === 'fontPreset'"
               @reset="reset(spec.key)"
             >
+              <FontPresetCards
+                v-if="spec.control.kind === 'fontPreset'"
+                :model-value="settings.fonts.preset"
+                :customized="fontOverridesActive"
+                @select="chooseFontPreset"
+              />
               <Switch
-                v-if="spec.control.kind === 'switch'"
+                v-else-if="spec.control.kind === 'switch'"
                 :model-value="valueOf(spec.key) === true"
                 :aria-label="spec.label"
                 @update:model-value="(on: boolean) => set(spec.key as 'devtools', on)"
@@ -789,6 +816,7 @@ function openFile(): void {
                   :label="spec.label"
                   :invalid="refused[spec.key] !== undefined"
                   :fonts="fonts"
+                  :default-label="fontDefaultLabel(spec.control.family)"
                   @update:model-value="(text: string) => onType(spec.key, text)"
                   @accept="accept(spec)"
                   @revert="revert(spec.key)"

@@ -12,14 +12,19 @@ import { cssFamilyList } from '@/editor/documentFonts'
  * draws each option in its own family, and puts "Built-in" first, which clears the field. A name
  * that is not in the list is as good as one that is. A saved stack is shown as written.
  */
-const props = defineProps<{
-  /** What the field shows: the text typed, or the saved value. */
-  modelValue: string
-  label: string
-  invalid: boolean
-  /** The installed families, or null until the list has been read. */
-  fonts: readonly string[] | null
-}>()
+const props = withDefaults(
+  defineProps<{
+    /** What the field shows: the text typed, or the saved value. */
+    modelValue: string
+    label: string
+    invalid: boolean
+    /** The installed and bundled families, or null until the list has been read. */
+    fonts: readonly string[] | null
+    /** Label for the empty/default option and placeholder (e.g. `Preset default (Lora)`). */
+    defaultLabel?: string
+  }>(),
+  { defaultLabel: 'Built-in' },
+)
 
 const emit = defineEmits<{
   (event: 'update:modelValue', text: string): void
@@ -158,7 +163,7 @@ const isCurrent = (value: string): boolean =>
       :aria-expanded="open"
       :aria-controls="listId"
       :aria-activedescendant="active >= 0 ? `${listId}-${String(active)}` : undefined"
-      placeholder="Built-in"
+      :placeholder="props.defaultLabel"
       :aria-label="label"
       :aria-invalid="invalid ? true : undefined"
       autocomplete="off"
@@ -190,7 +195,7 @@ const isCurrent = (value: string): boolean =>
         data-font-built-in
         @click="pick('')"
       >
-        Built-in
+        {{ props.defaultLabel }}
         <Check
           v-if="isCurrent('')"
           class="absolute right-2 size-4"

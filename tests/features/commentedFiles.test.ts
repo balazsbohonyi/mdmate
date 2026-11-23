@@ -171,7 +171,7 @@ describe('ISC-420: changing one entry never changes a comment', () => {
     expect(during).toEqual(
       expect.arrayContaining(before.filter((line) => !line.includes('"size"'))),
     )
-    expect(await changeSetting('fonts.size', 15)).toBe(true)
+    expect(await changeSetting('fonts.size', 16)).toBe(true)
     expect(settingsText()).toBe(settingsTemplate().text)
   })
 
@@ -279,12 +279,12 @@ describe('ISC-426: taking the // off a line takes effect', () => {
     })
     const sizeLine = settingsTemplate().example(['fonts', 'size']) ?? ''
     const block = settingsTemplate().block(['fonts']) ?? []
-    expect(settings.fonts.size).toBe(15)
+    expect(settings.fonts.size).toBe(16)
     // The whole group is uncommented with its braces, then the value is edited.
     let text = settingsTemplate().text
     for (const line of block) text = text.replace(`  ${line}`, `  ${line.replace(/^\/\/ ?/, '')}`)
-    text = text.replace('"size": 15,', '"size": 21,')
-    expect(sizeLine).toContain('"size": 15')
+    text = text.replace('"size": 16,', '"size": 21,')
+    expect(sizeLine).toContain('"size": 16')
     applySettingsText(text)
     expect(settings.fonts.size).toBe(21)
 
@@ -321,7 +321,7 @@ describe('ISC-429: the first change starts from the template, and a no-op writes
 
   it('writes no file for a change to the value the setting already has', async () => {
     await start()
-    expect(await changeSetting('fonts.size', 15)).toBe(true)
+    expect(await changeSetting('fonts.size', 16)).toBe(true)
     expect(host.files.has(MOCK_SETTINGS_FILE)).toBe(false)
     expect(await changeKeybindings({ [COMMAND_IDS.newFile]: 'Mod+N' })).toBe(true)
     expect(host.files.has(MOCK_KEYBINDINGS_FILE)).toBe(false)
@@ -330,7 +330,7 @@ describe('ISC-429: the first change starts from the template, and a no-op writes
   it('writes no new text for a change that changes nothing in a file that has entries', async () => {
     const text = '{\n  // mine\n  "devtools": true\n}\n'
     await start({ [MOCK_SETTINGS_FILE]: text })
-    await changeSetting('fonts.size', 15)
+    await changeSetting('fonts.size', 16)
     expect(settingsText()).toBe(text)
   })
 })

@@ -12,9 +12,11 @@ import { hoverHints } from './hoverHints'
 import { textDrag } from './textDrag'
 import { smartPaste } from './paste'
 import { livePreview } from './livePreview'
-import { previewSlot } from './previewMode'
+import { previewSlot, SOURCE_MODE_CLASS, sourceModeAttr } from './previewMode'
 import { markdownSupport } from './markdownSupport'
-import { documentFonts } from './documentFonts'
+import { BUILT_IN_BODY_FAMILY, BUILT_IN_CODE_FAMILY, documentFonts } from './documentFonts'
+
+export { SOURCE_MODE_CLASS }
 import {
   contentWidthValue,
   CONTENT_PADDING_X,
@@ -63,11 +65,18 @@ const frame = EditorView.theme({
     // The document's body font and size, from settings.json (documentFonts.ts). The fallbacks are
     // the defaults, for the moment before the file is read or when it cannot be (a test keeps them
     // equal to DEFAULT_SETTINGS).
-    fontFamily: 'var(--doc-font-body, monospace)',
-    fontSize: 'var(--doc-size, 15px)',
+    fontFamily: `var(--doc-font-body, ${BUILT_IN_BODY_FAMILY})`,
+    fontSize: 'var(--doc-size, 16px)',
     // One line height for everything in the text (headings, lists, quotes, tables inherit it);
-    // code blocks have their own (livePreview/box.ts). The fallback is CodeMirror's own 1.4.
-    lineHeight: 'var(--doc-line-height, 1.4)',
+    // code blocks and source mode have their own.
+    lineHeight: 'var(--doc-line-height, 1.5)',
+  },
+  // Plain-source files (JSON, code, large files) and Markdown Raw Mode stay in the code font at
+  // the code size and line height, rather than the proportional Markdown body font (P9.1-T38).
+  [`&.${SOURCE_MODE_CLASS} .cm-content`]: {
+    fontFamily: `var(--doc-font-code, ${BUILT_IN_CODE_FAMILY})`,
+    fontSize: 'calc(var(--doc-code-ratio, calc(14 / 16)) * var(--doc-size, 16px))',
+    lineHeight: 'var(--doc-code-line-height, 1.4)',
   },
   // Without wrapping there is no column to keep: a long line runs out of it, so the limit waits for
   // word wrap (documentWidth.ts).
@@ -88,13 +97,18 @@ const frame = EditorView.theme({
     backgroundColor: 'var(--gutter)',
     color: 'var(--gutter-foreground)',
     border: 'none',
-    fontFamily: 'var(--doc-font-code, var(--font-mono))',
+    fontFamily: `var(--doc-font-code, ${BUILT_IN_CODE_FAMILY})`,
     // 0.9 times the code size (`fonts.codeSize` as a ratio of the text size, times the text size).
-    fontSize: 'calc(var(--doc-code-ratio, calc(14 / 15)) * var(--doc-size, 15px) * 0.9)',
+    fontSize: 'calc(var(--doc-code-ratio, calc(14 / 16)) * var(--doc-size, 16px) * 0.9)',
     // The height of one line of body text, as a length: a number sits on the middle of the line it
     // names at any line height, however small the number's own size is.
-    lineHeight: 'calc(var(--doc-line-height, 1.4) * var(--doc-size, 15px))',
+    lineHeight: 'calc(var(--doc-line-height, 1.5) * var(--doc-size, 16px))',
     userSelect: 'none',
+  },
+  // In plain-source and Raw Mode, each line is `codeLineHeight * codeSize`, so the gutter matches.
+  [`&.cm-lineNumbersOn.${SOURCE_MODE_CLASS} .cm-gutters`]: {
+    lineHeight:
+      'calc(var(--doc-code-line-height, 1.4) * var(--doc-code-ratio, calc(14 / 16)) * var(--doc-size, 16px))',
   },
   // The same room on both sides of the digits (CodeMirror's own is 5px on the left and 3px on the
   // right, and the numbers are right-aligned).
@@ -187,7 +201,7 @@ export function createState(
   const preview = parsing && options.preview === true ? livePreview() : []
   return EditorState.create({
     doc,
-    extensions: [parsing ? withParser : common, preview, extensions],
+    extensions: [parsing ? withParser : [common, sourceModeAttr], preview, extensions],
   })
 }
 
@@ -239,7 +253,7 @@ export function createFollowerState(options: FollowerOptions): EditorState {
   // Live preview rides with the parser, so a tab that opens as plain source gets neither.
   const parsing: Extension =
     options.parser === false
-      ? []
+      ? [sourceModeAttr]
       : [
           markdownSupport(),
           syntaxHighlighting(tokenHighlight),

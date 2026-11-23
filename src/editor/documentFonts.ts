@@ -1,4 +1,11 @@
 import { EditorView, ViewPlugin } from '@codemirror/view'
+import {
+  DEFAULT_FONT_PRESET,
+  expandBundledFamily,
+  FONT_PRESETS,
+  inlineCodeScaleFor,
+  type FontPresetId,
+} from '@/lib/fontPresets'
 import type { Settings } from '@/lib/settings'
 import { settings } from '@/lib/settings'
 
@@ -9,15 +16,16 @@ import { settings } from '@/lib/settings'
  * takes effect with no restart: the properties are set again, and each open view is asked to
  * measure its text again.
  *
- * A family is written the way CSS does, one name or a list, and always followed by the built-in
- * stack, so an empty field, a name that is not installed and a name the browser cannot read each
- * fall back to the built-in look. Headings fall back to the body family.
+ * An empty family field uses the active preset's bundled stack (`fonts.preset`, defaulting to
+ * Editorial). A written family or list is quoted (expanding bundled display names to their bundled
+ * variable faces) and followed by the preset's stack, so an uninstalled or invalid name always
+ * falls back cleanly.
  */
 
-/** The family the editor's text has always had, which the built-in body stack is. */
-export const BUILT_IN_BODY_FAMILY = 'monospace'
-/** The family of code, as the theme tokens have it. */
-export const BUILT_IN_CODE_FAMILY = 'var(--font-mono)'
+/** The default preset's heading, body and code stacks, used as theme `var()` fallbacks. */
+export const BUILT_IN_HEADING_FAMILY = FONT_PRESETS[DEFAULT_FONT_PRESET].heading.stack
+export const BUILT_IN_BODY_FAMILY = FONT_PRESETS[DEFAULT_FONT_PRESET].body.stack
+export const BUILT_IN_CODE_FAMILY = FONT_PRESETS[DEFAULT_FONT_PRESET].code.stack
 
 /** Which kind of text a family is for. */
 export type FontKind = 'heading' | 'body' | 'code'
@@ -29,14 +37,20 @@ export const FONT_VARIABLES = {
   code: '--doc-font-code',
   size: '--doc-size',
   /**
-   * The code size as a multiple of the text size (`codeSize / size`), not as px. Code blocks take it
-   * as `calc(ratio * 1em)`, so a block in body text is exactly `fonts.codeSize`. Inline code does
-   * not read it: it takes the size of its surroundings (P9.1-T5).
+   * The code size as a multiple of the text size (`codeSize / size`), not as px. Code blocks and
+   * plain-source / Raw Mode take it as `calc(ratio * 1em)` or `calc(ratio * var(--doc-size))`, so
+   * they render at `fonts.codeSize`. Inline code never reads it (P9.1-T5).
    */
   codeRatio: '--doc-code-ratio',
   /**
+   * Optical `em` multiplier for inline code (`0.82` for System/monospace, `0.9` for Lora, Open
+   * Sans, Merriweather and custom body fonts) so monospace x-height aligns visually with
+   * surrounding text while still scaling inside headings (P9.1-T38).
+   */
+  inlineCodeScale: '--doc-inline-code-scale',
+  /**
    * The line heights, unitless so each line takes them times its own size: a heading and a list
-   * item follow the body value, and only code blocks read the code one (P9.1-T20).
+   * item follow the body value, and code blocks / source mode read the code one (P9.1-T20, T38).
    */
   lineHeight: '--doc-line-height',
   codeLineHeight: '--doc-code-line-height',
@@ -69,11 +83,12 @@ const GENERIC_FAMILIES: ReadonlySet<string> = new Set([
 /**
  * What was written in a family field, as a list CSS always accepts. A name that is not a valid CSS
  * identifier (it starts with a digit, holds a symbol) would make the whole declaration invalid, and
- * the text would lose its font and not fall back to the built-in one; each name is quoted, except
- * the generic keywords, so that cannot happen. Empty gives empty.
+ * the text would lose its font and not fall back; each name is quoted, except the generic keywords.
+ * Bundled variable display names expand to include their bundled variable face. Empty gives empty.
  */
 export function cssFamilyList(written: string): string {
   const names: string[] = []
+  const seen = new Set<string>()
   for (const part of written.split(',')) {
     const bare = part
       .trim()
@@ -81,28 +96,35 @@ export function cssFamilyList(written: string): string {
       .replace(/^["']|["']$/g, '')
       .trim()
     if (bare === '') continue
-    names.push(
-      GENERIC_FAMILIES.has(bare.toLowerCase())
-        ? bare.toLowerCase()
-        : `"${bare.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`,
-    )
+    const lower = bare.toLowerCase()
+    if (GENERIC_FAMILIES.has(lower)) {
+      if (!seen.has(lower)) {
+        seen.add(lower)
+        names.push(lower)
+      }
+      continue
+    }
+    for (const expanded of expandBundledFamily(bare)) {
+      const key = expanded.toLowerCase()
+      if (seen.has(key)) continue
+      seen.add(key)
+      names.push(`"${expanded.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`)
+    }
   }
   return names.join(', ')
 }
 
 /**
- * The font stack for a kind of text, given what was written for it (empty for the built-in).
- * `bodyWritten` is what the body field holds: headings fall back to the body family, so they
- * follow a body family that was set.
+ * The font stack for a kind of text, given what was written for it (empty for the active preset's
+ * bundled stack).
  */
-export function familyStack(kind: FontKind, written: string, bodyWritten = ''): string {
+export function familyStack(
+  kind: FontKind,
+  written: string,
+  presetId: FontPresetId = DEFAULT_FONT_PRESET,
+): string {
   const own = cssFamilyList(written)
-  const fallback =
-    kind === 'code'
-      ? BUILT_IN_CODE_FAMILY
-      : kind === 'heading'
-        ? familyStack('body', bodyWritten)
-        : BUILT_IN_BODY_FAMILY
+  const fallback = FONT_PRESETS[presetId][kind].stack
   return own === '' ? fallback : `${own}, ${fallback}`
 }
 
@@ -112,11 +134,12 @@ export function documentFontVariables(
   editor: Readonly<Settings['editor']> = settings.editor,
 ): Record<string, string> {
   const variables: Record<string, string> = {
-    [FONT_VARIABLES.body]: familyStack('body', fonts.body),
-    [FONT_VARIABLES.heading]: familyStack('heading', fonts.heading, fonts.body),
-    [FONT_VARIABLES.code]: familyStack('code', fonts.code),
+    [FONT_VARIABLES.body]: familyStack('body', fonts.body, fonts.preset),
+    [FONT_VARIABLES.heading]: familyStack('heading', fonts.heading, fonts.preset),
+    [FONT_VARIABLES.code]: familyStack('code', fonts.code, fonts.preset),
     [FONT_VARIABLES.size]: `${String(fonts.size)}px`,
     [FONT_VARIABLES.codeRatio]: String(fonts.codeSize / fonts.size),
+    [FONT_VARIABLES.inlineCodeScale]: String(inlineCodeScaleFor(fonts.preset, fonts.body)),
     [FONT_VARIABLES.lineHeight]: String(fonts.lineHeight),
     [FONT_VARIABLES.codeLineHeight]: String(fonts.codeLineHeight),
     [FONT_VARIABLES.tableStripe]: editor.stripedTables ? 'var(--table-stripe)' : 'transparent',

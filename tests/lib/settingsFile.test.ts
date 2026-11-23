@@ -30,11 +30,11 @@ describe('the key table', () => {
     }
   })
 
-  it('keeps the defaults of today: sizes, heading scale, wrapping and the built-in folder list', () => {
-    expect(DEFAULT_SETTINGS.fonts.size).toBe(15)
+  it('keeps the defaults of today: preset, sizes, heading scale, wrapping and the built-in folder list', () => {
+    expect(DEFAULT_SETTINGS.fonts.preset).toBe('system')
+    expect(DEFAULT_SETTINGS.fonts.size).toBe(16)
     expect(DEFAULT_SETTINGS.fonts.codeSize).toBe(14)
-    // The line height CodeMirror's scroller has always given the text and the code blocks.
-    expect(DEFAULT_SETTINGS.fonts.lineHeight).toBe(1.4)
+    expect(DEFAULT_SETTINGS.fonts.lineHeight).toBe(1.5)
     expect(DEFAULT_SETTINGS.fonts.codeLineHeight).toBe(1.4)
     expect(DEFAULT_SETTINGS.fonts.headingScale).toEqual([1.7, 1.45, 1.25, 1.1, 1, 0.95])
     expect(DEFAULT_SETTINGS.editor.wordWrap).toBe(true)
@@ -191,6 +191,15 @@ describe('the value rules', () => {
       [1, 1, 1, 1, 1, 0.2],
     ]) {
       expect(check('fonts.headingScale', bad), JSON.stringify(bad)).toBe(false)
+    }
+  })
+
+  it('takes one of the four font preset ids and refuses anything else (ISC-715)', () => {
+    for (const good of ['system', 'editorial', 'modern', 'journal']) {
+      expect(check('fonts.preset', good), good).toBe(true)
+    }
+    for (const bad of ['', 'classic', 'System', 5, null]) {
+      expect(check('fonts.preset', bad), String(bad)).toBe(false)
     }
   })
 

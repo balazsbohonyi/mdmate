@@ -1,4 +1,5 @@
 import { EditorView } from '@codemirror/view'
+import { BUILT_IN_CODE_FAMILY } from '../../documentFonts'
 
 /**
  * How the block widgets look. Colors come from the theme tokens. Spacing is padding, never margin:
@@ -129,10 +130,10 @@ export const blockTheme = EditorView.baseTheme({
   // The caret is somewhere else while an image is selected, so it is not drawn.
   '&.cm-image-selected .cm-content': { caretColor: 'transparent' },
   '&.cm-image-selected .cm-cursorLayer': { visibility: 'hidden' },
-  // Inline code in a cell, as outside a table: the code family at the size of the cell's text.
+  // Inline code in a cell, as outside a table: the code family optically scaled to the cell's text.
   '.cm-md-table code': {
-    fontFamily: 'var(--doc-font-code, var(--font-mono))',
-    fontSize: '1em',
+    fontFamily: `var(--doc-font-code, ${BUILT_IN_CODE_FAMILY})`,
+    fontSize: 'calc(var(--doc-inline-code-scale, 0.82) * 1em)',
     color: 'var(--syntax-code)',
     backgroundColor: 'var(--syntax-code-background)',
     border: '1px solid var(--syntax-code-border)',

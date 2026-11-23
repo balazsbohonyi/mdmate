@@ -15,6 +15,8 @@ export type RowControl =
   | { readonly kind: 'number' }
   /** A text field. With `browse`, a Browse button beside it picks a program from a file dialog. */
   | { readonly kind: 'text'; readonly placeholder: string; readonly browse?: true }
+  /** Live specimen cards for the bundled font presets. */
+  | { readonly kind: 'fontPreset' }
   /** A font family, with a sample line in the family typed. */
   | { readonly kind: 'font'; readonly family: FontKind }
   /** Six numbers, one for each heading level. */
@@ -72,11 +74,20 @@ export const SETTING_ROWS: readonly SettingRowSpec[] = [
     control: { kind: 'choice', options: BUILT_IN_CHOICES },
   },
   {
+    key: 'fonts.preset',
+    category: 'appearance',
+    group: 'Fonts',
+    label: 'Font preset',
+    description:
+      'Bundled heading, body and code font pairing. Picking a preset clears individual font overrides.',
+    control: { kind: 'fontPreset' },
+  },
+  {
     key: 'fonts.heading',
     category: 'appearance',
     group: 'Fonts',
     label: 'Heading font',
-    description: 'The font of headings. Empty uses the body font.',
+    description: "The font of headings. Empty uses the active preset's heading font.",
     control: { kind: 'font', family: 'heading' },
   },
   {
@@ -84,7 +95,7 @@ export const SETTING_ROWS: readonly SettingRowSpec[] = [
     category: 'appearance',
     group: 'Fonts',
     label: 'Body font',
-    description: 'The font of the document text. Empty uses the built-in font.',
+    description: "The font of the document text. Empty uses the active preset's body font.",
     control: { kind: 'font', family: 'body' },
   },
   {
@@ -92,7 +103,8 @@ export const SETTING_ROWS: readonly SettingRowSpec[] = [
     category: 'appearance',
     group: 'Fonts',
     label: 'Code font',
-    description: 'The font of code, inline and in blocks. Empty uses the built-in code font.',
+    description:
+      "The font of code, inline, in blocks and in raw source. Empty uses the active preset's code font.",
     control: { kind: 'font', family: 'code' },
   },
   {

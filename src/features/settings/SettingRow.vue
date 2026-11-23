@@ -18,6 +18,7 @@ const {
   locked,
   fieldResets = false,
   alsoKey = undefined,
+  stacked = false,
 } = defineProps<{
   /** The key in the file, or null for a row that is an action and not a setting. */
   settingKey: string | null
@@ -34,6 +35,8 @@ const {
   fieldResets?: boolean
   /** The key of a second setting the row holds, shown after the first. */
   alsoKey?: string | undefined
+  /** Places the control slot below the header across the full row width (e.g. preset cards). */
+  stacked?: boolean
 }>()
 
 const emit = defineEmits<{ reset: [] }>()
@@ -41,7 +44,11 @@ const emit = defineEmits<{ reset: [] }>()
 
 <template>
   <div
-    class="grid grid-cols-[minmax(0,1fr)_minmax(0,16rem)] items-start gap-x-6 gap-y-1 border-b border-border py-3"
+    :class="
+      stacked
+        ? 'flex flex-col gap-2 border-b border-border py-3'
+        : 'grid grid-cols-[minmax(0,1fr)_minmax(0,16rem)] items-start gap-x-6 gap-y-1 border-b border-border py-3'
+    "
     :data-setting-row="settingKey ?? undefined"
     :data-setting-action="settingKey === null ? 'true' : undefined"
     :data-modified="modified ? 'true' : undefined"

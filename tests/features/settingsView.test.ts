@@ -17,8 +17,14 @@ import {
   resolvePendingClose,
   watchDisk,
 } from '@/documents/store'
-import { resetDocumentFonts } from '@/editor/documentFonts'
-import { resetFontFamilies } from '@/features/settings/fontList'
+import {
+  BUILT_IN_BODY_FAMILY,
+  BUILT_IN_CODE_FAMILY,
+  BUILT_IN_HEADING_FAMILY,
+  resetDocumentFonts,
+} from '@/editor/documentFonts'
+import { FONT_PRESETS } from '@/lib/fontPresets'
+import { mergeBundledFonts, resetFontFamilies } from '@/features/settings/fontList'
 import { SETTING_ROWS } from '@/features/settings/rows'
 import SettingsView from '@/features/settings/SettingsView.vue'
 import {
@@ -160,7 +166,7 @@ describe('ISC-350: the default takes the key out', () => {
     await start(HAND_WRITTEN)
     await changeSetting('fonts.size', 20)
     expect(isModified('fonts.size')).toBe(true)
-    await changeSetting('fonts.size', 15)
+    await changeSetting('fonts.size', 16)
     expect(fileObject()).toEqual({
       theme: 'light',
       fonts: { body: 'Georgia', futureKey: [1, 2] },
@@ -168,7 +174,7 @@ describe('ISC-350: the default takes the key out', () => {
       note: 'written by hand',
     })
     expect(isModified('fonts.size')).toBe(false)
-    expect(settings.fonts.size).toBe(15)
+    expect(settings.fonts.size).toBe(16)
   })
 
   it('leaves an empty object when every setting is back to its default, and keeps unknown keys', async () => {
@@ -188,7 +194,7 @@ describe('ISC-350: the default takes the key out', () => {
 
   it('does not write a file when a default is set on a file that is not there', async () => {
     await start()
-    await changeSetting('fonts.size', 15)
+    await changeSetting('fonts.size', 16)
     expect(host.files.has(MOCK_SETTINGS_FILE)).toBe(false)
   })
 
@@ -197,7 +203,7 @@ describe('ISC-350: the default takes the key out', () => {
     expect(isModified('fonts.size')).toBe(true)
     await resetSetting('fonts.size')
     expect(fileObject()).toEqual({ fonts: { body: 'Georgia' } })
-    expect(settings.fonts.size).toBe(15)
+    expect(settings.fonts.size).toBe(16)
   })
 })
 
@@ -322,21 +328,22 @@ describe('ISC-641 to ISC-643: the font pickers on the screen', () => {
     resetFontFamilies()
   })
 
-  it('reads the families only when a font field first opens, and lists them with Built-in first', async () => {
+  it('reads the families only when a font field first opens, and lists them with Preset default first', async () => {
     await mountScreen('appearance')
     const ask = vi.spyOn(host, 'listFontFamilies')
     expect(ask).not.toHaveBeenCalled()
     expect(rowOf('fonts.body').querySelector('[data-font-list]')).toBeNull()
     await open('fonts.body')
     expect(ask).toHaveBeenCalledTimes(1)
+    const expected = mergeBundledFonts(MOCK_FONT_FAMILIES)
     expect(optionsOf('fonts.body').map((option) => option.textContent.trim())).toEqual([
-      'Built-in',
-      ...MOCK_FONT_FAMILIES,
+      'Preset default (System Monospace)',
+      ...expected,
     ])
     // A second field uses the answer it already has.
     await open('fonts.code')
     expect(ask).toHaveBeenCalledTimes(1)
-    expect(optionsOf('fonts.code')).toHaveLength(MOCK_FONT_FAMILIES.length + 1)
+    expect(optionsOf('fonts.code')).toHaveLength(expected.length + 1)
   })
 
   it('narrows the list of the field typed in, and not the others', async () => {
@@ -348,7 +355,7 @@ describe('ISC-641 to ISC-643: the font pickers on the screen', () => {
     field.dispatchEvent(new Event('input', { bubbles: true }))
     await flush()
     expect(optionsOf('fonts.heading').map((option) => option.textContent.trim())).toEqual([
-      'Built-in',
+      'Preset default (System Monospace)',
       'Segoe UI',
     ])
     expect(sampleFamily('fonts.heading')).toContain('seg')
@@ -361,18 +368,18 @@ describe('ISC-641 to ISC-643: the font pickers on the screen', () => {
       optionsOf('fonts.heading').find((option) => option.dataset.fontName === 'Georgia') ?? null,
     )
     expect(fileObject()).toEqual({ note: 'mine', fonts: { heading: 'Georgia' } })
-    expect(rootVar('--doc-font-heading')).toBe('"Georgia", monospace')
+    expect(rootVar('--doc-font-heading')).toBe(`"Georgia", ${BUILT_IN_HEADING_FAMILY}`)
     expect(inputOf('fonts.heading').value).toBe('Georgia')
     expect(rowOf('fonts.heading').querySelector('[data-font-list]')).toBeNull()
   })
 
-  it('picks Built-in: the key leaves the file and the built-in stack is back', async () => {
+  it('picks Preset default: the key leaves the file and the active preset stack is back', async () => {
     await mountScreen('appearance', '{"fonts": {"code": "Consolas"}}')
-    expect(rootVar('--doc-font-code')).toBe('"Consolas", var(--font-mono)')
+    expect(rootVar('--doc-font-code')).toBe(`"Consolas", ${BUILT_IN_CODE_FAMILY}`)
     await open('fonts.code')
     await click(optionsOf('fonts.code')[0] ?? null)
     expect(fileObject()).toEqual({})
-    expect(rootVar('--doc-font-code')).toBe('var(--font-mono)')
+    expect(rootVar('--doc-font-code')).toBe(BUILT_IN_CODE_FAMILY)
     expect(inputOf('fonts.code').value).toBe('')
   })
 
@@ -636,6 +643,7 @@ describe('ISC-368: an absolute or escaping image folder is refused on its row', 
 
 describe('ISC-360 to ISC-363, ISC-393: the font rows', () => {
   const FONT_KEYS = [
+    'fonts.preset',
     'fonts.body',
     'fonts.heading',
     'fonts.code',
@@ -674,9 +682,9 @@ describe('ISC-360 to ISC-363, ISC-393: the font rows', () => {
     expect(settings.fonts.body).toBe('')
   })
 
-  it('ISC-393: a heading sample falls back to the body family, and code to the code font', async () => {
+  it('ISC-393: a heading sample uses the preset heading family, and code uses the preset code font', async () => {
     await mountScreen('appearance', '{"fonts": {"body": "Segoe UI"}}')
-    expect(sampleOf('fonts.heading').style.fontFamily).toContain('Segoe UI')
+    expect(sampleOf('fonts.heading').style.fontFamily).toContain('monospace')
     expect(sampleOf('fonts.code').style.fontFamily).toContain('--font-mono')
   })
 
@@ -684,17 +692,17 @@ describe('ISC-360 to ISC-363, ISC-393: the font rows', () => {
     await mountScreen('appearance', '{"note": "mine"}')
     await typeAndLeave(inputOf('fonts.heading'), 'Georgia')
     expect(fileObject()).toEqual({ note: 'mine', fonts: { heading: 'Georgia' } })
-    expect(rootVar('--doc-font-heading')).toBe('"Georgia", monospace')
-    expect(rootVar('--doc-font-body')).toBe('monospace')
-    expect(rootVar('--doc-font-code')).toBe('var(--font-mono)')
+    expect(rootVar('--doc-font-heading')).toBe(`"Georgia", ${BUILT_IN_HEADING_FAMILY}`)
+    expect(rootVar('--doc-font-body')).toBe(BUILT_IN_BODY_FAMILY)
+    expect(rootVar('--doc-font-code')).toBe(BUILT_IN_CODE_FAMILY)
   })
 
-  it('ISC-361: emptying a family takes its key out and the built-in stack is back', async () => {
+  it('ISC-361: emptying a family takes its key out and the active preset stack is back', async () => {
     await mountScreen('appearance', '{"fonts": {"code": "Consolas"}}')
-    expect(rootVar('--doc-font-code')).toBe('"Consolas", var(--font-mono)')
+    expect(rootVar('--doc-font-code')).toBe(`"Consolas", ${BUILT_IN_CODE_FAMILY}`)
     await typeAndLeave(inputOf('fonts.code'), '')
     expect(fileObject()).toEqual({})
-    expect(rootVar('--doc-font-code')).toBe('var(--font-mono)')
+    expect(rootVar('--doc-font-code')).toBe(BUILT_IN_CODE_FAMILY)
   })
 
   it('ISC-362: the text size is checked, written, and sets the body size', async () => {
@@ -716,8 +724,8 @@ describe('ISC-360 to ISC-363, ISC-393: the font rows', () => {
     await mountScreen('appearance')
     await typeAndLeave(inputOf('fonts.codeSize'), '18')
     expect(fileObject()).toEqual({ fonts: { codeSize: 18 } })
-    expect(Number(rootVar('--doc-code-ratio')) * 15).toBeCloseTo(18, 10)
-    expect(rootVar('--doc-size')).toBe('15px')
+    expect(Number(rootVar('--doc-code-ratio')) * 16).toBeCloseTo(18, 10)
+    expect(rootVar('--doc-size')).toBe('16px')
   })
 
   it('ISC-362: six boxes write the heading scale as one value, and reset takes it out', async () => {
@@ -758,12 +766,83 @@ describe('ISC-360 to ISC-363, ISC-393: the font rows', () => {
     await flush()
     expect(scaleBoxes().map((box) => box.value)).toEqual(['3', '2', '1.5', '1.2', '1', '0.8'])
   })
+
+  it('ISC-719 & ISC-720: shows four live preset cards, updates state on override, and clears overrides on click', async () => {
+    await mountScreen('appearance')
+    const card = (id: string): HTMLButtonElement => {
+      const el = document.querySelector<HTMLButtonElement>(`[data-font-preset-card="${id}"]`)
+      if (el === null) throw new Error(`no preset card ${id}`)
+      return el
+    }
+    for (const id of ['system', 'editorial', 'modern', 'journal'] as const) {
+      const c = card(id)
+      const heading = c.querySelector<HTMLElement>('[data-font-preset-heading]')
+      const body = c.querySelector<HTMLElement>('[data-font-preset-body]')
+      const inline = c.querySelector<HTMLElement>('[data-font-preset-inline-code]')
+      const block = c.querySelector<HTMLElement>('[data-font-preset-code-block]')
+      expect(heading?.style.fontFamily).toContain(
+        id === 'system' ? 'monospace' : FONT_PRESETS[id].heading.name,
+      )
+      expect(body?.style.fontFamily).toContain(
+        id === 'system' ? 'monospace' : FONT_PRESETS[id].body.name,
+      )
+      expect(inline?.style.fontFamily).toContain(
+        id === 'system' ? '--font-mono' : FONT_PRESETS[id].code.name,
+      )
+      expect(inline?.style.fontSize).toBe(`${String(FONT_PRESETS[id].inlineCodeScale)}em`)
+      expect(block?.style.fontFamily).toContain(
+        id === 'system' ? '--font-mono' : FONT_PRESETS[id].code.name,
+      )
+    }
+
+    // System is active by default, with Preset default (<name>) placeholders on pickers.
+    expect(card('system').getAttribute('aria-checked')).toBe('true')
+    expect(card('system').querySelector('[data-font-preset-state="in-use"]')).not.toBeNull()
+    expect(inputOf('fonts.heading').placeholder).toBe('Preset default (System Monospace)')
+    expect(inputOf('fonts.body').placeholder).toBe('Preset default (System Monospace)')
+    expect(inputOf('fonts.code').placeholder).toBe('Preset default (System Code)')
+
+    // Overriding body marks System as Customized.
+    await typeAndLeave(inputOf('fonts.body'), 'Georgia')
+    expect(card('system').querySelector('[data-font-preset-state="customized"]')).not.toBeNull()
+    expect(card('system').querySelector('[data-font-preset-state="in-use"]')).toBeNull()
+
+    // Clicking Editorial sets fonts.preset and clears individual overrides atomically.
+    await click(card('editorial'))
+    expect(fileObject()).toEqual({ fonts: { preset: 'editorial' } })
+    expect(settings.fonts.preset).toBe('editorial')
+    expect(settings.fonts.body).toBe('')
+    expect(card('editorial').querySelector('[data-font-preset-state="in-use"]')).not.toBeNull()
+    expect(inputOf('fonts.body').placeholder).toBe('Preset default (Lora)')
+    expect(rootVar('--doc-font-heading')).toBe(FONT_PRESETS.editorial.heading.stack)
+    expect(rootVar('--doc-inline-code-scale')).toBe('0.9')
+
+    // Overriding code then clicking Editorial again resets the override back to pure Editorial.
+    await typeAndLeave(inputOf('fonts.code'), 'Consolas')
+    expect(card('editorial').querySelector('[data-font-preset-state="customized"]')).not.toBeNull()
+    await click(card('editorial'))
+    expect(fileObject()).toEqual({ fonts: { preset: 'editorial' } })
+    expect(settings.fonts.code).toBe('')
+    expect(card('editorial').querySelector('[data-font-preset-state="in-use"]')).not.toBeNull()
+
+    // Clicking System (the default) clears fonts.preset from the file too.
+    await click(card('system'))
+    expect(fileObject()).toEqual({})
+    expect(settings.fonts.preset).toBe('system')
+    expect(rootVar('--doc-inline-code-scale')).toBe('0.82')
+  })
 })
 
 describe('ISC-628: the sizes and their line heights share a row', () => {
   const PAIRS = [
-    { host: 'fonts.size', second: 'fonts.lineHeight', word: 'Text', size: 15 },
-    { host: 'fonts.codeSize', second: 'fonts.codeLineHeight', word: 'Code', size: 14 },
+    { host: 'fonts.size', second: 'fonts.lineHeight', word: 'Text', size: 16, lineHeight: '1.5' },
+    {
+      host: 'fonts.codeSize',
+      second: 'fonts.codeLineHeight',
+      word: 'Code',
+      size: 14,
+      lineHeight: '1.4',
+    },
   ] as const
   const rootVar = (name: string): string => document.documentElement.style.getPropertyValue(name)
 
@@ -791,7 +870,7 @@ describe('ISC-628: the sizes and their line heights share a row', () => {
     expect(row.textContent.toLowerCase()).toContain('line height')
     expect(row.textContent).toContain(pair.word)
     expect(fieldOf(pair.host).value).toBe(String(pair.size))
-    expect(fieldOf(pair.second).value).toBe('1.4')
+    expect(fieldOf(pair.second).value).toBe(pair.lineHeight)
   })
 
   it('names each field for a screen reader', async () => {
@@ -840,7 +919,7 @@ describe('ISC-628: the sizes and their line heights share a row', () => {
     await typeAndLeave(fieldOf('fonts.codeLineHeight'), '1.5')
     expect(fileObject()).toEqual({ note: 'mine', fonts: { lineHeight: 1.8, codeLineHeight: 1.5 } })
     expect(rootVar('--doc-code-line-height')).toBe('1.5')
-    expect(fieldOf('fonts.size').value).toBe('15')
+    expect(fieldOf('fonts.size').value).toBe('16')
   })
 
   it('writes the size beside it with no change to the line height', async () => {
@@ -848,7 +927,7 @@ describe('ISC-628: the sizes and their line heights share a row', () => {
     await typeAndLeave(fieldOf('fonts.size'), '18')
     expect(fileObject()).toEqual({ fonts: { size: 18 } })
     expect(rootVar('--doc-size')).toBe('18px')
-    expect(rootVar('--doc-line-height')).toBe('1.4')
+    expect(rootVar('--doc-line-height')).toBe('1.5')
   })
 
   it('refuses a line height under its own field, and leaves the size field and the file alone', async () => {
@@ -868,7 +947,7 @@ describe('ISC-628: the sizes and their line heights share a row', () => {
     )
     await flush()
     expect(pairError('fonts.lineHeight')).toBeNull()
-    expect(fieldOf('fonts.lineHeight').value).toBe('1.4')
+    expect(fieldOf('fonts.lineHeight').value).toBe('1.5')
   })
 
   it('refuses a size under the size field, and not under the line height', async () => {
@@ -890,10 +969,10 @@ describe('ISC-628: the sizes and their line heights share a row', () => {
     expect(resetOf('fonts.size')).not.toBeNull()
     await click(resetOf('fonts.lineHeight'))
     expect(fileObject()).toEqual({ fonts: { size: 17 } })
-    expect(fieldOf('fonts.lineHeight').value).toBe('1.4')
+    expect(fieldOf('fonts.lineHeight').value).toBe('1.5')
     expect(resetOf('fonts.lineHeight')).toBeNull()
     expect(resetOf('fonts.size')).not.toBeNull()
-    expect(rootVar('--doc-line-height')).toBe('1.4')
+    expect(rootVar('--doc-line-height')).toBe('1.5')
     await click(resetOf('fonts.size'))
     expect(fileObject()).toEqual({})
   })
@@ -1044,6 +1123,21 @@ describe('ISC-354: unsaved edits in the settings.json tab are asked about first'
     await click(buttonNamed('Save') ?? null)
     expect(prompt()).toBeNull()
     expect(fileObject()).toEqual({ editor: { wordWrap: false } })
+  })
+
+  it('asks before applying a font preset when settings.json has unsaved edits (ISC-719)', async () => {
+    await mountScreen('appearance', '{"fonts": {"body": "Georgia"}}')
+    await dirtyTab()
+    const card = document.querySelector<HTMLButtonElement>('[data-font-preset-card="journal"]')
+    await click(card)
+    expect(prompt()?.textContent).toContain('Font preset')
+    expect(settings.fonts.preset).toBe('system')
+    expect(settings.fonts.body).toBe('Georgia')
+    await click(buttonNamed("Don't save") ?? null)
+    expect(prompt()).toBeNull()
+    expect(fileObject()).toEqual({ fonts: { preset: 'journal' } })
+    expect(settings.fonts.preset).toBe('journal')
+    expect(settings.fonts.body).toBe('')
   })
 
   it('asks nothing when the tab holds no unsaved edits, or the file is not open', async () => {

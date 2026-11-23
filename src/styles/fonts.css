@@ -1,0 +1,34 @@
+/*
+ * Bundled Google Fonts for Markdown documents (P9.1-T38). Every typeface ships locally through
+ * Fontsource (zero network requests; OFL-1.1 notices in public/fonts-LICENSE.txt). Variable fonts
+ * ship upright and italic cuts where available; static fonts ship the weights headings, bold and
+ * italic need. The browser loads only the unicode-range subsets a document actually draws.
+ */
+
+/* Preset 1 (Editorial): Montserrat · Lora · JetBrains Mono */
+@import '@fontsource-variable/montserrat';
+@import '@fontsource-variable/montserrat/wght-italic.css';
+@import '@fontsource-variable/lora';
+@import '@fontsource-variable/lora/wght-italic.css';
+@import '@fontsource-variable/jetbrains-mono';
+@import '@fontsource-variable/jetbrains-mono/wght-italic.css';
+
+/* Preset 2 (Modern): Raleway · Open Sans · Fira Code */
+@import '@fontsource-variable/raleway';
+@import '@fontsource-variable/raleway/wght-italic.css';
+@import '@fontsource-variable/open-sans';
+@import '@fontsource-variable/open-sans/wght-italic.css';
+@import '@fontsource-variable/fira-code';
+
+/* Preset 3 (Journal): Oswald · Merriweather · IBM Plex Mono */
+@import '@fontsource-variable/oswald';
+@import '@fontsource-variable/merriweather';
+@import '@fontsource-variable/merriweather/wght-italic.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/400-italic.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+@import '@fontsource/ibm-plex-mono/500-italic.css';
+@import '@fontsource/ibm-plex-mono/600.css';
+@import '@fontsource/ibm-plex-mono/600-italic.css';
+@import '@fontsource/ibm-plex-mono/700.css';
+@import '@fontsource/ibm-plex-mono/700-italic.css';

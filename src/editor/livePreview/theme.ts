@@ -1,4 +1,5 @@
 import { EditorView } from '@codemirror/view'
+import { BUILT_IN_CODE_FAMILY, BUILT_IN_HEADING_FAMILY } from '../documentFonts'
 
 /**
  * How rendered Markdown looks. Colors come from the theme tokens. Spacing is padding on `.cm-line`,
@@ -9,11 +10,11 @@ export const previewTheme = EditorView.baseTheme({
   // The default highlight style underlines headings; a rendered heading is not underlined.
   '.cm-md-h, .cm-md-h span': { textDecoration: 'none' },
   // The family and the size multiples come from settings.json (documentFonts.ts); the fallbacks
-  // are the values the headings had before they were settings.
+  // are the default preset values.
   '.cm-md-h': {
     fontWeight: '650',
     color: 'var(--syntax-heading)',
-    fontFamily: 'var(--doc-font-heading, monospace)',
+    fontFamily: `var(--doc-font-heading, ${BUILT_IN_HEADING_FAMILY})`,
   },
   // No line height here: a heading inherits the body's (`fonts.lineHeight`), times its own size.
   '.cm-md-h1': {
@@ -36,11 +37,11 @@ export const previewTheme = EditorView.baseTheme({
   '.cm-md-strong': { fontWeight: '700' },
   '.cm-md-em': { fontStyle: 'italic' },
   '.cm-md-strike': { textDecoration: 'line-through' },
-  // Inline code has the code family at the size of the text around it, a heading included. The
-  // code size setting is for blocks only (`.cm-md-box-code`).
+  // Inline code has the code family optically scaled to match its surrounding text (headings
+  // included). The code size setting is for blocks and source mode only.
   '.cm-md-code': {
-    fontFamily: 'var(--doc-font-code, var(--font-mono))',
-    fontSize: '1em',
+    fontFamily: `var(--doc-font-code, ${BUILT_IN_CODE_FAMILY})`,
+    fontSize: 'calc(var(--doc-inline-code-scale, 0.82) * 1em)',
     color: 'var(--syntax-code)',
     backgroundColor: 'var(--syntax-code-background)',
     border: '1px solid var(--syntax-code-border)',

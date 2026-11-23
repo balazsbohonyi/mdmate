@@ -8,7 +8,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp, defineComponent, h, nextTick, ref, type App, type Ref } from 'vue'
 import FontPicker from '@/features/settings/FontPicker.vue'
-import { fontFamilies, resetFontFamilies } from '@/features/settings/fontList'
+import { fontFamilies, mergeBundledFonts, resetFontFamilies } from '@/features/settings/fontList'
+import { BUNDLED_FONT_NAMES } from '@/lib/fontPresets'
 import { setHost } from '@/platform'
 import { createMockHost, MOCK_FONT_FAMILIES } from '@/platform/mock'
 
@@ -30,6 +31,7 @@ interface Log {
 function mount(
   initial = '',
   fonts: readonly string[] | null = FONTS,
+  defaultLabel?: string,
 ): { log: Log; text: () => string; fonts: Ref<readonly string[] | null> } {
   const log: Log = { updates: [], accepts: 0, reverts: 0, opens: 0, accepted: [] }
   const text = ref(initial)
@@ -41,6 +43,7 @@ function mount(
         label: 'Body font',
         invalid: false,
         fonts: fontList.value,
+        ...(defaultLabel === undefined ? {} : { defaultLabel }),
         'onUpdate:modelValue': (value: string) => {
           log.updates.push(value)
           text.value = value
@@ -317,13 +320,15 @@ describe('a saved value is shown as it is and kept (ISC-643)', () => {
   })
 })
 
-describe('reading the families once (ISC-641)', () => {
-  it('asks the host the first time and keeps the answer', async () => {
+describe('reading the families once (ISC-641, ISC-720)', () => {
+  it('asks the host the first time, merges bundled fonts A to Z and keeps the answer', async () => {
     const host = createMockHost()
     const ask = vi.spyOn(host, 'listFontFamilies')
     setHost(host)
-    expect(await fontFamilies()).toEqual(MOCK_FONT_FAMILIES)
-    expect(await fontFamilies()).toEqual(MOCK_FONT_FAMILIES)
+    const expected = mergeBundledFonts(MOCK_FONT_FAMILIES)
+    expect(await fontFamilies()).toEqual(expected)
+    expect(await fontFamilies()).toEqual(expected)
+    for (const bundled of BUNDLED_FONT_NAMES) expect(expected).toContain(bundled)
     expect(ask).toHaveBeenCalledTimes(1)
   })
 
@@ -332,8 +337,17 @@ describe('reading the families once (ISC-641)', () => {
     const ask = vi.spyOn(host, 'listFontFamilies').mockRejectedValueOnce(new Error('not available'))
     setHost(host)
     expect(await fontFamilies()).toEqual([])
-    expect(await fontFamilies()).toEqual(MOCK_FONT_FAMILIES)
+    expect(await fontFamilies()).toEqual(mergeBundledFonts(MOCK_FONT_FAMILIES))
     expect(ask).toHaveBeenCalledTimes(2)
+  })
+
+  it('uses defaultLabel for the placeholder and the first option (ISC-720)', async () => {
+    mount('', FONTS, 'Preset default (Lora)')
+    expect(input().placeholder).toBe('Preset default (Lora)')
+    await focus()
+    expect(root?.querySelector('[data-font-built-in]')?.textContent.trim()).toBe(
+      'Preset default (Lora)',
+    )
   })
 })
 

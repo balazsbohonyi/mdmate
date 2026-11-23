@@ -30,6 +30,7 @@ import {
   type SettingKey,
   type SettingValueMap,
 } from '@/lib/settingsFile'
+import type { FontPresetId } from '@/lib/fontPresets'
 import { cloneSettings, DEFAULT_SETTINGS, settings } from '@/lib/settings'
 import { applyCurrentTheme } from '@/features/themes/store'
 import { getHost } from '@/platform'
@@ -256,6 +257,39 @@ export function changeSetting<K extends SettingKey>(
 }
 
 /**
+ * Applies a font preset and clears any individual heading, body and code overrides in one atomic
+ * write, so the chosen preset takes effect immediately without leftover custom overrides.
+ */
+export function applyFontPreset(preset: FontPresetId): Promise<boolean> {
+  const def = SETTING_DEFS['fonts.preset']
+  const checked = def.check(preset)
+  if (!checked.ok) {
+    reportWarning(`fonts.preset: ${checked.why}`)
+    return Promise.resolve(false)
+  }
+  return writeSettings((current, template) => {
+    let edited = editSettingsText(
+      current,
+      def.path,
+      def.equals(checked.value, def.default) ? undefined : checked.value,
+      'settings.json',
+      template,
+    )
+    for (const key of ['fonts.heading', 'fonts.body', 'fonts.code'] as const) {
+      if (!edited.ok) return edited
+      edited = editSettingsText(
+        edited.text,
+        SETTING_DEFS[key].path,
+        undefined,
+        'settings.json',
+        template,
+      )
+    }
+    return edited
+  })
+}
+
+/**
  * Takes every entry out of `settings.json`, unknown ones included, and leaves its comments; with
  * the template in the file, each known entry's commented example comes back. Same rules as a change
  * of one key: nothing is written for a file that would not change, or that is not valid JSON.
@@ -307,6 +341,8 @@ export interface PendingSettingChange {
   /** The key to change, or null for a reset of every setting. */
   readonly key: SettingKey | null
   readonly value: unknown
+  /** When true with `key === 'fonts.preset'`, also clears individual heading/body/code overrides. */
+  readonly clearFontOverrides?: true
   /** The document of the tab that holds the edits. */
   readonly docId: number
 }
@@ -381,6 +417,21 @@ export async function requestSettingChange<K extends SettingKey>(
   return changeSetting(key, value)
 }
 
+/** Applies a font preset from the screen, asking first when the `settings.json` tab has unsaved edits. */
+export async function requestFontPreset(preset: FontPresetId): Promise<boolean> {
+  if (
+    await holdForUnsavedEdits((docId) => ({
+      key: 'fonts.preset',
+      value: preset,
+      clearFontOverrides: true,
+      docId,
+    }))
+  ) {
+    return false
+  }
+  return applyFontPreset(preset)
+}
+
 /** The same for a reset of every setting, which the Advanced page asks for after a confirmation. */
 export async function requestResetAllSettings(): Promise<boolean> {
   if (await holdForUnsavedEdits((docId) => ({ key: null, value: undefined, docId }))) return false
@@ -442,7 +493,9 @@ export async function resolvePendingSettingChange(
   if (!ready) return
   pendingSettingChange.value = null
   if (pending.key === null) await resetAllSettings()
-  else await changeSetting(pending.key, pending.value as never)
+  else if (pending.key === 'fonts.preset' && pending.clearFontOverrides === true) {
+    await applyFontPreset(pending.value as FontPresetId)
+  } else await changeSetting(pending.key, pending.value as never)
 }
 
 /** Whether a key currently differs from its default. */

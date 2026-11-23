@@ -340,19 +340,19 @@ describe('the look of the gutter (ISC-632, ISC-669)', () => {
 
   it('draws the numbers in the code font family', () => {
     markdown('a\nb')
-    expect(valuesOf(GUTTERS, 'font-family')).toEqual(['var(--doc-font-code, var(--font-mono))'])
+    expect(valuesOf(GUTTERS, 'font-family')[0]).toMatch(/^var\(--doc-font-code,/)
   })
 
   it('draws the numbers at 0.9 times the code size, which is the code ratio times the text size', () => {
     markdown('a\nb')
     expect(valuesOf(GUTTERS, 'font-size')).toEqual([
-      'calc(var(--doc-code-ratio, calc(14 / 15)) * var(--doc-size, 15px) * 0.9)',
+      'calc(var(--doc-code-ratio, calc(14 / 16)) * var(--doc-size, 16px) * 0.9)',
     ])
   })
 
   it('has the fallback of the size equal to 0.9 of the default code size', () => {
-    // 14 / 15 of a 15 px text is the 14 px default code size; 0.9 of it is 12.6 px.
-    expect(DEFAULT_SETTINGS.fonts.codeSize / DEFAULT_SETTINGS.fonts.size).toBeCloseTo(14 / 15, 10)
+    // 14 / 16 of a 16 px text is the 14 px default code size; 0.9 of it is 12.6 px.
+    expect(DEFAULT_SETTINGS.fonts.codeSize / DEFAULT_SETTINGS.fonts.size).toBeCloseTo(14 / 16, 10)
     expect(DEFAULT_SETTINGS.fonts.codeSize * 0.9).toBeCloseTo(12.6, 10)
   })
 

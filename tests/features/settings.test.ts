@@ -56,7 +56,7 @@ afterEach(() => {
 describe('reading settings.json', () => {
   it('starts on the defaults when there is no file, and says nothing', async () => {
     await start()
-    expect(settings.fonts.size).toBe(15)
+    expect(settings.fonts.size).toBe(16)
     expect(settings.editor.wordWrap).toBe(true)
     expect(settingsFileState).toMatchObject({ loaded: true, broken: null, problems: {} })
     expect(toasts.all).toEqual([])
@@ -92,7 +92,7 @@ describe('reading settings.json', () => {
     // A key taken out of the file goes back to its default.
     host.files.write(MOCK_SETTINGS_FILE, '{"fonts": {"codeSize": 12}}')
     await settle()
-    expect([settings.fonts.size, settings.links.onRename]).toEqual([15, 'never'])
+    expect([settings.fonts.size, settings.links.onRename]).toEqual([16, 'never'])
   })
 
   it('ISC-148, ISC-352: a file with a missing comma keeps the last good values and names the line', async () => {
@@ -136,7 +136,7 @@ describe('reading settings.json', () => {
 
   it('a first load with a bad value starts on the default, since no good value was ever held', async () => {
     await start({ [MOCK_SETTINGS_FILE]: '{"fonts": {"size": "big"}}' })
-    expect(settings.fonts.size).toBe(15)
+    expect(settings.fonts.size).toBe(16)
     expect(settingsFileState.problems['fonts.size']).toBeDefined()
   })
 
@@ -175,7 +175,7 @@ describe('ISC-384: only the app data folder is read', () => {
     const { restoreWorkspace } = await import('@/features/tree/store')
     await restoreWorkspace([])
     await settle()
-    expect(settings.fonts.size).toBe(15)
+    expect(settings.fonts.size).toBe(16)
     expect(settings.devtools).toBe(false)
     await changeSetting('fonts.size', 20)
     expect(settings.fonts.size).toBe(20)

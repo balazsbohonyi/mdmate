@@ -1,4 +1,5 @@
 import { reactive } from 'vue'
+import { DEFAULT_FONT_PRESET, type FontPresetId } from './fontPresets'
 
 /**
  * What a rename or move does about the links that point at the file:
@@ -111,7 +112,9 @@ export interface Settings {
   /** `dark`, `light`, `sepia`, `system`, or the name of a theme file. Applied by Phase 8's themes. */
   theme: string
   fonts: {
-    /** A font family for headings; empty is the built-in stack. */
+    /** The bundled font pairing (`editorial`, `modern`, `journal`) used when individual slots are empty. */
+    preset: FontPresetId
+    /** A font family for headings; empty uses the active preset's heading font. */
     heading: string
     body: string
     code: string
@@ -183,13 +186,13 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Readonly<Settings> = {
   theme: 'dark',
   fonts: {
+    preset: DEFAULT_FONT_PRESET,
     heading: '',
     body: '',
     code: '',
-    size: 15,
+    size: 16,
     codeSize: 14,
-    // What CodeMirror's scroller has always given every line (1.4), so the look is unchanged.
-    lineHeight: 1.4,
+    lineHeight: 1.5,
     codeLineHeight: 1.4,
     headingScale: DEFAULT_HEADING_SCALE,
   },

@@ -1,5 +1,14 @@
 import { Compartment, type EditorState, type Extension, type StateEffect } from '@codemirror/state'
+import { EditorView } from '@codemirror/view'
 import { livePreview } from './livePreview'
+
+/** Class on `.cm-editor` while showing plain source or Raw Markdown, so the code font applies. */
+export const SOURCE_MODE_CLASS = 'cm-source-mode'
+
+/** Extension that puts `.cm-source-mode` on the editor root. */
+export const sourceModeAttr: Extension = EditorView.editorAttributes.of({
+  class: SOURCE_MODE_CLASS,
+})
 
 /**
  * Whether a state draws live preview or the raw Markdown, which a pane switches without touching
@@ -8,7 +17,7 @@ import { livePreview } from './livePreview'
  */
 const slot = new Compartment()
 const on: Extension = livePreview()
-const off: Extension = []
+const off: Extension = sourceModeAttr
 
 /** The extension that holds the preview, for a state's configuration. Starts on. */
 export function previewSlot(): Extension {

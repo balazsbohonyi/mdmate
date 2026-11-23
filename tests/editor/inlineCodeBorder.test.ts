@@ -53,8 +53,8 @@ describe('inline code has a border and padding (ISC-711)', () => {
     const body = bodyOf('.cm-md-code')
     expect(body).toContain('border:1pxsolidvar(--syntax-code-border)')
     expect(body).toContain('padding:02px')
-    // Still the size of the text around it.
-    expect(body).toContain('font-size:1em')
+    // Optically scaled to the text around it (ISC-717).
+    expect(body).toContain('font-size:calc(var(--doc-inline-code-scale,0.82)*1em)')
   })
 
   it('draws the same in a table cell', () => {
@@ -62,7 +62,7 @@ describe('inline code has a border and padding (ISC-711)', () => {
     const body = bodyOf('.cm-md-table code')
     expect(body).toContain('border:1pxsolidvar(--syntax-code-border)')
     expect(body).toContain('padding:02px')
-    expect(body).toContain('font-size:1em')
+    expect(body).toContain('font-size:calc(var(--doc-inline-code-scale,0.82)*1em)')
   })
 
   it('leaves the border off the part a selection covers, and keeps the padding so nothing moves', () => {

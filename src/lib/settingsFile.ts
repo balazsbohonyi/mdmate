@@ -1,4 +1,5 @@
 import { parse, printParseErrorCode, type ParseError } from 'jsonc-parser'
+import { FONT_PRESET_IDS, type FontPresetId } from './fontPresets'
 import {
   BUILT_IN_EXCLUDED_FOLDERS,
   BUILT_IN_HIDDEN_NAMES,
@@ -26,6 +27,7 @@ export type Checked<T> =
 /** Every key a setting has, spelled as the file's keys joined by dots. */
 export interface SettingValueMap {
   theme: string
+  'fonts.preset': FontPresetId
   'fonts.heading': string
   'fonts.body': string
   'fonts.code': string
@@ -106,7 +108,14 @@ const isBoolean = (value: unknown): Checked<boolean> =>
 // eslint-disable-next-line no-control-regex -- control characters are exactly what is refused
 const FAMILY_FORBIDDEN = /[\u0000-\u001f\u007f{};<>\\]/u
 
-/** An empty family is the built-in stack. What is written is a family name or a CSS family list. */
+function checkFontPreset(value: unknown): Checked<FontPresetId> {
+  const found = FONT_PRESET_IDS.find((id) => id === value)
+  return found === undefined
+    ? bad('Use "system", "editorial", "modern" or "journal".')
+    : good(found)
+}
+
+/** An empty family is the preset default stack. What is written is a family name or a CSS family list. */
 function checkFamily(value: unknown): Checked<string> {
   if (typeof value !== 'string') return bad('Use a font name in quotes.')
   const text = value.trim()
@@ -312,6 +321,13 @@ export const SETTING_DEFS: { readonly [K in SettingKey]: SettingDef<SettingValue
     path: ['theme'],
     default: DEFAULT_SETTINGS.theme,
     check: checkTheme,
+    equals: same,
+  },
+  'fonts.preset': {
+    key: 'fonts.preset',
+    path: ['fonts', 'preset'],
+    default: DEFAULT_SETTINGS.fonts.preset,
+    check: checkFontPreset,
     equals: same,
   },
   'fonts.heading': {

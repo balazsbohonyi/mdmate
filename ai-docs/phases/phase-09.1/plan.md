@@ -573,6 +573,14 @@
 
 **Tests:** `inlineCodeBorder.test.ts` (padding), `tableStyle.test.ts` (body 0.4em, header 0.55em). **Closes** ISC-714; ISC-711 reworded.
 
+## P9.1-T38: Bundled Google Font presets & balanced inline code
+
+**The change:** keep the non-bundled system monospace defaults (`system` default: `monospace` headings & body, `var(--font-mono)` code) as the 1st preset, alongside 9 Google Fonts shipped locally via `@fontsource*` (zero network, all OFL-1.1) forming 3 curated Markdown typography presets (`editorial`: Montserrat + Lora + JetBrains Mono; `modern`: Raleway + Open Sans + Fira Code; `journal`: Oswald + Merriweather + IBM Plex Mono), selectable via 4 live preview cards in Settings → Appearance → Fonts (`fonts.preset`). Clicking a card atomically sets `fonts.preset` and clears individual `fonts.heading`/`body`/`code` overrides. Inline code scales optically via `--doc-inline-code-scale` (`0.82` for System/monospace, `0.9` for Lora, Open Sans, Merriweather and custom body fonts) while remaining independent of `fonts.codeSize`. Plain-source files (`parser: false`) and Markdown Raw Mode (`previewMode` off) apply `.cm-source-mode` to use `--doc-font-code`, `fonts.codeSize` and `fonts.codeLineHeight`. Default `fonts.size` becomes `16` and `fonts.lineHeight` becomes `1.5`. Bundled font names appear in `FontPicker` with `Preset default (<Font Name>)`. OFL-1.1 notices for Inter and all 9 new fonts are collected in `public/fonts-LICENSE.txt` and tracked in `ISA.md` Remaining Work for Phase 10.
+
+**Tests:** `tests/lib/fontPresets.test.ts`, `tests/editor/sourceModeFonts.test.ts`, updated `documentFonts.test.ts`, `settingsFile.test.ts`, `fontPicker.test.ts`, `settingsView.test.ts`, `subGroups.test.ts`, `lineNumbers.test.ts`, `lineHeight.test.ts`, `commentedFiles.test.ts`.
+
+**Done when:** fail-first tests pass, `pnpm test:web`, `pnpm check`, `pnpm check:rust` and `pnpm build` exit 0, visual checks in `pnpm dev` pass in Dark/Light/Sepia, and the owner reviews ISC-721. Closes ISC-715 to ISC-721.
+
 ## Follow-ups on done tasks (2026-11-22)
 
 Not tasks. Each one reopens or adds the claim named, fails its probe on the old code first, and is committed as `[P9.1-Tn] ...` with the tag of the task it amends.
