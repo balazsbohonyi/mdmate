@@ -10,7 +10,7 @@
 - **Plan first, then add to this file.** The owner writes a small plan for each fix. Its task gets a section below and a line in `ai-docs/tasks.md` before the code changes.
 - **Every fix has a claim.** A bug reopens the claim that should have caught it, or adds a new one (`ai-docs/standards/isa.md`). The probe fails on the old code first.
 - **Scope stays small.** A fix that grows into a feature moves to Phase 10 or a phase of its own.
-- **Order:** T2 to T10 run in order. T10 starts with a spike and may move to Phase 10 (recorded in `ISA.md` Decisions). T11 was added later and touches nothing the others do, so it can run before T9. T12 to T19 were added on 2026-11-21 (owner review) and run in order; each is independent of the others, except that T17 and T18 both add fields to the session snapshot (`src/documents/session.ts`), so they run one after the other. T20 to T28 were added on 2026-11-21 (owner review) and run in order: T20, T25 and T26 all add Settings rows, T27 follows T26 (it reads what the tree lists), and T28 follows T27 and T21 (it adds theme tokens the way T21 does). T29 and T30 were added on 2026-11-22 (owner review) and run in order; both touch the live-preview themes. The same review gave eight follow-ups to done tasks (below), which are not tasks: each reopens the claim it makes false and is committed under the tag of the task it amends.
+- **Order:** T2 to T10 run in order. T10 starts with a spike and may move to Phase 10 (recorded in `ISA.md` Decisions). T11 was added later and touches nothing the others do, so it can run before T9. T12 to T19 were added on 2026-11-21 (owner review) and run in order; each is independent of the others, except that T17 and T18 both add fields to the session snapshot (`src/documents/session.ts`), so they run one after the other. T20 to T28 were added on 2026-11-21 (owner review) and run in order: T20, T25 and T26 all add Settings rows, T27 follows T26 (it reads what the tree lists), and T28 follows T27 and T21 (it adds theme tokens the way T21 does). T29 and T30 were added on 2026-11-22 (owner review) and run in order; both touch the live-preview themes. T32 to T35 were added on 2026-11-23 (owner review) and run in order, except that T34 and T35 touch nothing the others do and can go first. T32 and T33 both touch the code box (`box.ts`), so T33 follows T32. The same review gave eight follow-ups to done tasks (below), which are not tasks: each reopens the claim it makes false and is committed under the tag of the task it amends.
 - **Claims:** a task's claims are written open in `ISA.md` when the task is planned (as for T12 to T28), and the task's own commit sets them to `[x]`. P9.1-T1 to T11 added theirs in the task's commit; `ai-docs/standards/isa.md` says before code.
 - **Branch:** `feat/phase-09.1-polish`.
 
@@ -478,6 +478,75 @@
 **Tests:** `tests/styles/overscroll.test.ts` (root CSS, `.cm-scroller`, `.cm-md-table-wrap` X-only, scrollable chrome templates).
 
 **Done when:** the tests fail on the old code and pass on the new, the owner tests with a touchpad in `pnpm tauri dev` and sees no window shift on any edge, and `pnpm check`, `pnpm check:rust` and `pnpm test:web` are green. Closes ISC-691 and ISC-692.
+
+## P9.1-T32: Code background and neutral text colours
+
+**The problem:** the code background (`--syntax-code-background`) is too close to the page in every theme, in Dark almost the page itself (about 0.25 against the page's `#1d2027`), so inline code and code blocks barely show. Inline code text is green (`--syntax-code`) and headings are amber (`--syntax-heading`); the owner wants both neutral.
+
+**The change:**
+- **One token for both.** Blocks (`box.ts:76`) and inline code (`livePreview/theme.ts:47`, table cells `blocks/theme.ts:135`) already read `syntax-code-background`. Keep that one token, retune its value in `dark.css`, `light.css` and `sepia.css` so it is visibly, but only slightly, different from `--background` in each. It stays in the theme editor, whose usage text (`themeTokenUsage.ts:108`) already says "inline code and code blocks". Pick the values in the real window, using the table stripe (T29) as the reference for "plainly visible, not loud".
+- **Inline code text:** `syntax-code` becomes `var(--foreground)` in the three themes. The token and its contrast pair (`themeTokens.ts:173`, 4.5 on the code background) stay, so user themes that set it keep working. The selected-code rule (`cm-md-code-selected`) is unchanged.
+- **Headings:** `syntax-heading` becomes `var(--foreground)` in the three themes, H6 included (it drops its own `--syntax-marker` colour, `livePreview/theme.ts:35`). The source view follows the token (`highlight.ts:46`). The toast warning icon also reads `syntax-heading` (`toasts.css:27`, `GalleryPanels.vue:126`) and would lose its colour: move both to `--warning`. Update the usage text of `syntax-heading`, which still mentions the toast icon.
+- Headings keep their size and weight; nothing else about them changes.
+
+**Tests:** the theme scans (the three files carry the same tokens, contrast pairs hold), `tests/editor/` rules for heading and inline-code colour, the toast CSS. The probes read token values, so a test also asserts that `syntax-code-background` differs from `background` by a minimum lightness gap in each theme (the number is chosen with the owner's eye, then pinned).
+
+**Done when:** the tests fail on the old code and pass on the new, the owner finds the code background, the inline code and the headings right in Dark, Light and Sepia, and the checks are green. Closes ISC-693 to ISC-697 (the token gap, inline code, headings, the toast icon, the owner's review), written open in `ISA.md` on 2026-11-23.
+
+## P9.1-T33: Code block label and copy button
+
+**The change:** in a fenced code block, the language name moves from the top right to the top left, and a copy button sits at the top right. Clicking it puts the code on the clipboard.
+
+**Today:** the label is CSS only (`box.ts:122-133`, `::after` with `attr(data-box-label)`), so it is not in the DOM and nothing can be clicked. It shows only while the selection is outside the block (`scan.ts:190-199`, fences hidden). A fenced block inside a list or a quote has no container at all, and so no label (`scan.ts:369-372`: the container is drawn across the whole line and would cover the indent or the quote bar).
+
+**Decisions (owner, 2026-11-23):**
+- The button shows on **every fenced code block**, also one inside a list or a quote, always visible (muted, full colour on hover), and also while the caret is inside the block and the fences show. The language label stays tied to the container, so it shows only where it shows today, now at the left.
+- Copies the text between the fences only: no fence lines, no final line break. The line endings are the document's own (CM6 holds `\n`; the original endings live beside the text, `lineEndings.ts`, so a `\r\n` document copies as it is saved: decide in the spike and test both).
+- Feedback: the icon turns into a check mark for about 1.5 s, no toast. A failed write is a toast through `shell/toasts.ts`.
+- Indented code blocks are not fenced and get nothing.
+
+**How:**
+- Label: move `right: 1em` to `left: 1em` in the `::after` rule. Keep the top offset.
+- Button: a real element, so a widget. In a container (`box.ts`) a point widget at the start of the first line with `side: -1` and `position: absolute; top; right: 1em`, in `scan.ts` `fencedCode` as a new item like the swatch (`swatch.ts`): `ignoreEvent` true for the press, `eq` on block start and copy state, `mousedown` default-prevented so the caret does not move. For a block in a list or a quote (`scan.ts:369-372`) emit the same widget with a line class that makes the line `position: relative`, with no container and no background. Look at the first line's right edge in a long first line: the button must not overlap text more than the label does today (the first line has top padding for this).
+- Copy: through the host (`writeClipboard` in `src/platform/host.ts`, `tauri.ts:386`, `mock.ts`), since `@tauri-apps` stays in `src/platform/`. The widget reads the block's text from the state at click time (by the block's position, mapped through changes), never from a copy kept in the widget.
+- A lucide `Copy` and `Check` icon drawn as inline SVG strings in the widget (no Vue in `src/editor/`). Tooltip: this is CodeMirror DOM, not Vue, so shadcn's tooltip component cannot be used directly; follow the owner's tooltip rule (`OPERATIONAL_RULES`) with the nearest equivalent the editor already uses for hover hints (`hoverHints.ts`) and record the choice in `decisions.md`. No native `title` (a scan test fails the build on one).
+- Accessible: `role="button"`, `aria-label="Copy code"`, keyboard reachable is not required (the editor owns the caret); say so in `decisions.md`.
+- Read-only and preview mode (`previewMode.ts`): the button works there too, since it only reads. Source mode shows no preview items, so no button.
+
+**Risks:** the caret and arrow-key walk over the first line (the widget must not become a step: not in `hiddenFor`, as the swatch); selection and drag across the block (a press on the button must not start a selection); scroll jump if the widget changes the first line's height (it is absolute, so it must not); the line-number gutter (`lineNumbers.ts`) and folding of the block; a block of 10,000 lines (build the widget only for the visible range, as `boxLines` does).
+
+**Tests:** `tests/editor/codeBlock.test.ts` and a new `tests/editor/codeCopy.test.ts`: label on the left and button on the right in the theme rules; the widget exists with the fences hidden and shown, in a list and in a quote, and not for an indented block; a click writes the text between the fences (with and without a language, empty block, `\r\n` document, longer fence, tilde fence) through a fake host; the check icon returns to the copy icon; a failed write toasts; the caret walk is the same with and without the widget; copy of a selection across the block does not include the button.
+
+**Done when:** the tests fail on the old code and pass on the new, the owner finds label and button right in the real window in Dark, Light and Sepia (in a plain block, a long first line, a block in a list and in a quote), and the checks are green. Closes ISC-698 to ISC-703 (label left, a button on every fenced block, the copied text, feedback, the caret walk and height unchanged, the owner's review), written open in `ISA.md` on 2026-11-23. **Open for the owner:** a block in a list or a quote keeps the plain look (no background), so T32's new background does not reach it. Say if it should (it needs the container drawn from the indent, a bigger change; it would be its own task).
+
+## P9.1-T34: The indexing bar in the primary colour
+
+**The change:** the bar in the status bar that shows how far indexing is (`src/shell/StatusBar.vue:37-50`) is drawn in `bg-primary` instead of `bg-statusbar-foreground`. The track behind it stays (`bg-statusbar-foreground/20`). The label "Indexing" keeps the status bar's text colour. The search panel's bar already uses `bg-primary` (`SearchPanel.vue:448`).
+
+**Check:** primary against the status bar in each theme. Add a contrast pair `['primary', 'statusbar', 3]` to `themeTokens.ts:166` area (3:1, a non-text element) and fix the theme values only if a theme fails it; say so in `decisions.md` if one does.
+
+**Tests:** the existing status bar test (`data-index-bar`) asserts the class; a theme test for the new pair.
+
+**Done when:** the test fails on the old class and passes on the new, the owner sees the bar in the primary colour in Dark, Light and Sepia during an index run, and the checks are green. Closes ISC-704 and ISC-705, written open in `ISA.md` on 2026-11-23.
+
+## P9.1-T35: Open All
+
+**The change:** with two or more files selected in the sidebar, the context menu gets **Open All** (today the menu of a multi-selection holds only Delete, `FileTree.vue:676-681`). It opens every selected file in the active pane (the most recent one when none has focus), as a click on a file does (`activateRow`, `tree/store.ts:531-550`, which calls `openInActivePane`).
+
+**Decisions (owner, 2026-11-23):**
+- Shown when the selection holds two or more files. Selected folders are ignored (not opened, not expanded). A selection with fewer than two files shows no Open All.
+- Files open in tree order, top to bottom, across roots in the order the tree shows them. The **first** file ends as the active tab, so the owner lands at the top of the list.
+- **Enter** on a multi-selection does the same (today it opens only the row with focus, `FileTree.vue:335-337`), through the same function. Double click is unchanged: it works on one row.
+- No confirmation, whatever the count. Files already open in the pane just take focus (no duplicate tab); the final active tab is still the first file.
+- The opens run in order, one after another, like the single opens do (`opening` in `store.ts:524`), so the editors are not all built at once. A file that fails to open is reported through the toast (`reportError`) and the rest still open.
+
+**How:** a function `openAllSelected()` in `tree/ops.ts` beside `deleteSelected`, using `selectedPlaces` and the tree row order; the menu item in `FileTree.vue` next to Delete in the `manyRows` branch (label "Open All", with the count when it helps, as Delete says "Delete 3 items"); the Enter branch in `onKeydown`. The last step activates the first file's tab. Not a palette command: it needs a selection.
+
+**Risks:** the focus ring and `holdingEditorFocus` (the tree keeps keyboard focus after a menu open); many tabs at once on a small pane; one root that is a file or a missing path.
+
+**Tests:** `tests/features/tree.test.ts` or a new `treeOpenAll.test.ts` with a fake host: two files, files and folders mixed, one file only, across two roots, an already open file, a failing file in the middle, Enter with several selected, the first file active at the end, Delete's menu unchanged.
+
+**Done when:** the tests fail on the old code and pass on the new, the owner opens several files from the menu and with Enter in the real window, and the checks are green. Closes ISC-706 to ISC-709 (the menu item and its rules, order and active tab, Enter, the owner's review), written open in `ISA.md` on 2026-11-23.
 
 ## Follow-ups on done tasks (2026-11-22)
 

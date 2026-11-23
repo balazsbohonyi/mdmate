@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 670/691
+progress: 670/708
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-21T20:00:00Z
+updated: 2026-11-23T12:00:00Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -760,6 +760,23 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-690 | manual | the owner selects text across headings, paragraphs, lists, a table and a code box in `pnpm tauri dev`, focused and not, in Dark, Light and Sepia | the owner finds the selection drawn only where there are characters, as in Obsidian | Owner review in the real window | derived: reported-by-owner | | |
 | ISC-691 | bash | read `tokens.css`, mount an editor with a table and scan the scrollable chrome templates | `html, body` lock `overflow: hidden` and `overscroll-behavior: none`, `.cm-scroller` sets `overscroll-behavior: none`, `.cm-md-table-wrap` contains X without blocking Y, and the scrollable chrome panels set `overscroll-none` (or `overscroll-x-none`) | pnpm test:web tests/styles/overscroll.test.ts | derived: reported-by-owner | | |
 | ISC-692 | manual | the owner scrolls past the top, bottom, left and right edges of a document (word wrap on and off), over a wide table, and in the sidebar, Settings and palette with a precision touchpad in `pnpm tauri dev` | the title bar, tab strip and status bar never shift inside the window, vertical scrolling over a table still scrolls the document, and pinch-to-zoom still works | Owner review in the real window | derived: reported-by-owner | | |
+| ISC-693 | bash | read the three theme files and compute the contrast between `syntax-code-background` and `background` | each theme is 1.08 or more (value to confirm in the real window) | pnpm test:web tests/styles/themes.test.ts | derived: reported-by-owner | | |
+| ISC-694 | bash | read the three theme files and the inline code rules for body text, headings and table cells | `syntax-code` equals the foreground colour in each theme, the rules read it, and its contrast pair still exists | pnpm test:web tests/styles/themes.test.ts tests/editor/inlineCode.test.ts | derived: reported-by-owner | | |
+| ISC-695 | bash | read the three theme files, the heading rules of levels 1 to 6 and the source highlight style | `syntax-heading` equals the foreground colour in each theme, no heading rule sets another colour, sizes and weight are unchanged | pnpm test:web tests/styles/themes.test.ts tests/editor/headings.test.ts | derived: reported-by-owner | | |
+| ISC-696 | bash | read the toast stylesheet and the theme gallery panel | the warning icon reads `--warning` and no heading token | pnpm test:web tests/shell/toasts.test.ts | derived: reported-by-owner | | |
+| ISC-697 | manual | the owner looks at code blocks, inline code and headings in `pnpm tauri dev` in Dark, Light and Sepia | the owner finds the background visible but subtle and the text neutral | Owner review in the real window | derived: reported-by-owner | | |
+| ISC-698 | bash | read the box rules and mount a fenced block with a language | the label rule is anchored left and no label sits at the right | pnpm test:web tests/editor/codeBlock.test.ts | derived: reported-by-owner | | |
+| ISC-699 | bash | mount fenced blocks with the selection outside and inside, with and without a language, in a list item, in a quote, and an indented block | each fenced block has one copy button and the indented block has none | pnpm test:web tests/editor/codeCopy.test.ts | derived: reported-by-owner | | |
+| ISC-700 | bash | click the button of blocks with a language, none, an empty body, a longer fence, a tilde fence and a CRLF document, with a fake host clipboard | the clipboard holds only the text between the fences with no final line break, the caret and the document are unchanged | pnpm test:web tests/editor/codeCopy.test.ts | derived: reported-by-owner | | |
+| ISC-701 | bash | click the button with a working and a failing clipboard and advance the timers | the check mark shows for about 1.5 s and then the copy icon; a failure toasts and shows no check mark | pnpm test:web tests/editor/codeCopy.test.ts | derived: reported-by-owner | | |
+| ISC-702 | bash | walk the block with the arrow keys, read the block height and copy a selection across it, with and without the button | the walk, the height and the copied text are equal | pnpm test:web tests/editor/codeCopy.test.ts | derived: reported-by-owner | | |
+| ISC-703 | manual | the owner looks at code blocks in `pnpm tauri dev` in Dark, Light and Sepia, including a long first line and blocks in a list and a quote, and clicks the button | the owner finds the label at the left, the button at the right and the pasted text right | Owner review in the real window | derived: reported-by-owner | | |
+| ISC-704 | bash | mount the status bar while indexing and read the three theme files | the bar has the primary background class, the track is unchanged, and primary on statusbar is 3 or more in each theme | pnpm test:web tests/shell/statusBar.test.ts tests/styles/themes.test.ts | derived: reported-by-owner | | |
+| ISC-705 | manual | the owner opens a large folder in `pnpm tauri dev` and looks at the status bar in Dark, Light and Sepia | the owner finds the bar in the primary colour | Owner review in the real window | derived: reported-by-owner | | |
+| ISC-706 | bash | select two files, one file, only folders, and files with a folder, and read the menu | Open All is there for two or more files and not otherwise | pnpm test:web tests/features/treeOpenAll.test.ts | derived: reported-by-owner | | |
+| ISC-707 | bash | run Open All on files of two roots, with one already open and one failing, with a fake host | tabs open in tree order in the active pane, no second tab for the open file, the first file is active, a toast for the failure and the rest open | pnpm test:web tests/features/treeOpenAll.test.ts | derived: reported-by-owner | | |
+| ISC-708 | bash | press Enter with two files selected and with one row | the two files open as for Open All; one row opens as before | pnpm test:web tests/features/treeOpenAll.test.ts | derived: reported-by-owner | | |
+| ISC-709 | manual | the owner selects several files in `pnpm tauri dev`, uses the menu and then Enter | the owner finds the files in the active pane with the first one active | Owner review in the real window | derived: reported-by-owner | | |
 
 ## Features
 
@@ -882,6 +899,9 @@ Why: this is the reason mdmate exists; you read the rendered page and edit it in
 - [x] ISC-679: The colour square shows whether the selection touches the span or not, the caret never sticks in it, and a copy gives the Markdown text without it.
 - [x] ISC-680: A hex colour in inline code inside a table cell gets the same colour square.
 - [ ] ISC-681: The owner finds the colour squares right in the real window in Dark, Light and Sepia.
+- [ ] ISC-694: Inline code text, in body text, in headings and in table cells, is drawn in the foreground colour in Dark, Light and Sepia; the `syntax-code` token and its contrast pair on the code background still exist.
+- [ ] ISC-695: Headings of levels 1 to 6, and headings in the source view, are drawn in the foreground colour in Dark, Light and Sepia, and differ from body text by size and weight only.
+- [ ] ISC-697: The owner finds the code background, the inline code text and the headings right in the real window in Dark, Light and Sepia.
 
 ### F4 · Block preview
 Why: documents mix prose with tables, images and code, and a page full of raw syntax blocks breaks the illusion.
@@ -916,6 +936,12 @@ Why: documents mix prose with tables, images and code, and a page full of raw sy
 - [x] ISC-675: A table has rounded outer corners (the radius token) with its borders intact, also in a list item.
 - [x] ISC-676: With `editor.stripedTables` on, every second body row of a table is drawn in the stripe colour and the header and the other rows are not; with it off none is, and the change is live.
 - [ ] ISC-677: The owner finds the tables right in the real window in Dark, Light and Sepia: taller header, rounded corners, alternating rows, and the setting turning the rows off.
+- [ ] ISC-698: The language label of a fenced code block with a container is drawn at its top left, and the top right holds only the copy button.
+- [ ] ISC-699: Every fenced code block has a copy button, with its fences hidden or shown, with or without a language, and also inside a list item or a quote; an indented code block has none.
+- [ ] ISC-700: A click on the button puts the text between the fences on the clipboard, with no fence lines and no final line break, for any fence length and line ending, and neither moves the caret nor changes the document.
+- [ ] ISC-701: After a click the button shows a check mark for about 1.5 s, then the copy icon again; a failed write shows a toast and no check mark.
+- [ ] ISC-702: The button does not change the arrow-key walk through the block, the height of the block, or what a copy of a selection across the block holds.
+- [ ] ISC-703: The owner finds the label and the copy button right in the real window in Dark, Light and Sepia, in a plain block, a block with a long first line, and blocks in a list and in a quote.
 
 ### F5 · Link navigation
 Why: documentation is a web of files, so following a link has to cost one gesture and be undoable.
@@ -1022,6 +1048,10 @@ Why: Markdown lives among other files, so the sidebar must manage them and renam
 - [x] ISC-647: Quick Open, folder search, link scans and the workspace index still see the files and folders that the tree hides by name, and the Rust listing still returns them.
 - [x] ISC-648: The owner finds, in the real window, that `.git`, `.idea` and `.vscode` are gone from the tree of a root that holds them, that `.gitignore` and `.github` are still there, and that a name added in Settings disappears at once.
 - [x] ISC-662: No symbol of the file-type icon sprite paints a background box: none starts with an unfilled path that covers its whole view box.
+- [ ] ISC-706: With two or more files selected in the sidebar the context menu has Open All; with one file, or only folders, it has not; selected folders take no part in it.
+- [ ] ISC-707: Open All opens the selected files in the active pane in tree order, a file already open takes focus without a second tab, the first file is the active tab at the end, and a file that fails reports a toast while the others still open.
+- [ ] ISC-708: Enter on a selection of two or more files does what Open All does; Enter on one row is unchanged.
+- [ ] ISC-709: The owner opens several selected files from the menu and with Enter in the real window and finds them in the active pane, the first one active.
 
 ### F8 · Search and outline
 Why: long documents and folders are only usable when you can jump straight to the right place.
@@ -1309,6 +1339,8 @@ Why: the look must be yours to change without rebuilding, which is why everythin
 - [x] ISC-688: The owner finds the line number of each heading centered on its heading in the real window, in Dark, Light and Sepia.
 - [x] ISC-689: The editors of documents draw no selection or cursor layer of their own, and the theme preview does.
 - [x] ISC-690: The owner finds selections drawn only where there are characters, as in Obsidian, in the real window.
+- [ ] ISC-693: The code background token (`syntax-code-background`) differs from the page background by a contrast ratio of 1.08 or more in Dark, Light and Sepia, so a code block and an inline code span can be told from the page.
+- [ ] ISC-696: The warning icon of a toast reads the `--warning` colour and no heading token, so it keeps its colour when headings turn neutral.
 
 ### F10 · Image authoring
 Why: screenshots are the most common thing dropped into documentation, and adding one should take a single paste.
@@ -1496,6 +1528,8 @@ Why: a large workspace stays quick to search only when mdmate keeps a list of it
 - [x] ISC-319: The `MDMATE_LINKS_ON_RENAME` environment variable (`ask`, `update` or `never`, any case, spaces ignored) sets `links.onRename` while `settings.json` does not exist, is read when the app runs, and wins over the setting; unset, empty or unknown leaves the default, `never`.
 - [x] ISC-320: `settings.json` holds `links.onRename` (`ask`, `update` or `never`) and a saved change applies to the next rename with no restart; what `MDMATE_LINKS_ON_RENAME` does once the file exists is decided and written in the Phase 8 decisions.
 - [x] ISC-321: A rename or move reads files for links only in the workspace roots that hold the file (all of them when roots lie inside one another), so another workspace is neither read nor changed; Find File References looks in the same roots, and in every root for a file no root holds.
+- [ ] ISC-704: The bar of the indexing status in the status bar is drawn in the primary colour, its track is unchanged, and the primary colour reads at 3:1 or more on the status bar in Dark, Light and Sepia.
+- [ ] ISC-705: The owner finds the indexing bar in the primary colour in the real window during an index run, in Dark, Light and Sepia.
 
 ### F14 · Git status in the tree
 Why: a folder of projects is easier to read when new, changed and ignored files show in the tree itself, with no separate staging view.
