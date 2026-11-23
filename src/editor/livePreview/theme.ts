@@ -30,10 +30,8 @@ export const previewTheme = EditorView.baseTheme({
   },
   '.cm-md-h4': { fontSize: 'calc(var(--doc-heading-4, 1.1) * 1em)' },
   '.cm-md-h5': { fontSize: 'calc(var(--doc-heading-5, 1) * 1em)' },
-  '.cm-md-h6': {
-    fontSize: 'calc(var(--doc-heading-6, 0.95) * 1em)',
-    color: 'var(--syntax-marker)',
-  },
+  // Level 6 takes the heading color like the rest: the themes make that the body text color.
+  '.cm-md-h6': { fontSize: 'calc(var(--doc-heading-6, 0.95) * 1em)' },
   '.cm-md-setext-mark': { color: 'var(--syntax-marker)' },
   '.cm-md-strong': { fontWeight: '700' },
   '.cm-md-em': { fontStyle: 'italic' },

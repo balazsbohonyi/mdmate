@@ -232,7 +232,7 @@ describe('the gallery has every control and floating surface of the app (ISC-526
     expect(toasts.textContent).toContain('Link target not found.')
     // The icon colors are the ones styles/toasts.css gives a real error and a real warning toast.
     expect(toasts.querySelectorAll('svg.text-destructive')).toHaveLength(1)
-    expect(toasts.querySelectorAll('svg.text-syntax-heading')).toHaveLength(1)
+    expect(toasts.querySelectorAll('svg.text-warning')).toHaveLength(1)
 
     const bar = item(root, 'find-bar')
     expect(must(bar, 'input[aria-label="Find"]')).toBeDefined()

@@ -72,10 +72,10 @@
   --gutter-foreground: #6f5a44;
   /* The fill of every second body row of a table: a faint tint of the page, under the header fill. */
   --table-stripe: #f2e8cf;
-  --syntax-heading: oklch(0.4 0.09 55);
+  --syntax-heading: var(--foreground);
   --syntax-link: #8b5e3c;
-  --syntax-code: oklch(0.44 0.09 135);
-  --syntax-code-background: #f0e6ce;
+  --syntax-code: var(--foreground);
+  --syntax-code-background: #ece0c4;
   --syntax-quote: #6b4f38;
   --syntax-marker: #9a8264;
   --syntax-keyword: oklch(0.46 0.13 335);

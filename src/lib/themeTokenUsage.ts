@@ -102,7 +102,7 @@ export const THEME_TOKEN_USAGE: Readonly<Record<string, string>> = {
     'The fill of every second body row of a table in a document. The Striped table rows setting turns it off.',
 
   // Syntax
-  'syntax-heading': 'Markdown headings in the editor, and the warning icon on a toast.',
+  'syntax-heading': 'Markdown headings in the editor.',
   'syntax-link': 'Links in the editor.',
   'syntax-code': 'The text of inline code.',
   'syntax-code-background': 'The background behind inline code and code blocks.',

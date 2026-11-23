@@ -194,6 +194,20 @@ describe.each([...parsed])('%s theme colors', (name, theme) => {
     expect(contrast(stripe, page)).toBeLessThan(1.25)
   })
 
+  it('draw the code background apart from the page, and the code and heading text in the foreground (ISC-693, ISC-694, ISC-695)', () => {
+    const page = parseColor(resolveToken(theme, '--background'))
+    const codeBackground = parseColor(resolveToken(theme, '--syntax-code-background'))
+    // Plainly there, as the table stripe is, and still a quiet fill.
+    expect(contrast(codeBackground, page)).toBeGreaterThanOrEqual(1.08)
+    expect(contrast(codeBackground, page)).toBeLessThan(1.25)
+    // Neutral text: the same color as the body text.
+    expect(resolveToken(theme, '--syntax-code')).toBe(resolveToken(theme, '--foreground'))
+    expect(resolveToken(theme, '--syntax-heading')).toBe(resolveToken(theme, '--foreground'))
+    // The pair stays: the code text must read on the code background.
+    const text = parseColor(resolveToken(theme, '--syntax-code'))
+    expect(contrast(text, codeBackground)).toBeGreaterThanOrEqual(4.5)
+  })
+
   it('give the line numbers a strip and a color of their own, quiet and readable (ISC-630, ISC-631)', () => {
     expect(theme.has('--gutter')).toBe(true)
     expect(theme.has('--gutter-foreground')).toBe(true)

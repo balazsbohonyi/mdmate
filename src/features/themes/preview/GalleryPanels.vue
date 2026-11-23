@@ -123,7 +123,7 @@ const box =
       <div
         class="relative flex items-start gap-2 rounded-2xl border border-border bg-popover py-3 pr-10 pl-3 text-chrome text-popover-foreground shadow-lg"
       >
-        <TriangleAlert class="mt-0.5 size-4 shrink-0 text-syntax-heading" />
+        <TriangleAlert class="mt-0.5 size-4 shrink-0 text-warning" />
         <span>Link target not found.</span>
         <X class="absolute top-2 right-2 size-4 text-muted-foreground" />
       </div>

@@ -24,7 +24,7 @@
 }
 
 [data-sonner-toast][data-type='warning'] [data-icon] {
-  color: var(--syntax-heading);
+  color: var(--warning);
 }
 
 [data-sonner-toast][data-type='error'] [data-icon] {
