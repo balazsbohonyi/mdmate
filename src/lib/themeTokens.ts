@@ -91,6 +91,7 @@ const NAMES: Readonly<Record<ThemeGroup, readonly string[]>> = {
     'syntax-link',
     'syntax-code',
     'syntax-code-background',
+    'syntax-code-border',
     'syntax-quote',
     'syntax-marker',
     'syntax-keyword',

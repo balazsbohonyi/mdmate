@@ -548,6 +548,23 @@
 
 **Done when:** the tests fail on the old code and pass on the new, the owner opens several files from the menu and with Enter in the real window, and the checks are green. Closes ISC-706 to ISC-709 (the menu item and its rules, order and active tab, Enter, the owner's review), written open in `ISA.md` on 2026-11-23.
 
+## P9.1-T36: Border and padding on inline code
+
+**The request (owner, 2026-11-23, from a screenshot):** inline code looks bigger than the body text; give it a subtle border a little lighter than its background in Dark and a little darker in Light and Sepia, with 2px of padding above and below and 3px to 4px at the sides, so it is easier to see. The code blocks already have a border (`--border`), plain in Light and Sepia and hardly visible in Dark: use the same kind of border there.
+
+**The size question:** inline code is `font-size: 1em` (T5), and the screenshot's computed sizes are equal (15px in the body line and in the span, measured in the dev browser). It looks bigger because the families differ: the body is the generic `monospace` (Consolas on Windows) and the code is `ui-monospace, Cascadia Code, ...` (Cascadia is wider and has a taller x-height at the same size). No change here; an inline-code scale is a separate decision if the owner wants one.
+
+**The change:**
+- **Token `syntax-code-border`:** in the three themes, the theme editor's syntax group, `tokens.css`, `themeTokenUsage.ts`. Dark lighter than `syntax-code-background`, Light and Sepia darker, a contrast against it of 1.15 to 1.6 (first values from screenshots; the owner's review may move them).
+- **Inline code** (`livePreview/theme.ts` `.cm-md-code`, and `.cm-md-table code` in `blocks/theme.ts`): `border: 1px solid var(--syntax-code-border)`, `padding: 2px 3px`. The selected part (`cm-md-code-selected`) has a transparent border, so a split span shows no broken frame, and keeps its padding so the text does not move.
+- **Code blocks** (`box.ts`): `.cm-md-box-code` sets `--box-border` to the token; the base `.cm-md-box` keeps `--border` for other kinds.
+
+**Risks:** horizontal padding makes the span wider, which the caret and click mapping handle for inline marks (check the arrow-key walk and a click on the last character); a span that wraps over two lines (default `box-decoration-break: slice`); the colour swatch before a hex colour (it sits outside the span); 2px vertical padding must not change line heights.
+
+**Tests:** `tests/editor/inlineCodeBorder.test.ts` (rules for text, table cell, selected part, block, other kind), the theme tests for the token.
+
+**Done when:** the tests fail on the old code and pass on the new, the owner finds the borders right in Dark, Light and Sepia, and the checks are green. Closes ISC-710 to ISC-713.
+
 ## Follow-ups on done tasks (2026-11-22)
 
 Not tasks. Each one reopens or adds the claim named, fails its probe on the old code first, and is committed as `[P9.1-Tn] ...` with the tag of the task it amends.

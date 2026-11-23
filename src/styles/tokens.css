@@ -128,6 +128,7 @@
   --color-syntax-link: var(--syntax-link);
   --color-syntax-code: var(--syntax-code);
   --color-syntax-code-background: var(--syntax-code-background);
+  --color-syntax-code-border: var(--syntax-code-border);
   --color-syntax-quote: var(--syntax-quote);
   --color-syntax-marker: var(--syntax-marker);
   --color-syntax-keyword: var(--syntax-keyword);

@@ -208,6 +208,19 @@ describe.each([...parsed])('%s theme colors', (name, theme) => {
     expect(contrast(text, codeBackground)).toBeGreaterThanOrEqual(4.5)
   })
 
+  it('give code a border a little apart from its background: lighter in a dark theme, darker in a light one (ISC-710)', () => {
+    expect(theme.has('--syntax-code-border')).toBe(true)
+    const border = parseColor(resolveToken(theme, '--syntax-code-border'))
+    const fill = parseColor(resolveToken(theme, '--syntax-code-background'))
+    const black = parseColor('#000000')
+    const ratio = contrast(border, fill)
+    expect(ratio).toBeGreaterThanOrEqual(1.15)
+    expect(ratio).toBeLessThan(1.6)
+    // Against black, the lighter color has the larger contrast.
+    const lighter = contrast(border, black) > contrast(fill, black)
+    expect(lighter).toBe(schemeOf(name) === 'dark')
+  })
+
   it('give the line numbers a strip and a color of their own, quiet and readable (ISC-630, ISC-631)', () => {
     expect(theme.has('--gutter')).toBe(true)
     expect(theme.has('--gutter-foreground')).toBe(true)

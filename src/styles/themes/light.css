@@ -74,6 +74,7 @@
   --syntax-link: oklch(0.48 0.105 240);
   --syntax-code: var(--foreground);
   --syntax-code-background: oklch(0.94 0.008 85);
+  --syntax-code-border: oklch(0.84 0.012 85);
   --syntax-quote: oklch(0.46 0.03 262);
   --syntax-marker: oklch(0.64 0.02 262);
   --syntax-keyword: oklch(0.48 0.15 310);

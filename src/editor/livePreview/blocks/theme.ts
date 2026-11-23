@@ -133,7 +133,10 @@ export const blockTheme = EditorView.baseTheme({
     fontSize: '1em',
     color: 'var(--syntax-code)',
     backgroundColor: 'var(--syntax-code-background)',
+    border: '1px solid var(--syntax-code-border)',
     borderRadius: 'var(--radius)',
+    padding: '2px 3px',
+    boxDecorationBreak: 'clone',
   },
   '.cm-md-table .cm-md-link': {
     color: 'var(--syntax-link)',

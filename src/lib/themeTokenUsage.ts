@@ -106,6 +106,7 @@ export const THEME_TOKEN_USAGE: Readonly<Record<string, string>> = {
   'syntax-link': 'Links in the editor.',
   'syntax-code': 'The text of inline code.',
   'syntax-code-background': 'The background behind inline code and code blocks.',
+  'syntax-code-border': 'The thin outline around inline code and code blocks.',
   'syntax-quote': 'Block quotes.',
   'syntax-marker':
     'Markdown marks such as the # of a heading, list bullets and the > of a quote, which stay dim.',

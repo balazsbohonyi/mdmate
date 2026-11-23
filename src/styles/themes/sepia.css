@@ -76,6 +76,7 @@
   --syntax-link: #8b5e3c;
   --syntax-code: var(--foreground);
   --syntax-code-background: #ece0c4;
+  --syntax-code-border: #cdbd97;
   --syntax-quote: #6b4f38;
   --syntax-marker: #9a8264;
   --syntax-keyword: oklch(0.46 0.13 335);

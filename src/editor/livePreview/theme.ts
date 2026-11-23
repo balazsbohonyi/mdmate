@@ -43,12 +43,18 @@ export const previewTheme = EditorView.baseTheme({
     fontSize: '1em',
     color: 'var(--syntax-code)',
     backgroundColor: 'var(--syntax-code-background)',
+    border: '1px solid var(--syntax-code-border)',
     borderRadius: 'var(--radius)',
+    // Room inside the border; a span that wraps keeps its border and padding on both pieces.
+    padding: '2px 3px',
+    boxDecorationBreak: 'clone',
   },
   // Selected code reads as selected text: the span's background would hide the selection behind it.
+  // The border is hidden, not removed, so the text does not move when the selection starts.
   '.cm-md-code.cm-md-code-selected': {
     color: 'var(--foreground)',
     backgroundColor: 'transparent',
+    borderColor: 'transparent',
   },
   // The default highlight style colors and underlines the pieces of a link itself, so the span
   // sets both on its children too.

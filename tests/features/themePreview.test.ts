@@ -205,14 +205,14 @@ function tokensOf(classes: ReadonlySet<string>, prefix: string): Set<string> {
 }
 
 describe('every syntax color shows on something in the note (ISC-519)', () => {
-  it('uses all fourteen', { timeout: 20000 }, async () => {
+  it('uses all fifteen', { timeout: 20000 }, async () => {
     // The preview is mounted for its rules: the editor puts them on the page when it starts.
     await mountPreview()
     const classes = await classesOfNote()
     const names = THEME_TOKENS.filter((token) => token.name.startsWith('syntax-')).map(
       (token) => token.name,
     )
-    expect(names).toHaveLength(14)
+    expect(names).toHaveLength(15)
     const used = tokensOf(classes, 'syntax-')
     expect(names.filter((name) => !used.has(name))).toEqual([])
   })
