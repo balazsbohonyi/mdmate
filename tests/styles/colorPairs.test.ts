@@ -85,6 +85,7 @@ const ALLOWED: readonly { file: string; line: string; why: string }[] = [
     why: 'a dot',
   },
   { file: 'features/search/SearchPanel.vue', line: 'search-progress-bar', why: 'a progress bar' },
+  { file: 'shell/StatusBar.vue', line: 'block h-full bg-primary', why: 'the indexing bar' },
   {
     file: 'features/settings/SettingRow.vue',
     line: 'size-1.5 shrink-0 rounded-full bg-primary',

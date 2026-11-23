@@ -156,7 +156,7 @@ Phase 9.1 collects the small fixes and rough edges found in daily use, between t
 - [x] P9.1-T31: Stop touchpad overscroll from shifting the whole window — closes ISC-691, ISC-692
 - [x] P9.1-T32: Colours: code background visible in all themes (one token for blocks and inline code), neutral inline code and heading text — closes ISC-693 to ISC-697 (owner request)
 - [x] P9.1-T33: Code blocks: language label top left, copy button top right that copies the code — closes ISC-698 to ISC-703 (owner request)
-- [ ] P9.1-T34: The indexing bar in the status bar uses the primary colour — closes ISC-704, ISC-705 (owner request)
+- [x] P9.1-T34: The indexing bar in the status bar uses the primary colour — closes ISC-704, ISC-705 (owner request)
 - [ ] P9.1-T35: Open All for a multi-selection of files in the sidebar (menu and Enter), into the active pane — closes ISC-706 to ISC-709 (owner request)
 
 ## Phase 10: Ship ([plan](phases/phase-10/plan.md))

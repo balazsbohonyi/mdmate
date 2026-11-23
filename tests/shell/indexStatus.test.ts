@@ -55,6 +55,11 @@ describe('the indexing label and percent bar', () => {
     expect(root.textContent).toContain('Indexing')
     expect(bar(root)?.getAttribute('aria-valuenow')).toBe('37')
     expect(root.querySelector<HTMLElement>('[data-index-bar]')?.style.width).toBe('37%')
+    // The filled part is the primary color (ISC-704); the track behind it stays a faint statusbar tint.
+    const fill = root.querySelector<HTMLElement>('[data-index-bar]')
+    expect(fill?.classList.contains('bg-primary')).toBe(true)
+    expect(fill?.classList.contains('bg-statusbar-foreground')).toBe(false)
+    expect(bar(root)?.classList.contains('bg-statusbar-foreground/20')).toBe(true)
 
     indexStatus.value = { indexing: true, percent: 80, cut: [] }
     await nextTick()

@@ -164,6 +164,8 @@ export const CONTRAST_PAIRS: readonly (readonly [string, string, number])[] = [
   ['tab-foreground', 'tabstrip', 4.5],
   ['tab-active-foreground', 'tab-active', 7],
   ['statusbar-foreground', 'statusbar', 4.5],
+  // The bar of the indexing status is a graphic, not text: 3 is enough (ISC-704).
+  ['primary', 'statusbar', 3],
   // The line numbers sit on their own strip, not on the page.
   ['gutter-foreground', 'gutter', 4.5],
   // The text of a striped table row sits on the stripe.

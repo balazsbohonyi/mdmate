@@ -43,7 +43,7 @@ const text = computed(
         :aria-valuenow="indexStatus.percent"
       >
         <span
-          class="block h-full bg-statusbar-foreground"
+          class="block h-full bg-primary"
           :style="{ width: `${indexStatus.percent}%` }"
           data-index-bar
         />
