@@ -1,12 +1,11 @@
 import { parse, printParseErrorCode, type ParseError } from 'jsonc-parser'
-import { FONT_PRESET_IDS, type FontPresetId } from './fontPresets'
+import { FONT_DENSITIES, type FontDensity, type FontPresetId } from './fontPresets'
 import {
   BUILT_IN_EXCLUDED_FOLDERS,
   BUILT_IN_HIDDEN_NAMES,
   cloneSettings,
   COLOR_FORMATS,
   type ColorFormat,
-  DEFAULT_HEADING_SCALE,
   DEFAULT_SETTINGS,
   LINKS_ON_RENAME,
   type LinksOnRename,
@@ -28,14 +27,15 @@ export type Checked<T> =
 export interface SettingValueMap {
   theme: string
   'fonts.preset': FontPresetId
+  'fonts.density': FontDensity
   'fonts.heading': string
   'fonts.body': string
   'fonts.code': string
-  'fonts.size': number
-  'fonts.codeSize': number
-  'fonts.lineHeight': number
-  'fonts.codeLineHeight': number
-  'fonts.headingScale': readonly number[]
+  'fonts.size': number | null
+  'fonts.codeSize': number | null
+  'fonts.lineHeight': number | null
+  'fonts.codeLineHeight': number | null
+  'fonts.headingScale': readonly number[] | null
   'editor.wordWrap': boolean
   'editor.lineNumbers': boolean
   'editor.stripedTables': boolean
@@ -109,10 +109,23 @@ const isBoolean = (value: unknown): Checked<boolean> =>
 const FAMILY_FORBIDDEN = /[\u0000-\u001f\u007f{};<>\\]/u
 
 function checkFontPreset(value: unknown): Checked<FontPresetId> {
-  const found = FONT_PRESET_IDS.find((id) => id === value)
-  return found === undefined
-    ? bad('Use "system", "editorial", "modern" or "journal".')
-    : good(found)
+  if (typeof value !== 'string') return bad('Use a font preset name in quotes.')
+  const text = value.trim()
+  if (text === '') return bad('Name a font preset.')
+  if (text.length > 100) return bad('Use at most 100 characters.')
+  // eslint-disable-next-line no-control-regex -- control characters are exactly what is refused
+  if (/[/\\\u0000-\u001f\u007f]/u.test(text)) return bad('Use a font preset name, not a path.')
+  return good(text)
+}
+
+function checkFontDensity(value: unknown): Checked<FontDensity> {
+  const found = FONT_DENSITIES.find((density) => density === value)
+  return found === undefined ? bad('Use "comfort" or "compact".') : good(found)
+}
+
+/** Wraps a validator so `null` passes as "inherit from the active preset". */
+function nullable<T>(check: (value: unknown) => Checked<T>): (value: unknown) => Checked<T | null> {
+  return (value) => (value === null ? good(null) : check(value))
 }
 
 /** An empty family is the preset default stack. What is written is a family name or a CSS family list. */
@@ -313,6 +326,8 @@ function checkTheme(value: unknown): Checked<string> {
 const same = <T>(a: T, b: T): boolean => a === b
 const sameList = <T>(a: readonly T[], b: readonly T[]): boolean =>
   a.length === b.length && a.every((item, i) => item === b[i])
+const sameNullableList = <T>(a: readonly T[] | null, b: readonly T[] | null): boolean =>
+  a === b || (a !== null && b !== null && sameList(a, b))
 
 /** The one table: every key, where it sits in the file, its default and how it is checked. */
 export const SETTING_DEFS: { readonly [K in SettingKey]: SettingDef<SettingValueMap[K]> } = {
@@ -328,6 +343,13 @@ export const SETTING_DEFS: { readonly [K in SettingKey]: SettingDef<SettingValue
     path: ['fonts', 'preset'],
     default: DEFAULT_SETTINGS.fonts.preset,
     check: checkFontPreset,
+    equals: same,
+  },
+  'fonts.density': {
+    key: 'fonts.density',
+    path: ['fonts', 'density'],
+    default: DEFAULT_SETTINGS.fonts.density,
+    check: checkFontDensity,
     equals: same,
   },
   'fonts.heading': {
@@ -355,36 +377,36 @@ export const SETTING_DEFS: { readonly [K in SettingKey]: SettingDef<SettingValue
     key: 'fonts.size',
     path: ['fonts', 'size'],
     default: DEFAULT_SETTINGS.fonts.size,
-    check: numberIn(8, 40, false),
+    check: nullable(numberIn(8, 40, false)),
     equals: same,
   },
   'fonts.codeSize': {
     key: 'fonts.codeSize',
     path: ['fonts', 'codeSize'],
     default: DEFAULT_SETTINGS.fonts.codeSize,
-    check: numberIn(8, 40, false),
+    check: nullable(numberIn(8, 40, false)),
     equals: same,
   },
   'fonts.lineHeight': {
     key: 'fonts.lineHeight',
     path: ['fonts', 'lineHeight'],
     default: DEFAULT_SETTINGS.fonts.lineHeight,
-    check: checkLineHeight,
+    check: nullable(checkLineHeight),
     equals: same,
   },
   'fonts.codeLineHeight': {
     key: 'fonts.codeLineHeight',
     path: ['fonts', 'codeLineHeight'],
     default: DEFAULT_SETTINGS.fonts.codeLineHeight,
-    check: checkLineHeight,
+    check: nullable(checkLineHeight),
     equals: same,
   },
   'fonts.headingScale': {
     key: 'fonts.headingScale',
     path: ['fonts', 'headingScale'],
-    default: DEFAULT_HEADING_SCALE,
-    check: checkHeadingScale,
-    equals: sameList,
+    default: DEFAULT_SETTINGS.fonts.headingScale,
+    check: nullable(checkHeadingScale),
+    equals: sameNullableList,
   },
   'editor.wordWrap': {
     key: 'editor.wordWrap',

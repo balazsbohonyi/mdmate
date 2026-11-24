@@ -6,12 +6,18 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
+  applyDensity,
   BUNDLED_FONT_NAMES,
+  compactLineHeight,
+  compactSize,
+  DEFAULT_FONT_DENSITY,
   DEFAULT_FONT_PRESET,
   expandBundledFamily,
+  FONT_DENSITIES,
   FONT_PRESET_IDS,
   FONT_PRESETS,
   inlineCodeScaleFor,
+  resolveFontMetrics,
 } from '@/lib/fontPresets'
 
 describe('ISC-715: four font presets (System default + three bundled Google Font pairings)', () => {
@@ -108,5 +114,133 @@ describe('ISC-715: four font presets (System default + three bundled Google Font
     for (const name of BUNDLED_FONT_NAMES) {
       expect(license, name).toContain(name)
     }
+  })
+})
+
+describe('ISC-722: per-preset default typography metrics', () => {
+  it('assigns tuned default text/code sizes, line heights and heading scales to all four presets', () => {
+    const scale = [1.7, 1.45, 1.25, 1.1, 1, 0.95]
+
+    expect(FONT_PRESETS.system).toMatchObject({
+      builtIn: true,
+      size: 16,
+      lineHeight: 1.5,
+      codeSize: 14,
+      codeLineHeight: 1.5,
+      headingScale: scale,
+    })
+    expect(FONT_PRESETS.editorial).toMatchObject({
+      builtIn: true,
+      size: 18,
+      lineHeight: 1.6,
+      codeSize: 14,
+      codeLineHeight: 1.5,
+      headingScale: scale,
+    })
+    expect(FONT_PRESETS.modern).toMatchObject({
+      builtIn: true,
+      size: 17,
+      lineHeight: 1.6,
+      codeSize: 14,
+      codeLineHeight: 1.5,
+      headingScale: scale,
+    })
+    expect(FONT_PRESETS.journal).toMatchObject({
+      builtIn: true,
+      size: 18,
+      lineHeight: 1.6,
+      codeSize: 14,
+      codeLineHeight: 1.5,
+      headingScale: scale,
+    })
+  })
+})
+
+describe('ISC-724: Comfort vs Compact density scaling', () => {
+  it('defines comfort (default) and compact densities', () => {
+    expect(DEFAULT_FONT_DENSITY).toBe('comfort')
+    expect(FONT_DENSITIES).toEqual(['comfort', 'compact'])
+  })
+
+  it('scales sizes by x0.86 rounded to whole px with a 10px floor', () => {
+    expect(compactSize(14)).toBe(12)
+    expect(compactSize(16)).toBe(14)
+    expect(compactSize(17)).toBe(15)
+    expect(compactSize(18)).toBe(15)
+    expect(compactSize(20)).toBe(17)
+    expect(compactSize(21)).toBe(18)
+    expect(compactSize(11)).toBe(10)
+    expect(compactSize(8)).toBe(10)
+  })
+
+  it('reduces line heights by 0.1 in 0.05 steps with a 1.15 floor', () => {
+    expect(compactLineHeight(1.6)).toBe(1.5)
+    expect(compactLineHeight(1.5)).toBe(1.4)
+    expect(compactLineHeight(1.4)).toBe(1.3)
+    expect(compactLineHeight(1.2)).toBe(1.15)
+    expect(compactLineHeight(1.0)).toBe(1.15)
+  })
+
+  it('leaves metrics unchanged in comfort and scales text & code in compact without touching headingScale', () => {
+    const base = {
+      size: 18,
+      lineHeight: 1.6,
+      codeSize: 14,
+      codeLineHeight: 1.5,
+      headingScale: [1.7, 1.45, 1.25, 1.1, 1, 0.95],
+    }
+    expect(applyDensity(base, 'comfort')).toEqual(base)
+    expect(applyDensity(base, 'compact')).toEqual({
+      size: 15,
+      lineHeight: 1.5,
+      codeSize: 12,
+      codeLineHeight: 1.4,
+      headingScale: [1.7, 1.45, 1.25, 1.1, 1, 0.95],
+    })
+  })
+
+  it('resolves null overrides from the active preset and applies density on top of overrides', () => {
+    const inherited = resolveFontMetrics(
+      {
+        preset: 'editorial',
+        density: 'compact',
+        heading: '',
+        body: '',
+        code: '',
+        size: null,
+        lineHeight: null,
+        codeSize: null,
+        codeLineHeight: null,
+        headingScale: null,
+      },
+      FONT_PRESETS.editorial,
+    )
+    expect(inherited.customized).toBe(false)
+    expect(inherited.base.size).toBe(18)
+    expect(inherited.base.lineHeight).toBe(1.6)
+    expect(inherited.effective.size).toBe(15)
+    expect(inherited.effective.lineHeight).toBe(1.5)
+    expect(inherited.effective.codeSize).toBe(12)
+    expect(inherited.effective.codeLineHeight).toBe(1.4)
+
+    const overridden = resolveFontMetrics(
+      {
+        preset: 'system',
+        density: 'compact',
+        heading: '',
+        body: '',
+        code: '',
+        size: 20,
+        lineHeight: 1.7,
+        codeSize: null,
+        codeLineHeight: null,
+        headingScale: null,
+      },
+      FONT_PRESETS.system,
+    )
+    expect(overridden.customized).toBe(true)
+    expect(overridden.base.size).toBe(20)
+    expect(overridden.effective.size).toBe(17)
+    expect(overridden.effective.lineHeight).toBe(1.6)
   })
 })

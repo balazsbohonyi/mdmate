@@ -95,11 +95,18 @@ function hostError(kind: string, message: string): MockHostError {
 const THEME_MAX_BYTES = 256 * 1024
 
 const themePath = (name: string): string => `${MOCK_THEMES_FOLDER}/${name}.json`
+const fontPresetPath = (name: string): string => `${MOCK_FONT_PRESETS_FOLDER}/${name}.json`
 
 /** The name when Rust would take it, or the error Rust gives for a name that is not a plain one. */
 function requireThemeName(name: string): string {
   const checked = checkThemeName(name)
   if (!checked.ok) throw hostError('invalid', `invalid request: theme name: ${checked.why}`)
+  return checked.value
+}
+
+function requireFontPresetName(name: string): string {
+  const checked = checkThemeName(name)
+  if (!checked.ok) throw hostError('invalid', `invalid request: font preset name: ${checked.why}`)
   return checked.value
 }
 
@@ -199,6 +206,8 @@ export const MOCK_SETTINGS_FILE = '/mock-data/settings.json'
 export const MOCK_KEYBINDINGS_FILE = '/mock-data/keybindings.json'
 /** Where the mock keeps the user theme files, as Rust keeps them in the data folder. */
 export const MOCK_THEMES_FOLDER = '/mock-data/themes'
+/** Where the mock keeps the user font preset files, as Rust keeps them in the data folder. */
+export const MOCK_FONT_PRESETS_FOLDER = '/mock-data/font-presets'
 
 /** The files of a draft's `assets` that can be copied: a name and one of the four extensions. */
 const DRAFT_IMAGE = /^[^/\\]+\.(?:png|jpg|gif|webp)$/i
@@ -1222,6 +1231,75 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
       return attempt(() => {
         files.mkdir(MOCK_THEMES_FOLDER)
         openedFolders.push(MOCK_THEMES_FOLDER)
+      })
+    },
+    fontPresetsRead() {
+      return attempt(() => {
+        const listed = files.listDir(MOCK_FONT_PRESETS_FOLDER) ?? []
+        return listed
+          .filter((entry) => entry.kind === 'file' && entry.name.endsWith('.json'))
+          .map((entry) => entry.name.slice(0, -'.json'.length))
+          .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+          .slice(0, 200)
+          .map((name) => {
+            const named = checkThemeName(name)
+            if (!named.ok) return { name, text: null, error: named.why }
+            const text = files.read(fontPresetPath(name)) ?? ''
+            return text.length > THEME_MAX_BYTES
+              ? { name, text: null, error: 'it is larger than 256 KB' }
+              : { name, text, error: null }
+          })
+      })
+    },
+    fontPresetRead(name) {
+      return attempt(() => {
+        const path = fontPresetPath(requireFontPresetName(name))
+        return files.read(path) ?? null
+      })
+    },
+    fontPresetWrite(name, text, create) {
+      return attempt(() => {
+        const path = fontPresetPath(requireFontPresetName(name))
+        if (text.length > THEME_MAX_BYTES)
+          throw hostError('invalid', `${name}.json would be larger than 256 KB`)
+        const exists = files.has(path)
+        if (create && exists) throw hostError('exists', `${name}.json already exists`)
+        if (!create && !exists) throw hostError('not-found', `${name}.json was not found`)
+        files.write(path, text)
+      })
+    },
+    fontPresetRename(from, to) {
+      return attempt(() => {
+        const source = fontPresetPath(requireFontPresetName(from))
+        const target = fontPresetPath(requireFontPresetName(to))
+        if (!files.has(source)) throw hostError('not-found', `${from}.json was not found`)
+        if (from === to) return
+        if (files.has(target) && from.toLowerCase() !== to.toLowerCase())
+          throw hostError('exists', `${to}.json already exists`)
+        files.move(source, target)
+      })
+    },
+    fontPresetDelete(name) {
+      return attempt(() => {
+        const path = fontPresetPath(requireFontPresetName(name))
+        if (!files.has(path)) throw hostError('not-found', `${name}.json was not found`)
+        if (options.noRecycleBin === true)
+          throw hostError('io', 'There is no Recycle Bin for this drive.')
+        recycled.push(...files.remove(path))
+      })
+    },
+    watchFontPresets(onChange) {
+      const prefix = `${pathKey(MOCK_FONT_PRESETS_FOLDER)}/`
+      return Promise.resolve(
+        files.onChange((path) => {
+          if (pathKey(path).startsWith(prefix)) onChange()
+        }),
+      )
+    },
+    fontPresetsFolderOpen() {
+      return attempt(() => {
+        files.mkdir(MOCK_FONT_PRESETS_FOLDER)
+        openedFolders.push(MOCK_FONT_PRESETS_FOLDER)
       })
     },
     settingsApply(values) {

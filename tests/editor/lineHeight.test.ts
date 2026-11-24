@@ -53,18 +53,18 @@ afterEach(() => {
 })
 
 describe('ISC-625: the properties carry the line heights', () => {
-  it('has the default line heights (1.5 body, 1.4 code) until the file changes them', () => {
+  it('has the default line heights (1.5 body, 1.5 code from System preset) until the file changes them', () => {
     updateDocumentFonts()
     expect(root().getPropertyValue(FONT_VARIABLES.lineHeight)).toBe('1.5')
-    expect(root().getPropertyValue(FONT_VARIABLES.codeLineHeight)).toBe('1.4')
-    expect(DEFAULT_SETTINGS.fonts.lineHeight).toBe(1.5)
-    expect(DEFAULT_SETTINGS.fonts.codeLineHeight).toBe(1.4)
+    expect(root().getPropertyValue(FONT_VARIABLES.codeLineHeight)).toBe('1.5')
+    expect(DEFAULT_SETTINGS.fonts.lineHeight).toBeNull()
+    expect(DEFAULT_SETTINGS.fonts.codeLineHeight).toBeNull()
   })
 
   it('sets the two properties from the file, each on its own', () => {
     load({ lineHeight: 2 })
     expect(root().getPropertyValue(FONT_VARIABLES.lineHeight)).toBe('2')
-    expect(root().getPropertyValue(FONT_VARIABLES.codeLineHeight)).toBe('1.4')
+    expect(root().getPropertyValue(FONT_VARIABLES.codeLineHeight)).toBe('1.5')
     load({ codeLineHeight: 1.65 })
     expect(root().getPropertyValue(FONT_VARIABLES.lineHeight)).toBe('1.5')
     expect(root().getPropertyValue(FONT_VARIABLES.codeLineHeight)).toBe('1.65')
@@ -81,7 +81,7 @@ describe('ISC-625: the properties carry the line heights', () => {
     load({ lineHeight: 2 })
     load({ lineHeight: 3.5, codeLineHeight: 0.9 })
     expect(root().getPropertyValue(FONT_VARIABLES.lineHeight)).toBe('2')
-    expect(root().getPropertyValue(FONT_VARIABLES.codeLineHeight)).toBe('1.4')
+    expect(root().getPropertyValue(FONT_VARIABLES.codeLineHeight)).toBe('1.5')
   })
 })
 
@@ -158,14 +158,14 @@ describe('ISC-626: the body, lists, quotes, tables and every heading take the bo
     load({ lineHeight: 2.2, codeLineHeight: 1.1 })
     applySettingsText('{}')
     expect(root().getPropertyValue(FONT_VARIABLES.lineHeight)).toBe('1.5')
-    expect(root().getPropertyValue(FONT_VARIABLES.codeLineHeight)).toBe('1.4')
+    expect(root().getPropertyValue(FONT_VARIABLES.codeLineHeight)).toBe('1.5')
   })
 })
 
 describe('ISC-627: code blocks and source mode take the code line height and nothing else does', () => {
-  it('sets the code box line height from its own property, with default 1.4 as the fallback', () => {
+  it('sets the code box line height from its own property, with default 1.5 as the fallback', () => {
     open('```ts\nconst a = 1\n```\n')
-    expect(lineHeightOf('.cm-md-box-code')).toEqual([`var(${FONT_VARIABLES.codeLineHeight}, 1.4)`])
+    expect(lineHeightOf('.cm-md-box-code')).toEqual([`var(${FONT_VARIABLES.codeLineHeight}, 1.5)`])
   })
 
   it('reads the code line-height property only in code blocks and source mode', () => {

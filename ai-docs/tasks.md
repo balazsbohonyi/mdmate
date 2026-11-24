@@ -161,6 +161,9 @@ Phase 9.1 collects the small fixes and rough edges found in daily use, between t
 - [x] P9.1-T36: Inline code and code blocks get a border in a token of their own, and inline code gets padding — closes ISC-710 to ISC-713 (owner request)
 - [x] P9.1-T37: Inline code padding 1px 2px, and 0.4em above and below in the body cells of a table — closes ISC-714 (owner request)
 - [x] P9.1-T38: Font presets (System default + bundled Editorial, Modern, Journal), live preview cards, optical inline code scale, source/raw code font, OFL-1.1 license notices — closes ISC-715 to ISC-721
+- [x] P9.1-T39: Per-preset typography sizes (text/code size & line height, heading scale), preset-inherited size overrides, and Comfort/Compact density toggle — closes ISC-722 to ISC-727
+- [x] P9.1-T40: Custom user font presets (`font-presets/*.json`), searchable scrollable preset grid, Built-in badges, card ellipsis menu, and Open font presets folder — closes ISC-728 to ISC-735
+- [x] P9.1-T41: Polish: hide native search cancel button + thin clear `X` on Settings searches, fix rename error flash, scroll active preset into view, scroll-only preset scrollbar, 3-col desktop grid at 6+ presets — closes ISC-736 to ISC-740 (owner request)
 
 ## Phase 10: Ship ([plan](phases/phase-10/plan.md))
 

@@ -326,6 +326,33 @@ export const tauriHost: Host = {
   async themesFolderOpen() {
     await invoke('themes_folder_open')
   },
+  async fontPresetsRead() {
+    return parseThemeEntries(await invoke<unknown>('font_presets_read'))
+  },
+  async fontPresetRead(name) {
+    const text = await invoke<unknown>('font_preset_read', { name })
+    return typeof text === 'string' ? text : null
+  },
+  async fontPresetWrite(name, text, create) {
+    await invoke('font_preset_write', { name, text, create })
+  },
+  async fontPresetRename(from, to) {
+    await invoke('font_preset_rename', { from, to })
+  },
+  async fontPresetDelete(name) {
+    await invoke('font_preset_delete', { name })
+  },
+  async watchFontPresets(onChange) {
+    const channel = new Channel<null>()
+    channel.onmessage = onChange
+    await invoke('watch_font_presets', { onChange: channel })
+    return () => {
+      channel.onmessage = () => undefined
+    }
+  },
+  async fontPresetsFolderOpen() {
+    await invoke('font_presets_folder_open')
+  },
   async devtoolsOpen() {
     await invoke('devtools_open')
   },

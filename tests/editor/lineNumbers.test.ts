@@ -12,6 +12,7 @@ import { Text } from '@codemirror/state'
 import type { EditorView } from '@codemirror/view'
 import { refreshLineNumbers } from '@/editor/lineNumbers'
 import { applySettingsText, resetSettingsState } from '@/features/settings/store'
+import { FONT_PRESETS } from '@/lib/fontPresets'
 import { DEFAULT_SETTINGS, resetSettings, settings } from '@/lib/settings'
 import { valuesOf } from '../helpers/editorRules'
 
@@ -352,8 +353,8 @@ describe('the look of the gutter (ISC-632, ISC-669)', () => {
 
   it('has the fallback of the size equal to 0.9 of the default code size', () => {
     // 14 / 16 of a 16 px text is the 14 px default code size; 0.9 of it is 12.6 px.
-    expect(DEFAULT_SETTINGS.fonts.codeSize / DEFAULT_SETTINGS.fonts.size).toBeCloseTo(14 / 16, 10)
-    expect(DEFAULT_SETTINGS.fonts.codeSize * 0.9).toBeCloseTo(12.6, 10)
+    expect(FONT_PRESETS.system.codeSize / FONT_PRESETS.system.size).toBeCloseTo(14 / 16, 10)
+    expect(FONT_PRESETS.system.codeSize * 0.9).toBeCloseTo(12.6, 10)
   })
 
   it('gives the digits the same room on both sides, 10 px each (ISC-669)', () => {

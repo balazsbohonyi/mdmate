@@ -13,6 +13,7 @@ import { docMeta } from '@/documents/meta'
 import { closeAllTabs, documentOfTab, openPath, resetDocuments } from '@/documents/store'
 import { createFollowerState, createView } from '@/editor/create'
 import {
+  applyFontPreset,
   applySettingsText,
   changeSetting,
   loadSettings,
@@ -56,7 +57,7 @@ afterEach(() => {
 describe('reading settings.json', () => {
   it('starts on the defaults when there is no file, and says nothing', async () => {
     await start()
-    expect(settings.fonts.size).toBe(16)
+    expect(settings.fonts.size).toBeNull()
     expect(settings.editor.wordWrap).toBe(true)
     expect(settingsFileState).toMatchObject({ loaded: true, broken: null, problems: {} })
     expect(toasts.all).toEqual([])
@@ -70,7 +71,7 @@ describe('reading settings.json', () => {
     expect(settings.fonts.size).toBe(19)
     expect(settings.editor.wordWrap).toBe(false)
     expect(settings.devtools).toBe(true)
-    expect(settings.fonts.codeSize).toBe(14)
+    expect(settings.fonts.codeSize).toBeNull()
   })
 
   it('ISC-147: a file saved while the app runs is applied with no restart, a key at a time', async () => {
@@ -89,10 +90,10 @@ describe('reading settings.json', () => {
       12,
       'ask',
     ])
-    // A key taken out of the file goes back to its default.
+    // A key taken out of the file goes back to its default (null = inherit active preset).
     host.files.write(MOCK_SETTINGS_FILE, '{"fonts": {"codeSize": 12}}')
     await settle()
-    expect([settings.fonts.size, settings.links.onRename]).toEqual([16, 'never'])
+    expect([settings.fonts.size, settings.links.onRename]).toEqual([null, 'never'])
   })
 
   it('ISC-148, ISC-352: a file with a missing comma keeps the last good values and names the line', async () => {
@@ -136,7 +137,7 @@ describe('reading settings.json', () => {
 
   it('a first load with a bad value starts on the default, since no good value was ever held', async () => {
     await start({ [MOCK_SETTINGS_FILE]: '{"fonts": {"size": "big"}}' })
-    expect(settings.fonts.size).toBe(16)
+    expect(settings.fonts.size).toBeNull()
     expect(settingsFileState.problems['fonts.size']).toBeDefined()
   })
 
@@ -175,7 +176,7 @@ describe('ISC-384: only the app data folder is read', () => {
     const { restoreWorkspace } = await import('@/features/tree/store')
     await restoreWorkspace([])
     await settle()
-    expect(settings.fonts.size).toBe(16)
+    expect(settings.fonts.size).toBeNull()
     expect(settings.devtools).toBe(false)
     await changeSetting('fonts.size', 20)
     expect(settings.fonts.size).toBe(20)
@@ -401,5 +402,40 @@ describe('the behaviour behind each key (P8-T1b)', () => {
     } finally {
       dispose()
     }
+  })
+
+  it('ISC-723: applyFontPreset clears all eight font and typography metric overrides atomically', async () => {
+    await start({
+      [MOCK_SETTINGS_FILE]: JSON.stringify({
+        fonts: {
+          preset: 'editorial',
+          density: 'compact',
+          heading: 'Georgia',
+          body: 'Verdana',
+          code: 'Consolas',
+          size: 20,
+          lineHeight: 1.8,
+          codeSize: 15,
+          codeLineHeight: 1.7,
+          headingScale: [2, 1.5, 1.25, 1.1, 1, 0.9],
+        },
+      }),
+    })
+    expect(await applyFontPreset('modern')).toBe(true)
+    expect(JSON.parse(host.files.read(MOCK_SETTINGS_FILE) ?? '{}')).toEqual({
+      fonts: { preset: 'modern', density: 'compact' },
+    })
+    expect(settings.fonts).toEqual({
+      preset: 'modern',
+      density: 'compact',
+      heading: '',
+      body: '',
+      code: '',
+      size: null,
+      codeSize: null,
+      lineHeight: null,
+      codeLineHeight: null,
+      headingScale: null,
+    })
   })
 })

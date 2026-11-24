@@ -1,13 +1,17 @@
 import { EditorView, ViewPlugin } from '@codemirror/view'
 import {
+  cssFamilyList,
   DEFAULT_FONT_PRESET,
-  expandBundledFamily,
   FONT_PRESETS,
   inlineCodeScaleFor,
-  type FontPresetId,
+  presetOf,
+  resolveFontMetrics,
+  type FontPreset,
 } from '@/lib/fontPresets'
 import type { Settings } from '@/lib/settings'
 import { settings } from '@/lib/settings'
+
+export { cssFamilyList }
 
 /**
  * The fonts of the document text, from `fonts.*` in settings.json. They reach the editor as CSS
@@ -63,68 +67,26 @@ export const FONT_VARIABLES = {
   headingScale: (level: number): string => `--doc-heading-${String(level)}`,
 } as const
 
-/** The family names CSS reads as keywords: they are never quoted. */
-const GENERIC_FAMILIES: ReadonlySet<string> = new Set([
-  'serif',
-  'sans-serif',
-  'monospace',
-  'cursive',
-  'fantasy',
-  'system-ui',
-  'ui-serif',
-  'ui-sans-serif',
-  'ui-monospace',
-  'ui-rounded',
-  'math',
-  'emoji',
-  'fangsong',
-])
+/** Resolver for looking up the active preset by id (overridden by custom preset store in T40). */
+let resolvePresetById: (id: string) => FontPreset = presetOf
 
-/**
- * What was written in a family field, as a list CSS always accepts. A name that is not a valid CSS
- * identifier (it starts with a digit, holds a symbol) would make the whole declaration invalid, and
- * the text would lose its font and not fall back; each name is quoted, except the generic keywords.
- * Bundled variable display names expand to include their bundled variable face. Empty gives empty.
- */
-export function cssFamilyList(written: string): string {
-  const names: string[] = []
-  const seen = new Set<string>()
-  for (const part of written.split(',')) {
-    const bare = part
-      .trim()
-      .replace(/^(["'])(.*)\1$/, '$2')
-      .replace(/^["']|["']$/g, '')
-      .trim()
-    if (bare === '') continue
-    const lower = bare.toLowerCase()
-    if (GENERIC_FAMILIES.has(lower)) {
-      if (!seen.has(lower)) {
-        seen.add(lower)
-        names.push(lower)
-      }
-      continue
-    }
-    for (const expanded of expandBundledFamily(bare)) {
-      const key = expanded.toLowerCase()
-      if (seen.has(key)) continue
-      seen.add(key)
-      names.push(`"${expanded.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`)
-    }
-  }
-  return names.join(', ')
+/** Installs a custom preset lookup so `src/editor/` stays Vue-free while reading user presets. */
+export function setFontPresetResolver(resolver: (id: string) => FontPreset): void {
+  resolvePresetById = resolver
 }
 
 /**
  * The font stack for a kind of text, given what was written for it (empty for the active preset's
- * bundled stack).
+ * stack).
  */
 export function familyStack(
   kind: FontKind,
   written: string,
-  presetId: FontPresetId = DEFAULT_FONT_PRESET,
+  presetOrId: FontPreset | string = DEFAULT_FONT_PRESET,
 ): string {
   const own = cssFamilyList(written)
-  const fallback = FONT_PRESETS[presetId][kind].stack
+  const preset = typeof presetOrId === 'string' ? resolvePresetById(presetOrId) : presetOrId
+  const fallback = preset[kind].stack
   return own === '' ? fallback : `${own}, ${fallback}`
 }
 
@@ -132,19 +94,21 @@ export function familyStack(
 export function documentFontVariables(
   fonts: Readonly<Settings['fonts']> = settings.fonts,
   editor: Readonly<Settings['editor']> = settings.editor,
+  preset: FontPreset = resolvePresetById(fonts.preset),
 ): Record<string, string> {
+  const { effective } = resolveFontMetrics(fonts, preset)
   const variables: Record<string, string> = {
-    [FONT_VARIABLES.body]: familyStack('body', fonts.body, fonts.preset),
-    [FONT_VARIABLES.heading]: familyStack('heading', fonts.heading, fonts.preset),
-    [FONT_VARIABLES.code]: familyStack('code', fonts.code, fonts.preset),
-    [FONT_VARIABLES.size]: `${String(fonts.size)}px`,
-    [FONT_VARIABLES.codeRatio]: String(fonts.codeSize / fonts.size),
-    [FONT_VARIABLES.inlineCodeScale]: String(inlineCodeScaleFor(fonts.preset, fonts.body)),
-    [FONT_VARIABLES.lineHeight]: String(fonts.lineHeight),
-    [FONT_VARIABLES.codeLineHeight]: String(fonts.codeLineHeight),
+    [FONT_VARIABLES.body]: familyStack('body', fonts.body, preset),
+    [FONT_VARIABLES.heading]: familyStack('heading', fonts.heading, preset),
+    [FONT_VARIABLES.code]: familyStack('code', fonts.code, preset),
+    [FONT_VARIABLES.size]: `${String(effective.size)}px`,
+    [FONT_VARIABLES.codeRatio]: String(effective.codeSize / effective.size),
+    [FONT_VARIABLES.inlineCodeScale]: String(inlineCodeScaleFor(preset, fonts.body)),
+    [FONT_VARIABLES.lineHeight]: String(effective.lineHeight),
+    [FONT_VARIABLES.codeLineHeight]: String(effective.codeLineHeight),
     [FONT_VARIABLES.tableStripe]: editor.stripedTables ? 'var(--table-stripe)' : 'transparent',
   }
-  fonts.headingScale.forEach((multiplier, index) => {
+  effective.headingScale.forEach((multiplier, index) => {
     variables[FONT_VARIABLES.headingScale(index + 1)] = String(multiplier)
   })
   return variables

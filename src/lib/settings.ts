@@ -1,5 +1,11 @@
 import { reactive } from 'vue'
-import { DEFAULT_FONT_PRESET, type FontPresetId } from './fontPresets'
+import {
+  DEFAULT_FONT_DENSITY,
+  DEFAULT_FONT_PRESET,
+  PRESET_HEADING_SCALE,
+  type FontDensity,
+  type FontPresetId,
+} from './fontPresets'
 
 /**
  * What a rename or move does about the links that point at the file:
@@ -99,7 +105,7 @@ export const DEFAULT_HIGHLIGHT_EXTENSIONS: readonly string[] = [
 ]
 
 /** The heading sizes the editor has always had, as multiples of the body size, H1 to H6. */
-export const DEFAULT_HEADING_SCALE: readonly number[] = [1.7, 1.45, 1.25, 1.1, 1, 0.95]
+export const DEFAULT_HEADING_SCALE: readonly number[] = PRESET_HEADING_SCALE
 
 /**
  * The settings the page reads, as they are after `settings.json` is read: the file's value for a
@@ -112,22 +118,24 @@ export interface Settings {
   /** `dark`, `light`, `sepia`, `system`, or the name of a theme file. Applied by Phase 8's themes. */
   theme: string
   fonts: {
-    /** The bundled font pairing (`editorial`, `modern`, `journal`) used when individual slots are empty. */
+    /** The active font preset (`system`, `editorial`, `modern`, `journal`, or custom id). */
     preset: FontPresetId
+    /** Typography density (`comfort` uses preset/base sizes; `compact` scales sizes & line heights down). */
+    density: FontDensity
     /** A font family for headings; empty uses the active preset's heading font. */
     heading: string
     body: string
     code: string
-    /** The body size in px. */
-    size: number
-    /** The size of code in px. */
-    codeSize: number
-    /** The line height of the text, headings included, as a multiple of the line's own size. */
-    lineHeight: number
-    /** The line height of code blocks, as a multiple of the line's own size. */
-    codeLineHeight: number
-    /** One multiple of the body size for each heading level, H1 to H6. */
-    headingScale: readonly number[]
+    /** The body size override in px, or null to inherit from the active preset. */
+    size: number | null
+    /** The code block size override in px, or null to inherit from the active preset. */
+    codeSize: number | null
+    /** The text line height override, or null to inherit from the active preset. */
+    lineHeight: number | null
+    /** The code block line height override, or null to inherit from the active preset. */
+    codeLineHeight: number | null
+    /** Six heading size multiples (H1 to H6), or null to inherit from the active preset. */
+    headingScale: readonly number[] | null
   }
   editor: {
     wordWrap: boolean
@@ -187,14 +195,15 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = {
   theme: 'dark',
   fonts: {
     preset: DEFAULT_FONT_PRESET,
+    density: DEFAULT_FONT_DENSITY,
     heading: '',
     body: '',
     code: '',
-    size: 16,
-    codeSize: 14,
-    lineHeight: 1.5,
-    codeLineHeight: 1.4,
-    headingScale: DEFAULT_HEADING_SCALE,
+    size: null,
+    codeSize: null,
+    lineHeight: null,
+    codeLineHeight: null,
+    headingScale: null,
   },
   editor: {
     wordWrap: true,
@@ -221,7 +230,10 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = {
 export function cloneSettings(from: Readonly<Settings>): Settings {
   return {
     theme: from.theme,
-    fonts: { ...from.fonts, headingScale: [...from.fonts.headingScale] },
+    fonts: {
+      ...from.fonts,
+      headingScale: from.fonts.headingScale === null ? null : [...from.fonts.headingScale],
+    },
     editor: { ...from.editor, highlightExtensions: [...from.editor.highlightExtensions] },
     images: { ...from.images },
     links: { ...from.links },

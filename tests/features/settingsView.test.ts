@@ -174,7 +174,7 @@ describe('ISC-350: the default takes the key out', () => {
       note: 'written by hand',
     })
     expect(isModified('fonts.size')).toBe(false)
-    expect(settings.fonts.size).toBe(16)
+    expect(settings.fonts.size).toBeNull()
   })
 
   it('leaves an empty object when every setting is back to its default, and keeps unknown keys', async () => {
@@ -203,7 +203,7 @@ describe('ISC-350: the default takes the key out', () => {
     expect(isModified('fonts.size')).toBe(true)
     await resetSetting('fonts.size')
     expect(fileObject()).toEqual({ fonts: { body: 'Georgia' } })
-    expect(settings.fonts.size).toBe(16)
+    expect(settings.fonts.size).toBeNull()
   })
 })
 
@@ -831,6 +831,81 @@ describe('ISC-360 to ISC-363, ISC-393: the font rows', () => {
     expect(settings.fonts.preset).toBe('system')
     expect(rootVar('--doc-inline-code-scale')).toBe('0.82')
   })
+
+  it('ISC-723 & ISC-726: presets set tuned sizes, Comfort/Compact toggles live, and picking a preset clears all 8 overrides', async () => {
+    await mountScreen('appearance')
+    const card = (id: string): HTMLButtonElement => {
+      const el = document.querySelector<HTMLButtonElement>(`[data-font-preset-card="${id}"]`)
+      if (el === null) throw new Error(`no preset card ${id}`)
+      return el
+    }
+    const densityButton = (value: 'comfort' | 'compact'): HTMLButtonElement => {
+      const el = document.querySelector<HTMLButtonElement>(`[data-font-density-choice="${value}"]`)
+      if (el === null) throw new Error(`no density choice ${value}`)
+      return el
+    }
+    const sizeField = (): HTMLInputElement => {
+      const el = document.querySelector<HTMLInputElement>('[data-pair-field="fonts.size"] input')
+      if (el === null) throw new Error('no fonts.size input')
+      return el
+    }
+    const lineHeightField = (): HTMLInputElement => {
+      const el = document.querySelector<HTMLInputElement>(
+        '[data-pair-field="fonts.lineHeight"] input',
+      )
+      if (el === null) throw new Error('no fonts.lineHeight input')
+      return el
+    }
+
+    // Comfort is active by default; card footers display each preset's Comfort text size / lh.
+    expect(document.querySelector('[data-font-density-effective]')).toBeNull()
+    expect(card('system').querySelector('[data-font-preset-meta]')?.textContent).toContain(
+      '16px / 1.5',
+    )
+    expect(card('editorial').querySelector('[data-font-preset-meta]')?.textContent).toContain(
+      '18px / 1.6',
+    )
+    expect(card('modern').querySelector('[data-font-preset-meta]')?.textContent).toContain(
+      '17px / 1.6',
+    )
+
+    // Selecting Editorial inherits 18 / 1.6 cleanly with no modified dots on size fields.
+    await click(card('editorial'))
+    expect(sizeField().value).toBe('18')
+    expect(lineHeightField().value).toBe('1.6')
+    expect(rowOf('fonts.size').querySelector('[data-setting-modified]')).toBeNull()
+    expect(rootVar('--doc-size')).toBe('18px')
+    expect(rootVar('--doc-line-height')).toBe('1.6')
+
+    // Switching to Compact keeps base Comfort numbers in inputs, shows effective readout, and scales CSS vars & card footers.
+    await click(densityButton('compact'))
+    expect(fileObject()).toEqual({ fonts: { preset: 'editorial', density: 'compact' } })
+    expect(sizeField().value).toBe('18')
+    expect(lineHeightField().value).toBe('1.6')
+    expect(rootVar('--doc-size')).toBe('15px')
+    expect(rootVar('--doc-line-height')).toBe('1.5')
+    expect(rootVar('--doc-code-line-height')).toBe('1.4')
+    expect(document.querySelector('[data-font-density-effective]')?.textContent).toContain(
+      'Effective: 15px / 1.5 · Code 12px / 1.4',
+    )
+    expect(card('editorial').querySelector('[data-font-preset-meta]')?.textContent).toContain(
+      '15px / 1.5',
+    )
+    expect(card('modern').querySelector('[data-font-preset-meta]')?.textContent).toContain(
+      '15px / 1.5',
+    )
+
+    // Overriding text size marks Editorial Customized; switching to Modern clears all font & size overrides atomically while preserving Compact.
+    await typeAndLeave(sizeField(), '20')
+    expect(card('editorial').querySelector('[data-font-preset-state="customized"]')).not.toBeNull()
+    expect(rootVar('--doc-size')).toBe('17px')
+    await click(card('modern'))
+    expect(fileObject()).toEqual({ fonts: { preset: 'modern', density: 'compact' } })
+    expect(settings.fonts.size).toBeNull()
+    expect(sizeField().value).toBe('17')
+    expect(rootVar('--doc-size')).toBe('15px')
+    expect(card('modern').querySelector('[data-font-preset-state="in-use"]')).not.toBeNull()
+  })
 })
 
 describe('ISC-628: the sizes and their line heights share a row', () => {
@@ -841,7 +916,7 @@ describe('ISC-628: the sizes and their line heights share a row', () => {
       second: 'fonts.codeLineHeight',
       word: 'Code',
       size: 14,
-      lineHeight: '1.4',
+      lineHeight: '1.5',
     },
   ] as const
   const rootVar = (name: string): string => document.documentElement.style.getPropertyValue(name)
@@ -915,10 +990,10 @@ describe('ISC-628: the sizes and their line heights share a row', () => {
     expect(fileObject()).toEqual({ note: 'mine', fonts: { lineHeight: 1.8 } })
     expect(settings.fonts.lineHeight).toBe(1.8)
     expect(rootVar('--doc-line-height')).toBe('1.8')
-    expect(rootVar('--doc-code-line-height')).toBe('1.4')
-    await typeAndLeave(fieldOf('fonts.codeLineHeight'), '1.5')
-    expect(fileObject()).toEqual({ note: 'mine', fonts: { lineHeight: 1.8, codeLineHeight: 1.5 } })
     expect(rootVar('--doc-code-line-height')).toBe('1.5')
+    await typeAndLeave(fieldOf('fonts.codeLineHeight'), '1.6')
+    expect(fileObject()).toEqual({ note: 'mine', fonts: { lineHeight: 1.8, codeLineHeight: 1.6 } })
+    expect(rootVar('--doc-code-line-height')).toBe('1.6')
     expect(fieldOf('fonts.size').value).toBe('16')
   })
 
@@ -992,7 +1067,7 @@ describe('ISC-628: the sizes and their line heights share a row', () => {
     expect(fieldOf('fonts.lineHeight').value).toBe('1.75')
     expect(pairError('fonts.codeLineHeight')).toBe('Use a number from 1 to 3 in steps of 0.05.')
     expect(pairError('fonts.lineHeight')).toBeNull()
-    expect(settings.fonts.codeLineHeight).toBe(1.4)
+    expect(settings.fonts.codeLineHeight).toBeNull()
   })
 
   it('is found by a search for line height, once for each row', async () => {
@@ -1212,9 +1287,9 @@ describe('ISC-357: the search box filters the rows of every group', () => {
 
   it('does not search the settings.json button row, which is not a setting', async () => {
     await mountScreen('advanced')
-    // One button row for each file or folder behind the screen: settings.json, keybindings.json
-    // and the themes folder.
-    expect(document.querySelectorAll('[data-setting-action]')).toHaveLength(3)
+    // One button row for each file or folder behind the screen: settings.json, keybindings.json,
+    // themes folder, and font-presets folder.
+    expect(document.querySelectorAll('[data-setting-action]')).toHaveLength(4)
     await find('settings')
     expect(document.querySelectorAll('[data-setting-action]')).toHaveLength(0)
   })
@@ -1737,5 +1812,52 @@ describe('ISC-552: turning the content width limit on turns word wrap on', () =>
     expect(settings.editor.limitContentWidth).toBe(true)
     expect(settings.editor.wordWrap).toBe(false)
     expect(host.files.read(MOCK_SETTINGS_FILE)).toBe('{}')
+  })
+})
+
+describe('ISC-734: Open font presets folder on Advanced', () => {
+  it('renders aligned with Open themes folder and calls host.fontPresetsFolderOpen()', async () => {
+    await mountScreen('advanced')
+    const themesBtn = document.querySelector<HTMLButtonElement>('[data-open-themes-folder]')
+    const presetsBtn = document.querySelector<HTMLButtonElement>('[data-open-font-presets-folder]')
+    expect(themesBtn).not.toBeNull()
+    expect(presetsBtn).not.toBeNull()
+    expect(presetsBtn?.className).toContain('w-[10.25rem]')
+    await click(presetsBtn)
+    expect(host.openedFolders).toContain('/mock-data/font-presets')
+  })
+})
+
+describe('ISC-736: custom thin clear button on Search settings and Search shortcuts', () => {
+  it('shows the clear button when non-empty and clears the search box on click', async () => {
+    await mountScreen('appearance')
+    const settingsSearch = document.querySelector<HTMLInputElement>('[data-settings-search]')
+    expect(settingsSearch).not.toBeNull()
+    expect(document.querySelector('[data-settings-search-clear]')).toBeNull()
+    if (settingsSearch !== null) {
+      settingsSearch.value = 'wrap'
+      settingsSearch.dispatchEvent(new Event('input', { bubbles: true }))
+      await flush()
+    }
+    const clearSettings = document.querySelector<HTMLButtonElement>('[data-settings-search-clear]')
+    expect(clearSettings).not.toBeNull()
+    await click(clearSettings)
+    expect(settingsSearch?.value).toBe('')
+    expect(document.querySelector('[data-settings-search-clear]')).toBeNull()
+
+    await mountScreen('keyboard')
+    const kbSearch = document.querySelector<HTMLInputElement>('[data-keyboard-search]')
+    expect(kbSearch).not.toBeNull()
+    expect(document.querySelector('[data-keyboard-search-clear]')).toBeNull()
+    if (kbSearch !== null) {
+      kbSearch.value = 'save'
+      kbSearch.dispatchEvent(new Event('input', { bubbles: true }))
+      await flush()
+    }
+    const clearKb = document.querySelector<HTMLButtonElement>('[data-keyboard-search-clear]')
+    expect(clearKb).not.toBeNull()
+    await click(clearKb)
+    expect(kbSearch?.value).toBe('')
+    expect(document.querySelector('[data-keyboard-search-clear]')).toBeNull()
   })
 })

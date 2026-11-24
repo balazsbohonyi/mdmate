@@ -199,6 +199,7 @@ describe('ISC-464: the Appearance rows sit under their headings', () => {
       'theme',
       '# Fonts',
       'fonts.preset',
+      'fonts.density',
       'fonts.heading',
       'fonts.body',
       'fonts.code',

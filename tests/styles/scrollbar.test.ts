@@ -90,3 +90,19 @@ describe('scrollbars of panes that are not focused (ISC-546)', () => {
     expect(read('src/features/themes/preview/ThemePreview.vue')).toContain('data-theme-preview')
   })
 })
+
+describe('search cancel button and preset grid scroll-only scrollbar (ISC-736, ISC-739)', () => {
+  const css = read('src/styles/tokens.css')
+
+  it('ISC-736: hides the native WebKit search cancel button globally', () => {
+    expect(css).toMatch(
+      /input\[type='search'\]::-webkit-search-cancel-button\s*\{[^}]*display:\s*none/,
+    )
+  })
+
+  it('ISC-739: hides the preset container scrollbar thumb unless data-scrolling is true', () => {
+    expect(css).toMatch(
+      /\[data-font-preset-cards\]:not\(\[data-scrolling='true'\]\)::-webkit-scrollbar-thumb\s*\{[^}]*background-color:\s*transparent/,
+    )
+  })
+})

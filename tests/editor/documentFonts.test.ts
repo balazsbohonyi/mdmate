@@ -337,16 +337,45 @@ describe('the properties are what the editor theme reads', () => {
   it('has fallbacks that are the defaults, for a file that is not read yet or cannot be', () => {
     const fallback = (text: string, name: string): string | undefined =>
       new RegExp(`var\\(${name}, (calc\\([^)]*\\)|[^)]+)\\)`).exec(text)?.[1]
-    expect(fallback(theme('create.ts'), FONT_VARIABLES.size)).toBe(
-      `${DEFAULT_SETTINGS.fonts.size}px`,
-    )
+    const system = FONT_PRESETS.system
+    expect(fallback(theme('create.ts'), FONT_VARIABLES.size)).toBe(`${String(system.size)}px`)
     const preview = theme('livePreview/theme.ts')
-    DEFAULT_SETTINGS.fonts.headingScale.forEach((multiple, index) => {
+    system.headingScale.forEach((multiple, index) => {
       expect(fallback(preview, FONT_VARIABLES.headingScale(index + 1))).toBe(String(multiple))
     })
     expect(fallback(theme('livePreview/box.ts'), FONT_VARIABLES.codeRatio)).toBe(
-      `calc(${DEFAULT_SETTINGS.fonts.codeSize} / ${DEFAULT_SETTINGS.fonts.size})`,
+      `calc(${String(system.codeSize)} / ${String(system.size)})`,
     )
+  })
+
+  it('ISC-725: emits per-preset typography metrics and Compact density scaling into CSS properties', () => {
+    const editorial = documentFontVariables({
+      ...DEFAULT_SETTINGS.fonts,
+      preset: 'editorial',
+      density: 'comfort',
+    })
+    expect(editorial[FONT_VARIABLES.size]).toBe('18px')
+    expect(editorial[FONT_VARIABLES.lineHeight]).toBe('1.6')
+    expect(editorial[FONT_VARIABLES.codeRatio]).toBe(String(14 / 18))
+    expect(editorial[FONT_VARIABLES.codeLineHeight]).toBe('1.5')
+
+    const editorialCompact = documentFontVariables({
+      ...DEFAULT_SETTINGS.fonts,
+      preset: 'editorial',
+      density: 'compact',
+    })
+    expect(editorialCompact[FONT_VARIABLES.size]).toBe('15px')
+    expect(editorialCompact[FONT_VARIABLES.lineHeight]).toBe('1.5')
+    expect(editorialCompact[FONT_VARIABLES.codeRatio]).toBe(String(12 / 15))
+    expect(editorialCompact[FONT_VARIABLES.codeLineHeight]).toBe('1.4')
+
+    const modernCompact = documentFontVariables({
+      ...DEFAULT_SETTINGS.fonts,
+      preset: 'modern',
+      density: 'compact',
+    })
+    expect(modernCompact[FONT_VARIABLES.size]).toBe('15px')
+    expect(modernCompact[FONT_VARIABLES.lineHeight]).toBe('1.5')
   })
 
   it('has no hardcoded 0.92em left in the code rules', () => {

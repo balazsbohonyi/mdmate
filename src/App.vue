@@ -3,6 +3,7 @@ import { onMounted } from 'vue'
 import { beginJournal, restoreOnStart } from '@/documents/session'
 import { watchDisk } from '@/documents/store'
 import { installFileDrop } from '@/features/drop'
+import { loadFontPresets, watchFontPresetsFolder } from '@/features/fontPresets/store'
 import { loadKeybindings, watchKeybindingsFile } from '@/features/keybindings/store'
 import { loadSettings, watchSettingsFile } from '@/features/settings/store'
 import { loadThemes, watchSystemAppearance, watchThemesFolder } from '@/features/themes/store'
@@ -29,8 +30,9 @@ onMounted(async () => {
   // The system's light or dark first, so System resolves right the first time a theme is applied.
   watchSystemAppearance()
   await loadSettings()
-  // Before the first paint too, so a user theme is on the page before the window shows.
+  // Before the first paint too, so user themes and font presets are active before the window shows.
   await loadThemes()
+  await loadFontPresets()
   // Also before the first paint: a saved shortcut works from the first key press.
   await loadKeybindings()
   // Before the first paint, so the window opens with the tabs the last run left.
@@ -45,6 +47,9 @@ onMounted(async () => {
   })
   void watchThemesFolder().catch((error: unknown) => {
     console.error('Could not watch the themes folder', error)
+  })
+  void watchFontPresetsFolder().catch((error: unknown) => {
+    console.error('Could not watch the font-presets folder', error)
   })
   void watchKeybindingsFile().catch((error: unknown) => {
     console.error('Could not watch keybindings.json', error)

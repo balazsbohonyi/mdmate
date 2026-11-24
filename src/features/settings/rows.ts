@@ -17,6 +17,8 @@ export type RowControl =
   | { readonly kind: 'text'; readonly placeholder: string; readonly browse?: true }
   /** Live specimen cards for the bundled font presets. */
   | { readonly kind: 'fontPreset' }
+  /** Comfort / Compact density toggle for document font sizing. */
+  | { readonly kind: 'fontDensity' }
   /** A font family, with a sample line in the family typed. */
   | { readonly kind: 'font'; readonly family: FontKind }
   /** Six numbers, one for each heading level. */
@@ -79,8 +81,17 @@ export const SETTING_ROWS: readonly SettingRowSpec[] = [
     group: 'Fonts',
     label: 'Font preset',
     description:
-      'Bundled heading, body and code font pairing. Picking a preset clears individual font overrides.',
+      'Heading, body and code font pairing with tuned typography defaults. Picking a preset clears individual overrides.',
     control: { kind: 'fontPreset' },
+  },
+  {
+    key: 'fonts.density',
+    category: 'appearance',
+    group: 'Fonts',
+    label: 'Density',
+    description:
+      'Comfort uses the preset sizing as defined. Compact tightens text and code sizing across the document.',
+    control: { kind: 'fontDensity' },
   },
   {
     key: 'fonts.heading',

@@ -30,13 +30,14 @@ describe('the key table', () => {
     }
   })
 
-  it('keeps the defaults of today: preset, sizes, heading scale, wrapping and the built-in folder list', () => {
+  it('keeps the defaults of today: preset, density, nullable preset-inherited sizes, wrapping and the built-in folder list', () => {
     expect(DEFAULT_SETTINGS.fonts.preset).toBe('system')
-    expect(DEFAULT_SETTINGS.fonts.size).toBe(16)
-    expect(DEFAULT_SETTINGS.fonts.codeSize).toBe(14)
-    expect(DEFAULT_SETTINGS.fonts.lineHeight).toBe(1.5)
-    expect(DEFAULT_SETTINGS.fonts.codeLineHeight).toBe(1.4)
-    expect(DEFAULT_SETTINGS.fonts.headingScale).toEqual([1.7, 1.45, 1.25, 1.1, 1, 0.95])
+    expect(DEFAULT_SETTINGS.fonts.density).toBe('comfort')
+    expect(DEFAULT_SETTINGS.fonts.size).toBeNull()
+    expect(DEFAULT_SETTINGS.fonts.codeSize).toBeNull()
+    expect(DEFAULT_SETTINGS.fonts.lineHeight).toBeNull()
+    expect(DEFAULT_SETTINGS.fonts.codeLineHeight).toBeNull()
+    expect(DEFAULT_SETTINGS.fonts.headingScale).toBeNull()
     expect(DEFAULT_SETTINGS.editor.wordWrap).toBe(true)
     expect(DEFAULT_SETTINGS.images.pasteFolder).toBe('assets')
     expect(DEFAULT_SETTINGS.links.onRename).toBe('never')
@@ -122,19 +123,21 @@ describe('parseSettingsText', () => {
 describe('the value rules', () => {
   const check = (key: SettingKey, value: unknown): boolean => SETTING_DEFS[key].check(value).ok
 
-  it('takes a size from 8 to 40 and refuses text, 400 and NaN', () => {
+  it('takes a size from 8 to 40 or null (inherit) and refuses text, 400 and NaN (ISC-723)', () => {
+    expect(check('fonts.size', null)).toBe(true)
     expect(check('fonts.size', 20)).toBe(true)
     expect(check('fonts.size', 15.5)).toBe(true)
-    for (const bad of ['big', 400, 7.9, Number.NaN, Infinity, null, [], '20']) {
+    for (const bad of ['big', 400, 7.9, Number.NaN, Infinity, [], '20']) {
       expect(check('fonts.size', bad), String(bad)).toBe(false)
     }
+    expect(check('fonts.codeSize', null)).toBe(true)
     expect(check('fonts.codeSize', 18)).toBe(true)
     expect(check('fonts.codeSize', 41)).toBe(false)
   })
 
-  it('ISC-625: takes a line height from 1 to 3 in steps of 0.05 and refuses the rest', () => {
+  it('ISC-625 & ISC-723: takes a line height from 1 to 3 in steps of 0.05 or null (inherit) and refuses the rest', () => {
     for (const key of ['fonts.lineHeight', 'fonts.codeLineHeight'] as const) {
-      for (const good of [1, 3, 1.45, 1.4, 1.05, 2.95, 1.6, 2]) {
+      for (const good of [null, 1, 3, 1.45, 1.4, 1.05, 2.95, 1.6, 2]) {
         expect(check(key, good), `${key} ${String(good)}`).toBe(true)
       }
       for (const bad of [
@@ -149,12 +152,19 @@ describe('the value rules', () => {
         Number.NaN,
         Infinity,
         '1.5',
-        null,
         [],
         true,
       ]) {
         expect(check(key, bad), `${key} ${String(bad)}`).toBe(false)
       }
+    }
+  })
+
+  it('ISC-724: takes comfort or compact for fonts.density and refuses anything else', () => {
+    expect(check('fonts.density', 'comfort')).toBe(true)
+    expect(check('fonts.density', 'compact')).toBe(true)
+    for (const bad of ['', 'dense', 'Compact', null, 1]) {
+      expect(check('fonts.density', bad), String(bad)).toBe(false)
     }
   })
 
@@ -177,7 +187,7 @@ describe('the value rules', () => {
     expect(parsed.present.get('fonts.codeLineHeight')?.ok).toBe(false)
     expect(parsed.present.get('fonts.size')).toEqual({ ok: true, value: 16 })
     const after = settingsAfter(cloneSettings(DEFAULT_SETTINGS), parsed)
-    expect([after.fonts.lineHeight, after.fonts.codeLineHeight]).toEqual([1.45, 1.4])
+    expect([after.fonts.lineHeight, after.fonts.codeLineHeight]).toEqual([1.45, null])
   })
 
   it('takes six heading multiples from 0.5 to 4', () => {
@@ -194,11 +204,11 @@ describe('the value rules', () => {
     }
   })
 
-  it('takes one of the four font preset ids and refuses anything else (ISC-715)', () => {
-    for (const good of ['system', 'editorial', 'modern', 'journal']) {
+  it('takes built-in or custom font preset ids and refuses paths, blanks or non-strings (ISC-715, ISC-730)', () => {
+    for (const good of ['system', 'editorial', 'modern', 'journal', 'My Reading']) {
       expect(check('fonts.preset', good), good).toBe(true)
     }
-    for (const bad of ['', 'classic', 'System', 5, null]) {
+    for (const bad of ['', '   ', '../x', 'a/b', 'a\\b', 'bad\nname', 'x'.repeat(101), 5, null]) {
       expect(check('fonts.preset', bad), String(bad)).toBe(false)
     }
   })
@@ -399,8 +409,11 @@ describe('settingsAfter', () => {
   })
 
   it('does not share arrays with its input or with the defaults', () => {
-    const after = settingsAfter(base, parseSettingsText('{}'))
-    expect(after.fonts.headingScale).not.toBe(DEFAULT_SETTINGS.fonts.headingScale)
+    const after = settingsAfter(
+      base,
+      parseSettingsText('{"fonts": {"headingScale": [2, 1.5, 1.25, 1.1, 1, 0.9]}}'),
+    )
+    expect(after.fonts.headingScale).toEqual([2, 1.5, 1.25, 1.1, 1, 0.9])
     expect(after.workspace.excludedFolders).not.toBe(BUILT_IN_EXCLUDED_FOLDERS)
     expect(after.workspace.hiddenNames).not.toBe(BUILT_IN_HIDDEN_NAMES)
     expect(after.workspace.hiddenNames).not.toBe(base.workspace.hiddenNames)

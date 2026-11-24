@@ -158,6 +158,12 @@
   body {
     @apply bg-background text-chrome text-foreground;
   }
+  /* Hide the thick native WebKit clear button; our search inputs render their own thin X icon (ISC-736). */
+  input[type='search']::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+    display: none;
+  }
 }
 
 /* A hint drawn inside the editor (ISC-226): the shadcn tooltip's look, from the same tokens. */
@@ -223,6 +229,10 @@ html[data-tree-drag='blocked'] * {
 [data-pane-id][data-active='false']
   [data-pane-body]:not(:hover, :has([data-theme-preview]))
   ::-webkit-scrollbar-thumb {
+  background-color: transparent;
+}
+/* Preset grid keeps its scrollbar thumb hidden at rest and reveals it only while scrolling (ISC-739). */
+[data-font-preset-cards]:not([data-scrolling='true'])::-webkit-scrollbar-thumb {
   background-color: transparent;
 }
 ::-webkit-scrollbar-button {

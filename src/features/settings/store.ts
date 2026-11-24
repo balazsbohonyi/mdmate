@@ -7,7 +7,6 @@ import {
   revertDocument,
   saveDocument,
 } from '@/documents/store'
-import { updateDocumentFonts } from '@/editor/documentFonts'
 import { updateContentWidth } from '@/editor/documentWidth'
 import { refreshSourceLanguages } from '@/editor/sourceLanguage'
 import { refreshLineNumbers } from '@/editor/lineNumbers'
@@ -30,6 +29,7 @@ import {
   type SettingKey,
   type SettingValueMap,
 } from '@/lib/settingsFile'
+import { activeFontPreset, applyCurrentFontPreset } from '@/features/fontPresets/store'
 import type { FontPresetId } from '@/lib/fontPresets'
 import { cloneSettings, DEFAULT_SETTINGS, settings } from '@/lib/settings'
 import { applyCurrentTheme } from '@/features/themes/store'
@@ -166,7 +166,7 @@ export function applySettingsText(text: string | null): void {
   assignSettings(settingsAfter(settings, parsed))
   if (settings.editor.wordWrap !== wrapped) refreshWordWrap()
   if (settings.editor.lineNumbers !== numbered) refreshLineNumbers()
-  updateDocumentFonts()
+  applyCurrentFontPreset()
   updateContentWidth()
   updateZoom()
   refreshSourceLanguages()
@@ -225,6 +225,35 @@ export function settledSettings(): Promise<void> {
  * the command, a row's reset, an answered question), so they agree. Turning the limit off, or
  * changing anything else, leaves word wrap alone, and a hand edit of the file is never rewritten.
  */
+/** Every individual font and typography metric key cleared when a preset is selected. */
+export const FONT_OVERRIDE_KEYS = [
+  'fonts.heading',
+  'fonts.body',
+  'fonts.code',
+  'fonts.size',
+  'fonts.lineHeight',
+  'fonts.codeSize',
+  'fonts.codeLineHeight',
+  'fonts.headingScale',
+] as const
+
+function matchesActivePresetMetric(key: SettingKey, value: unknown): boolean {
+  if (value === null) return false
+  const preset = activeFontPreset.value
+  if (key === 'fonts.size') return value === preset.size
+  if (key === 'fonts.lineHeight') return value === preset.lineHeight
+  if (key === 'fonts.codeSize') return value === preset.codeSize
+  if (key === 'fonts.codeLineHeight') return value === preset.codeLineHeight
+  if (key === 'fonts.headingScale') {
+    return (
+      Array.isArray(value) &&
+      value.length === preset.headingScale.length &&
+      value.every((item, i) => item === preset.headingScale[i])
+    )
+  }
+  return false
+}
+
 export function changeSetting<K extends SettingKey>(
   key: K,
   value: SettingValueMap[K],
@@ -235,12 +264,15 @@ export function changeSetting<K extends SettingKey>(
     reportWarning(`${key}: ${checked.why}`)
     return Promise.resolve(false)
   }
-  const needsWrap = key === 'editor.limitContentWidth' && checked.value === true
+  const normalized = matchesActivePresetMetric(key, checked.value)
+    ? (null as SettingValueMap[K])
+    : checked.value
+  const needsWrap = key === 'editor.limitContentWidth' && normalized === true
   return writeSettings((current, template) => {
     const edited = editSettingsText(
       current,
       def.path,
-      def.equals(checked.value, def.default) ? undefined : checked.value,
+      def.equals(normalized, def.default) ? undefined : normalized,
       'settings.json',
       template,
     )
@@ -257,8 +289,8 @@ export function changeSetting<K extends SettingKey>(
 }
 
 /**
- * Applies a font preset and clears any individual heading, body and code overrides in one atomic
- * write, so the chosen preset takes effect immediately without leftover custom overrides.
+ * Applies a font preset and clears all individual font and size overrides in one atomic write, so
+ * the chosen preset's families and typography metrics take effect immediately.
  */
 export function applyFontPreset(preset: FontPresetId): Promise<boolean> {
   const def = SETTING_DEFS['fonts.preset']
@@ -275,7 +307,7 @@ export function applyFontPreset(preset: FontPresetId): Promise<boolean> {
       'settings.json',
       template,
     )
-    for (const key of ['fonts.heading', 'fonts.body', 'fonts.code'] as const) {
+    for (const key of FONT_OVERRIDE_KEYS) {
       if (!edited.ok) return edited
       edited = editSettingsText(
         edited.text,

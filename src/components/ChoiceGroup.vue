@@ -30,7 +30,7 @@ function onChange(value: unknown): void {
     :size="props.size ?? 'sm'"
     :model-value="chosen"
     :aria-label="props.label"
-    data-theme-choice-group
+    data-choice-group
     @update:model-value="onChange"
   >
     <ToggleGroupItem

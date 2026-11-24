@@ -56,6 +56,9 @@ pub fn run() {
             app.manage(Arc::new(settings::SettingsStore::new(dir.clone())));
             app.manage(Arc::new(settings::KeybindingsStore::new(dir.clone())));
             app.manage(Arc::new(settings::themes::ThemeStore::new(dir.clone())));
+            app.manage(Arc::new(settings::font_presets::FontPresetStore::new(
+                dir.clone(),
+            )));
             app.manage(Arc::new(session::SessionStore::new(dir)));
             app.manage(Arc::new(window_state::WindowMemory::default()));
             // Reload, view source and the zoom keys belong to a browser, not to this app.
@@ -167,6 +170,13 @@ pub fn run() {
         commands::theme_delete,
         commands::watch_themes,
         commands::themes_folder_open,
+        commands::font_presets_read,
+        commands::font_preset_read,
+        commands::font_preset_write,
+        commands::font_preset_rename,
+        commands::font_preset_delete,
+        commands::watch_font_presets,
+        commands::font_presets_folder_open,
         commands::devtools_open,
         commands::rewrite_plan,
         commands::find_references,
@@ -264,6 +274,13 @@ pub fn run() {
         commands::theme_delete,
         commands::watch_themes,
         commands::themes_folder_open,
+        commands::font_presets_read,
+        commands::font_preset_read,
+        commands::font_preset_write,
+        commands::font_preset_rename,
+        commands::font_preset_delete,
+        commands::watch_font_presets,
+        commands::font_presets_folder_open,
         commands::devtools_open,
         commands::rewrite_plan,
         commands::find_references,

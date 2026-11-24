@@ -53,7 +53,7 @@ mdmate/
 │  ├─ links/          Link guard (guard.rs), scanner (scan.rs), file walker (walk.rs), rewrite engine (rewrite.rs)
 │  ├─ session/        Hot-exit store
 │  ├─ git/            What git says about the files under a root: locate.rs (find the program), discover.rs (find the repositories), run.rs (start git, timeout, cap), status.rs (read the output), command.rs (the page's one question)
-│  ├─ settings/       Settings and keybinding files
+│  ├─ settings/       Settings, keybindings, themes (`themes/`), and font presets (`font-presets/`) via shared `JsonFolderStore`
 │  ├─ window_state.rs The window's normal bounds and the fit of a saved window to today's monitors
 │  ├─ paths.rs        Data folder: `MDMATE_DATA_DIR`, else `<exe dir>/data` beside an `mdmate.portable` file, else the app-data folder
 │  └─ platform/       Traits, windows/, macos/ and linux/ stubs
@@ -269,6 +269,7 @@ Markdown content is untrusted, and people will open files they did not write.
 - SVG renders through `<img>`, so its scripts cannot run.
 - The CSP allows `https` for images only. The app makes no other network request.
 - User theme files load only from `themes/` in the app data folder, are read as data and never run, and set token values: each value must be a hex color or an `oklch()` with plain numbers, and is checked again before it reaches a style. A theme file in an opened workspace is never read.
+- Custom font presets load only from `font-presets/` in the app data folder via `FontPresetStore`, are validated as JSONC data (plain names, 256 KB / 200-file caps, plain files only), and never read from an opened workspace.
 
 ## Startup
 

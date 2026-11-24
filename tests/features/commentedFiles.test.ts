@@ -279,12 +279,12 @@ describe('ISC-426: taking the // off a line takes effect', () => {
     })
     const sizeLine = settingsTemplate().example(['fonts', 'size']) ?? ''
     const block = settingsTemplate().block(['fonts']) ?? []
-    expect(settings.fonts.size).toBe(16)
+    expect(settings.fonts.size).toBeNull()
     // The whole group is uncommented with its braces, then the value is edited.
     let text = settingsTemplate().text
     for (const line of block) text = text.replace(`  ${line}`, `  ${line.replace(/^\/\/ ?/, '')}`)
-    text = text.replace('"size": 16,', '"size": 21,')
-    expect(sizeLine).toContain('"size": 16')
+    text = text.replace('"size": null,', '"size": 21,')
+    expect(sizeLine).toContain('"size": null')
     applySettingsText(text)
     expect(settings.fonts.size).toBe(21)
 

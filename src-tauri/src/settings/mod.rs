@@ -10,6 +10,8 @@
 //! Until the page can name the environment variable's value itself, what a rename does about links
 //! can also come from `MDMATE_LINKS_ON_RENAME`, which wins over the file for that run.
 
+pub(crate) mod folder_store;
+pub(crate) mod font_presets;
 pub(crate) mod runtime;
 pub(crate) mod themes;
 

@@ -4,7 +4,10 @@ import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { docMeta } from '@/documents/meta'
 import { languageChoices, type LanguageChoice } from '@/editor/codeLanguages'
 import { familyStack, type FontKind } from '@/editor/documentFonts'
-import { FONT_PRESETS, type FontPresetId } from '@/lib/fontPresets'
+import ChoiceGroup from '@/components/ChoiceGroup.vue'
+import { openFontPresetsFolder } from '@/features/fontPresets/manage'
+import { activeFontPreset, fontPresetProblem } from '@/features/fontPresets/store'
+import { resolveFontMetrics, type FontDensity, type FontPresetId } from '@/lib/fontPresets'
 import FontPicker from './FontPicker.vue'
 import FontPresetCards from './FontPresetCards.vue'
 import { fontFamilies } from './fontList'
@@ -59,6 +62,7 @@ import {
   resolvePendingKeybindingChange,
 } from '@/features/keybindings/store'
 import {
+  FONT_OVERRIDE_KEYS,
   isModified,
   pendingSettingChange,
   requestFontPreset,
@@ -142,11 +146,27 @@ function lockOf(key: SettingKey): string | null {
 
 function errorOf(key: SettingKey): string | null {
   const own = refused[key] ?? settingsFileState.problems[key] ?? null
-  return key === 'theme' ? (own ?? themeProblem.value) : own
+  if (key === 'theme') return own ?? themeProblem.value
+  if (key === 'fonts.preset') return own ?? fontPresetProblem.value
+  return own
 }
 
+const DENSITY_CHOICES: readonly { readonly value: FontDensity; readonly label: string }[] = [
+  { value: 'comfort', label: 'Comfort' },
+  { value: 'compact', label: 'Compact' },
+]
+
+/** The active preset record and resolved Comfort/effective font metrics. */
+const activePreset = activeFontPreset
+const fontMetrics = computed(() => resolveFontMetrics(settings.fonts, activePreset.value))
+
 function shownText(key: SettingKey): string {
-  return drafts[key] ?? String(valueOf(key))
+  if (drafts[key] !== undefined) return drafts[key]
+  if (key === 'fonts.size') return String(fontMetrics.value.base.size)
+  if (key === 'fonts.lineHeight') return String(fontMetrics.value.base.lineHeight)
+  if (key === 'fonts.codeSize') return String(fontMetrics.value.base.codeSize)
+  if (key === 'fonts.codeLineHeight') return String(fontMetrics.value.base.codeLineHeight)
+  return String(valueOf(key))
 }
 
 function choiceValue(spec: SettingRowSpec): string {
@@ -215,27 +235,26 @@ function reset(key: SettingKey): void {
   void requestResetSetting(key)
 }
 
-/** Whether any individual heading, body or code font override is currently set. */
-const fontOverridesActive = computed(
-  () => settings.fonts.heading !== '' || settings.fonts.body !== '' || settings.fonts.code !== '',
-)
+/** Whether any individual font family or typography metric override is currently set. */
+const fontOverridesActive = computed(() => fontMetrics.value.customized)
 
 function chooseFontPreset(preset: FontPresetId): void {
-  for (const key of ['fonts.heading', 'fonts.body', 'fonts.code'] as const) {
+  for (const key of FONT_OVERRIDE_KEYS) {
     delete drafts[key]
     delete refused[key]
   }
+  revertScale()
   void requestFontPreset(preset)
 }
 
 function fontDefaultLabel(family: FontKind): string {
-  return `Preset default (${FONT_PRESETS[settings.fonts.preset][family].name})`
+  return `Preset default (${activePreset.value[family].name})`
 }
 
 /** The font stack the sample line under a family field is drawn in: what is typed, then the fallbacks. */
 function sampleStack(spec: SettingRowSpec): string {
   if (spec.control.kind !== 'font') return ''
-  return familyStack(spec.control.family, shownText(spec.key), settings.fonts.preset)
+  return familyStack(spec.control.family, shownText(spec.key), activePreset.value)
 }
 
 const HEADING_SCALE = 'fonts.headingScale' as const
@@ -243,7 +262,7 @@ const HEADING_SCALE = 'fonts.headingScale' as const
 const scaleDrafts = reactive<Record<number, string>>({})
 
 function scaleText(index: number): string {
-  return scaleDrafts[index] ?? String(settings.fonts.headingScale[index] ?? '')
+  return scaleDrafts[index] ?? String(fontMetrics.value.base.headingScale[index] ?? '')
 }
 
 function onScaleType(index: number, text: string | number): void {
@@ -257,7 +276,7 @@ function revertScale(): void {
 
 /** Accepts the six sizes together when one is left: the list is checked and written as one value. */
 function acceptScale(): void {
-  const numbers = settings.fonts.headingScale.map((_, index) => {
+  const numbers = fontMetrics.value.base.headingScale.map((_, index) => {
     const text = scaleText(index).trim()
     return text === '' ? undefined : Number(text)
   })
@@ -636,9 +655,19 @@ function openFile(): void {
             type="search"
             placeholder="Search settings"
             aria-label="Search settings"
-            class="pl-8"
+            class="pr-7 pl-8"
             data-settings-search
           />
+          <button
+            v-if="query !== ''"
+            type="button"
+            aria-label="Clear search settings"
+            class="absolute top-1/2 right-1.5 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            data-settings-search-clear
+            @click="query = ''"
+          >
+            <X class="size-3.5" />
+          </button>
         </div>
         <button
           v-for="item in SETTINGS_CATEGORIES"
@@ -682,10 +711,20 @@ function openFile(): void {
               type="search"
               placeholder="Search shortcuts"
               aria-label="Search shortcuts"
-              class="pl-8"
+              class="pr-7 pl-8"
               data-keyboard-search
               @keydown.escape="keyboardQuery = ''"
             />
+            <button
+              v-if="keyboardQuery !== ''"
+              type="button"
+              aria-label="Clear search shortcuts"
+              class="absolute top-1/2 right-1.5 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              data-keyboard-search-clear
+              @click="keyboardQuery = ''"
+            >
+              <X class="size-3.5" />
+            </button>
           </div>
         </div>
         <KeyboardPanel
@@ -750,8 +789,32 @@ function openFile(): void {
                 v-if="spec.control.kind === 'fontPreset'"
                 :model-value="settings.fonts.preset"
                 :customized="fontOverridesActive"
+                :density="settings.fonts.density"
                 @select="chooseFontPreset"
               />
+              <div
+                v-else-if="spec.control.kind === 'fontDensity'"
+                class="flex flex-col items-end gap-1"
+                data-font-density
+              >
+                <ChoiceGroup
+                  :model-value="settings.fonts.density"
+                  :options="DENSITY_CHOICES"
+                  label="Font density"
+                  item-attr="data-font-density-choice"
+                  @update:model-value="(value: FontDensity) => set('fonts.density', value)"
+                />
+                <p
+                  v-if="settings.fonts.density === 'compact'"
+                  class="text-right text-xs text-muted-foreground"
+                  data-font-density-effective
+                >
+                  Effective: {{ fontMetrics.effective.size }}px /
+                  {{ fontMetrics.effective.lineHeight }} · Code
+                  {{ fontMetrics.effective.codeSize }}px /
+                  {{ fontMetrics.effective.codeLineHeight }}
+                </p>
+              </div>
               <Switch
                 v-else-if="spec.control.kind === 'switch'"
                 :model-value="valueOf(spec.key) === true"
@@ -885,7 +948,7 @@ function openFile(): void {
                 data-heading-scale
               >
                 <label
-                  v-for="(_, index) in settings.fonts.headingScale"
+                  v-for="(_, index) in fontMetrics.base.headingScale"
                   :key="index"
                   class="flex flex-col items-center gap-0.5 text-xs text-muted-foreground"
                 >
@@ -1169,6 +1232,28 @@ function openFile(): void {
                 @click="openThemesFolder"
               >
                 Open themes folder
+              </Button>
+            </div>
+          </SettingRow>
+          <SettingRow
+            v-if="showsActions"
+            :setting-key="null"
+            label="font-presets folder"
+            description="Your custom font presets, one .json file each. Add or edit one and this screen follows."
+            :modified="false"
+            :error="null"
+            :locked="null"
+          >
+            <div class="flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                class="w-[10.25rem]"
+                data-open-font-presets-folder
+                @click="openFontPresetsFolder"
+              >
+                Open font presets folder
               </Button>
             </div>
           </SettingRow>

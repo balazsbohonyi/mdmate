@@ -76,7 +76,7 @@ const frame = EditorView.theme({
   [`&.${SOURCE_MODE_CLASS} .cm-content`]: {
     fontFamily: `var(--doc-font-code, ${BUILT_IN_CODE_FAMILY})`,
     fontSize: 'calc(var(--doc-code-ratio, calc(14 / 16)) * var(--doc-size, 16px))',
-    lineHeight: 'var(--doc-code-line-height, 1.4)',
+    lineHeight: 'var(--doc-code-line-height, 1.5)',
   },
   // Without wrapping there is no column to keep: a long line runs out of it, so the limit waits for
   // word wrap (documentWidth.ts).
@@ -108,7 +108,7 @@ const frame = EditorView.theme({
   // In plain-source and Raw Mode, each line is `codeLineHeight * codeSize`, so the gutter matches.
   [`&.cm-lineNumbersOn.${SOURCE_MODE_CLASS} .cm-gutters`]: {
     lineHeight:
-      'calc(var(--doc-code-line-height, 1.4) * var(--doc-code-ratio, calc(14 / 16)) * var(--doc-size, 16px))',
+      'calc(var(--doc-code-line-height, 1.5) * var(--doc-code-ratio, calc(14 / 16)) * var(--doc-size, 16px))',
   },
   // The same room on both sides of the digits (CodeMirror's own is 5px on the left and 3px on the
   // right, and the numbers are right-aligned).

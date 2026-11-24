@@ -581,6 +581,24 @@
 
 **Done when:** fail-first tests pass, `pnpm test:web`, `pnpm check`, `pnpm check:rust` and `pnpm build` exit 0, visual checks in `pnpm dev` pass in Dark/Light/Sepia, and the owner reviews ISC-721. Closes ISC-715 to ISC-721.
 
+## P9.1-T39: Per-preset typography sizes & Comfort / Compact density
+
+**The change:** each built-in preset carries default text size & line height, code size & line height, and heading scale (`system`: `16 / 1.5`, `14 / 1.5`; `editorial`: `18 / 1.6`, `14 / 1.5`; `modern`: `17 / 1.6`, `14 / 1.5`; `journal`: `18 / 1.6`, `14 / 1.5`; all heading scale `[1.7, 1.45, 1.25, 1.1, 1, 0.95]`). `fonts.size`, `fonts.lineHeight`, `fonts.codeSize`, `fonts.codeLineHeight`, and `fonts.headingScale` default to `null` (inherit active preset); explicit numbers/arrays remain valid overrides, and picking a preset clears all 8 font & size overrides atomically. New `fonts.density` (`"comfort"` default | `"compact"`) toggle sits below the preset cards: Compact applies `max(10, round(px * 0.86))` to text & code sizes and `max(1.15, lh - 0.1)` (0.05 steps) to both line heights live without mutating stored numbers. Inputs display base Comfort values (with effective readout beside the toggle when Compact is active), and preset card footers show effective text size / line height.
+
+**Done when:** fail-first tests pass, `pnpm test:web`, `pnpm check`, `pnpm check:rust` and `pnpm build` exit 0, visual checks in `pnpm dev` pass, and the owner reviews ISC-727. Closes ISC-722 to ISC-727.
+
+## P9.1-T40: Custom user font presets
+
+**The change:** user-created font presets live as `<data_dir>/font-presets/<stem>.json` (JSONC on read, clean JSON on write; optional `inlineCodeScale`), managed by Rust `FontPresetStore` (sharing `JsonFolderStore` with `ThemeStore`: plain names, 256 KB / 200 files, atomic write, Recycle Bin delete, live watch, open folder). Loaded at app startup (`App.vue`), with missing/broken ids falling back to `system` with a notice. Preset container gains a filter input, contextual `Update preset` / `Save as new` / `New preset` toolbar, inline creation form, capped scrollable 2-col grid (`max-h-[26rem]`), `Built-in` badge on built-in cards, and a card ellipsis (`⋯`) menu (`Duplicate…`, `Reset overrides`, `Update from current`, inline `Rename…`, confirmed `Delete`). Settings → Advanced gains an `Open font presets folder` row aligned with `Open themes folder`.
+
+**Done when:** fail-first Rust & web tests pass, `pnpm test:web`, `pnpm test:rust`, `pnpm check`, `pnpm check:rust` and `pnpm build` exit 0, visual checks pass, and the owner reviews ISC-735. Closes ISC-728 to ISC-735.
+
+## P9.1-T41: Preset & search input polish
+
+**The change:** (1) Hide native `input[type='search']::-webkit-search-cancel-button` globally in `tokens.css` and add the thin Lucide `X` clear button to `Search settings` and `Search shortcuts` matching `FontPresetCards.vue`; (2) make `noticesHeld` reactive in `features/fontPresets/store.ts` so `fontPresetProblem` never flashes a red missing-preset error during active-preset rename; (3) scroll the active preset card into view inside `[data-font-preset-cards]` on mount without scrolling the outer Settings panel; (4) hide `[data-font-preset-cards]` scrollbar thumb at rest and show it only while `data-scrolling="true"`; (5) switch the preset grid to 3 columns on desktop (`@[46rem]:grid-cols-3`) when the app has 6 or more presets.
+
+**Done when:** fail-first tests pass, visual check in `pnpm dev` passes, and `pnpm check` & `pnpm check:rust` exit 0. Closes ISC-736 to ISC-740.
+
 ## Follow-ups on done tasks (2026-11-22)
 
 Not tasks. Each one reopens or adds the claim named, fails its probe on the old code first, and is committed as `[P9.1-Tn] ...` with the tag of the task it amends.

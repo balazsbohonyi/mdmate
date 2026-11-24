@@ -179,6 +179,9 @@ export interface ThemeFileEntry {
   readonly error: string | null
 }
 
+/** One file of the font-presets folder: its name without `.json`, and its text or why it has none. */
+export type FontPresetFileEntry = ThemeFileEntry
+
 /** What the page suggests the save dialog shows. */
 export interface SaveAsHint {
   /** The file name to suggest. */
@@ -504,6 +507,20 @@ export interface Host {
   watchThemes(onChange: () => void): Promise<() => void>
   /** Makes the themes folder when it is missing and shows it in the file manager. */
   themesFolderOpen(): Promise<void>
+  /** Every user font preset file in `font-presets/<name>.json` of the app data folder. */
+  fontPresetsRead(): Promise<FontPresetFileEntry[]>
+  /** The text of one font preset file, or null when missing. */
+  fontPresetRead(name: string): Promise<string | null>
+  /** Writes one font preset file atomically (`create` refuses to overwrite). */
+  fontPresetWrite(name: string, text: string, create: boolean): Promise<void>
+  /** Renames a font preset file without replacing another file. */
+  fontPresetRename(from: string, to: string): Promise<void>
+  /** Moves a font preset file to the Recycle Bin. */
+  fontPresetDelete(name: string): Promise<void>
+  /** Calls `onChange` each time a font preset file is added, changed or removed. */
+  watchFontPresets(onChange: () => void): Promise<() => void>
+  /** Makes the font-presets folder when missing and shows it in the file manager. */
+  fontPresetsFolderOpen(): Promise<void>
   /** Opens the developer tools. Rejects with `not-allowed` while the `devtools` setting is off. */
   devtoolsOpen(): Promise<void>
   /**

@@ -15,6 +15,7 @@ use crate::recent::{self, RecentStore};
 use crate::save_as::{self, SaveRequest, SavedAs};
 use crate::search;
 use crate::session::{self, CloseHook, SessionStore};
+use crate::settings::font_presets::{FontPresetEntry, FontPresetStore};
 use crate::settings::themes::{ThemeEntry, ThemeStore};
 use crate::settings::{KeybindingsStore, SettingsStore};
 use crate::window_state::{self, Geometry, WindowMemory};
@@ -1183,6 +1184,96 @@ pub(crate) fn watch_themes(
 /// is always the one in the data folder; the page names no path.
 #[tauri::command]
 pub(crate) async fn themes_folder_open(store: State<'_, Arc<ThemeStore>>) -> Result<(), AppError> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let folder = store.ensure_folder()?;
+        platform::current().show_folder(&folder)?;
+        Ok::<_, AppError>(())
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Every user font preset file in the data folder's `font-presets` folder, by name.
+#[tauri::command]
+pub(crate) async fn font_presets_read(
+    store: State<'_, Arc<FontPresetStore>>,
+) -> Result<Vec<FontPresetEntry>, AppError> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || store.list())
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// The text of one font preset file, or nothing when it is not there.
+#[tauri::command]
+pub(crate) async fn font_preset_read(
+    store: State<'_, Arc<FontPresetStore>>,
+    name: String,
+) -> Result<Option<String>, AppError> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || store.read(&name))
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Writes one font preset file atomically.
+#[tauri::command]
+pub(crate) async fn font_preset_write(
+    store: State<'_, Arc<FontPresetStore>>,
+    name: String,
+    text: String,
+    create: bool,
+) -> Result<(), AppError> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || store.write(&name, &text, create))
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Gives a font preset file another name without replacing another file.
+#[tauri::command]
+pub(crate) async fn font_preset_rename(
+    store: State<'_, Arc<FontPresetStore>>,
+    from: String,
+    to: String,
+) -> Result<(), AppError> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || store.rename(&from, &to))
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Moves a font preset file to the Recycle Bin.
+#[tauri::command]
+pub(crate) async fn font_preset_delete(
+    store: State<'_, Arc<FontPresetStore>>,
+    name: String,
+) -> Result<(), AppError> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        store.delete(&name, |path| platform::current().move_to_trash(path))
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Tells the page each time a font preset file is added, changed or removed.
+#[tauri::command]
+pub(crate) fn watch_font_presets(
+    store: State<'_, Arc<FontPresetStore>>,
+    on_change: Channel<()>,
+) -> Result<(), AppError> {
+    store.watch(Box::new(move || {
+        let _ = on_change.send(());
+    }))
+}
+
+/// Makes the font-presets folder if missing and shows it in the system's file manager.
+#[tauri::command]
+pub(crate) async fn font_presets_folder_open(
+    store: State<'_, Arc<FontPresetStore>>,
+) -> Result<(), AppError> {
     let store = store.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         let folder = store.ensure_folder()?;

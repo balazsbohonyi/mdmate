@@ -33,7 +33,7 @@ import {
   suggestCopyName,
   type StartFrom,
 } from './customize'
-import ChoiceGroup from './ChoiceGroup.vue'
+import ChoiceGroup from '@/components/ChoiceGroup.vue'
 import { closeThemeForm, openThemeForm, themeForm, themeSlots } from './store'
 
 /**
