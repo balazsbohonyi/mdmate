@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 721/801
+progress: 725/801
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-26T23:06:21Z
+updated: 2026-11-26T23:18:34Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -1098,10 +1098,10 @@ Why: formatting should stay in your fingers, so writing never stops for syntax.
 - [x] ISC-179: Text drag works in the real app while the window accepts native file drops.
 - [x] ISC-190: Anti: a paste never changes a read-only document.
 - [x] ISC-191: A drawn block is never a drop target.
-- [ ] ISC-752: `Mod+G`, a palette command and a menu entry open a Go to line box that takes `line` or `line:column`, and Enter puts the caret there with the line centred.
-- [ ] ISC-753: The Go to line box shows the jump while the number is typed, and Escape puts the caret and the scroll position back.
-- [ ] ISC-754: Line numbers are source lines with the frontmatter counted, a number out of range goes to the nearest line or column, and text that is not a number moves nothing.
-- [ ] ISC-755: Go to line works in every text tab, rendered Markdown, Raw Markdown and other files, a jump into a collapsed frontmatter or a drawn table leaves the target line visible, and it is disabled for image and Settings tabs.
+- [x] ISC-752: `Mod+G`, a palette command and a menu entry open a Go to line box that takes `line` or `line:column`, and Enter puts the caret there with the line centred.
+- [x] ISC-753: The Go to line box shows the jump while the number is typed, and Escape puts the caret and the scroll position back.
+- [x] ISC-754: Line numbers are source lines with the frontmatter counted, a number out of range goes to the nearest line or column, and text that is not a number moves nothing.
+- [x] ISC-755: Go to line works in every text tab, rendered Markdown, Raw Markdown and other files, a jump into a collapsed frontmatter or a drawn table leaves the target line visible, and it is disabled for image and Settings tabs.
 - [ ] ISC-756: The owner jumps to lines with the box in the real window.
 
 ### F7 · Workspace
@@ -1949,6 +1949,7 @@ Why: a folder of projects is easier to read when new, changed and ignored files 
 - 2026-11-27: refined: added ISC-741 to ISC-802 for P9.1-T42 to P9.1-T53 (owner list of 2026-11-26, settled by grilling; answers in `ai-docs/phases/phase-09.1/decisions.md`). Older claims are reworded by the task that changes the behaviour, not now: ISC-236 (T48, T49: the status bar holds more than a message), ISC-103 and ISC-227 (T52: a permanent delete exists beside the Recycle Bin one), ISC-185 (T44: fences in list items get the container, fences in quotes stay plain).
 
 ## Verification
+- P9.1-T45 (2026-11-27), Go to line: ISC-752 to ISC-755 closed (progress 725/801); ISC-756 stays open for the owner's review. Fail-first: before code, `tests/features/goToLine.test.ts` failed because the module did not exist; now it passes. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 4042 passed with the one earlier failure (ISC-714). In `pnpm dev` on port 5199, `Ctrl+G` and `121:6` centred and marked the line, Escape restored caret and scroll, Enter kept the target, and the palette entry opened the box. Not verified: the real window.
 - P9.1-T44 (2026-11-27), code blocks inside lists: ISC-748 to ISC-750 closed (progress 721/801), ISC-185 reworded; ISC-751 stays open for the owner's review. Fail-first: before code, 11 of 18 tests in `listFences.test.ts` failed; now all pass with `codeCopy.test.ts` and `codeBlock.test.ts`. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 4018 passed with the one earlier failure (ISC-714). In `pnpm dev` on port 5199 containers started under their item's text in a monospace and a proportional font, a long line wrapped inside the panel, and the arrow keys reached every line. Not verified: the real window, the owner's research document.
 - P9.1-T43 (2026-11-27), list indentation and spacing: ISC-744 to ISC-746 closed (progress 718/801); ISC-747 stays open for the owner's review. Fail-first: before code, 20 of 27 tests in `listIndent.test.ts` and `listSpacing.test.ts` failed; now all pass. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 4000 passed with the one failure that predates this phase's list (ISC-714). In `pnpm dev` on port 5199 nested lists, tables and a fence moved together, the gap showed above a heading, and ArrowDown and ArrowUp reached all 29 lines. Not verified: the real window.
 - P9.1-T42 (2026-11-27), themed checkbox: ISC-741 and ISC-742 closed (progress 715/801); ISC-743 stays open for the owner's review. Fail-first: before code, 3 tests of `checkboxStyle.test.ts`, 3 of `themes.test.ts` and 1 of `themeTokenUsage.test.ts` failed; now they pass. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 3973 passed with the one failure that predates this task (ISC-714, `tableStyle.test.ts`). Screenshots from `pnpm dev` on port 5199 show open and checked boxes in Dark, Light and Sepia. Not verified: the real window.

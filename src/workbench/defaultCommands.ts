@@ -85,6 +85,7 @@ export const COMMAND_IDS = {
   zoomReset: 'view.zoomReset',
   back: 'navigate.back',
   forward: 'navigate.forward',
+  goToLine: 'navigate.goToLine',
   bold: 'format.bold',
   italic: 'format.italic',
   link: 'format.link',
@@ -434,6 +435,17 @@ export function registerDefaultCommands(): () => void {
       enabled: canFind,
       run: () => {
         stepFind('previous')
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.goToLine,
+      group: 'Tabs & Navigation',
+      title: 'Go to Line...',
+      keybinding: 'Mod+G',
+      // Off for an image or the Settings tab. The tabs Find can search are the ones with lines.
+      enabled: canFind,
+      run: () => {
+        togglePalette('line')
       },
     }),
     registerCommand({

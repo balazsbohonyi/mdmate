@@ -1,11 +1,11 @@
 import { nextTick, ref } from 'vue'
 
 /**
- * Which picker is open: the file picker (Ctrl+P), the command palette (Ctrl+Shift+P) or the theme
- * list that Switch Theme opens. This module is all the rest of the app knows of them; the pickers
- * themselves load the first time one opens.
+ * Which picker is open: the file picker (Ctrl+P), the command palette (Ctrl+Shift+P), the theme
+ * list that Switch Theme opens or the Go to line box (Ctrl+G). This module is all the rest of the
+ * app knows of them; the pickers themselves load the first time one opens.
  */
-export type PaletteMode = 'files' | 'commands' | 'themes'
+export type PaletteMode = 'files' | 'commands' | 'themes' | 'line'
 
 export const paletteMode = ref<PaletteMode | null>(null)
 
@@ -19,10 +19,16 @@ let openedFrom: HTMLElement | null = null
  */
 let justClosedFrom: HTMLElement | null = null
 
-/** The ids of the two commands that open a picker. */
+/** The ids of the two commands that open a picker. The command palette does not list them. */
 export const PALETTE_COMMAND_IDS: ReadonlySet<string> = new Set([
   'file.quickOpen',
   'view.commandPalette',
+])
+
+/** The commands whose keys still work while a picker is open: each one closes it or switches. */
+export const PICKER_KEY_IDS: ReadonlySet<string> = new Set([
+  ...PALETTE_COMMAND_IDS,
+  'navigate.goToLine',
 ])
 
 /**

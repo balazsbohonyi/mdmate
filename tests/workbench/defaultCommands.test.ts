@@ -126,6 +126,7 @@ describe('the default commands', () => {
       [COMMAND_IDS.zoomReset]: 'Ctrl+0',
       [COMMAND_IDS.back]: 'Alt+ArrowLeft',
       [COMMAND_IDS.forward]: 'Alt+ArrowRight',
+      [COMMAND_IDS.goToLine]: 'Ctrl+G',
       [COMMAND_IDS.bold]: 'Ctrl+B',
       [COMMAND_IDS.italic]: 'Ctrl+I',
       [COMMAND_IDS.link]: 'Ctrl+K',
@@ -140,10 +141,10 @@ describe('the default commands', () => {
   it('can be registered a second time before the first is removed, as hot reload does', () => {
     const removeOld = removeCommands
     removeCommands = registerDefaultCommands()
-    expect(listCommands()).toHaveLength(50)
+    expect(listCommands()).toHaveLength(51)
     // The old shell unmounts after the new one has mounted, and removes what it registered.
     removeOld()
-    expect(listCommands()).toHaveLength(50)
+    expect(listCommands()).toHaveLength(51)
     expect(shortcutLabel(COMMAND_IDS.toggleSidebar, 'other')).toBe('Ctrl+Shift+B')
   })
 
@@ -151,7 +152,7 @@ describe('the default commands', () => {
     removeCommands()
     expect(listCommands()).toEqual([])
     removeCommands = registerDefaultCommands()
-    expect(listCommands()).toHaveLength(50)
+    expect(listCommands()).toHaveLength(51)
   })
 })
 
@@ -390,6 +391,7 @@ describe('ISC-412: every command is in one of the six groups', () => {
         'previousTab',
         'back',
         'forward',
+        'goToLine',
       ),
       App: ids(
         'openSettings',
@@ -401,9 +403,9 @@ describe('ISC-412: every command is in one of the six groups', () => {
       ),
     })
     expect(Object.values(byGroup).map((list) => list.length)).toEqual(
-      expect.arrayContaining([10, 5, 7, 12, 10, 6]),
+      expect.arrayContaining([10, 5, 7, 12, 11, 6]),
     )
-    expect(listCommands()).toHaveLength(50)
+    expect(listCommands()).toHaveLength(51)
   })
 
   it('has a group for every id the table names, so none is left out of the page', () => {

@@ -213,6 +213,8 @@ The page decides first (`src/features/links/rewrite.ts`): `settings.links.onRena
 
 Ctrl+P lists files and Ctrl+Shift+P lists commands, in one picker (`src/features/palette/`). `state.ts` is the only part in the entry chunk (which picker is open, and focus handling); `PaletteHost.vue` and `rows.ts` load with `import()` the first time one opens, and the `palette-lazy` rule in `check-arch` keeps it so.
 
+Ctrl+G opens the same box with no list, as Go to line. `src/editor/goToLine.ts` holds the jump (parse `line` or `line:column`, clamp, centre the line), for anything that names a line of a file. `palette/lineJump.ts` shows each target while it is typed, marks the line (`revealMark.ts`), and puts caret and scroll back when the box is left any way but Enter.
+
 Files come from Rust. `workspace/quick.rs` keeps a list of every file under every root except `.git` (the link scan's walk), builds it on the first query and again in the background each time the picker opens, and answers `quick_open_query(query, limit)` with the best matches and the letters to mark, as UTF-16 offsets. The page never holds the file list. Commands come from the registry; their titles are ranked by `src/lib/fuzzy.ts`, which uses the same points as the Rust scorer. The browser host answers the same two calls from its in-memory files with `fuzzy.ts`.
 
 ## Settings

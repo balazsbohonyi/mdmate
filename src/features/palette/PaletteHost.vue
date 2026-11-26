@@ -1,19 +1,22 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, useTemplateRef, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue'
 import { describe, openInActivePane } from '@/documents/store'
 import { indexStatus } from '@/features/index/status'
+import { parseLineTarget } from '@/editor/goToLine'
 import { getHost } from '@/platform'
 import type { QuickOpenAnswer } from '@/platform/quickOpen'
 import { commandForEvent, runCommand } from '@/workbench/commands'
 import { focusActiveEditor } from '@/workbench/focus'
 import { detectPlatform } from '@/workbench/keybinding'
 import { changeSettingFromCommand } from '@/features/settings/quick'
+import { startLineJump } from './lineJump'
 import { commandRows, fileRow, segments, themeRows, type PickRow } from './rows'
-import { closePalette, PALETTE_COMMAND_IDS, type PaletteMode } from './state'
+import { closePalette, paletteMode, PICKER_KEY_IDS, type PaletteMode } from './state'
 
-// One list for both pickers: the file picker (Ctrl+P) and the command palette (Ctrl+Shift+P).
-// Everything is reachable from the keyboard: type to narrow, arrows to move, Enter to choose,
-// Escape to leave. The component loads the first time a picker opens.
+// One box for all the pickers: the file picker (Ctrl+P), the command palette (Ctrl+Shift+P), the
+// theme list and Go to line (Ctrl+G), which has no list. Everything is reachable from the keyboard:
+// type to narrow, arrows to move, Enter to choose, Escape to leave. The component loads the first
+// time a picker opens.
 const { mode } = defineProps<{ mode: PaletteMode }>()
 
 const LIMIT = 50
@@ -26,31 +29,43 @@ const selected = ref(0)
 const answer = ref<QuickOpenAnswer | null>(null)
 const failure = ref<string | null>(null)
 const platform = detectPlatform()
+// Made as the box opens, so it knows where the caret and the scroll were before the first jump.
+const jump = mode === 'line' ? startLineJump() : null
+let accepted = false
 
 const rows = computed<PickRow[]>(() =>
   mode === 'files'
     ? (answer.value?.items ?? []).map(fileRow)
     : mode === 'themes'
       ? themeRows(query.value)
-      : commandRows(query.value),
+      : mode === 'commands'
+        ? commandRows(query.value)
+        : [],
 )
 const searching = computed(
   () => mode === 'files' && answer.value === null && failure.value === null,
 )
 
-const title = computed(() =>
-  mode === 'files' ? 'Go to file' : mode === 'themes' ? 'Switch theme' : 'Command palette',
-)
-const placeholder = computed(() =>
-  mode === 'files'
-    ? 'Type part of a file name'
-    : mode === 'themes'
-      ? 'Pick a theme'
-      : 'Type the name of a command',
-)
+const TEXTS: Record<PaletteMode, { title: string; placeholder: string }> = {
+  files: { title: 'Go to file', placeholder: 'Type part of a file name' },
+  commands: { title: 'Command palette', placeholder: 'Type the name of a command' },
+  themes: { title: 'Switch theme', placeholder: 'Pick a theme' },
+  line: { title: 'Go to line', placeholder: 'Line, or line:column' },
+}
+const title = computed(() => TEXTS[mode].title)
+const placeholder = computed(() => TEXTS[mode].placeholder)
+const hasList = mode !== 'line'
 const optionId = (index: number): string => `palette-option-${index}`
 
+/** What the Go to line box says under what is typed. */
+function lineSummary(): string {
+  const range = `Lines 1 to ${String(jump?.lines ?? 1)}`
+  const typed = query.value.trim()
+  return typed === '' || parseLineTarget(typed) !== null ? range : `Not a line number. ${range}`
+}
+
 const summary = computed(() => {
+  if (mode === 'line') return lineSummary()
   if (failure.value !== null) return failure.value
   if (searching.value) return 'Reading the folders...'
   if (rows.value.length === 0) {
@@ -111,7 +126,23 @@ watch(indexStatus, (now, before) => {
 watch(query, () => {
   selected.value = 0
   if (mode === 'files') void search()
+  jump?.show(query.value)
 })
+
+// Left any other way than by Enter (Escape, its key again, a click outside, another picker), the
+// Go to line box takes its jumps back.
+onUnmounted(() => {
+  if (jump === null || accepted) return
+  jump.cancel()
+  if (paletteMode.value === null) focusActiveEditor()
+})
+
+function acceptLine(): void {
+  if (jump?.show(query.value) !== true) return
+  accepted = true
+  closePalette()
+  focusActiveEditor()
+}
 
 watch(rows, (now) => {
   if (selected.value >= now.length) selected.value = Math.max(0, now.length - 1)
@@ -123,6 +154,10 @@ watch(selected, async () => {
 })
 
 async function accept(at: number): Promise<void> {
+  if (mode === 'line') {
+    acceptLine()
+    return
+  }
   const row = rows.value[at]
   if (row === undefined || row.disabled) return
   closePalette()
@@ -154,10 +189,10 @@ function page(by: number): void {
 function onKeydown(event: KeyboardEvent): void {
   if (event.isComposing) return
   // The shortcuts of the other commands do nothing while a picker is open: they would act on a
-  // document the user cannot see. The two that open a picker pass through to the app, so the same
+  // document the user cannot see. Those that open a picker pass through to the app, so the same
   // key closes it or switches to the other one.
   const command = commandForEvent(event, platform)
-  if (command !== undefined && !PALETTE_COMMAND_IDS.has(command.id)) {
+  if (command !== undefined && !PICKER_KEY_IDS.has(command.id)) {
     event.preventDefault()
     event.stopPropagation()
     return
@@ -212,10 +247,11 @@ function onKeydown(event: KeyboardEvent): void {
         ref="input"
         v-model="query"
         type="text"
-        role="combobox"
-        aria-autocomplete="list"
-        aria-expanded="true"
-        :aria-controls="'palette-list'"
+        :role="hasList ? 'combobox' : undefined"
+        :aria-label="hasList ? undefined : title"
+        :aria-autocomplete="hasList ? 'list' : undefined"
+        :aria-expanded="hasList ? 'true' : undefined"
+        :aria-controls="hasList ? 'palette-list' : undefined"
         :aria-activedescendant="rows.length > 0 ? optionId(selected) : undefined"
         :placeholder="placeholder"
         spellcheck="false"
@@ -225,6 +261,7 @@ function onKeydown(event: KeyboardEvent): void {
         @keydown="onKeydown"
       />
       <ul
+        v-if="hasList"
         id="palette-list"
         ref="list"
         role="listbox"

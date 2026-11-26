@@ -146,6 +146,13 @@ describe('the app menu', () => {
         shortcut: 'Ctrl+Shift+F',
         disabled: false,
       },
+      {
+        kind: 'item',
+        id: COMMAND_IDS.goToLine,
+        label: 'Go to Line...',
+        shortcut: 'Ctrl+G',
+        disabled: true,
+      },
       { kind: 'separator' },
       {
         kind: 'item',
@@ -237,6 +244,7 @@ describe('the app menu', () => {
       'F3',
       '⇧F3',
       '⇧⌘F',
+      '⌘G',
       '⇧⌘B',
       '⇧⌘L',
       '⌘E',
@@ -282,6 +290,7 @@ describe('the app menu', () => {
       COMMAND_IDS.replace,
       COMMAND_IDS.findNext,
       COMMAND_IDS.findPrevious,
+      COMMAND_IDS.goToLine,
       COMMAND_IDS.toggleRawSource,
     ])
     openNewTab('a.md')
@@ -294,6 +303,7 @@ describe('the app menu', () => {
       COMMAND_IDS.replace,
       COMMAND_IDS.findNext,
       COMMAND_IDS.findPrevious,
+      COMMAND_IDS.goToLine,
     ])
   })
 

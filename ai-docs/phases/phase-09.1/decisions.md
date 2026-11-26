@@ -256,3 +256,12 @@ The owner's list of 2026-11-26, settled by grilling. No code yet. The owner keep
 - **Copy.** The text strips the list indentation by columns, so a tab-indented list copies right too (it did not before).
 - **ISC-185 reworded** (fences in list items get the container; the `codeBlock.test.ts` check now covers quotes only).
 - **Checked** in `pnpm dev` on port 5199: bullet, ordered, nested, marker-line, wrapped and quoted fences, a monospace and a proportional body font, ArrowDown and ArrowUp over every line. Not looked at: the real window and the owner's research document.
+
+## P9.1-T45: Go to line
+
+- **Command** `navigate.goToLine`, "Go to Line...", `Mod+G`, in the Tabs & Navigation group and after Search in Folders in the menu. The editor's keymap had no binding for the key. It is off for image and Settings tabs.
+- **Box.** A `line` mode of the picker, with no list. The command palette lists the command, so its id is not in `PALETTE_COMMAND_IDS`; the new `PICKER_KEY_IDS` lets its key close the box.
+- **Taking it back.** Escape, the key again, a click outside and a switch to another picker all restore the caret and the scroll position. Text that is not a number moves nothing, so the view stays on the last good target while it is on screen.
+- **Added to the plan:** the target line is marked in the search match color, because no caret shows while the box has focus. The mark goes away when the caret moves.
+- **Columns** count characters from 1, so an emoji is one column.
+- **Checked** in `pnpm dev` on port 5199: preview, centring, Escape, the key again, Enter, and the palette entry. Not looked at: the real window.
