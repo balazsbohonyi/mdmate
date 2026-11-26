@@ -7,6 +7,7 @@
 import { syntaxTree } from '@codemirror/language'
 import type { EditorState, Text } from '@codemirror/state'
 import { frontmatterEnd } from '../frontmatter'
+import { gapLine, itemOf, itemShift, outermostList } from '../listLayout'
 import { imageContext, resolveImageAddress, type ImageAddress } from './image'
 import { parseImgTag } from './imageTag'
 
@@ -50,6 +51,10 @@ export interface TableItem {
    * margin whatever its (up to three spaces of) indent.
    */
   readonly indent: string
+  /** The second copy of its list item's own indentation, drawn before `indent` (listLayout.ts). */
+  readonly shift: string
+  /** True when a list ends with this table and other content follows directly. */
+  readonly listEnd: boolean
 }
 
 /**
@@ -276,6 +281,8 @@ function tableItem(state: EditorState, node: SyntaxNode, nested = false): TableI
   }
   if (head.length === 0) return null
   const width = head.length
+  const item = nested ? itemOf(node.parent) : null
+  const list = nested ? outermostList(node) : null
   return {
     kind: 'table',
     from,
@@ -287,6 +294,8 @@ function tableItem(state: EditorState, node: SyntaxNode, nested = false): TableI
     },
     source: doc.sliceString(from, to),
     indent,
+    shift: item === null ? '' : itemShift(doc, item).text,
+    listEnd: list !== null && gapLine(doc, list) === doc.lineAt(to).number,
   }
 }
 

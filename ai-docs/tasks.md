@@ -165,7 +165,7 @@ Phase 9.1 collects the small fixes and rough edges found in daily use, between t
 - [x] P9.1-T40: Custom user font presets (`font-presets/*.json`), searchable scrollable preset grid, Built-in badges, card ellipsis menu, and Open font presets folder — closes ISC-728 to ISC-735
 - [x] P9.1-T41: Polish: hide native search cancel button + thin clear `X` on Settings searches, fix rename error flash, scroll active preset into view, scroll-only preset scrollbar, 3-col desktop grid at 6+ presets — closes ISC-736 to ISC-740 (owner request)
 - [x] P9.1-T42: A drawn checkbox from theme tokens in every theme, with a `checkbox-background` token — closes ISC-741 to ISC-743 (owner request)
-- [ ] P9.1-T43: Nested list items at twice the indent, and a one-line gap below a list — closes ISC-744 to ISC-747 (owner request)
+- [x] P9.1-T43: Nested list items at twice the indent, and a one-line gap below a list — closes ISC-744 to ISC-747 (owner request)
 - [ ] P9.1-T44: Fenced code blocks inside list items drawn as code containers — closes ISC-748 to ISC-751
 - [ ] P9.1-T45: Go to line (`Mod+G`) with live preview of the jump — closes ISC-752 to ISC-756 (owner request)
 - [ ] P9.1-T46: Links with a line suffix (`file:548`, `#L548`) open at the line — closes ISC-757 to ISC-761

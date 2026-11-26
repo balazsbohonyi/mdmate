@@ -1,5 +1,6 @@
 import { EditorView } from '@codemirror/view'
 import { BUILT_IN_CODE_FAMILY, BUILT_IN_HEADING_FAMILY } from '../documentFonts'
+import { LIST_GAP } from './listLayout'
 
 /**
  * How rendered Markdown looks. Colors come from the theme tokens. Spacing is padding on `.cm-line`,
@@ -72,6 +73,10 @@ export const previewTheme = EditorView.baseTheme({
     textDecoration: 'none',
   },
   '.cm-md-list-mark': { color: 'var(--syntax-marker)', fontWeight: '700' },
+  // The second copy of an item's indentation (indent.ts): it takes its width and shows nothing.
+  '.cm-md-indent': { whiteSpace: 'pre', visibility: 'hidden', userSelect: 'none' },
+  // One line of body text below a list that other content follows directly (listLayout.ts).
+  '.cm-line.cm-md-list-end': { paddingBottom: LIST_GAP },
   // The en dash of a bullet (bullet.ts): a hidden en dash gives the box its width, and the drawn
   // dash is laid over it, so the dash never overhangs the space after it.
   '.cm-md-bullet': {

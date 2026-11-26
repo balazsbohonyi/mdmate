@@ -12,6 +12,14 @@ import type { EditorState, SelectionRange } from '@codemirror/state'
 import { languageName } from '../codeLanguages'
 import { boxLines } from './box'
 import { frontmatterEnd } from './frontmatter'
+import {
+  gapLine,
+  hasText,
+  itemShift,
+  outermostList,
+  quotePrefix,
+  type ItemShift,
+} from './listLayout'
 import { codeCopy } from './codeCopy'
 import { hexColor } from './swatch'
 
@@ -71,8 +79,16 @@ export interface CopyItem {
   readonly at: number
 }
 
+/** The invisible second copy of a list item's indentation, drawn before one of its lines. */
+export interface IndentItem {
+  readonly type: 'indent'
+  /** Where it is drawn: the start of the line, after any quote marks. It takes no place. */
+  readonly from: number
+  readonly text: string
+}
+
 export type PreviewItem =
-  HideItem | MarkItem | LineItem | CheckboxItem | BulletItem | SwatchItem | CopyItem
+  HideItem | MarkItem | LineItem | CheckboxItem | BulletItem | SwatchItem | CopyItem | IndentItem
 
 /** The class names the layer puts on the page. The theme and the tests both read them from here. */
 export const classes = {
@@ -89,6 +105,8 @@ export const classes = {
   quote: 'cm-md-quote',
   rule: 'cm-md-hr',
   frontmatter: 'cm-md-frontmatter-line',
+  /** The last line of a list that other content follows directly: it carries the gap below. */
+  listEnd: 'cm-md-list-end',
   /** The line a copy button is placed on when its block has no container to hold it. */
   copyHost: 'cm-md-copy-host',
 } as const
@@ -226,6 +244,23 @@ function fencedCode(
 }
 
 /**
+ * The shift of each visible line of one list item. An item inside it is read later and writes over
+ * the lines it owns, so a line ends with the shift of its innermost item.
+ */
+function shiftLines(
+  state: EditorState,
+  shifts: Map<number, ItemShift>,
+  node: SyntaxNode,
+  visible: { readonly from: number; readonly to: number },
+): void {
+  const doc = state.doc
+  const shift = itemShift(doc, node)
+  const first = doc.lineAt(Math.max(node.from, visible.from)).number
+  const last = doc.lineAt(Math.min(node.to, visible.to)).number
+  for (let n = first; n <= last; n++) shifts.set(doc.line(n).from, shift)
+}
+
+/**
  * Every preview item for the nodes that overlap `ranges`, for the selection the state holds.
  * Items come back in no particular order; CodeMirror sorts them when it builds a set.
  */
@@ -244,6 +279,10 @@ export function scanPreview(
   const plain = frontmatter !== null && touched(selection, 0, frontmatter)
   /** Starts of the lines a block quote already styled, so a nested quote adds nothing twice. */
   const quoted = new Set<number>()
+  /** The list shift of each line that has one, by the start of the line. */
+  const shifts = new Map<number, ItemShift>()
+  /** Starts of the lines that carry the gap below a list. */
+  const gaps = new Set<number>()
 
   for (const { from, to } of ranges) {
     if (frontmatter !== null && plain) {
@@ -325,6 +364,18 @@ export function scanPreview(
           const parent = node.node.parent
           if (parent === null || !addressed.has(parent.name))
             items.push({ type: 'mark', from: node.from, to: node.to, class: classes.link })
+          return
+        }
+
+        if (name === 'BulletList' || name === 'OrderedList') {
+          if (outermostList(node.node.parent ?? node.node) !== null) return
+          const n = gapLine(doc, node.node)
+          if (n !== null) gaps.add(doc.line(n).from)
+          return
+        }
+
+        if (name === 'ListItem') {
+          shiftLines(state, shifts, node.node, { from, to })
           return
         }
 
@@ -420,5 +471,11 @@ export function scanPreview(
       },
     })
   }
+  for (const [at, shift] of shifts) {
+    const text = doc.lineAt(at).text
+    if (shift.text === '' || !hasText(text)) continue
+    items.push({ type: 'indent', from: at + quotePrefix(text, shift.quotes), text: shift.text })
+  }
+  for (const at of gaps) items.push({ type: 'line', from: at, class: classes.listEnd })
   return items
 }

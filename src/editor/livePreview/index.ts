@@ -21,6 +21,7 @@ import { boxTheme } from './box'
 import { BulletWidget } from './bullet'
 import { CheckboxWidget } from './checkbox'
 import { CopyWidget } from './codeCopy'
+import { IndentWidget } from './indent'
 import { SwatchWidget } from './swatch'
 import { previewTheme } from './theme'
 import { scanPreview, type PreviewItem } from './scan'
@@ -59,6 +60,11 @@ export function decorationsFor(items: readonly PreviewItem[]): DecorationSet {
       // A point widget before the span (side -1), so it sits outside the code and not on the caret.
       ranges.push(
         Decoration.widget({ widget: new SwatchWidget(item.color), side: -1 }).range(item.at),
+      )
+    } else if (item.type === 'indent') {
+      // After the caret at its position (side 1), so the start of the line stays at the margin.
+      ranges.push(
+        Decoration.widget({ widget: new IndentWidget(item.text), side: 1 }).range(item.from),
       )
     } else if (item.type === 'copy') {
       // A point widget before the opening fence, drawn out of the flow: it is no step for the caret.

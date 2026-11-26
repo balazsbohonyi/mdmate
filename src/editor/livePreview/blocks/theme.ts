@@ -1,5 +1,6 @@
 import { EditorView } from '@codemirror/view'
 import { BUILT_IN_CODE_FAMILY } from '../../documentFonts'
+import { LIST_GAP } from '../listLayout'
 
 /**
  * How the block widgets look. Colors come from the theme tokens. Spacing is padding, never margin:
@@ -16,6 +17,8 @@ export const blockTheme = EditorView.baseTheme({
   // A table in a list item: a row of the invisible indent and the table, which scrolls by itself.
   '.cm-md-table-indented': { display: 'flex', alignItems: 'flex-start' },
   '.cm-md-table-indented > .cm-md-table-wrap': { flex: '1 1 auto', minWidth: '0' },
+  // The gap below a list that ends in this table, in place of the table's own room below.
+  '.cm-md-list-end > .cm-md-table-wrap': { paddingBottom: LIST_GAP },
   '.cm-md-table-indent': {
     flex: 'none',
     whiteSpace: 'pre',

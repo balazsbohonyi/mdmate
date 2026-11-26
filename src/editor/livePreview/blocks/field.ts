@@ -78,7 +78,7 @@ function decorationFor(
     }).range(item.from, item.to)
   }
   return Decoration.replace({
-    widget: new TableWidget(item.model, item.source, item.indent),
+    widget: new TableWidget(item),
     block: true,
   }).range(item.from, item.to)
 }

@@ -237,3 +237,12 @@ The owner's list of 2026-11-26, settled by grilling. No code yet. The owner keep
 - **Token values.** Dark `oklch(0.27 0.014 262)` (the card), Light `oklch(0.995 0.003 85)`, Sepia `#f7edd5`. A user theme without the token takes its base theme's.
 - **Baseline failure, not touched.** `tableStyle.test.ts` (ISC-714) already failed before this task: commit 901578c moved the body cell padding to 0.5em, while the claim, the decision and the test say 0.4em. The owner has to say which side is wrong.
 - **Not looked at.** The real window (port 1420 is the owner's).
+
+## P9.1-T43: list indentation and spacing
+
+- **What is doubled.** The blanks before an item's marker. Every line of the item (continuation lines, tables, code) gets the same second copy, so the item's content stays under its text. A top-level item has nothing to double, so its continuation lines and tables keep their source place. This is the reading of ISC-744 that keeps "text, tables and code move together".
+- **How.** A hidden copy of those blanks as a point widget before the line (`indent.ts`), not padding in `ch`: it is as wide as the source in every font, tabs included. Wrapped rows start at the margin, as they did before.
+- **Quotes.** A list inside a quote is shifted too, after the quote marks. Tables there stay Markdown, as before.
+- **Lazy lines** (unindented text that continues an item's paragraph) move with the item, since the parser says they are its text.
+- **Gap.** One body line (`--doc-line-height` times `--doc-size`) as padding. In a table that ends a list it replaces the table's own 0.45em below, so the total is one line; `LIST_GAP_EXTRA` (17 px) is what the estimated height adds. Two lists of different kinds written one under the other get the gap between them.
+- **Checked** in `pnpm dev` on port 5199: nested bullet, ordered and task lists with tables and a fence; ArrowDown and ArrowUp reached all 29 lines. Not looked at: the real window.

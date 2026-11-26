@@ -3,7 +3,7 @@ import { freshImageSrc, imageSizeOf, rememberImageSize, type ImageSize } from '.
 import { cancelDrag, createHandle } from './imageHandle'
 import { selectImage } from './imageSelect'
 import { createSwatch, hexColor } from '../swatch'
-import type { BlockItem, ImageItem, Inline, TableModel } from './scan'
+import type { BlockItem, ImageItem, Inline, TableItem, TableModel } from './scan'
 
 /** Common ground of the block widgets: what kind of block this is, for the field and the tests. */
 export abstract class BlockWidget extends WidgetType {
@@ -29,6 +29,11 @@ const TABLE_PADDING = 16
  * below where a body cell has 0.4em, at 0.95 of a 15 px text (the theme in `theme.ts`).
  */
 export const HEADER_EXTRA = 5
+/**
+ * What the gap below a list adds to a table that ends one, in px: a body line (24 px at the default
+ * text) in place of the 0.45em the table has below it.
+ */
+export const LIST_GAP_EXTRA = 17
 
 /** Builds `runs` into `parent` as DOM nodes: text nodes and elements only, never markup strings. */
 function appendRuns(parent: HTMLElement, runs: readonly Inline[]): void {
@@ -68,23 +73,35 @@ export class TableWidget extends BlockWidget {
   readonly model: TableModel
   /** The table's own text, which is what makes two widgets for it the same widget. */
   readonly source: string
-  /** The whitespace a table in a list item starts after, kept so it lines up under the item's text. */
+  /**
+   * The whitespace a table in a list item starts after, kept so it lines up under the item's text:
+   * the second copy of the item's indentation (listLayout.ts), then what is typed before the table.
+   */
   readonly indent: string
+  /** True when a list ends with this table and other content follows directly. */
+  readonly listEnd: boolean
 
-  constructor(model: TableModel, source: string, indent = '') {
+  constructor(item: TableItem) {
     super()
-    this.model = model
-    this.source = source
-    this.indent = indent
+    this.model = item.model
+    this.source = item.source
+    this.indent = item.shift + item.indent
+    this.listEnd = item.listEnd
   }
 
-  /** The same source draws the same table, so CodeMirror keeps the DOM it has. */
+  /** The same source in the same place draws the same table, so CodeMirror keeps its DOM. */
   override eq(other: WidgetType): boolean {
-    return other instanceof TableWidget && other.source === this.source
+    return (
+      other instanceof TableWidget &&
+      other.source === this.source &&
+      other.indent === this.indent &&
+      other.listEnd === this.listEnd
+    )
   }
 
   override get estimatedHeight(): number {
-    return (this.model.rows.length + 1) * ROW_HEIGHT + HEADER_EXTRA + TABLE_PADDING
+    const gap = this.listEnd ? LIST_GAP_EXTRA : 0
+    return (this.model.rows.length + 1) * ROW_HEIGHT + HEADER_EXTRA + TABLE_PADDING + gap
   }
 
   override toDOM(view: EditorView): HTMLElement {
@@ -124,6 +141,8 @@ export class TableWidget extends BlockWidget {
       gap.textContent = this.indent
       shell.append(gap, wrap)
     }
+    // On what the editor holds: the table's own room below gives way to one line of body text.
+    if (this.listEnd) shell.classList.add('cm-md-list-end')
 
     // The rest of a big table: one spacer row as tall as the rows it stands for, replaced by the
     // real rows in a single step after the frame, so the table is laid out once more, not often.
