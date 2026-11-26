@@ -7,7 +7,7 @@
 import { syntaxTree } from '@codemirror/language'
 import type { EditorState, Text } from '@codemirror/state'
 import { frontmatterEnd } from '../frontmatter'
-import { gapLine, itemOf, itemShift, outermostList } from '../listLayout'
+import { gapLine, inListsOnly, itemOf, itemShift, LIST_NODES, outermostList } from '../listLayout'
 import { imageContext, resolveImageAddress, type ImageAddress } from './image'
 import { parseImgTag } from './imageTag'
 
@@ -246,17 +246,6 @@ function fit(cells: Cell[], width: number): Cell[] {
     fitted.push({ runs: [], offset: fitted[fitted.length - 1]?.offset ?? 0 })
   }
   return fitted
-}
-
-/** The nodes a list is made of. */
-const LIST_NODES = new Set(['BulletList', 'OrderedList', 'ListItem'])
-
-/** Whether everything above `node`, up to the document, is a list or a list item. */
-function inListsOnly(node: SyntaxNode): boolean {
-  for (let up = node.parent; up !== null && up.name !== 'Document'; up = up.parent) {
-    if (!LIST_NODES.has(up.name)) return false
-  }
-  return true
 }
 
 /**

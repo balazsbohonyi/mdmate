@@ -22,9 +22,10 @@ import { BulletWidget } from './bullet'
 import { CheckboxWidget } from './checkbox'
 import { CopyWidget } from './codeCopy'
 import { IndentWidget } from './indent'
+import { listSpace } from './listSpace'
 import { SwatchWidget } from './swatch'
 import { previewTheme } from './theme'
-import { scanPreview, type PreviewItem } from './scan'
+import { classes, scanPreview, type PreviewItem } from './scan'
 
 const hide = Decoration.replace({})
 const checkboxes = {
@@ -70,6 +71,8 @@ export function decorationsFor(items: readonly PreviewItem[]): DecorationSet {
       // A point widget before the opening fence, drawn out of the flow: it is no step for the caret.
       ranges.push(copyButton.range(item.at))
     } else if (item.type === 'mark') {
+      // The marker's box goes round the bullet widget too, so it is an outer decoration (below).
+      if (item.class === classes.boxLead) continue
       const decoration = shared(marks, item.class, () => Decoration.mark({ class: item.class }))
       ranges.push(decoration.range(item.from, item.to))
     } else {
@@ -97,9 +100,26 @@ export function hiddenFor(items: readonly PreviewItem[]): DecorationSet {
   return Decoration.set(ranges, true)
 }
 
+// Inclusive at its start, so a widget that replaces the first character is inside it too.
+const boxLead = Decoration.mark({ class: classes.boxLead, inclusiveStart: true })
+
+/**
+ * What stands before a fence on a marker line, as marks that go round everything there, the bullet
+ * and checkbox widgets included, so the marker is one box with a width of its own (box.ts).
+ */
+export function leadsFor(items: readonly PreviewItem[]): DecorationSet {
+  const ranges = items.flatMap((item) =>
+    item.type === 'mark' && item.class === classes.boxLead
+      ? [boxLead.range(item.from, item.to)]
+      : [],
+  )
+  return Decoration.set(ranges, true)
+}
+
 class PreviewPlugin {
   decorations: DecorationSet
   hidden: DecorationSet
+  leads: DecorationSet = Decoration.none
 
   constructor(view: EditorView) {
     this.decorations = Decoration.none
@@ -111,6 +131,7 @@ class PreviewPlugin {
     const items = scanPreview(view.state, view.visibleRanges)
     this.decorations = decorationsFor(items)
     this.hidden = hiddenFor(items)
+    this.leads = leadsFor(items)
   }
 
   update(update: ViewUpdate): void {
@@ -129,6 +150,10 @@ const plugin = ViewPlugin.fromClass(PreviewPlugin, {
   decorations: (instance) => instance.decorations,
 })
 
+const outer = EditorView.outerDecorations.of(
+  (view) => view.plugin(plugin)?.leads ?? Decoration.none,
+)
+
 /** Hidden syntax is one step for the caret, so a move never lands strictly inside it. */
 const atomic = EditorView.atomicRanges.of((view) => view.plugin(plugin)?.hidden ?? Decoration.none)
 
@@ -137,10 +162,8 @@ const atomic = EditorView.atomicRanges.of((view) => view.plugin(plugin)?.hidden 
  * CodeMirror alone, which the walk test uses to show that atomic ranges change nothing today.
  */
 export function livePreview(options: { atomic?: boolean } = {}): Extension {
-  const inline =
-    options.atomic === false
-      ? [previewTheme, boxTheme, plugin]
-      : [previewTheme, boxTheme, plugin, atomic]
+  const base = [previewTheme, boxTheme, plugin, outer, listSpace]
+  const inline = options.atomic === false ? base : [...base, atomic]
   return [inline, blockLayer()]
 }
 

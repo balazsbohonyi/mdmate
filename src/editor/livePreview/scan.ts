@@ -13,8 +13,11 @@ import { languageName } from '../codeLanguages'
 import { boxLines } from './box'
 import { frontmatterEnd } from './frontmatter'
 import {
+  columnsOf,
   gapLine,
   hasText,
+  inListsOnly,
+  itemOf,
   itemShift,
   outermostList,
   quotePrefix,
@@ -107,6 +110,12 @@ export const classes = {
   frontmatter: 'cm-md-frontmatter-line',
   /** The last line of a list that other content follows directly: it carries the gap below. */
   listEnd: 'cm-md-list-end',
+  /** A code line of a container in a list item, which starts at the item's indent. */
+  boxNested: 'cm-md-box-nested',
+  /** The first line of such a container when the list marker is on it. */
+  boxMarker: 'cm-md-box-marker',
+  /** What stands before the fence on that line: the marker, drawn left of the container. */
+  boxLead: 'cm-md-box-lead',
   /** The line a copy button is placed on when its block has no container to hold it. */
   copyHost: 'cm-md-copy-host',
 } as const
@@ -261,6 +270,51 @@ function shiftLines(
 }
 
 /**
+ * A fenced block in a list item: the same container, started at the item's indent instead of the
+ * edge of the column. Each line says how many columns in that is, and how many typed blanks it
+ * has before its code, which the theme pulls back out of the line (box.ts). The lines are returned,
+ * so they get no second copy of the indent as well; a marker line keeps it, before its marker.
+ */
+function listFence(
+  state: EditorState,
+  items: PreviewItem[],
+  node: SyntaxNode,
+  visible: { readonly from: number; readonly to: number },
+  boxed: Set<number>,
+): void {
+  const doc = state.doc
+  const open = doc.lineAt(node.from)
+  const item = itemOf(node)
+  const shift = item === null ? '' : itemShift(doc, item).text
+  const before = open.text.slice(0, node.from - open.from)
+  const fence = columnsOf(before, state.tabSize)
+  const columns = columnsOf(shift, state.tabSize) + fence
+  const marked = !/^[ \t]*$/.test(before)
+  const start = items.length
+  fencedCode(state, items, node, visible)
+  for (let i = start; i < items.length; i++) {
+    const found = items[i]
+    if (found?.type !== 'line') continue
+    const line = doc.lineAt(found.from)
+    const isMarker = marked && line.number === open.number
+    const typed = /^[ \t]*/.exec(line.text)?.[0] ?? ''
+    const lead = Math.min(columnsOf(typed, state.tabSize), fence)
+    if (!isMarker) boxed.add(line.from)
+    items[i] = {
+      type: 'line',
+      from: found.from,
+      class: [found.class, classes.boxNested, ...(isMarker ? [classes.boxMarker] : [])].join(' '),
+      attributes: {
+        ...found.attributes,
+        style: `--box-columns: ${String(columns)}; --box-lead: ${String(lead)}`,
+      },
+    }
+  }
+  if (marked && node.from > open.from && open.to >= visible.from && open.from <= visible.to)
+    items.push({ type: 'mark', from: open.from, to: node.from, class: classes.boxLead })
+}
+
+/**
  * Every preview item for the nodes that overlap `ranges`, for the selection the state holds.
  * Items come back in no particular order; CodeMirror sorts them when it builds a set.
  */
@@ -283,6 +337,8 @@ export function scanPreview(
   const shifts = new Map<number, ItemShift>()
   /** Starts of the lines that carry the gap below a list. */
   const gaps = new Set<number>()
+  /** Starts of the code lines of containers in list items, which are placed by the container. */
+  const boxed = new Set<number>()
 
   for (const { from, to } of ranges) {
     if (frontmatter !== null && plain) {
@@ -429,9 +485,13 @@ export function scanPreview(
         }
 
         if (name === 'FencedCode') {
-          // Fences inside a list or a quote keep the plain look: the container is drawn across the
-          // whole line, which would cover the indent or the quote bar.
+          // A fence in a list item gets the container at the item's indent. In a quote it keeps the
+          // plain look, since the container would cover the quote bar.
           if (node.node.parent?.name !== 'Document') {
+            if (inListsOnly(node.node)) {
+              listFence(state, items, node.node, { from, to }, boxed)
+              return false
+            }
             // The button is still there, on a line of its own host, since there is no container.
             if (state.facet(codeCopy) !== null) {
               items.push({
@@ -473,7 +533,7 @@ export function scanPreview(
   }
   for (const [at, shift] of shifts) {
     const text = doc.lineAt(at).text
-    if (shift.text === '' || !hasText(text)) continue
+    if (shift.text === '' || !hasText(text) || boxed.has(at)) continue
     items.push({ type: 'indent', from: at + quotePrefix(text, shift.quotes), text: shift.text })
   }
   for (const at of gaps) items.push({ type: 'line', from: at, class: classes.listEnd })

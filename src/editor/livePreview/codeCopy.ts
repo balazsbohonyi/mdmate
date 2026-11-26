@@ -14,6 +14,7 @@
 import { syntaxTree } from '@codemirror/language'
 import { Facet, type EditorState } from '@codemirror/state'
 import { WidgetType, type EditorView } from '@codemirror/view'
+import { columnsOf } from './listLayout'
 
 /** What the button needs from the app: a way to write the clipboard and to tell the user it failed. */
 export interface CodeCopy {
@@ -50,14 +51,17 @@ export function codeBlockText(state: EditorState, pos: number): string | null {
   // to the fence, with list markers as blanks.
   const lead = open.text.slice(0, node.from - open.from).replace(/[^\s>]/g, ' ')
   const lines: string[] = []
-  for (let n = open.number + 1; n <= last; n++) lines.push(stripLead(doc.line(n).text, lead))
+  for (let n = open.number + 1; n <= last; n++)
+    lines.push(stripLead(doc.line(n).text, lead, state.tabSize))
   return lines.join('\n')
 }
 
-/** `text` without up to `lead.length` leading blanks and quote marks. */
-function stripLead(text: string, lead: string): string {
+/** `text` without up to as many columns of leading blanks and quote marks as `lead` takes. */
+function stripLead(text: string, lead: string, tabSize: number): string {
+  const width = columnsOf(lead, tabSize)
   let i = 0
-  while (i < lead.length && i < text.length && (text[i] === ' ' || text[i] === '>')) i++
+  while (i < text.length && columnsOf(text.slice(0, i), tabSize) < width && /[ \t>]/.test(text[i]!))
+    i++
   return text.slice(i)
 }
 

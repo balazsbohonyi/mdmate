@@ -111,8 +111,9 @@ describe('fenced code container', () => {
     expect(labels(state, scanAll(state))).toEqual(['7: bbblang'])
   })
 
-  it('draws no box for a fence inside a list or a quote', () => {
-    for (const text of ['- item\n\n  ```js\n  x\n  ```\n', '> ```js\n> x\n> ```\n']) {
+  // A fence in a list item has a container since P9.1-T44 (listFences.test.ts).
+  it('draws no box for a fence inside a quote', () => {
+    for (const text of ['> ```js\n> x\n> ```\n', '- a\n\n  > ```js\n  > x\n  > ```\n']) {
       const state = stateOf(text, text.length)
       const items = scanAll(state)
       expect(

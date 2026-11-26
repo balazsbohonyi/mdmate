@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 718/801
+progress: 721/801
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-26T22:46:09Z
+updated: 2026-11-26T23:06:21Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -1026,7 +1026,7 @@ Why: documents mix prose with tables, images and code, and a page full of raw sy
 - [x] ISC-182: A broken or still-loading image holds a fixed-size placeholder.
 - [x] ISC-183: Anti: no selection head ever sits strictly inside a block replacement.
 - [x] ISC-184: Anti: a read-only document ignores a checkbox click.
-- [x] ISC-185: A fenced code block is drawn as a bordered, rounded container in the light and the dark theme.
+- [x] ISC-185: A fenced code block at the top level or in a list item is drawn as a bordered, rounded container in the light and the dark theme; one in a block quote keeps the plain look.
 - [x] ISC-186: With the caret outside a fenced code block, its fences are hidden and its language shows as a label at the top right.
 - [x] ISC-187: With the caret inside a fenced code block, edges included, its fences show and the label is gone.
 - [x] ISC-188: Anti: a fenced code block never changes height when the caret enters or leaves it.
@@ -1053,9 +1053,9 @@ Why: documents mix prose with tables, images and code, and a page full of raw sy
 - [x] ISC-712: A code block draws its border in the same token, and a container of another kind keeps the plain border.
 - [ ] ISC-713: The owner finds the border of inline code and of code blocks visible in the real window in Dark, Light and Sepia, Dark included.
 - [x] ISC-714: A body cell of a table has 0.4em of padding above and below, so inline code in it stays clear of the row lines; the header cell keeps its own 0.55em, and the height estimates (`ROW_HEIGHT`, `HEADER_EXTRA`) match the drawn rows.
-- [ ] ISC-748: A fenced code block inside a list item, at any depth, is drawn as a code container at the item’s indent with its language label and copy button, its fences showing only while the caret is in it, a fence on the marker line included.
-- [ ] ISC-749: A fenced code block inside a block quote, also through a list, keeps the plain look.
-- [ ] ISC-750: Anti: drawing a fence in a list never hides the list marker, and its copy button copies the code without the list indentation.
+- [x] ISC-748: A fenced code block inside a list item, at any depth, is drawn as a code container at the item’s indent with its language label and copy button, its fences showing only while the caret is in it, a fence on the marker line included.
+- [x] ISC-749: A fenced code block inside a block quote, also through a list, keeps the plain look.
+- [x] ISC-750: Anti: drawing a fence in a list never hides the list marker, and its copy button copies the code without the list indentation.
 - [ ] ISC-751: The owner finds the code blocks inside lists drawn right in their research document.
 
 ### F5 · Link navigation
@@ -1949,6 +1949,7 @@ Why: a folder of projects is easier to read when new, changed and ignored files 
 - 2026-11-27: refined: added ISC-741 to ISC-802 for P9.1-T42 to P9.1-T53 (owner list of 2026-11-26, settled by grilling; answers in `ai-docs/phases/phase-09.1/decisions.md`). Older claims are reworded by the task that changes the behaviour, not now: ISC-236 (T48, T49: the status bar holds more than a message), ISC-103 and ISC-227 (T52: a permanent delete exists beside the Recycle Bin one), ISC-185 (T44: fences in list items get the container, fences in quotes stay plain).
 
 ## Verification
+- P9.1-T44 (2026-11-27), code blocks inside lists: ISC-748 to ISC-750 closed (progress 721/801), ISC-185 reworded; ISC-751 stays open for the owner's review. Fail-first: before code, 11 of 18 tests in `listFences.test.ts` failed; now all pass with `codeCopy.test.ts` and `codeBlock.test.ts`. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 4018 passed with the one earlier failure (ISC-714). In `pnpm dev` on port 5199 containers started under their item's text in a monospace and a proportional font, a long line wrapped inside the panel, and the arrow keys reached every line. Not verified: the real window, the owner's research document.
 - P9.1-T43 (2026-11-27), list indentation and spacing: ISC-744 to ISC-746 closed (progress 718/801); ISC-747 stays open for the owner's review. Fail-first: before code, 20 of 27 tests in `listIndent.test.ts` and `listSpacing.test.ts` failed; now all pass. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 4000 passed with the one failure that predates this phase's list (ISC-714). In `pnpm dev` on port 5199 nested lists, tables and a fence moved together, the gap showed above a heading, and ArrowDown and ArrowUp reached all 29 lines. Not verified: the real window.
 - P9.1-T42 (2026-11-27), themed checkbox: ISC-741 and ISC-742 closed (progress 715/801); ISC-743 stays open for the owner's review. Fail-first: before code, 3 tests of `checkboxStyle.test.ts`, 3 of `themes.test.ts` and 1 of `themeTokenUsage.test.ts` failed; now they pass. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 3973 passed with the one failure that predates this task (ISC-714, `tableStyle.test.ts`). Screenshots from `pnpm dev` on port 5199 show open and checked boxes in Dark, Light and Sepia. Not verified: the real window.
 - P9.1-T41 (2026-11-25), preset & search polish (plus owner closure of ISC-727 & ISC-735): ISC-727, ISC-735, and ISC-736 to ISC-740 closed (progress 713/739). Fail-first: all 6 new probes across `tests/styles/scrollbar.test.ts`, `tests/features/fontPresets.test.ts`, and `tests/features/fontPresetCards.test.ts` failed on the old code (including synchronous `watch(fontPresetProblem)` catching the exact rename flash); now all 5 affected suites pass (`scrollbar.test.ts` 10, `colorPairs.test.ts` 5, `fontPresets.test.ts` 5, `fontPresetCards.test.ts` 8, `settingsView.test.ts` 115 — 143 tests total), and `pnpm check` & `pnpm check:rust` exit 0.

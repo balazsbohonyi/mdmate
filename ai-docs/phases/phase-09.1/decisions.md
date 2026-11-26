@@ -246,3 +246,13 @@ The owner's list of 2026-11-26, settled by grilling. No code yet. The owner keep
 - **Lazy lines** (unindented text that continues an item's paragraph) move with the item, since the parser says they are its text.
 - **Gap.** One body line (`--doc-line-height` times `--doc-size`) as padding. In a table that ends a list it replaces the table's own 0.45em below, so the total is one line; `LIST_GAP_EXTRA` (17 px) is what the estimated height adds. Two lists of different kinds written one under the other get the gap between them.
 - **Checked** in `pnpm dev` on port 5199: nested bullet, ordered and task lists with tables and a fence; ArrowDown and ArrowUp reached all 29 lines. Not looked at: the real window.
+
+## P9.1-T44: code blocks inside lists
+
+- **Container position.** The panel starts as many body-font spaces in as the item's text is typed (the added shift of T43 included). Code lines are in the code font, so no CSS unit of theirs gives that width: `listSpace.ts` measures a hidden run of body spaces into `--md-space`, again whenever that run changes size (a `ResizeObserver`), with a fallback of 0.55 of the text size.
+- **Typed indentation stays text.** It is not hidden: a hanging indent (`text-indent`) pulls it back out of the line, so editing and the arrow keys are as before and a wrapped row starts at the code's own edge.
+- **Marker line.** The marker is wrapped in an outer decoration (`EditorView.outerDecorations`, inclusive at its start, or the bullet widget stays outside it) in the body font, as wide as the room up to the code.
+- **Proportional fonts.** A marker and its space are wider than two typed spaces, so the panel's left edge sits a little left of the item's text, as the tables of T11 do, and close to the dash on a marker line.
+- **Copy.** The text strips the list indentation by columns, so a tab-indented list copies right too (it did not before).
+- **ISC-185 reworded** (fences in list items get the container; the `codeBlock.test.ts` check now covers quotes only).
+- **Checked** in `pnpm dev` on port 5199: bullet, ordered, nested, marker-line, wrapped and quoted fences, a monospace and a proportional body font, ArrowDown and ArrowUp over every line. Not looked at: the real window and the owner's research document.

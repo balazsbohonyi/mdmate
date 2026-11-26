@@ -13,7 +13,8 @@
  */
 import type { Text } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
-import { BUILT_IN_CODE_FAMILY } from '../documentFonts'
+import { BUILT_IN_BODY_FAMILY, BUILT_IN_CODE_FAMILY } from '../documentFonts'
+import { LIST_GAP } from './listLayout'
 import type { LineItem } from './scan'
 
 /** Where a line sits in its container. */
@@ -70,6 +71,12 @@ export function boxLines(
 }
 
 const GAP = 'var(--box-gap)'
+/** One line of body text: the gap below a list that ends in a container (listLayout.ts). */
+const BELOW_LIST = LIST_GAP
+/** How far in a container in a list item starts: the item's columns, in spaces of the body text. */
+const BOX_LEFT = 'calc(var(--box-columns, 0) * var(--md-space, calc(var(--doc-size, 16px) * 0.55)))'
+/** Where its text starts. In px terms, so it is the same in the code font and in the body font. */
+const TEXT_LEFT = 'calc(var(--box-left) + var(--box-inset))'
 
 /** How the container looks. Spacing is padding, never margin (see the module comment). */
 export const boxTheme = EditorView.baseTheme({
@@ -132,6 +139,48 @@ export const boxTheme = EditorView.baseTheme({
     pointerEvents: 'none',
     userSelect: 'none',
   },
+  // The hidden run of body spaces that listSpace.ts measures.
+  '.cm-md-space-probe': {
+    position: 'absolute',
+    top: '0',
+    left: '0',
+    whiteSpace: 'pre',
+    visibility: 'hidden',
+    pointerEvents: 'none',
+    fontFamily: `var(--doc-font-body, ${BUILT_IN_BODY_FAMILY})`,
+    fontSize: 'var(--doc-size, 16px)',
+  },
+  // A container in a list item starts at the item's indent. The typed blanks before the code stay
+  // in the line and are pulled back out of it, so the code starts at the container's own inside edge
+  // and a wrapped row starts there too.
+  '.cm-line.cm-md-box-nested': {
+    '--box-left': BOX_LEFT,
+    '--box-inset': 'calc(var(--doc-size, 16px) * 0.875)',
+    paddingLeft: TEXT_LEFT,
+    textIndent: 'calc(var(--box-lead, 0) * -1ch)',
+  },
+  '.cm-line.cm-md-box-nested::before': { left: 'var(--box-left)' },
+  '.cm-line.cm-md-box-nested.cm-md-box-first[data-box-label]::after, .cm-line.cm-md-box-nested.cm-md-box-only[data-box-label]::after':
+    { left: TEXT_LEFT, textIndent: '0' },
+  // A fence on the marker line: the marker starts the line, left of the container, in the body text
+  // it belongs to, and takes exactly the room up to the code.
+  '.cm-line.cm-md-box-nested.cm-md-box-marker': {
+    textIndent: 'calc(-1 * (var(--box-left) + var(--box-inset)))',
+  },
+  '.cm-md-box-marker .cm-md-box-lead': {
+    display: 'inline-block',
+    minWidth: TEXT_LEFT,
+    textIndent: '0',
+    whiteSpace: 'pre',
+    fontFamily: `var(--doc-font-body, ${BUILT_IN_BODY_FAMILY})`,
+    fontSize: 'var(--doc-size, 16px)',
+  },
+  // A list that ends in a container: one line of body text below the panel, in place of its gap.
+  '.cm-line.cm-md-box-last.cm-md-list-end, .cm-line.cm-md-box-only.cm-md-list-end': {
+    paddingBottom: `calc(${BELOW_LIST} + var(--box-pad))`,
+  },
+  '.cm-line.cm-md-box-last.cm-md-list-end::before, .cm-line.cm-md-box-only.cm-md-list-end::before':
+    { bottom: BELOW_LIST },
   // Code blocks: monospace at the code size setting (inline code follows the text size instead).
   '.cm-md-box-code': {
     '--box-border': 'var(--syntax-code-border)',

@@ -72,9 +72,15 @@ describe('the drawn indent of a list (ISC-744)', () => {
     expect(shifts('- a\n\t- b\n\t\t- c\n\nend')).toEqual(['2: "\\t"', '3: "\\t\\t"'])
   })
 
-  it('moves the lines of a fenced block in a nested item with its text', () => {
+  it('moves a fenced block in a nested item with its text, as its container', () => {
     const doc = '- a\n  - b\n\n    ```\n    code\n    ```\n\nend'
-    expect(shifts(doc)).toEqual(['2: "  "', '4: "  "', '5: "  "', '6: "  "'])
+    // The container carries the item's two added columns and the four typed ones (box.ts), so its
+    // lines get no second copy of their own.
+    expect(shifts(doc)).toEqual(['2: "  "'])
+    const styles = scanAll(stateOf(doc)).flatMap((item) =>
+      item.type === 'line' && item.attributes?.style !== undefined ? [item.attributes.style] : [],
+    )
+    expect(styles).toEqual(Array(3).fill('--box-columns: 6; --box-lead: 4'))
   })
 
   it('draws the second copy after the quote marks of a list in a quote', () => {

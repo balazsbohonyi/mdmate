@@ -39,6 +39,24 @@ export function quotePrefix(line: string, quotes: number): number {
   return at
 }
 
+/** The nodes a list is made of. */
+export const LIST_NODES: ReadonlySet<string> = new Set(['BulletList', 'OrderedList', 'ListItem'])
+
+/** Whether everything above `node`, up to the document, is a list or a list item. */
+export function inListsOnly(node: SyntaxNode): boolean {
+  for (let up = node.parent; up !== null && up.name !== 'Document'; up = up.parent) {
+    if (!LIST_NODES.has(up.name)) return false
+  }
+  return true
+}
+
+/** How many columns `text` takes from the start of a line: a tab goes to the next multiple. */
+export function columnsOf(text: string, tabSize: number): number {
+  let columns = 0
+  for (const char of text) columns += char === '\t' ? tabSize - (columns % tabSize) : 1
+  return columns
+}
+
 /** The nearest list item at or above `node`, or null. */
 export function itemOf(node: SyntaxNode | null): SyntaxNode | null {
   for (let up = node; up !== null; up = up.parent) if (up.name === 'ListItem') return up
