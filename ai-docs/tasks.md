@@ -164,6 +164,18 @@ Phase 9.1 collects the small fixes and rough edges found in daily use, between t
 - [x] P9.1-T39: Per-preset typography sizes (text/code size & line height, heading scale), preset-inherited size overrides, and Comfort/Compact density toggle — closes ISC-722 to ISC-727
 - [x] P9.1-T40: Custom user font presets (`font-presets/*.json`), searchable scrollable preset grid, Built-in badges, card ellipsis menu, and Open font presets folder — closes ISC-728 to ISC-735
 - [x] P9.1-T41: Polish: hide native search cancel button + thin clear `X` on Settings searches, fix rename error flash, scroll active preset into view, scroll-only preset scrollbar, 3-col desktop grid at 6+ presets — closes ISC-736 to ISC-740 (owner request)
+- [ ] P9.1-T42: A drawn checkbox from theme tokens in every theme, with a `checkbox-background` token — closes ISC-741 to ISC-743 (owner request)
+- [ ] P9.1-T43: Nested list items at twice the indent, and a one-line gap below a list — closes ISC-744 to ISC-747 (owner request)
+- [ ] P9.1-T44: Fenced code blocks inside list items drawn as code containers — closes ISC-748 to ISC-751
+- [ ] P9.1-T45: Go to line (`Mod+G`) with live preview of the jump — closes ISC-752 to ISC-756 (owner request)
+- [ ] P9.1-T46: Links with a line suffix (`file:548`, `#L548`) open at the line — closes ISC-757 to ISC-761
+- [ ] P9.1-T47: Sticky headings at the top of a scrolled Markdown document — closes ISC-762 to ISC-768 (owner request)
+- [ ] P9.1-T48: Status bar file info: line and column, selection, words, line ending, encoding, language — closes ISC-769 to ISC-775 (owner request)
+- [ ] P9.1-T49: Git branch of the focused file in the status bar — closes ISC-776 to ISC-780 (owner request)
+- [ ] P9.1-T50: Delete engine with progress and Cancel, spike first — closes ISC-781 to ISC-786 (owner request)
+- [ ] P9.1-T51: Delete progress dialog after 2 seconds — closes ISC-787 to ISC-792 (owner request)
+- [ ] P9.1-T52: Permanent delete: `Shift+Delete` and Delete Permanently — closes ISC-793 to ISC-797 (owner request)
+- [ ] P9.1-T53: Monochrome built-in theme with gray file icons — closes ISC-798 to ISC-802 (owner request)
 
 ## Phase 10: Ship ([plan](phases/phase-10/plan.md))
 

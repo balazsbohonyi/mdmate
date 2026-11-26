@@ -207,3 +207,26 @@ Done as planned. A held Space acts once, like Enter and like the tree. Space wit
 - **T39: per-preset typography sizes & Comfort/Compact density (P9.1-T39).** Each preset defines default `size`, `lineHeight`, `codeSize`, `codeLineHeight` and `headingScale` (`system`: `16 / 1.5` & `14 / 1.5`; `editorial`: `18 / 1.6` & `14 / 1.5`; `modern`: `17 / 1.6` & `14 / 1.5`; `journal`: `18 / 1.6` & `14 / 1.5`). The five metric settings (`fonts.size`, `lineHeight`, `codeSize`, `codeLineHeight`, `headingScale`) default to `null` (inherit active preset), preserving existing explicit numeric/array values in `settings.json` as overrides; writing a value equal to the active preset's default normalizes to `null`, and clicking a preset clears all 8 override keys atomically. New `fonts.density` (`"comfort"` default | `"compact"`) scales effective text & code sizes by `×0.86` (rounded whole px, min `10px`) and lowers both line heights by `0.1` (0.05 steps, min `1.15`) live on top of preset or overridden values. Inputs always show base Comfort values, an effective readout appears beside the toggle under Compact, and preset card footers show effective text size / line height. `ChoiceGroup.vue` promoted from `features/themes/` to `src/components/ChoiceGroup.vue`.
 - **T40: custom user font presets (P9.1-T40).** Extracted `JsonFolderStore` (`src-tauri/src/settings/folder_store.rs`) shared by `ThemeStore` (`themes/`) and `FontPresetStore` (`font-presets/`): plain validated stems, 256 KB / 200-file caps, plain files only (skip symlinks/dirs), atomic writes, Recycle Bin delete via `trash`, live `notify` watcher, and open folder. Custom presets load at startup in `App.vue` (`src/features/fontPresets/store.ts`) and hook into Vue-free `src/editor/documentFonts.ts` via `setFontPresetResolver`. Pure `src/lib/fontPresetFile.ts` parses JSONC (`name`, `heading`, `body`, `code`, `size`, `lineHeight`, `codeSize`, `codeLineHeight`, `headingScale`, optional `inlineCodeScale`), enforces unique display names (1–60 printable chars, no built-in collisions), and derives safe stems. `FontPresetCards.vue` renders a filter box, contextual `Update preset` / `Save as new` / `New preset` buttons, inline creation form, capped scrollable 2-col grid (`max-h-[27.5rem]`), `Built-in` badges, card ellipsis (`⋯`) menus (using `<div role="radio">` so menu triggers & inline rename inputs are never nested inside `<button>`), and Recycle Bin AlertDialog confirmation. Settings → Advanced adds an `Open font presets folder` row aligned with `Open themes folder`.
 - **T41: preset & search polish (P9.1-T41).** Hid `input[type='search']::-webkit-search-cancel-button` globally in `src/styles/tokens.css` and added matching thin Lucide `X` clear buttons to `Search settings` and `Search shortcuts` in `SettingsView.vue`. Converted `noticesHeld` in `src/features/fontPresets/store.ts` to `shallowRef(0)` so `fontPresetProblem` returns `null` during `holdFontPresetNotices`, eliminating the split-second missing-preset error flash when renaming an active preset. `FontPresetCards.vue` now adjusts `grid.scrollTop` directly on mount (avoiding `scrollIntoView()` so the outer Settings panel does not jump), hides the preset grid scrollbar thumb via `[data-font-preset-cards]:not([data-scrolling='true'])::-webkit-scrollbar-thumb` except for 800ms during user scrolling, and adds `@[46rem]:grid-cols-3` when `allFontPresets.length >= 6`.
+
+## P9.1-T42 to T53: planning (2026-11-27)
+
+The owner's list of 2026-11-26, settled by grilling. No code yet. The owner keeps the feature-sized items (T47, T50 to T52) in this phase, although the plan's rule would move a grown fix to a phase of its own.
+
+| Question | Owner's answer |
+|---|---|
+| Code blocks in lists (reverses ISC-185's "top-level only") | Lists only; quotes stay plain |
+| Sticky headings follow | The scroll position |
+| Delete | Recycle Bin kept, plus a permanent `Shift+Delete` |
+| Status bar | `Ln, Col` always; branch at the left |
+| Monochrome | Gray, with error red and faint signal tints |
+| Red link in the cashflow report | Really broken; add `path:line` support |
+| Progress dialog | Deletes only, shown after 2 seconds, Cancel keeps what was deleted |
+| Extra status items | Selection count, line ending and encoding, word count, language |
+| Go to line | `Mod+G` box with live preview |
+| Sticky headings setup | On by default, all levels |
+| List spacing | One line in total; nothing extra before a blank line |
+| Checkbox | Drawn in all themes, new token |
+| Permanent delete entry points | Key and menu, always confirmed |
+| Branch scope | Any focused file in a repository |
+| Status layout | Display only, `Ln, Col` opens Go to line |
+| Monochrome file icons | Gray |

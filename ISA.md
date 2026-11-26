@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 713/739
+progress: 713/801
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-25T00:26:00Z
+updated: 2026-11-26T22:12:35Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -808,6 +808,68 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-738 | bash | mount `FontPresetCards` with an active preset positioned below the container viewport | `grid.scrollTop` adjusts on mount to bring the active card into view without setting `data-scrolling` | pnpm test:web tests/features/fontPresetCards.test.ts | derived: reported-by-owner | | |
 | ISC-739 | bash | inspect `tokens.css` for `[data-font-preset-cards]` scrollbar rule and fire `scroll` on `FontPresetCards` | scrollbar thumb is transparent unless `data-scrolling="true"`; user scroll sets `data-scrolling="true"` and clears it after idle | pnpm test:web tests/styles/scrollbar.test.ts tests/features/fontPresetCards.test.ts | derived: reported-by-owner | | |
 | ISC-740 | bash | mount `FontPresetCards` with 5 presets vs 6 presets | grid uses 2 columns on desktop with fewer than 6 presets and adds `@[46rem]:grid-cols-3` when 6 or more presets exist | pnpm test:web tests/features/fontPresetCards.test.ts | derived: reported-by-owner | | |
+| ISC-741 | bash | mount checked and unchecked task markers and read the checkbox rules | the native look is off, both fills come from the tokens, the input is a checkbox with the right state, and a press still changes one character | pnpm test:web tests/editor/checkboxStyle.test.ts | derived: reported-by-owner | | |
+| ISC-742 | bash | read the theme files, the token list, the usage texts and the contrast pairs | every built-in theme declares it, it has a usage text, and Sepia’s value is not white | pnpm test:web tests/styles/themes.test.ts tests/lib/themeTokenUsage.test.ts | derived: reported-by-owner | | |
+| ISC-743 | manual | the owner looks at checked and unchecked boxes in each theme | the owner finds them right, the Sepia unchecked box tinted | Owner review in the real window | derived: reported-by-owner | | |
+| ISC-744 | bash | draw nested bullet, ordered and task lists with a table and a fenced block in an item | the drawn indent of level N is twice the source width for text, table and code alike | pnpm test:web tests/editor/listIndent.test.ts | derived: reported-by-owner | | |
+| ISC-745 | bash | compare the document before and after drawing, read the raw state, and walk the lines with the caret | identical text, no indent decoration in raw, no skipped line, spacing made of line padding only | pnpm test:web tests/editor/listIndent.test.ts | derived: reported-by-owner | critical | |
+| ISC-746 | bash | draw lists followed by a blank line, by a heading, by a block and by the end of the file, nested lists included | padding only on the last line of an outermost list with no blank line after it, none inside a list or at the end of the file | pnpm test:web tests/editor/listSpacing.test.ts | derived: reported-by-owner | | |
+| ISC-747 | manual | the owner reads documents with nested lists | the owner finds the indent and the gap right | Owner review in the real window | derived: reported-by-owner | | |
+| ISC-748 | bash | draw fixtures with fences in bullet, ordered and nested items, on the marker line, and unclosed | each fence in a list has the container, label and button at the item indent | pnpm test:web tests/editor/listFences.test.ts | derived: reported-by-owner | | |
+| ISC-749 | bash | draw fences in a quote, in a list in a quote and in a quote in a list | no container on any of them | pnpm test:web tests/editor/listFences.test.ts | derived: reported-by-owner | | |
+| ISC-750 | bash | draw a fence on a marker line and copy from a nested fence | the marker is visible and the copied text has no list indentation | pnpm test:web tests/editor/listFences.test.ts tests/editor/codeCopy.test.ts | derived: reported-by-owner | | |
+| ISC-751 | manual | the owner opens `ai_driven_software_development_research_2025.md` in the real window | every well-formed fence in a list is a code box | Owner review in the real window | derived: reported-by-owner | | |
+| ISC-752 | bash | run the command, type both forms and press Enter | the caret is at the line and column and the command can be rebound | pnpm test:web tests/features/goToLine.test.ts | derived: reported-by-owner | | |
+| ISC-753 | bash | type a number, then press Escape | the view moves while typing and both are restored | pnpm test:web tests/features/goToLine.test.ts | derived: reported-by-owner | | |
+| ISC-754 | bash | jump with 0, a huge number, a huge column and letters in a file with frontmatter | clamped positions, no movement for letters | pnpm test:web tests/features/goToLine.test.ts | derived: reported-by-owner | | |
+| ISC-755 | bash | jump in each kind of tab and into hidden blocks | the target line is drawn as text with the caret on it, and the command is disabled elsewhere | pnpm test:web tests/features/goToLine.test.ts | derived: reported-by-owner | | |
+| ISC-756 | manual | the owner uses `Mod+G` | the owner finds it right | Owner review in the real window | derived: reported-by-owner | | |
+| ISC-757 | bash | resolve and follow each form, with and without a folder part before the file name | each opens the file with the caret on the line, and a missing file is still broken | pnpm test:rust line_suffix && pnpm test:web tests/editor/lineLinks.test.ts | derived: reported-by-owner | | |
+| ISC-758 | bash | follow `#l5` to a file that has that heading and to one that has not | the heading in the first, line 5 in the second | pnpm test:web tests/editor/lineLinks.test.ts | derived: reported-by-owner | | |
+| ISC-759 | bash | resolve hostile targets with and without a suffix | every one is refused as before | pnpm test:rust line_suffix_refusals | derived: reported-by-owner | critical | |
+| ISC-760 | bash | rename a file that is linked with each suffix form | the path changes and the suffix is byte for byte the same | pnpm test:rust rewrite_keeps_line_suffix | derived: reported-by-owner | | |
+| ISC-761 | manual | the owner follows a corrected link from the cashflow report | the file opens at the line | Owner review in the real window | derived: reported-by-owner | | |
+| ISC-762 | bash | scroll a fixture with six heading levels and skipped levels | the rows are the ancestors of the top line in order, none above the first heading | pnpm test:web tests/editor/stickyHeadings.test.ts | derived: reported-by-owner | | |
+| ISC-763 | bash | mount two panes, a code file and a document with `#` inside a fence and frontmatter | independent stacks, none in the code file, no false rows | pnpm test:web tests/editor/stickyHeadings.test.ts | derived: reported-by-owner | | |
+| ISC-764 | bash | click each row | the heading is visible below the stack with the caret on it | pnpm test:web tests/editor/stickyHeadings.test.ts | derived: reported-by-owner | | |
+| ISC-765 | bash | move the caret up, go to line, follow an outline row and step through find matches | the line lands below the stack each time | pnpm test:web tests/editor/stickyHeadings.test.ts | derived: reported-by-owner | | |
+| ISC-766 | bash | toggle it by file, row and command | the stack appears and goes in every editor | pnpm test:web tests/features/settings.test.ts tests/editor/stickyHeadings.test.ts | derived: reported-by-owner | | |
+| ISC-767 | bash | keystroke latency on the 1 MB fixture with sticky headings on | p95 under 16 ms | pnpm perf typing-1mb | derived: reported-by-owner | critical | |
+| ISC-768 | manual | the owner reads and scrolls a long document in two panes | the owner finds them right and scrolling smooth | Owner review in the real window | derived: reported-by-owner | | |
+| ISC-769 | bash | move the caret and click the item | the numbers match the source position and the box opens | pnpm test:web tests/shell/statusBarFile.test.ts | derived: reported-by-owner | | |
+| ISC-770 | bash | select within a line and across lines, then collapse | right counts, then none | pnpm test:web tests/shell/statusBarFile.test.ts | derived: reported-by-owner | | |
+| ISC-771 | bash | count a fixture whole and selected, and a code file | right counts for Markdown and none for the code file | pnpm test:web tests/shell/statusBarFile.test.ts | derived: reported-by-owner | | |
+| ISC-772 | bash | open files of each ending and several languages | right labels, no button | pnpm test:web tests/shell/statusBarFile.test.ts | derived: reported-by-owner | | |
+| ISC-773 | bash | switch focus between kinds of tabs while indexing | items follow focus and the other content stays | pnpm test:web tests/shell/statusBarFile.test.ts | derived: reported-by-owner | | |
+| ISC-774 | bash | keystroke latency on the 1 MB fixture with the status bar items shown | p95 under 16 ms | pnpm perf typing-1mb | derived: reported-by-owner | critical | |
+| ISC-775 | manual | the owner uses the app | the owner finds them right | Owner review in the real window | derived: reported-by-owner | | |
+| ISC-776 | bash | focus files from two repositories and one outside every root | each shows its own branch | pnpm test:web tests/shell/statusBarBranch.test.ts | derived: reported-by-owner | | |
+| ISC-777 | bash | parse the branch headers and mount each case | short id when detached, hidden otherwise | pnpm test:rust branch_header && pnpm test:web tests/shell/statusBarBranch.test.ts | derived: reported-by-owner | | |
+| ISC-778 | manual | the owner switches branch in a terminal and returns | the new branch shows | Owner review in the real window | derived: reported-by-owner | | |
+| ISC-779 | bash | count the git runs for a status read with the branch | one run per read, with optional locks off | pnpm test:rust branch_adds_no_run | derived: reported-by-owner | | |
+| ISC-780 | manual | the owner looks at files of several repositories | the owner finds it right | Owner review in the real window | derived: reported-by-owner | | |
+| ISC-781 | manual | read the spike notes | measured numbers with the OS named, read by the owner | Owner review of decisions.md | derived: reported-by-owner | | |
+| ISC-782 | bash | delete a generated tree and collect the events | a count first, then figures that only rise and end at the total | pnpm test:rust delete_progress | derived: reported-by-owner | | |
+| ISC-783 | bash | cancel in the middle of a generated tree | the run ends, deleted items stay deleted and the rest is intact | pnpm test:rust delete_cancel | derived: reported-by-owner | | |
+| ISC-784 | bash | delete where the bin refuses, and read the operation flags | the item is still on disk and the failure is reported | pnpm test:rust recycle_never_permanent | derived: reported-by-owner | critical | |
+| ISC-785 | manual | the owner deletes a large folder and restores it | one entry and the whole folder back | Owner review in the real window | derived: reported-by-owner | | |
+| ISC-786 | bash | delete several files and folders and cancel | one stream of events and one cancel stops all | pnpm test:rust delete_many | derived: reported-by-owner | | |
+| ISC-787 | bash | drive the fake host with short and long deletes on a fake clock | no dialog before 2 s, one after | pnpm test:web tests/features/deleteProgress.test.ts | derived: reported-by-owner | | |
+| ISC-788 | bash | mount each state | all present with primary on the bar | pnpm test:web tests/features/deleteProgress.test.ts | derived: reported-by-owner | | |
+| ISC-789 | bash | press shortcuts and click behind the dialog | nothing happens | pnpm test:web tests/features/deleteProgress.test.ts | derived: reported-by-owner | | |
+| ISC-790 | bash | finish, cancel and fail a delete with open tabs | tabs of kept files stay open with their edits | pnpm test:web tests/features/deleteProgress.test.ts | derived: reported-by-owner | | |
+| ISC-791 | manual | the owner closes the window during a large delete | the delete stops and the rest of the folder is intact | Owner review in the real window | derived: reported-by-owner | | |
+| ISC-792 | manual | the owner deletes a `node_modules` | the owner finds the dialog and Cancel right | Owner review in the real window | derived: reported-by-owner | | |
+| ISC-793 | bash | use both on one and several rows | the question shows, Cancel has focus and the host is not called before Yes | pnpm test:web tests/features/deletePermanent.test.ts | derived: reported-by-owner | | |
+| ISC-794 | bash | delete a generated tree permanently | gone from disk, nothing handed to the bin, events as for a recycle | pnpm test:rust delete_permanent | derived: reported-by-owner | | |
+| ISC-795 | bash | delete a folder holding a junction and a symlink that point outside it | the targets and their contents are intact | pnpm test:rust permanent_keeps_link_targets | derived: reported-by-owner | critical | |
+| ISC-796 | bash | ask for both | refused and untouched | pnpm test:rust permanent_refuses_roots | derived: reported-by-owner | critical | |
+| ISC-797 | manual | the owner deletes scratch files with `Shift+Delete` | the owner finds it right | Owner review in the real window | derived: reported-by-owner | | |
+| ISC-798 | bash | list the themes, pick it, base a theme on it and resolve System | present everywhere, System unchanged | pnpm test:web tests/lib/themes.test.ts tests/styles/themes.test.ts | derived: reported-by-owner | | |
+| ISC-799 | bash | read the chroma of every token | zero chroma outside the listed signals, low chroma for the faint ones | pnpm test:web tests/styles/monochrome.test.ts | derived: reported-by-owner | | |
+| ISC-800 | bash | run the contrast pairs and compare the syntax tokens | floors met and no two kinds drawn the same | pnpm test:web tests/styles/themes.test.ts tests/styles/monochrome.test.ts | derived: reported-by-owner | | |
+| ISC-801 | bash | read the style rules under the theme | the filter applies to tree icons in that theme only | pnpm test:web tests/styles/monochrome.test.ts | derived: reported-by-owner | | |
+| ISC-802 | manual | the owner works in it | the owner finds it right | Owner review in the real window | derived: reported-by-owner | | |
 
 ## Features
 
@@ -880,6 +942,13 @@ Why: a dense keyboard-driven layout you can rearrange freely is what separates t
 - [ ] ISC-664: The owner finds the pane handles right in the real window: the 1px line widens on hover, stays wide while dragging, and leaves no second line behind.
 - [x] ISC-691: The root viewport locks `overflow: hidden` and `overscroll-behavior: none`, the editor scroller and scrollable chrome panels suppress overscroll chaining, and a wide table's wrapper contains horizontal overscroll without blocking vertical scrolling.
 - [x] ISC-692: The owner scrolls past every edge of a document and chrome panels with a precision touchpad in the real window and sees no shifting of the window inside its frame.
+- [ ] ISC-769: For a text tab the status bar shows `Ln` and `Col` of the caret, the same in live preview and raw, and clicking it opens Go to line.
+- [ ] ISC-770: While text is selected the status bar also shows how many characters and lines are selected, and nothing about selection otherwise.
+- [ ] ISC-771: For a Markdown tab the status bar shows the word count of the document, or of the selection while there is one.
+- [ ] ISC-772: For a text tab the status bar shows the line ending (`LF`, `CRLF` or `Mixed`), the encoding and the file language, as text that does nothing on click.
+- [ ] ISC-773: The file items follow the focused pane and are absent for image, Settings and preview tabs and empty panes, messages and the indexing bar keep showing, and in a narrow window the message is cut first.
+- [ ] ISC-774: Anti: the status bar items do not break the typing speed gate (ISC-7).
+- [ ] ISC-775: The owner finds the status bar items right in the real window.
 
 ### F2 · Reliable documents
 Why: nobody trusts an editor twice after it loses their words, so no action here may lose work.
@@ -933,6 +1002,12 @@ Why: this is the reason mdmate exists; you read the rendered page and edit it in
 - [x] ISC-694: Inline code text, in body text, in headings and in table cells, is drawn in the foreground colour in Dark, Light and Sepia; the `syntax-code` token and its contrast pair on the code background still exist.
 - [x] ISC-695: Headings of levels 1 to 6, and headings in the source view, are drawn in the foreground colour in Dark, Light and Sepia, and differ from body text by size and weight only.
 - [ ] ISC-697: The owner finds the code background, the inline code text and the headings right in the real window in Dark, Light and Sepia.
+- [ ] ISC-741: A task checkbox is drawn by the app from theme tokens in every theme, user themes included: the unchecked box is filled with the `checkbox-background` token, the checked box with `primary` and a visible tick, and it stays a checkbox input that toggles as before.
+- [ ] ISC-743: The owner finds the checkboxes right in every built-in theme in the real window.
+- [ ] ISC-744: In live preview each list nesting level is drawn twice as far in as its source indentation, and the text, tables and code blocks of an item move together.
+- [ ] ISC-745: Anti: the list layout changes no byte of the document, leaves Raw Markdown and plain source as they were, and the arrow keys still reach every line.
+- [ ] ISC-746: The gap below a whole list is one body line: a list followed by a blank line gets no extra space, and a list followed directly by other content gets one line of padding from the body line height.
+- [ ] ISC-747: The owner finds list indentation and list spacing right in the real window.
 
 ### F4 · Block preview
 Why: documents mix prose with tables, images and code, and a page full of raw syntax blocks breaks the illusion.
@@ -978,6 +1053,10 @@ Why: documents mix prose with tables, images and code, and a page full of raw sy
 - [x] ISC-712: A code block draws its border in the same token, and a container of another kind keeps the plain border.
 - [ ] ISC-713: The owner finds the border of inline code and of code blocks visible in the real window in Dark, Light and Sepia, Dark included.
 - [x] ISC-714: A body cell of a table has 0.4em of padding above and below, so inline code in it stays clear of the row lines; the header cell keeps its own 0.55em, and the height estimates (`ROW_HEIGHT`, `HEADER_EXTRA`) match the drawn rows.
+- [ ] ISC-748: A fenced code block inside a list item, at any depth, is drawn as a code container at the item’s indent with its language label and copy button, its fences showing only while the caret is in it, a fence on the marker line included.
+- [ ] ISC-749: A fenced code block inside a block quote, also through a list, keeps the plain look.
+- [ ] ISC-750: Anti: drawing a fence in a list never hides the list marker, and its copy button copies the code without the list indentation.
+- [ ] ISC-751: The owner finds the code blocks inside lists drawn right in their research document.
 
 ### F5 · Link navigation
 Why: documentation is a web of files, so following a link has to cost one gesture and be undoable.
@@ -991,6 +1070,11 @@ Why: documentation is a web of files, so following a link has to cost one gestur
 - [x] ISC-80: Alt+Left returns to the previous location.
 - [x] ISC-81: Alt+Right moves forward again.
 - [x] ISC-82: Anti: a plain click on a link never navigates.
+- [ ] ISC-757: A relative link ending in `:line`, `:line:column`, `#Lline` or `#Lline-Lline` resolves to its file, is not drawn as broken when the file exists, and opens at that line.
+- [ ] ISC-758: In a link to a Markdown file a heading whose slug matches the fragment wins over the `#L` line form.
+- [ ] ISC-759: Anti: line suffixes open no new way out: drive letters, alternate data streams and unknown schemes are still refused, and only digits count as a suffix.
+- [ ] ISC-760: Renaming or moving a linked file rewrites a link with a line suffix and keeps the suffix.
+- [ ] ISC-761: The owner follows line links in the real window.
 
 ### F6 · Quick editing
 Why: formatting should stay in your fingers, so writing never stops for syntax.
@@ -1014,6 +1098,11 @@ Why: formatting should stay in your fingers, so writing never stops for syntax.
 - [x] ISC-179: Text drag works in the real app while the window accepts native file drops.
 - [x] ISC-190: Anti: a paste never changes a read-only document.
 - [x] ISC-191: A drawn block is never a drop target.
+- [ ] ISC-752: `Mod+G`, a palette command and a menu entry open a Go to line box that takes `line` or `line:column`, and Enter puts the caret there with the line centred.
+- [ ] ISC-753: The Go to line box shows the jump while the number is typed, and Escape puts the caret and the scroll position back.
+- [ ] ISC-754: Line numbers are source lines with the frontmatter counted, a number out of range goes to the nearest line or column, and text that is not a number moves nothing.
+- [ ] ISC-755: Go to line works in every text tab, rendered Markdown, Raw Markdown and other files, a jump into a collapsed frontmatter or a drawn table leaves the target line visible, and it is disabled for image and Settings tabs.
+- [ ] ISC-756: The owner jumps to lines with the box in the real window.
 
 ### F7 · Workspace
 Why: Markdown lives among other files, so the sidebar must manage them and renames must never strand a link.
@@ -1112,6 +1201,12 @@ Why: long documents and folders are only usable when you can jump straight to th
 - [x] ISC-610: The owner finds the outline layout right in the real window in Dark, Light and Sepia.
 - [x] ISC-639: The lowest heading level a document uses is drawn bold in the outline, also when it is the only level the document uses.
 - [x] ISC-640: When the lowest level occurs once, the next level the document uses is bold too (one H1 makes H2 bold; one H2 and no H1 makes H3 bold); the step does not chain, and a lowest level that occurs more than once does not make the next level bold.
+- [ ] ISC-762: While a Markdown document is scrolled, a sticky stack at the top of the editor shows every ancestor heading of the top visible line, one row per level, as its source line in the code font at the code size.
+- [ ] ISC-763: The sticky headings show in live preview and Raw Markdown, each pane on its own, never in other files, and `#` lines in frontmatter or code are never rows.
+- [ ] ISC-764: Clicking a sticky row scrolls its heading to just under the stack and puts the caret on it.
+- [ ] ISC-765: The sticky stack never covers the caret or the target of a jump.
+- [ ] ISC-767: Anti: with sticky headings on, the typing speed gate (ISC-7) still holds in the release build.
+- [ ] ISC-768: The owner finds the sticky headings right in the real window, scrolling included.
 
 ### F9 · Configuration and themes
 Why: the look must be yours to change without rebuilding, which is why everything runs on tokens.
@@ -1403,6 +1498,13 @@ Why: the look must be yours to change without rebuilding, which is why everythin
 - [x] ISC-738: Mounting `FontPresetCards` brings the active preset card into view inside the preset container without scrolling the outer Settings page.
 - [x] ISC-739: The preset container scrollbar thumb is hidden at rest and appears only while scrolling.
 - [x] ISC-740: When the app has 6 or more presets, the preset grid shows 3 cards per row on desktop widths (`@[46rem]:grid-cols-3`).
+- [ ] ISC-742: The `checkbox-background` token exists in each built-in theme and in the theme editor with a usage text, tinted to the page in Sepia.
+- [ ] ISC-766: A setting `editor.stickyHeadings`, on by default, with a Settings row and a palette command, turns the sticky headings on and off live.
+- [ ] ISC-798: A built-in dark theme Monochrome can be picked in Settings and Switch Theme and used as the base of a user theme, and the System choice stays Dark or Light.
+- [ ] ISC-799: Monochrome declares every token, all of them gray except the error red and faint tints for the git statuses, warning and success.
+- [ ] ISC-800: Monochrome passes the contrast floors and keeps the syntax kinds apart by lightness, or by weight or italic where lightness is not enough.
+- [ ] ISC-801: In Monochrome the file-type icons of the sidebar are gray, while images in documents and hex colour squares keep their colours.
+- [ ] ISC-802: The owner finds the Monochrome theme right in the real window.
 
 ### F10 · Image authoring
 Why: screenshots are the most common thing dropped into documentation, and adding one should take a single paste.
@@ -1563,6 +1665,23 @@ Why: an everyday editor starts, keeps and manages files without sending you to E
 - [x] ISC-611: Closing the window (X button, Alt+F4, closing the last tab) in `pnpm tauri dev` and in the release exe prints no `Failed to unregister class Chrome_WidgetWin_0` line, and unsaved work is still saved on close.
 - [x] ISC-617: The window comes back at the size, position and maximised state it was closed with, and a session file without those values still loads.
 - [x] ISC-618: A saved geometry that lies on no monitor, or is larger than the monitor, is replaced by a window centred on a monitor at the saved size reduced to fit, and never below the minimum size.
+- [ ] ISC-781: Before the delete engine is built, a spike on a real `node_modules` records in `decisions.md` where the time goes and how fine progress and Cancel can be, and the owner reads it.
+- [ ] ISC-782: A delete reports a counting phase and then how much is done out of the total.
+- [ ] ISC-783: Cancelling a delete stops it, and what was not yet deleted stays unchanged on disk.
+- [ ] ISC-784: Anti: a delete to the Recycle Bin never removes anything permanently; what the bin cannot take is kept and reported.
+- [ ] ISC-785: A folder deleted to the Recycle Bin is one entry there that restores whole.
+- [ ] ISC-786: Deleting a multi-selection is one operation with one total and one Cancel.
+- [ ] ISC-787: A progress dialog appears only when a delete has run for 2 seconds, and a faster delete shows none.
+- [ ] ISC-788: The dialog shows a bar styled as the indexing bar and longer, the percent and the number of items left, a counting state before the total is known, and Cancel.
+- [ ] ISC-789: While the dialog is open the rest of the app takes no click or shortcut.
+- [ ] ISC-790: When a delete ends, by finishing, Cancel or failure, only tabs of files that are gone close, the tree matches the disk, and failures show as toasts.
+- [ ] ISC-791: Closing the window during a delete cancels it before the app exits.
+- [ ] ISC-792: The owner deletes a large folder in the real window and finds the dialog right.
+- [ ] ISC-793: `Shift+Delete` in the tree and a `Delete Permanently` menu item ask first, saying it cannot be undone with Cancel focused, and nothing is deleted before the owner confirms.
+- [ ] ISC-794: A confirmed permanent delete removes the files without the Recycle Bin, with the same progress and Cancel.
+- [ ] ISC-795: Anti: a permanent delete never follows a symlink or a junction; it removes the link and leaves the target.
+- [ ] ISC-796: Anti: a permanent delete refuses a workspace root and any path outside the roots.
+- [ ] ISC-797: The owner finds permanent delete right in the real window.
 
 ### F13 · Workspace index
 Why: a large workspace stays quick to search only when mdmate keeps a list of its files instead of walking the disk for every request.
@@ -1611,6 +1730,11 @@ Why: a folder of projects is easier to read when new, changed and ignored files 
 - [x] ISC-666: A command lets the user pick a program file in a native dialog and returns its path without granting access to the file; the page can ask for it (the browser mock answers with a chosen path), and a cancel gives nothing.
 - [x] ISC-667: The Git program row has a Browse button that puts the picked path into the field through the same check as typing; a cancelled dialog changes nothing, and a path that fails the check shows the usual error.
 - [ ] ISC-668: The owner browses to git.exe from the Git program row in the real window and finds the path set and git working.
+- [ ] ISC-776: The left of the status bar shows a branch icon and the branch of the repository that holds the focused file, inside or outside the sidebar folders.
+- [ ] ISC-777: A detached HEAD shows a short commit id, and the item is hidden for a file in no repository, an untitled document and with git turned off.
+- [ ] ISC-778: After a checkout made outside the app the branch shown updates without reopening the file.
+- [ ] ISC-779: Anti: showing the branch writes nothing to a repository and adds no git process for a repository whose status is already read.
+- [ ] ISC-780: The owner finds the branch name right in the real window.
 
 ## Decisions
 
@@ -1822,6 +1946,7 @@ Why: a folder of projects is easier to read when new, changed and ignored files 
 - 2026-11-24: refined: P9.1-T40 custom user font presets (owner request, settled in grill Rounds 1–2). User presets live in `<data_dir>/font-presets/<stem>.json` (JSONC on read, clean JSON on write; optional `inlineCodeScale` auto-derived from body font if omitted) managed by Rust `FontPresetStore` backed by a shared `JsonFolderStore` extracted from `ThemeStore` (plain validated names, 256 KB / 200 files, plain files only, atomic write, Recycle Bin delete, live watch, open folder). Loaded at startup in `App.vue` before first paint; `fonts.preset` accepts built-in or custom preset ids (refining `ISC-715`'s closed 4-id list to built-in or custom ids) and falls back to `system` with a notice when missing or broken without modifying `settings.json`. Editing font/size fields below a custom preset marks it `Customized` rather than auto-saving, with explicit `Update preset` / `Save as new` toolbar actions and per-card ellipsis (`⋯`) menu (`Duplicate…`, `Reset overrides` on built-ins; `Update from current`, `Duplicate…`, inline `Rename…`, confirmed `Delete` on custom presets). Cards sit in a capped scrollable 2-col grid (`max-h-[26rem]`) with filter input and `Built-in` badges; Settings → Advanced gains an `Open font presets folder` row aligned with `Open themes folder`. New claims ISC-728 to ISC-735.
 
 - 2026-11-25: refined: P9.1-T41 preset & search polish (owner review of T39/T40; ISC-727 & ISC-735 closed). (1) Hid `input[type='search']::-webkit-search-cancel-button` globally in `tokens.css` and gave `Search settings` and `Search shortcuts` the same thin Lucide `X` clear button as `FontPresetCards`. (2) Made `noticesHeld` a reactive `shallowRef` in `features/fontPresets/store.ts` so `fontPresetProblem` returns `null` during `holdFontPresetNotices` instead of flashing a transient missing-preset error while renaming the active preset. (3) `FontPresetCards` adjusts `grid.scrollTop` directly on mount (never `scrollIntoView()`, keeping the outer Settings panel at top) and suppresses the scroll indicator during that adjustment. (4) `[data-font-preset-cards]:not([data-scrolling='true'])::-webkit-scrollbar-thumb` is transparent at rest and reveals for 800ms on user scroll. (5) Preset grid switches to `@[46rem]:grid-cols-3` when `allFontPresets.length >= 6`.
+- 2026-11-27: refined: added ISC-741 to ISC-802 for P9.1-T42 to P9.1-T53 (owner list of 2026-11-26, settled by grilling; answers in `ai-docs/phases/phase-09.1/decisions.md`). Older claims are reworded by the task that changes the behaviour, not now: ISC-236 (T48, T49: the status bar holds more than a message), ISC-103 and ISC-227 (T52: a permanent delete exists beside the Recycle Bin one), ISC-185 (T44: fences in list items get the container, fences in quotes stay plain).
 
 ## Verification
 - P9.1-T41 (2026-11-25), preset & search polish (plus owner closure of ISC-727 & ISC-735): ISC-727, ISC-735, and ISC-736 to ISC-740 closed (progress 713/739). Fail-first: all 6 new probes across `tests/styles/scrollbar.test.ts`, `tests/features/fontPresets.test.ts`, and `tests/features/fontPresetCards.test.ts` failed on the old code (including synchronous `watch(fontPresetProblem)` catching the exact rename flash); now all 5 affected suites pass (`scrollbar.test.ts` 10, `colorPairs.test.ts` 5, `fontPresets.test.ts` 5, `fontPresetCards.test.ts` 8, `settingsView.test.ts` 115 — 143 tests total), and `pnpm check` & `pnpm check:rust` exit 0.

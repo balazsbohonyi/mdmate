@@ -599,6 +599,179 @@
 
 **Done when:** fail-first tests pass, visual check in `pnpm dev` passes, and `pnpm check` & `pnpm check:rust` exit 0. Closes ISC-736 to ISC-740.
 
+## P9.1-T42 to T53: the list of 2026-11-26
+
+Twelve tasks from the owner's list, settled by grilling on 2026-11-27 (answers in `decisions.md`). Run them in number order: T44 uses T43's indent, T46 and T48 use T45, T51 and T52 use T50, and T53 comes last so every new token exists.
+
+## P9.1-T42: Themed checkbox
+
+**The request:** in Sepia an unchecked task box is white. It should be tinted like the page.
+
+**Cause:** the box is a native `<input type="checkbox">` (`livePreview/checkbox.ts`). `accent-color` colours the checked state only, and the white comes from `color-scheme: light`.
+
+**Decisions:** draw our own box in **every** theme (Dark, Light, Sepia, user themes), with a new token `checkbox-background`.
+
+**How:** keep the input; `appearance: none` in `.cm-md-checkbox` (`livePreview/theme.ts`), border and fill from tokens, a tick on `primary` when checked. The token goes in the theme files, `tokens.css`, the theme editor and `themeTokenUsage.ts`. The theme preview tab follows.
+
+**Risks:** vertical alignment (the pinned `-0.15em`), the read-only cursor, existing user theme files without the token (they inherit the base).
+
+**Tests:** `tests/editor/checkboxStyle.test.ts`, the theme and usage tests.
+
+**Done when:** the tests fail on the old code and pass on the new, the owner accepts the boxes in the real window, and the checks are green. Closes ISC-741 to ISC-743.
+
+## P9.1-T43: List indentation and spacing
+
+**The request:** double the indentation of nested list items, and about one row of space below lists.
+
+**Decisions:**
+- Display only. The file's bytes do not change, and Raw Markdown and plain source look as before.
+- Every nesting level is drawn twice as far in as its source indentation. Text, tables and code in an item move together.
+- The gap below a whole list totals one body line: nothing extra when a blank line already follows, otherwise one line of padding. The size follows the body line height, not `1rem`.
+
+**How:** one shared function gives the drawn indent of a line, used by list text, the tables in lists (T11, `blocks/scan.ts` `tableItem`) and T44. Spacing is padding on the last `.cm-line` of an outermost list, or inside its last block widget. No margins.
+
+**Risks:** CM6 cannot measure margins; hanging and wrapped lines; the caret and click mapping over widened leading space; tabs as indentation; a list that ends in a block widget (`estimatedHeight`).
+
+**Tests:** `tests/editor/listIndent.test.ts`, `tests/editor/listSpacing.test.ts`; check arrow keys in `pnpm dev`.
+
+**Done when:** fail-first tests pass, the owner accepts it, and the checks are green. Closes ISC-744 to ISC-747.
+
+## P9.1-T44: Code blocks inside lists
+
+**The request:** multi-line code blocks inside lists are not drawn.
+
+**Cause:** deliberate. `livePreview/scan.ts:380` leaves every fence whose parent is not the document plain (ISC-185, "top-level fences only").
+
+**Decisions:** draw fences in **list items** as code containers at the item's indent. Fences in quotes, also through a list, stay plain.
+
+**How:** reuse `inListsOnly` (`blocks/scan.ts`), `fencedCode` and `box.ts`; the container starts at T43's indent and not at the line edge. The copy button moves from its host line to the container.
+
+**Note on the example document** (`marcus-workspace/research/ai_driven_software_development_research_2025.md`): a bare fence inside a `markdown` fence at the same indent closes the outer block. CommonMark and GitHub do the same, so those parts stay odd. Use the file as a fixture for what is well formed.
+
+**Risks:** the fence on the marker line (the marker must stay visible); unclosed fences; indentation less than the item's; code lines with tabs; `codeCopy.ts:40` and the copied text.
+
+**Tests:** `tests/editor/listFences.test.ts`, `codeCopy.test.ts`.
+
+**Done when:** fail-first tests pass, the owner checks the research document, and the checks are green. Closes ISC-748 to ISC-751.
+
+## P9.1-T45: Go to line
+
+**Decisions:** `Mod+G` opens a palette-style box taking `line` or `line:column`; the view follows while typing; Escape restores caret and scroll. Also a palette command, a menu entry and (T48) a click on `Ln, Col`. Lines are source lines, frontmatter counted, as in the gutter. Out of range clamps. Every text tab. No `:` form in Quick Open.
+
+**How:** a command in `defaultCommands.ts` (confirm `Mod+G` is free in the editor keymap), the box on the palette components, and a jump function in `src/editor/` that T46 and T47 reuse.
+
+**Risks:** a target inside hidden syntax, collapsed frontmatter or a table widget needs caret reveal (`atomicRanges` does not stop it); focus return on Escape.
+
+**Tests:** `tests/features/goToLine.test.ts`.
+
+**Done when:** fail-first tests pass, the owner uses it in the real window, and the checks are green. Closes ISC-752 to ISC-756.
+
+## P9.1-T46: Links with a line
+
+**The request:** a link to `calculations.ts` on line 53 of a report is red.
+
+**Finding:** that link is really broken. `../../../src/` from `ai-docs/features/start-date/calendar-year-alignment/` lands in `ai-docs/src/`; the file needs four `../`. No change for it. Links with `:548` (lines 56 and 57) are refused even with a right path, because a colon is refused (`links/guard.rs:354`, and `links/scan.rs:578` skips them in scans).
+
+**Decisions:** support `:line`, `:line:column`, `#Lline` and `#Lline-Lline`; open at the (first) line. In Markdown targets a matching heading slug wins over `#L`.
+
+**How:** split the suffix off before scheme and colon checks, in one function used by resolve and scan. A bare `calculations.ts:548` reads as a URI scheme today (`scheme_of`), so a head with a `.` or `/` followed by digits is a path with a line; `tel:123` and a drive letter keep their meaning. Rename rewriting changes the path only.
+
+**Risks:** security. This relaxes a refusal, so hostile cases come first: drive letters, `file.md:stream`, escaped colons (`%3A`), unknown schemes.
+
+**Tests:** Rust `line_suffix`, `line_suffix_refusals`, `rewrite_keeps_line_suffix`; `tests/editor/lineLinks.test.ts`.
+
+**Done when:** fail-first tests pass, the owner follows a corrected link, and the checks are green. Closes ISC-757 to ISC-761.
+
+## P9.1-T47: Sticky headings
+
+**The request:** the headings leading to where you are stay stacked at the top, as in VS Code, and a click jumps there.
+
+**Decisions:** follows the **top visible line**, not the caret. All ancestors, one row per level, as source (`## Title`) in the code font and code size. Live preview and Raw, Markdown only, each pane on its own. Setting `editor.stickyHeadings`, on by default, with a palette toggle. Click: the heading goes just under the stack with the caret on it.
+
+**How:** headings come from the Rust outline (CM6 parsing is budgeted), refreshed as the outline is. The stack is drawn by `src/editor/` (no Vue), and `scrollMargins` keeps jumps and the caret below it.
+
+**Risks:** the stack's height changes the top line it is computed from (avoid flicker); stale line numbers between an edit and the next outline answer (map them through changes); scroll speed; gutter alignment; zoom.
+
+**Tests:** `tests/editor/stickyHeadings.test.ts`; `pnpm perf` for typing.
+
+**Done when:** fail-first tests pass, the speed gate holds, the owner accepts it, and the checks are green. Closes ISC-762 to ISC-768.
+
+## P9.1-T48: Status bar file info
+
+**Decisions:** right side, for a text tab: `Ln, Col (selection) · words · LF/CRLF · encoding · language`. `Ln, Col` in live preview too. Selection counts only while selecting. Words for Markdown only (of the selection while there is one). Display only, except `Ln, Col` which opens Go to line. Nothing for image, Settings or preview tabs. Messages and the indexing bar stay.
+
+**How:** `src/shell/StatusBar.vue`; a small plain-data report from the focused editor (no editor objects in Vue reactivity); line ending from the per-line ending field (`lineEndings.ts`), `Mixed` when they differ; encoding from the document store. Word count debounced.
+
+**Risks:** the typing gate (count off the key path); large files; narrow windows; ISC-236 is reworded here.
+
+**Tests:** `tests/shell/statusBarFile.test.ts`, `statusBar.test.ts`; `pnpm perf`.
+
+**Done when:** fail-first tests pass, the speed gate holds, the owner accepts it, and the checks are green. Closes ISC-769 to ISC-775.
+
+## P9.1-T49: Git branch
+
+**Decisions:** left of the status bar (the owner's "left side of the sidebar" read as this), with a branch icon, for the repository of the focused file, also outside the sidebar folders. Detached: short commit id. Hidden with no repository, an untitled document or `git.enabled` off. No branch switching.
+
+**How:** add `--branch` to the status call (`src-tauri/src/git/`) and read `# branch.head` and `# branch.oid`, which `status.rs` skips today. A lone file needs its repository found (`discover.rs`) and read; the answer carries no file access.
+
+**Risks:** a checkout that changes only `HEAD` may not fire today's refresh triggers (ISC-778 checks it); a huge repository found for a lone file; `git status` must not write (optional locks off).
+
+**Tests:** Rust `branch_header`, `branch_adds_no_run`; `tests/shell/statusBarBranch.test.ts`.
+
+**Done when:** fail-first tests pass, the owner switches branches and sees it, and the checks are green. Closes ISC-776 to ISC-780.
+
+## P9.1-T50: Delete engine
+
+**The request:** show progress when deleting takes long (`node_modules`).
+
+**Cause:** `confirmDelete` (`features/tree/ops.ts`) calls `trash::delete` once per path. `trash` 5.3.0 runs `IFileOperation` with `FOF_NO_UI` and offers no progress.
+
+**Spike first (ISC-781):** on a real `node_modules`, measure where the time goes, what an `IFileOperationProgressSink` reports during a folder recycle, whether Cancel stops it midway, and what the bin holds afterwards. Write it in `decisions.md`. If progress or Cancel is too coarse, **stop and ask the owner**.
+
+**How:** our own delete behind the platform trait (`src-tauri/src/platform/`), off the main thread: count, events, cancel flag, one operation for a selection. Hand whole folders to the bin; never one call per file.
+
+**Risks:** data loss. The recycle path must never delete permanently (items too large for the bin, drives without one). COM threading; the file watcher and the index during a large delete.
+
+**Tests:** Rust `delete_progress`, `delete_cancel`, `recycle_never_permanent`, `delete_many`.
+
+**Done when:** the spike is read, fail-first tests pass, the owner restores a deleted folder, and the checks are green. Closes ISC-781 to ISC-786.
+
+## P9.1-T51: Delete progress dialog
+
+**Decisions:** a centred modal as in WebStorm, only after **2 seconds**; a bar like the indexing one but longer, percent and items left, a counting state, Cancel. The app behind is blocked. Cancel keeps what was already deleted. Deletes only, not copy or move.
+
+**How:** a dialog on the shadcn `alert-dialog`, fed by T50's events through `src/platform/` (mock included). Tabs close for files that are gone, not for the whole request.
+
+**Risks:** the delete confirmation closing into this dialog (focus); window close during a delete; tabs of a partly deleted folder.
+
+**Tests:** `tests/features/deleteProgress.test.ts`.
+
+**Done when:** fail-first tests pass, the owner deletes a large folder, and the checks are green. Closes ISC-787 to ISC-792.
+
+## P9.1-T52: Permanent delete
+
+**Decisions:** `Shift+Delete` and a **Delete Permanently** menu item, for one row or many. Always confirmed, "cannot be undone", Cancel focused. Same engine and dialog.
+
+**How:** a second mode of T50's engine and a command of its own, so a recycle request can never become permanent by a flag from the page's mistake.
+
+**Risks:** the most destructive code in the app. Junctions and symlinks are removed, never followed. Roots and outside paths are refused. Read-only and locked files; long paths. ISC-103 and ISC-227 are reworded here.
+
+**Tests:** Rust `delete_permanent`, `permanent_keeps_link_targets`, `permanent_refuses_roots`; `tests/features/deletePermanent.test.ts`.
+
+**Done when:** fail-first tests pass, the owner tries it on scratch files, and the checks are green. Closes ISC-793 to ISC-797.
+
+## P9.1-T53: Monochrome theme
+
+**Decisions:** a fourth built-in, dark, made from Dark. Grays everywhere; error red stays; faint tints for git statuses, warning and success. File icons gray; images and hex swatches keep colour. System stays Dark or Light.
+
+**How:** `styles/themes/monochrome.css`, `builtinThemes.ts`, `themeNames.ts` (the name becomes reserved), `themes.ts`, the theme editor and preview. Spread the syntax tokens in lightness; Dark's share one lightness, so removing chroma alone makes them identical. Add weight or italic only if lightness is not enough.
+
+**Risks:** contrast floors; a user theme already named Monochrome; find matches and selection telling apart; the git tints being distinct.
+
+**Tests:** `tests/styles/monochrome.test.ts`, `themes.test.ts`, `tests/lib/themes.test.ts`.
+
+**Done when:** fail-first tests pass, the owner accepts it, and the checks are green. Closes ISC-798 to ISC-802.
+
 ## Follow-ups on done tasks (2026-11-22)
 
 Not tasks. Each one reopens or adds the claim named, fails its probe on the old code first, and is committed as `[P9.1-Tn] ...` with the tag of the task it amends.
