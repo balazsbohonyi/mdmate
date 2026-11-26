@@ -85,6 +85,7 @@ const NAMES: Readonly<Record<ThemeGroup, readonly string[]>> = {
     'gutter',
     'gutter-foreground',
     'table-stripe',
+    'checkbox-background',
   ],
   syntax: [
     'syntax-heading',
@@ -171,6 +172,8 @@ export const CONTRAST_PAIRS: readonly (readonly [string, string, number])[] = [
   ['gutter-foreground', 'gutter', 4.5],
   // The text of a striped table row sits on the stripe.
   ['foreground', 'table-stripe', 4.5],
+  // The outline of an open task box on its own fill: a graphic, so 3 is enough.
+  ['muted-foreground', 'checkbox-background', 3],
   ['syntax-heading', 'background', 4.5],
   ['syntax-link', 'background', 4.5],
   ['syntax-code', 'syntax-code-background', 4.5],

@@ -194,6 +194,17 @@ describe.each([...parsed])('%s theme colors', (name, theme) => {
     expect(contrast(stripe, page)).toBeLessThan(1.25)
   })
 
+  it('fill the open checkbox with a token of its own, tinted like the page (ISC-742)', () => {
+    expect(theme.has('--checkbox-background')).toBe(true)
+    expect(colorMapping().get('--color-checkbox-background')).toBe('--checkbox-background')
+    const fill = parseColor(resolveToken(theme, '--checkbox-background'))
+    // Near the page: a tint of it, not a block.
+    expect(contrast(fill, parseColor(resolveToken(theme, '--background')))).toBeLessThan(1.35)
+    // Sepia's page is cream, so a white box would stand out as it did before.
+    if (name === 'sepia') expect(contrast(fill, parseColor('#ffffff'))).toBeGreaterThan(1.1)
+    expect(CONTRAST_PAIRS).toContainEqual(['muted-foreground', 'checkbox-background', 3])
+  })
+
   it('draw the code background apart from the page, and the code and heading text in the foreground (ISC-693, ISC-694, ISC-695)', () => {
     const page = parseColor(resolveToken(theme, '--background'))
     const codeBackground = parseColor(resolveToken(theme, '--syntax-code-background'))

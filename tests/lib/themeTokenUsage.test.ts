@@ -16,6 +16,11 @@ describe('where each theme token is used (ISC-540)', () => {
     expect(usageOf('table-stripe')).toContain('table')
   })
 
+  it('says what the checkbox token colours (ISC-742)', () => {
+    expect(usageOf('checkbox-background')).toContain('checkbox')
+    expect(THEME_TOKENS.find((token) => token.name === 'checkbox-background')?.group).toBe('editor')
+  })
+
   it('says where the five git colors are used (ISC-655)', () => {
     expect(usageOf('git-added')).toContain('file tree')
     expect(usageOf('git-untracked')).toContain('file tree')

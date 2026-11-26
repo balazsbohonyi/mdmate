@@ -117,13 +117,39 @@ export const previewTheme = EditorView.baseTheme({
   '.cm-md-copy[data-copied="true"]': { color: 'var(--success)' },
   // Bottom edge 0.15em under the baseline: the middle of the box is then 0.35em over it, the middle
   // of a capital letter or a digit, which `vertical-align: middle` (the x-height) put too low.
+  // Drawn by us, not by the browser: the native box is white on any light page, whatever the theme,
+  // since `accent-color` reaches the checked state only.
   '.cm-md-checkbox': {
+    appearance: 'none',
+    position: 'relative',
+    display: 'inline-block',
+    boxSizing: 'border-box',
     width: '1em',
     height: '1em',
     margin: '0 0.35em 0 0',
     verticalAlign: '-0.15em',
+    border: '1px solid var(--muted-foreground)',
+    borderRadius: 'var(--radius-sm)',
+    backgroundColor: 'var(--checkbox-background)',
     cursor: 'pointer',
-    accentColor: 'var(--primary)',
+  },
+  '.cm-md-checkbox:checked': {
+    borderColor: 'var(--primary)',
+    backgroundColor: 'var(--primary)',
+  },
+  // The tick: the lower and right edges of a narrow box, turned. In em, so it follows the text size.
+  '.cm-md-checkbox:checked::after': {
+    content: '""',
+    position: 'absolute',
+    boxSizing: 'border-box',
+    left: '0.28em',
+    top: '0.1em',
+    width: '0.32em',
+    height: '0.6em',
+    borderStyle: 'solid',
+    borderColor: 'var(--primary-foreground)',
+    borderWidth: '0 0.13em 0.13em 0',
+    transform: 'rotate(45deg)',
   },
   '.cm-content[aria-readonly="true"] .cm-md-checkbox': { cursor: 'default' },
   '.cm-md-quote': {

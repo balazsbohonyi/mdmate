@@ -230,3 +230,10 @@ The owner's list of 2026-11-26, settled by grilling. No code yet. The owner keep
 | Branch scope | Any focused file in a repository |
 | Status layout | Display only, `Ln, Col` opens Go to line |
 | Monochrome file icons | Gray |
+
+## P9.1-T42: themed checkbox
+
+- **Done as planned.** The input stays; `appearance: none`, a 1px `muted-foreground` outline (a graphic, so a 3:1 pair on the new token), `checkbox-background` inside, and on `:checked` a `primary` fill with a tick in `primary-foreground` drawn by `::after`. Chromium draws pseudo-elements on an input with no native look, which is what WebView2 is.
+- **Token values.** Dark `oklch(0.27 0.014 262)` (the card), Light `oklch(0.995 0.003 85)`, Sepia `#f7edd5`. A user theme without the token takes its base theme's.
+- **Baseline failure, not touched.** `tableStyle.test.ts` (ISC-714) already failed before this task: commit 901578c moved the body cell padding to 0.5em, while the claim, the decision and the test say 0.4em. The owner has to say which side is wrong.
+- **Not looked at.** The real window (port 1420 is the owner's).

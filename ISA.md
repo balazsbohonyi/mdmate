@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 713/801
+progress: 715/801
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-26T22:12:35Z
+updated: 2026-11-26T22:34:31Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -1002,7 +1002,7 @@ Why: this is the reason mdmate exists; you read the rendered page and edit it in
 - [x] ISC-694: Inline code text, in body text, in headings and in table cells, is drawn in the foreground colour in Dark, Light and Sepia; the `syntax-code` token and its contrast pair on the code background still exist.
 - [x] ISC-695: Headings of levels 1 to 6, and headings in the source view, are drawn in the foreground colour in Dark, Light and Sepia, and differ from body text by size and weight only.
 - [ ] ISC-697: The owner finds the code background, the inline code text and the headings right in the real window in Dark, Light and Sepia.
-- [ ] ISC-741: A task checkbox is drawn by the app from theme tokens in every theme, user themes included: the unchecked box is filled with the `checkbox-background` token, the checked box with `primary` and a visible tick, and it stays a checkbox input that toggles as before.
+- [x] ISC-741: A task checkbox is drawn by the app from theme tokens in every theme, user themes included: the unchecked box is filled with the `checkbox-background` token, the checked box with `primary` and a visible tick, and it stays a checkbox input that toggles as before.
 - [ ] ISC-743: The owner finds the checkboxes right in every built-in theme in the real window.
 - [ ] ISC-744: In live preview each list nesting level is drawn twice as far in as its source indentation, and the text, tables and code blocks of an item move together.
 - [ ] ISC-745: Anti: the list layout changes no byte of the document, leaves Raw Markdown and plain source as they were, and the arrow keys still reach every line.
@@ -1498,7 +1498,7 @@ Why: the look must be yours to change without rebuilding, which is why everythin
 - [x] ISC-738: Mounting `FontPresetCards` brings the active preset card into view inside the preset container without scrolling the outer Settings page.
 - [x] ISC-739: The preset container scrollbar thumb is hidden at rest and appears only while scrolling.
 - [x] ISC-740: When the app has 6 or more presets, the preset grid shows 3 cards per row on desktop widths (`@[46rem]:grid-cols-3`).
-- [ ] ISC-742: The `checkbox-background` token exists in each built-in theme and in the theme editor with a usage text, tinted to the page in Sepia.
+- [x] ISC-742: The `checkbox-background` token exists in each built-in theme and in the theme editor with a usage text, tinted to the page in Sepia.
 - [ ] ISC-766: A setting `editor.stickyHeadings`, on by default, with a Settings row and a palette command, turns the sticky headings on and off live.
 - [ ] ISC-798: A built-in dark theme Monochrome can be picked in Settings and Switch Theme and used as the base of a user theme, and the System choice stays Dark or Light.
 - [ ] ISC-799: Monochrome declares every token, all of them gray except the error red and faint tints for the git statuses, warning and success.
@@ -1949,6 +1949,7 @@ Why: a folder of projects is easier to read when new, changed and ignored files 
 - 2026-11-27: refined: added ISC-741 to ISC-802 for P9.1-T42 to P9.1-T53 (owner list of 2026-11-26, settled by grilling; answers in `ai-docs/phases/phase-09.1/decisions.md`). Older claims are reworded by the task that changes the behaviour, not now: ISC-236 (T48, T49: the status bar holds more than a message), ISC-103 and ISC-227 (T52: a permanent delete exists beside the Recycle Bin one), ISC-185 (T44: fences in list items get the container, fences in quotes stay plain).
 
 ## Verification
+- P9.1-T42 (2026-11-27), themed checkbox: ISC-741 and ISC-742 closed (progress 715/801); ISC-743 stays open for the owner's review. Fail-first: before code, 3 tests of `checkboxStyle.test.ts`, 3 of `themes.test.ts` and 1 of `themeTokenUsage.test.ts` failed; now they pass. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 3973 passed with the one failure that predates this task (ISC-714, `tableStyle.test.ts`). Screenshots from `pnpm dev` on port 5199 show open and checked boxes in Dark, Light and Sepia. Not verified: the real window.
 - P9.1-T41 (2026-11-25), preset & search polish (plus owner closure of ISC-727 & ISC-735): ISC-727, ISC-735, and ISC-736 to ISC-740 closed (progress 713/739). Fail-first: all 6 new probes across `tests/styles/scrollbar.test.ts`, `tests/features/fontPresets.test.ts`, and `tests/features/fontPresetCards.test.ts` failed on the old code (including synchronous `watch(fontPresetProblem)` catching the exact rename flash); now all 5 affected suites pass (`scrollbar.test.ts` 10, `colorPairs.test.ts` 5, `fontPresets.test.ts` 5, `fontPresetCards.test.ts` 8, `settingsView.test.ts` 115 — 143 tests total), and `pnpm check` & `pnpm check:rust` exit 0.
 - P9.1-T40 (2026-11-24), custom user font presets: ISC-728 to ISC-734 closed (progress 706/734); ISC-735 stays open for the owner's review. Fail-first: before code, `tests/lib/fontPresetFile.test.ts`, `tests/features/fontPresets.test.ts`, and `tests/features/fontPresetCards.test.ts` all failed to resolve; now all pass (`fontPresetFile.test.ts` 8, `fontPresets.test.ts` 4, `fontPresetCards.test.ts` 5, `settingsView.test.ts` 114, `settingsFile.test.ts` 79, `documentFonts.test.ts` 33, `colorPairs.test.ts` 5, `noNativeTitle.test.ts` 6), Rust tests pass (`font_presets` 4, `settings::themes` 17), and `pnpm check`, `pnpm check:rust`, and `pnpm build` exit 0.
 - P9.1-T39 (2026-11-24), per-preset typography sizes & Comfort/Compact density: ISC-722 to ISC-726 closed (progress 699/734); ISC-727 stays open for the owner's review. Fail-first: before code, 6 of 6 new tests in `tests/lib/fontPresets.test.ts` failed; now all 11 affected test suites (345 tests) pass (`fontPresets.test.ts`, `settingsFile.test.ts`, `documentFonts.test.ts`, `lineHeight.test.ts`, `lineNumbers.test.ts`, `sourceModeFonts.test.ts`, `settings.test.ts`, `settingsView.test.ts`, `subGroups.test.ts`, `commentedFiles.test.ts`, `colorPairs.test.ts`), and `pnpm check` exits 0.

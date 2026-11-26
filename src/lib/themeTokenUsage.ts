@@ -100,6 +100,8 @@ export const THEME_TOKEN_USAGE: Readonly<Record<string, string>> = {
     'The line numbers. The number of the line with the cursor uses the main text color instead.',
   'table-stripe':
     'The fill of every second body row of a table in a document. The Striped table rows setting turns it off.',
+  'checkbox-background':
+    'The inside of an unchecked task checkbox in a document. A checked one is filled with the primary color.',
 
   // Syntax
   'syntax-heading': 'Markdown headings in the editor.',
