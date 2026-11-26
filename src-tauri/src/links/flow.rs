@@ -370,6 +370,37 @@ mod tests {
     }
 
     #[test]
+    fn rewrite_keeps_line_suffix() {
+        let w = workspace();
+        let old = w.root.join("src/calc.ts");
+        put(&old, "export {}\n");
+        let report = |name: &str| {
+            format!(
+                "[a](src/{name}:5) [b](src/{name}:5:2) [c](src/{name}#L5) [d](src/{name}#L5-L9)\n\
+                 <a href=\"src/{name}:8\">e</a>\n\n[f]: <src/{name}:7>\n"
+            )
+        };
+        put(&w.root.join("report.md"), &report("calc.ts"));
+        put(&w.root.join("src/beside.md"), "[g](calc.ts:3)\n");
+
+        let planned = plan_of(&w, &old, &rename("math.ts"), &[]);
+        assert_eq!((planned.links, planned.files), (7, 2));
+        let done = finish(&w.state, planned.token, &[]).expect("done");
+        assert_eq!(done.failed, []);
+        let read = |path: &str| fs::read_to_string(w.root.join(path)).expect("read");
+        assert_eq!(read("report.md"), report("math.ts"));
+        assert_eq!(read("src/beside.md"), "[g](math.ts:3)\n");
+
+        // A name with no dot would read as a scheme before a colon, so the link says it is a path.
+        let moved = w.root.join("src/math.ts");
+        let planned = plan_of(&w, &moved, &rename("Makefile"), &[]);
+        let done = finish(&w.state, planned.token, &[]).expect("done");
+        assert_eq!(done.failed, []);
+        assert_eq!(read("report.md"), report("Makefile"));
+        assert_eq!(read("src/beside.md"), "[g](./Makefile:3)\n");
+    }
+
+    #[test]
     fn rewrite_flow_plans_without_changing_anything_and_then_moves_and_rewrites() {
         let w = workspace();
         let old = w.root.join("old.md");

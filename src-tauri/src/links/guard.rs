@@ -69,7 +69,16 @@ pub(crate) enum Lexical {
     Relative {
         steps: Vec<Step>,
         fragment: Option<String>,
+        /// The line the target names, from `:12`, `:12:5`, `#L12` or `#L12-L20`.
+        place: Option<Place>,
     },
+}
+
+/// A place in a file that a link names. Lines and columns count from 1.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Place {
+    pub(crate) line: u32,
+    pub(crate) column: Option<u32>,
 }
 
 /// One step of a relative path.
@@ -99,6 +108,7 @@ pub(crate) enum Target {
         path: PathBuf,
         kind: FileKind,
         fragment: Option<String>,
+        place: Option<Place>,
     },
     /// A relative target that does not exist. The page draws it as broken.
     Missing(PathBuf),
@@ -259,7 +269,11 @@ pub(crate) fn classify(href: &str) -> Result<Lexical, Refusal> {
     if let Some(fragment) = text.strip_prefix('#') {
         return Ok(Lexical::Anchor(decode(fragment)?));
     }
-    if let Some(scheme) = scheme_of(text) {
+    // `calc.ts:548` reads as a scheme too, so a path with a line is told apart first.
+    let before_fragment = text.split_once('#').map_or(text, |(path, _)| path);
+    if split_line(before_fragment).1.is_none()
+        && let Some(scheme) = scheme_of(text)
+    {
         // One letter before the colon is a drive (`C:\x`), not a scheme.
         if scheme.len() == 1 {
             return Err(Refusal::Absolute);
@@ -284,6 +298,64 @@ pub(crate) fn scheme_of(text: &str) -> Option<&str> {
     (first.is_ascii_alphabetic()
         && chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.')))
     .then_some(scheme)
+}
+
+/// Splits `:12` or `:12:5` off the end of a path as written, for the guard and the link scan.
+/// Only plain digits after a plain colon count (`%3A` is never one), and what is left must look
+/// like a path, with a dot or a slash, hold no other colon and end in a name. Everything else
+/// comes back whole, to be judged as before: `tel:123`, `C:12` and `a.md:stream` among them.
+pub(crate) fn split_line(path: &str) -> (&str, Option<Place>) {
+    let Some((head, last)) = number_after_colon(path) else {
+        return (path, None);
+    };
+    let (bare, place) = match number_after_colon(head) {
+        Some((bare, line)) => (
+            bare,
+            Place {
+                line,
+                column: Some(last),
+            },
+        ),
+        None => (
+            head,
+            Place {
+                line: last,
+                column: None,
+            },
+        ),
+    };
+    let name = bare.rsplit(['/', '\\']).next().unwrap_or(bare);
+    if !bare.contains(['.', '/', '\\']) || bare.contains(':') || matches!(name, "" | "." | "..") {
+        return (path, None);
+    }
+    (bare, Some(place))
+}
+
+fn number_after_colon(text: &str) -> Option<(&str, u32)> {
+    let (head, digits) = text.rsplit_once(':')?;
+    Some((head, number(digits)?))
+}
+
+/// ASCII digits only. A number too large to hold means the last line anyway.
+fn number(digits: &str) -> Option<u32> {
+    (!digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()))
+        .then(|| digits.parse().unwrap_or(u32::MAX))
+}
+
+/// The first line of a fragment such as `L12` or `L12-L20`, as code hosts write them.
+fn fragment_line(fragment: &str) -> Option<Place> {
+    let rest = fragment.strip_prefix(['L', 'l'])?;
+    let first = match rest.split_once('-') {
+        Some((first, end)) => {
+            number(end.strip_prefix(['L', 'l'])?)?;
+            first
+        }
+        None => rest,
+    };
+    Some(Place {
+        line: number(first)?,
+        column: None,
+    })
 }
 
 fn web(scheme: &str, rest: &str) -> Result<Lexical, Refusal> {
@@ -337,6 +409,8 @@ fn relative(text: &str) -> Result<Lexical, Refusal> {
         Some((path, fragment)) => (path, Some(fragment)),
         None => (text, None),
     };
+    // A line after a colon comes off before decoding, so an escaped colon is never one.
+    let (raw_path, colon_place) = split_line(raw_path);
     // Decoded exactly once, before every check, so `%5C%5Chost` is caught as `\\host`.
     let path = decode(raw_path)?;
     if path.chars().any(char::is_control) {
@@ -380,7 +454,12 @@ fn relative(text: &str) -> Result<Lexical, Refusal> {
         return Err(Refusal::Executable);
     }
     let fragment = raw_fragment.map(decode).transpose()?;
-    Ok(Lexical::Relative { steps, fragment })
+    let place = colon_place.or_else(|| fragment.as_deref().and_then(fragment_line));
+    Ok(Lexical::Relative {
+        steps,
+        fragment,
+        place,
+    })
 }
 
 /// Refuses names Windows treats specially or cannot store, on every OS, so a document behaves the
@@ -477,10 +556,14 @@ pub(crate) fn resolve(
     folder: &Path,
     fs: &impl FileSystem,
 ) -> Result<Target, Refusal> {
-    let (steps, fragment) = match lexical {
+    let (steps, fragment, place) = match lexical {
         Lexical::Anchor(fragment) => return Ok(Target::Anchor(fragment)),
         Lexical::Web(url) => return Ok(Target::Web(Approved(url))),
-        Lexical::Relative { steps, fragment } => (steps, fragment),
+        Lexical::Relative {
+            steps,
+            fragment,
+            place,
+        } => (steps, fragment, place),
     };
     if is_network(folder) {
         return Err(Refusal::Network);
@@ -516,6 +599,7 @@ pub(crate) fn resolve(
         path: canonical,
         kind,
         fragment,
+        place,
     })
 }
 
@@ -735,7 +819,8 @@ pub(crate) mod tests {
             Ok(Target::File {
                 path: target,
                 kind: FileKind::Markdown,
-                fragment: Some("Intro".into())
+                fragment: Some("Intro".into()),
+                place: None
             })
         );
     }
@@ -771,7 +856,8 @@ pub(crate) mod tests {
             classify("a%23b.md"),
             Ok(Lexical::Relative {
                 steps: vec![Step::Name("a#b.md".into())],
-                fragment: None
+                fragment: None,
+                place: None
             })
         );
     }

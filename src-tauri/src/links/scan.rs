@@ -15,7 +15,7 @@
 //! wikilinks, `srcset`, web and mail addresses, anchors that stay in the page, and absolute or
 //! network paths (the link guard refuses to follow those, and a rename cannot change them).
 
-use super::guard::{decode, scheme_of};
+use super::guard::{decode, scheme_of, split_line};
 use std::ops::Range;
 
 /// How a link was written.
@@ -59,6 +59,8 @@ pub(crate) struct Link {
     pub(crate) wrapping: Wrapping,
     /// True when the target uses `%XX` escapes, so an edit writes escapes too.
     pub(crate) percent: bool,
+    /// True when `:12` or `:12:5` follows `span`.
+    pub(crate) colon_line: bool,
     /// Line of the start of the target, from 1.
     pub(crate) line: usize,
 }
@@ -170,6 +172,10 @@ impl Link {
                     out.push_str(&format!("%{byte:02X}"));
                 }
             }
+        }
+        // Before a colon, a name with no dot and no slash would read as a scheme.
+        if self.colon_line && !out.contains(['.', '/']) {
+            out.insert_str(0, "./");
         }
         out
     }
@@ -566,6 +572,8 @@ fn link_at(
 ) -> Option<Link> {
     let whole = text.get(target.clone())?;
     let (raw, _) = whole.split_once('#').unwrap_or((whole, ""));
+    // A line after the path is not part of it, so an edit leaves it as it is written.
+    let (raw, place) = split_line(raw);
     if raw.is_empty() || raw.starts_with(['/', '\\']) || raw.chars().any(char::is_control) {
         return None;
     }
@@ -590,6 +598,7 @@ fn link_at(
         path,
         wrapping,
         percent,
+        colon_line: place.is_some(),
         line: 0,
     })
 }

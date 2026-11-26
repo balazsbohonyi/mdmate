@@ -34,8 +34,17 @@ export type FollowedLink =
   | { readonly kind: 'anchor'; readonly fragment: string }
   /** Handed to the browser, the mail app or the file's default app. */
   | { readonly kind: 'opened' }
-  /** A Markdown file Rust now lets the page open, by this path. */
-  | { readonly kind: 'document'; readonly path: string; readonly fragment: string | null }
+  /**
+   * A file Rust now lets the page open, by this path: a Markdown file, or a text file the link
+   * names a line of.
+   */
+  | {
+      readonly kind: 'document'
+      readonly path: string
+      readonly fragment: string | null
+      readonly line: number | null
+      readonly column: number | null
+    }
 
 const REFUSALS: readonly string[] = [
   'empty',
@@ -66,6 +75,14 @@ function optionalText(value: Record<string, unknown>, field: string): string | n
   const found = value[field]
   if (found === null || found === undefined) return null
   if (typeof found !== 'string') throw new Error(`${field} is not a string`)
+  return found
+}
+
+function optionalCount(value: Record<string, unknown>, field: string): number | null {
+  const found = value[field]
+  if (found === null || found === undefined) return null
+  if (typeof found !== 'number' || !Number.isInteger(found) || found < 0)
+    throw new Error(`${field} is not a count`)
   return found
 }
 
@@ -105,7 +122,13 @@ export function parseFollowedLink(raw: unknown): FollowedLink {
     case 'opened':
       return { kind }
     case 'document':
-      return { kind, path: text(value, 'path'), fragment: optionalText(value, 'fragment') }
+      return {
+        kind,
+        path: text(value, 'path'),
+        fragment: optionalText(value, 'fragment'),
+        line: optionalCount(value, 'line'),
+        column: optionalCount(value, 'column'),
+      }
     default:
       throw new Error(`unknown follow result ${String(kind)}`)
   }

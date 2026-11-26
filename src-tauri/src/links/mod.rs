@@ -13,6 +13,7 @@ pub(crate) mod walk;
 
 use crate::access::display_path;
 use crate::error::{AppError, friendly_io};
+use crate::fs::kind::is_known_binary;
 use guard::{Approved, FileKind, FileSystem, Target};
 use serde::Serialize;
 use std::path::Path;
@@ -72,10 +73,13 @@ pub(crate) enum Followed {
     Anchor { fragment: String },
     /// Handed to the browser, the mail app or a file's default app.
     Opened,
-    /// A Markdown file Rust has now let the page open, by this path.
+    /// A file Rust has now let the page open, by this path: a Markdown file, or a text file
+    /// the link names a line of.
     Document {
         path: String,
         fragment: Option<String>,
+        line: Option<u32>,
+        column: Option<u32>,
     },
 }
 
@@ -100,6 +104,7 @@ pub(crate) fn describe(href: &str, folder: &Path, fs: &impl FileSystem) -> LinkI
             path,
             kind,
             fragment,
+            ..
         }) => {
             let path = display_path(&path);
             match kind {
@@ -148,18 +153,27 @@ pub(crate) fn follow(
             path,
             kind,
             fragment,
-        } => match kind {
-            FileKind::Markdown => Ok(Followed::Document {
-                path: grant(&path)?,
-                fragment,
-            }),
-            FileKind::Other if !confirmed => Err(AppError::NeedsConfirmation(display_path(&path))),
-            FileKind::Image | FileKind::Other => {
-                // The OS gets the plain spelling: some handlers cannot read `\\?\` paths.
-                opener.open(&Approved::file(Path::new(&display_path(&path))))?;
-                Ok(Followed::Opened)
+            place,
+        } => {
+            // No default app can be told a line, so a text file with one is read here, where
+            // nothing in it can run. A file that holds no text goes to its app, as before.
+            let read_here = kind == FileKind::Markdown
+                || (kind == FileKind::Other && place.is_some() && !is_known_binary(&path));
+            if read_here {
+                return Ok(Followed::Document {
+                    path: grant(&path)?,
+                    fragment,
+                    line: place.map(|place| place.line),
+                    column: place.and_then(|place| place.column),
+                });
             }
-        },
+            if kind == FileKind::Other && !confirmed {
+                return Err(AppError::NeedsConfirmation(display_path(&path)));
+            }
+            // The OS gets the plain spelling: some handlers cannot read `\\?\` paths.
+            opener.open(&Approved::file(Path::new(&display_path(&path))))?;
+            Ok(Followed::Opened)
+        }
     }
 }
 
@@ -224,6 +238,186 @@ mod tests {
         "mailto://x",
         "mailto:",
     ];
+
+    /// A folder with a code file, a note, a binary and a script, all of which exist.
+    fn code_folder() -> CountingFs {
+        CountingFs {
+            files: ["calc.ts", "note.md", "doc.pdf", "run.js", "Makefile"]
+                .map(|name| folder().join(name))
+                .into_iter()
+                .chain([folder().join("src").join("calc.ts")])
+                .collect(),
+            ..CountingFs::default()
+        }
+    }
+
+    fn document(href: &str) -> (String, Option<String>, Option<u32>, Option<u32>) {
+        let opener = RecordingOpener::default();
+        let outcome = follow(href, &folder(), false, &code_folder(), &opener, |path| {
+            Ok(path.to_string_lossy().into_owned())
+        });
+        assert!(opener.opened.borrow().is_empty(), "{href:?} left the app");
+        match outcome {
+            Ok(Followed::Document {
+                path,
+                fragment,
+                line,
+                column,
+            }) => (path, fragment, line, column),
+            other => panic!("{href:?} gave {other:?}"),
+        }
+    }
+
+    #[test]
+    fn line_suffix() {
+        let near = folder().join("calc.ts").to_string_lossy().into_owned();
+        let deep = folder().join("src").join("calc.ts");
+        let deep = deep.to_string_lossy().into_owned();
+        for (href, path, fragment, line, column) in [
+            ("calc.ts:548", &near, None, Some(548), None),
+            ("calc.ts:5:9", &near, None, Some(5), Some(9)),
+            ("calc.ts#L12", &near, Some("L12"), Some(12), None),
+            ("calc.ts#L12-L20", &near, Some("L12-L20"), Some(12), None),
+            ("calc.ts#l5", &near, Some("l5"), Some(5), None),
+            ("src/calc.ts:56", &deep, None, Some(56), None),
+            (r"src\calc.ts:56", &deep, None, Some(56), None),
+            ("./src/calc.ts:56:2", &deep, None, Some(56), Some(2)),
+            ("<src/calc.ts#L3>", &deep, Some("L3"), Some(3), None),
+            (
+                "calc.ts:99999999999999999999",
+                &near,
+                None,
+                Some(u32::MAX),
+                None,
+            ),
+        ] {
+            assert_eq!(
+                document(href),
+                (path.clone(), fragment.map(str::to_owned), line, column),
+                "{href:?}"
+            );
+            assert_eq!(
+                missing(&[href.to_owned()], &folder(), &code_folder()),
+                [false],
+                "{href:?}"
+            );
+        }
+        // A Markdown file keeps its fragment, so a heading of that name can win on the page.
+        let (_, fragment, line, _) = document("note.md#L5");
+        assert_eq!((fragment.as_deref(), line), (Some("L5"), Some(5)));
+        let (_, fragment, line, _) = document("note.md:4");
+        assert_eq!((fragment, line), (None, Some(4)));
+        // A path with a slash needs no extension.
+        assert_eq!(document("./Makefile:2").2, Some(2));
+        // Without the file the link is broken, like any other.
+        for href in ["gone.ts:5", "src/gone.ts#L5", "../calc.ts:1"] {
+            assert_eq!(
+                missing(&[href.to_owned()], &folder(), &code_folder()),
+                [true],
+                "{href:?}"
+            );
+        }
+        // No line: another file still asks before its default app opens it, and so does a file
+        // that holds no text.
+        for href in ["calc.ts", "calc.ts#intro", "doc.pdf#L5", "doc.pdf:5"] {
+            let outcome = follow(
+                href,
+                &folder(),
+                false,
+                &code_folder(),
+                &RecordingOpener::default(),
+                no_grant,
+            );
+            assert!(
+                matches!(outcome, Err(AppError::NeedsConfirmation(_))),
+                "{href:?} gave {outcome:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn line_suffix_refusals() {
+        // The hostile targets, each also with every form of suffix added.
+        let hostile = [
+            r"C:\x.md",
+            "C:/dir/calc.ts",
+            "c:calc.ts",
+            "C%3A/calc.ts",
+            "calc.ts:stream",
+            "calc.ts::$DATA",
+            "calc.ts:stream:$DATA",
+            "src/calc.ts:stream",
+            "calc.ts%3Astream",
+            r"\\host\share\a.ts",
+            "//host/share/a.ts",
+            "%5C%5Chost%5Cshare",
+            "/etc/passwd",
+            "javascript:alert(1)",
+            "file:///C:/x.ts",
+            "ms-msdt:/id/x",
+            "https:\\\\example.com",
+            "run.js",
+            "evil.exe",
+            "foo.com",
+        ];
+        let suffixes = ["", ":5", ":5:6", "#L5", "#L5-L6"];
+        for target in hostile {
+            for suffix in suffixes {
+                refused(&format!("{target}{suffix}"));
+            }
+        }
+        // Only plain digits written after a plain colon count.
+        for target in [
+            "calc.ts:",
+            "calc.ts:5:",
+            "calc.ts:a",
+            "calc.ts:5a",
+            "calc.ts:-5",
+            "calc.ts:+5",
+            "calc.ts: 5",
+            "calc.ts:5-6",
+            "calc.ts:\u{0665}",
+            "calc.ts:1:2:3",
+            "calc.ts%3A5",
+            "calc.ts%3A:5",
+            "calc.ts:%35",
+            "src/:5",
+            "src\\:5",
+            "..:5",
+            ".:5",
+            ":5",
+            "tel:123",
+            "Makefile:12",
+            "C:12",
+            "x:1",
+        ] {
+            refused(target);
+        }
+        // A fragment that is not a line form names no line.
+        for target in [
+            "calc.ts#L",
+            "calc.ts#L5x",
+            "calc.ts#L5-",
+            "calc.ts#L5-6",
+            "calc.ts#5",
+        ] {
+            let lexical = guard::classify(target).expect("a plain link");
+            assert!(
+                matches!(lexical, guard::Lexical::Relative { place: None, .. }),
+                "{target:?}"
+            );
+        }
+    }
+
+    fn refused(href: &str) {
+        let opener = RecordingOpener::default();
+        let outcome = follow(href, &folder(), true, &code_folder(), &opener, no_grant);
+        assert!(
+            matches!(outcome, Err(AppError::LinkRefused(_))),
+            "{href:?} gave {outcome:?}"
+        );
+        assert!(opener.opened.borrow().is_empty(), "{href:?} was opened");
+    }
 
     #[test]
     fn opener_schemes_hostile_table_never_reaches_the_opener() {
@@ -401,7 +595,9 @@ mod tests {
                 outcome.ok(),
                 Some(Followed::Document {
                     path: "granted".into(),
-                    fragment: None
+                    fragment: None,
+                    line: None,
+                    column: None
                 }),
                 "{name}"
             );

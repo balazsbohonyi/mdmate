@@ -1,4 +1,5 @@
 import type { Endings } from '@/lib/endings'
+import { splitColonLine } from '@/lib/lineSuffix'
 import { freeName, nameProblem } from '@/lib/fileNames'
 import type { LinksOnRename } from '@/lib/settings'
 import { checkFolderName, checkPasteFolder, SETTING_DEFS } from '@/lib/settingsFile'
@@ -278,10 +279,13 @@ function mockDescribeLink(files: MockFiles, docPath: string, href: string): Link
   const target = href.trim()
   if (target.startsWith('#')) return { kind: 'anchor', fragment: safeDecode(target.slice(1)) }
   if (/^(https?:\/\/[^/@\\]|mailto:[^/\\])/i.test(target)) return { kind: 'web', url: target }
-  if (/^[a-z][a-z0-9+.-]*:/i.test(target)) return { kind: 'refused', reason: 'scheme' }
-  if (/^[/\\]/.test(target)) return { kind: 'refused', reason: 'absolute' }
   const hash = target.indexOf('#')
-  const rawPath = hash === -1 ? target : target.slice(0, hash)
+  const written = hash === -1 ? target : target.slice(0, hash)
+  const suffix = splitColonLine(written)
+  if (suffix === null && /^[a-z][a-z0-9+.-]*:/i.test(target))
+    return { kind: 'refused', reason: 'scheme' }
+  if (/^[/\\]/.test(target)) return { kind: 'refused', reason: 'absolute' }
+  const rawPath = suffix?.path ?? written
   const fragment = hash === -1 ? null : safeDecode(target.slice(hash + 1))
   if (rawPath === '') return { kind: 'anchor', fragment: fragment ?? '' }
   const parts = docPath.split('/').slice(0, -1)
@@ -295,6 +299,15 @@ function mockDescribeLink(files: MockFiles, docPath: string, href: string): Link
   if (/\.(md|markdown)$/i.test(canonical)) return { kind: 'markdown', path: canonical, fragment }
   if (/\.(png|jpe?g|gif|webp)$/i.test(canonical)) return { kind: 'image', path: canonical }
   return { kind: 'file', path: canonical }
+}
+
+/** The line a target names, read as the guard reads it. */
+function mockLine(href: string): { line: number | null; column: number | null } {
+  const [written = '', fragment = ''] = href.trim().split('#', 2)
+  const suffix = splitColonLine(written)
+  if (suffix !== null) return { line: suffix.line, column: suffix.column }
+  const line = /^l(\d+)(?:-l\d+)?$/i.exec(fragment)?.[1]
+  return { line: line === undefined ? null : Number(line), column: null }
 }
 
 function safeDecode(text: string): string {
@@ -843,7 +856,12 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
         case 'anchor':
           return Promise.resolve({ kind: 'anchor', fragment: info.fragment })
         case 'markdown':
-          return Promise.resolve({ kind: 'document', path: info.path, fragment: info.fragment })
+          return Promise.resolve({
+            kind: 'document',
+            path: info.path,
+            fragment: info.fragment,
+            ...mockLine(href),
+          })
         case 'web':
           host.opened.push(info.url)
           return Promise.resolve({ kind: 'opened' })
@@ -851,6 +869,15 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
           host.opened.push(info.path)
           return Promise.resolve({ kind: 'opened' })
         case 'file':
+          // A text file with a line is read in a tab, as in Rust.
+          if (mockLine(href).line !== null && !/\.(pdf|zip|exe|mp3|mp4)$/i.test(info.path)) {
+            return Promise.resolve({
+              kind: 'document',
+              path: info.path,
+              fragment: safeDecode(href.split('#', 2)[1] ?? '') || null,
+              ...mockLine(href),
+            })
+          }
           if (!confirmed) {
             return Promise.reject(
               hostError('needs-confirmation', `opening ${info.path} needs a confirmation first`),

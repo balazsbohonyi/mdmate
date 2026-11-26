@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 725/801
+progress: 729/801
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-26T23:18:34Z
+updated: 2026-11-26T23:28:10Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -1065,15 +1065,15 @@ Why: documentation is a web of files, so following a link has to cost one gestur
 - [x] ISC-75: Ctrl+click on a `#heading` link jumps to that heading.
 - [x] ISC-76: Ctrl+click on `file.md#heading` opens the file at that heading.
 - [x] ISC-77: Ctrl+click on a web link opens the default browser.
-- [x] ISC-78: A confirmed link to another file opens its default app.
+- [x] ISC-78: A confirmed link to another file that opens no tab opens its default app.
 - [x] ISC-79: Links with missing targets show a broken style.
 - [x] ISC-80: Alt+Left returns to the previous location.
 - [x] ISC-81: Alt+Right moves forward again.
 - [x] ISC-82: Anti: a plain click on a link never navigates.
-- [ ] ISC-757: A relative link ending in `:line`, `:line:column`, `#Lline` or `#Lline-Lline` resolves to its file, is not drawn as broken when the file exists, and opens at that line.
-- [ ] ISC-758: In a link to a Markdown file a heading whose slug matches the fragment wins over the `#L` line form.
-- [ ] ISC-759: Anti: line suffixes open no new way out: drive letters, alternate data streams and unknown schemes are still refused, and only digits count as a suffix.
-- [ ] ISC-760: Renaming or moving a linked file rewrites a link with a line suffix and keeps the suffix.
+- [x] ISC-757: A relative link ending in `:line`, `:line:column`, `#Lline` or `#Lline-Lline` resolves to its file, is not drawn as broken when the file exists, and opens at that line.
+- [x] ISC-758: In a link to a Markdown file a heading whose slug matches the fragment wins over the `#L` line form.
+- [x] ISC-759: Anti: line suffixes open no new way out: drive letters, alternate data streams and unknown schemes are still refused, and only digits count as a suffix.
+- [x] ISC-760: Renaming or moving a linked file rewrites a link with a line suffix and keeps the suffix.
 - [ ] ISC-761: The owner follows line links in the real window.
 
 ### F6 · Quick editing
@@ -1949,6 +1949,7 @@ Why: a folder of projects is easier to read when new, changed and ignored files 
 - 2026-11-27: refined: added ISC-741 to ISC-802 for P9.1-T42 to P9.1-T53 (owner list of 2026-11-26, settled by grilling; answers in `ai-docs/phases/phase-09.1/decisions.md`). Older claims are reworded by the task that changes the behaviour, not now: ISC-236 (T48, T49: the status bar holds more than a message), ISC-103 and ISC-227 (T52: a permanent delete exists beside the Recycle Bin one), ISC-185 (T44: fences in list items get the container, fences in quotes stay plain).
 
 ## Verification
+- P9.1-T46 (2026-11-27), links with a line: ISC-757 to ISC-760 closed (progress 729/801), ISC-78 reworded; ISC-761 stays open for the owner's review. Fail-first: before code the new Rust tests did not compile (no `place`, no `line`) and 12 of 20 tests in `tests/editor/lineLinks.test.ts` failed; now `line_suffix`, `line_suffix_refusals`, `rewrite_keeps_line_suffix` and the page tests pass. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 4062 passed with the one earlier failure (ISC-714). Not verified: the real window and a browser run.
 - P9.1-T45 (2026-11-27), Go to line: ISC-752 to ISC-755 closed (progress 725/801); ISC-756 stays open for the owner's review. Fail-first: before code, `tests/features/goToLine.test.ts` failed because the module did not exist; now it passes. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 4042 passed with the one earlier failure (ISC-714). In `pnpm dev` on port 5199, `Ctrl+G` and `121:6` centred and marked the line, Escape restored caret and scroll, Enter kept the target, and the palette entry opened the box. Not verified: the real window.
 - P9.1-T44 (2026-11-27), code blocks inside lists: ISC-748 to ISC-750 closed (progress 721/801), ISC-185 reworded; ISC-751 stays open for the owner's review. Fail-first: before code, 11 of 18 tests in `listFences.test.ts` failed; now all pass with `codeCopy.test.ts` and `codeBlock.test.ts`. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 4018 passed with the one earlier failure (ISC-714). In `pnpm dev` on port 5199 containers started under their item's text in a monospace and a proportional font, a long line wrapped inside the panel, and the arrow keys reached every line. Not verified: the real window, the owner's research document.
 - P9.1-T43 (2026-11-27), list indentation and spacing: ISC-744 to ISC-746 closed (progress 718/801); ISC-747 stays open for the owner's review. Fail-first: before code, 20 of 27 tests in `listIndent.test.ts` and `listSpacing.test.ts` failed; now all pass. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 4000 passed with the one failure that predates this phase's list (ISC-714). In `pnpm dev` on port 5199 nested lists, tables and a fence moved together, the gap showed above a heading, and ArrowDown and ArrowUp reached all 29 lines. Not verified: the real window.

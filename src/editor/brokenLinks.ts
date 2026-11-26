@@ -6,6 +6,7 @@ import {
   type DecorationSet,
   type ViewUpdate,
 } from '@codemirror/view'
+import { splitColonLine } from '@/lib/lineSuffix'
 import { inlineLinksIn } from './links'
 
 /**
@@ -78,6 +79,8 @@ export const linkStatus = Facet.define<LinkStatus, LinkStatus | null>({
 export function isLocalTarget(href: string): boolean {
   const target = href.trim().replace(/^<(.*)>$/, '$1')
   if (target === '' || target.startsWith('#')) return false
+  // `calc.ts:548` reads as a scheme too, so a path with a line is told apart first.
+  if (splitColonLine(target.split('#', 1)[0] ?? '') !== null) return true
   return !/^[a-z][a-z0-9+.-]*:/i.test(target)
 }
 

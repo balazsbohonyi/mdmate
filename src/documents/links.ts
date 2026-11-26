@@ -1,4 +1,5 @@
 import { shallowRef } from 'vue'
+import { positionOf } from '@/editor/goToLine'
 import { findAnchor } from '@/editor/headingSlug'
 import { getHost } from '@/platform'
 import type { TabId } from '@/workbench/splitTree'
@@ -15,8 +16,8 @@ import { reportError, reportWarning } from '@/shell/toasts'
 
 /**
  * Following links. What a target may do is decided by the link guard in Rust; this module only
- * acts on its answer: a heading jump, a Markdown file in a tab, or a question before a file opens
- * in its default app.
+ * acts on its answer: a heading jump, a file in a tab (at the line the link names), or a question
+ * before a file opens in its default app.
  */
 
 /** A file waiting for the user's yes before it opens in its default app. */
@@ -42,6 +43,19 @@ export function jumpToFragment(tabId: TabId, fragment: string): boolean {
   }
   follower.reveal(pos)
   return true
+}
+
+/**
+ * Moves to the place a link names in the file it opened. A heading the fragment names wins over a
+ * line, so `#l5` still finds a heading called L5.
+ */
+function jumpToPlace(tabId: TabId, fragment: string, line: number | null, column: number): void {
+  const follower = followerOfTab(tabId)
+  if (follower === undefined) return
+  const doc = follower.state.doc
+  if (line !== null && (fragment === '' || findAnchor(doc, fragment) === null))
+    follower.reveal(positionOf(doc, { line, column }))
+  else if (fragment !== '') jumpToFragment(tabId, fragment)
 }
 
 /**
@@ -93,8 +107,7 @@ export async function followLinkFrom(tabId: TabId, href: string, confirmed = fal
         return null
       })
       if (opened === null) return
-      if (followed.fragment !== null && followed.fragment !== '')
-        jumpToFragment(opened, followed.fragment)
+      jumpToPlace(opened, followed.fragment ?? '', followed.line, followed.column ?? 1)
       jumped(opened)
       return
     }

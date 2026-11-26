@@ -265,3 +265,12 @@ The owner's list of 2026-11-26, settled by grilling. No code yet. The owner keep
 - **Added to the plan:** the target line is marked in the search match color, because no caret shows while the box has focus. The mark goes away when the caret moves.
 - **Columns** count characters from 1, so an emoji is one column.
 - **Checked** in `pnpm dev` on port 5199: preview, centring, Escape, the key again, Enter, and the palette entry. Not looked at: the real window.
+
+## P9.1-T46: links with a line
+
+- **Opens in a tab.** A default app cannot be told a line, so a text file named with a line is read in mdmate, with no question. Nothing in it can run, and the grant is the one a Markdown link gets. Binary files (`fs/kind.rs` list) still ask and go to their app, with the line dropped. **For the owner to veto:** this means Ctrl+click on `../x.env:1` shows that file in a tab. ISC-78 is reworded to match.
+- **Still refused.** File types that run code (`.js`, `.sh`, `.cmd`, `.ps1` and the rest of the guard's list) stay refused with or without a line. A line link into a JavaScript file therefore stays unfollowable; `.ts` and `.py` are not on the list. Relaxing that is a separate decision.
+- **Colon form.** The path before the digits needs a dot or a slash, so `Makefile:12` is still refused and `./Makefile:12` works. At most two numbers; a third is refused.
+- **Fragment form** reads `L` in either case. A heading of that name wins in a Markdown file. A link inside the same document (`#L5`) is a heading jump only, as before.
+- **Rename** keeps the suffix byte for byte and writes `./Makefile:3` where a bare name would read as a scheme.
+- **Not looked at:** the real window, and a browser run (the follow flow is covered against the mock host in `lineLinks.test.ts`).
