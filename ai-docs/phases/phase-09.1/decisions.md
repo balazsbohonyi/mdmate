@@ -417,3 +417,11 @@ The owner's list of 2026-11-26, settled by grilling. No code yet. The owner keep
 - **Tests.** 9 of 12 new page tests failed before the page change, and four deliberate breaks each failed a test. The link test first failed on its own fixture: `mklink` reads a forward slash as a switch. Run again, with the walk made to look through links it failed because the folder hold refused the junction (the hold backs the walk up), and with the hold's check off too it failed because the target was lost.
 - **Results (2026-11-27, Windows 11).** The owner ran cargo: `pnpm check:rust` exit 0, `pnpm test:rust` 720 passed and 2 ignored. `pnpm check` exit 0; `pnpm test:web` 4317 of 4318, the ISC-714 failure, with the unhandled editor error in `imageResize.test.ts` seen at T51. The question and the dialog were looked at in `pnpm dev` (port 5199) with a fake host.
 - **Still open.** ISC-795: the file symlink half is skipped here (error 1314). Run `cargo test --manifest-path src-tauri/Cargo.toml permanent_keeps_link_targets -- --nocapture` in an Administrator terminal; it must pass with no SKIPPED line. ISC-797 is the owner's. Not verified: the real window, and the macOS and Linux build.
+
+## Owner checks (2026-11-27)
+
+- **Delete.** The owner reported the real-window checks on scratch files as all ok: ISC-784, 785, 791, 792 and 797. T50 and T51 are ticked.
+- **ISC-784** is reworded to what the size check covers.
+- **ISC-714.** The owner accepts the table padding as it is, 0.5em. The claim and test follow. The height estimates do not match the drawn rows (ISC-804, open); they were left as fixed first guesses when the line height became a setting.
+- **Spike.** The owner cleared its leftovers.
+- **ISC-795** is closed: the owner made real file symlinks as Administrator, and a permanent delete in the app left every target intact. T52 is ticked.
