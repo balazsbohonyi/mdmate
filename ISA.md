@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 766/803
+progress: 789/803
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-27T17:30:04Z
+updated: 2026-11-27T18:36:14Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -941,7 +941,7 @@ Why: a dense keyboard-driven layout you can rearrange freely is what separates t
 - [x] ISC-603: Ctrl+PageDown and Ctrl+PageUp select the next and previous tab of the focused pane in strip order at once, with no menu, wrapping at the ends and repeating when held.
 - [x] ISC-604: In the real window Ctrl+Tab, Ctrl+Shift+Tab, Ctrl+PageUp and Ctrl+PageDown reach the page and act as above, and the Keyboard screen lists and rebinds them.
 - [x] ISC-663: A split handle is a 1px line at rest; while the pointer is over it or it is dragged it is 4px wide, as wide as the sidebar edge, in the active handle colour, and it goes back to 1px when both end, with no second line left behind.
-- [ ] ISC-664: The owner finds the pane handles right in the real window: the 1px line widens on hover, stays wide while dragging, and leaves no second line behind.
+- [x] ISC-664: The owner finds the pane handles right in the real window: the 1px line widens on hover, stays wide while dragging, and leaves no second line behind.
 - [x] ISC-691: The root viewport locks `overflow: hidden` and `overscroll-behavior: none`, the editor scroller and scrollable chrome panels suppress overscroll chaining, and a wide table's wrapper contains horizontal overscroll without blocking vertical scrolling.
 - [x] ISC-692: The owner scrolls past every edge of a document and chrome panels with a precision touchpad in the real window and sees no shifting of the window inside its frame.
 - [x] ISC-769: For a text tab the status bar shows `Ln` and `Col` of the caret, the same in live preview and raw, and clicking it opens Go to line.
@@ -950,7 +950,7 @@ Why: a dense keyboard-driven layout you can rearrange freely is what separates t
 - [x] ISC-772: For a text tab the status bar shows the line ending (`LF`, `CRLF` or `Mixed`), the encoding and the file language, as text that does nothing on click.
 - [x] ISC-773: The file items follow the focused pane and are absent for image, Settings and preview tabs and empty panes, messages and the indexing bar keep showing, and in a narrow window the message is cut first.
 - [x] ISC-774: Anti: the status bar items do not break the typing speed gate (ISC-7).
-- [ ] ISC-775: The owner finds the status bar items right in the real window.
+- [x] ISC-775: The owner finds the status bar items right in the real window.
 
 ### F2 · Reliable documents
 Why: nobody trusts an editor twice after it loses their words, so no action here may lose work.
@@ -996,20 +996,20 @@ Why: this is the reason mdmate exists; you read the rendered page and edit it in
 - [x] ISC-634: The highlight of a selected whole line spans the text column and no further, so the padding on the left and right of the content area stays unpainted, in plain text, in a code box, in a quote and in a table.
 - [x] ISC-635: The owner finds line selections right in the real window: Shift+Down and Ctrl+A over plain text, a code box, a quote and a table, with the line numbers on and off.
 - [x] ISC-670: The marker box of a list item is as wide as the en dash drawn in it, so in a proportional font the dash does not overhang the space after it; in a monospace font nothing moves.
-- [ ] ISC-671: The owner finds the gap between the dash and the text of a list item right in a proportional font and in a monospace font, in Dark, Light and Sepia.
+- [x] ISC-671: The owner finds the gap between the dash and the text of a list item right in a proportional font and in a monospace font, in Dark, Light and Sepia.
 - [x] ISC-678: An inline code span whose whole text is a hex colour of 3, 4, 6 or 8 digits, with its `#`, gets a small colour square before it in that colour; other code spans, fenced code and spans with more text get none.
 - [x] ISC-679: The colour square shows whether the selection touches the span or not, the caret never sticks in it, and a copy gives the Markdown text without it.
 - [x] ISC-680: A hex colour in inline code inside a table cell gets the same colour square.
-- [ ] ISC-681: The owner finds the colour squares right in the real window in Dark, Light and Sepia.
+- [x] ISC-681: The owner finds the colour squares right in the real window in Dark, Light and Sepia.
 - [x] ISC-694: Inline code text, in body text, in headings and in table cells, is drawn in the foreground colour in Dark, Light and Sepia; the `syntax-code` token and its contrast pair on the code background still exist.
 - [x] ISC-695: Headings of levels 1 to 6, and headings in the source view, are drawn in the foreground colour in Dark, Light and Sepia, and differ from body text by size and weight only.
-- [ ] ISC-697: The owner finds the code background, the inline code text and the headings right in the real window in Dark, Light and Sepia.
+- [x] ISC-697: The owner finds the code background, the inline code text and the headings right in the real window in Dark, Light and Sepia.
 - [x] ISC-741: A task checkbox is drawn by the app from theme tokens in every theme, user themes included: the unchecked box is filled with the `checkbox-background` token, the checked box with `primary` and a visible tick, and it stays a checkbox input that toggles as before.
-- [ ] ISC-743: The owner finds the checkboxes right in every built-in theme in the real window.
+- [x] ISC-743: The owner finds the checkboxes right in every built-in theme in the real window.
 - [x] ISC-744: In live preview each list nesting level is drawn twice as far in as its source indentation, and the text, tables and code blocks of an item move together.
 - [x] ISC-745: Anti: the list layout changes no byte of the document, leaves Raw Markdown and plain source as they were, and the arrow keys still reach every line.
 - [x] ISC-746: The gap below a whole list is one body line: a list followed by a blank line gets no extra space, and a list followed directly by other content gets one line of padding from the body line height.
-- [ ] ISC-747: The owner finds list indentation and list spacing right in the real window.
+- [x] ISC-747: The owner finds list indentation and list spacing right in the real window.
 
 ### F4 · Block preview
 Why: documents mix prose with tables, images and code, and a page full of raw syntax blocks breaks the illusion.
@@ -1043,23 +1043,23 @@ Why: documents mix prose with tables, images and code, and a page full of raw sy
 - [x] ISC-674: Table header cells have more vertical padding than a body cell, and the height a table is estimated at counts the taller header.
 - [x] ISC-675: A table has rounded outer corners (the radius token) with its borders intact, also in a list item.
 - [x] ISC-676: With `editor.stripedTables` on, every second body row of a table is drawn in the stripe colour and the header and the other rows are not; with it off none is, and the change is live.
-- [ ] ISC-677: The owner finds the tables right in the real window in Dark, Light and Sepia: taller header, rounded corners, alternating rows, and the setting turning the rows off.
+- [x] ISC-677: The owner finds the tables right in the real window in Dark, Light and Sepia: taller header, rounded corners, alternating rows, and the setting turning the rows off.
 - [x] ISC-698: The language label of a fenced code block with a container is drawn at its top left, and the top right holds only the copy button.
 - [x] ISC-699: Every fenced code block has a copy button, with its fences hidden or shown, with or without a language, and also inside a list item or a quote; an indented code block has none.
 - [x] ISC-700: A click on the button puts the text between the fences on the clipboard, with no fence lines and no final line break, for any fence length and line ending, and neither moves the caret nor changes the document.
 - [x] ISC-701: After a click the button shows a check mark for about 1.5 s, then the copy icon again; a failed write shows a toast and no check mark.
 - [x] ISC-702: The button does not change the arrow-key walk through the block, the height of the block, or what a copy of a selection across the block holds.
-- [ ] ISC-703: The owner finds the label and the copy button right in the real window in Dark, Light and Sepia, in a plain block, a block with a long first line, and blocks in a list and in a quote.
+- [x] ISC-703: The owner finds the label and the copy button right in the real window in Dark, Light and Sepia, in a plain block, a block with a long first line, and blocks in a list and in a quote.
 - [x] ISC-710: A theme token for the border of code (`syntax-code-border`) exists in Dark, Light and Sepia and in the theme editor's syntax group with a usage text; it is lighter than the code background in Dark and darker in Light and Sepia, by a contrast of 1.15 to 1.6.
 - [x] ISC-711: Inline code, in text and in a table cell, has a 1px border in that token, no padding above and below and 2px at the sides, keeps the size of the text around it, and the part of it a selection covers draws no border.
 - [x] ISC-712: A code block draws its border in the same token, and a container of another kind keeps the plain border.
-- [ ] ISC-713: The owner finds the border of inline code and of code blocks visible in the real window in Dark, Light and Sepia, Dark included.
+- [x] ISC-713: The owner finds the border of inline code and of code blocks visible in the real window in Dark, Light and Sepia, Dark included.
 - [x] ISC-714: A body cell of a table has 0.5em of padding above and below, so inline code in it stays clear of the row lines; the header cell keeps its own 0.55em.
 - [ ] ISC-804: The table height estimates (`ROW_HEIGHT`, `HEADER_EXTRA`) are within 1px of the rows drawn with the default font settings.
 - [x] ISC-748: A fenced code block inside a list item, at any depth, is drawn as a code container at the item’s indent with its language label and copy button, its fences showing only while the caret is in it, a fence on the marker line included.
 - [x] ISC-749: A fenced code block inside a block quote, also through a list, keeps the plain look.
 - [x] ISC-750: Anti: drawing a fence in a list never hides the list marker, and its copy button copies the code without the list indentation.
-- [ ] ISC-751: The owner finds the code blocks inside lists drawn right in their research document.
+- [x] ISC-751: The owner finds the code blocks inside lists drawn right in their research document.
 
 ### F5 · Link navigation
 Why: documentation is a web of files, so following a link has to cost one gesture and be undoable.
@@ -1077,7 +1077,7 @@ Why: documentation is a web of files, so following a link has to cost one gestur
 - [x] ISC-758: In a link to a Markdown file a heading whose slug matches the fragment wins over the `#L` line form.
 - [x] ISC-759: Anti: line suffixes open no new way out: drive letters, alternate data streams and unknown schemes are still refused, and only digits count as a suffix.
 - [x] ISC-760: Renaming or moving a linked file rewrites a link with a line suffix and keeps the suffix.
-- [ ] ISC-761: The owner follows line links in the real window.
+- [x] ISC-761: The owner follows line links in the real window.
 
 ### F6 · Quick editing
 Why: formatting should stay in your fingers, so writing never stops for syntax.
@@ -1122,7 +1122,7 @@ Why: Markdown lives among other files, so the sidebar must manage them and renam
 - [x] ISC-576: A file row in the sidebar shows an icon for its file type (a subset of Material Icon Theme: Markdown, text, JSON, YAML, TOML, scripts, images, archives, lock and config files and more); the type is read from the whole name first, then the longest extension, case-insensitively, and an unknown name gets a default icon; folder rows keep their icons.
 - [x] ISC-577: The icons are one local sprite with a symbol for every icon the map returns and nothing else, no network reference and no script, and the licence of the icons ships beside it.
 - [x] ISC-578: In `pnpm dev` the tree shows the type icons, readable in Dark, Light and Sepia, none of them on a dark box.
-- [ ] ISC-579: The owner finds the file icons right in the tree in all three themes.
+- [x] ISC-579: The owner finds the file icons right in the tree in all three themes.
 - [x] ISC-580: Every file row in the sidebar is drawn the same, whatever its type: no row is dimmed for not being Markdown.
 - [x] ISC-581: Code text uses the code font from the settings (the built-in code stack while it is empty): inline code in a paragraph, a heading, a list, a quote or a table cell, and the text of a code block; the body font never reaches it.
 - [x] ISC-590: Several rows of the sidebar tree can be selected: Ctrl+click adds a row or takes it out, Shift+click and Shift+Up or Down select the rows from the one that started it, a plain click or Escape goes back to one row, and Ctrl or Shift never opens a file or a folder. The last row added is the lead the keyboard moves from.
@@ -1179,7 +1179,7 @@ Why: Markdown lives among other files, so the sidebar must manage them and renam
 - [x] ISC-706: With two or more files selected in the sidebar the context menu has Open All; with one file, or only folders, it has not; selected folders take no part in it.
 - [x] ISC-707: Open All opens the selected files in the active pane in tree order, a file already open takes focus without a second tab, the first file is the active tab at the end, and a file that fails reports a toast while the others still open.
 - [x] ISC-708: Enter on a selection of two or more files does what Open All does; Enter on one row is unchanged.
-- [ ] ISC-709: The owner opens several selected files from the menu and with Enter in the real window and finds them in the active pane, the first one active.
+- [x] ISC-709: The owner opens several selected files from the menu and with Enter in the real window and finds them in the active pane, the first one active.
 
 ### F8 · Search and outline
 Why: long documents and folders are only usable when you can jump straight to the right place.
@@ -1209,7 +1209,7 @@ Why: long documents and folders are only usable when you can jump straight to th
 - [x] ISC-764: Clicking a sticky row scrolls its heading to just under the stack and puts the caret on it.
 - [x] ISC-765: The sticky stack never covers the caret or the target of a jump.
 - [x] ISC-767: Anti: with sticky headings on, the typing speed gate (ISC-7) still holds in the release build.
-- [ ] ISC-768: The owner finds the sticky headings right in the real window, scrolling included.
+- [x] ISC-768: The owner finds the sticky headings right in the real window, scrolling included.
 
 ### F9 · Configuration and themes
 Why: the look must be yours to change without rebuilding, which is why everything runs on tokens.
@@ -1455,7 +1455,7 @@ Why: the look must be yours to change without rebuilding, which is why everythin
 - [x] ISC-630: Two new theme tokens, the line-number gutter background and its numbers, exist in Dark, Light and Sepia and in the theme editor with their usage text, and a custom theme that leaves them out takes those of its base theme.
 - [x] ISC-631: The line-number colour differs from the body text colour and reads at 4.5:1 or more on the gutter background, in Dark, Light and Sepia.
 - [x] ISC-632: The gutter is painted with its own background token, which equals the page background in Dark, Light and Sepia, its numbers use the code font family at 0.9 times the code size, and the number of the line with the caret keeps the foreground colour.
-- [ ] ISC-633: The owner finds the look of the line numbers right in the real window in Dark, Light and Sepia: small, muted, readable, on the page background, with the same room each side of the digits.
+- [x] ISC-633: The owner finds the look of the line numbers right in the real window in Dark, Light and Sepia: small, muted, readable, on the page background, with the same room each side of the digits.
 - [x] ISC-641: A command lists the installed font families, each once, sorted, with no empty name, and the page can ask for it (the browser mock answers with a short fixed list).
 - [x] ISC-642: The heading, body and code font fields are searchable comboboxes: typing filters the families, each option is drawn in its own family, "Built-in" comes first and clears the setting, and a typed name that is not in the list can be used.
 - [x] ISC-643: A saved value that is a font stack (`Inter, sans-serif`) or names a family that is not installed is shown as it is and is kept when the Settings page opens and closes.
@@ -1466,9 +1466,9 @@ Why: the look must be yours to change without rebuilding, which is why everythin
 - [x] ISC-673: A theme token for the stripe colour of tables exists in Dark, Light and Sepia and in the theme editor's editor group with usage text, and the text colour reads at 4.5:1 or more on it. The stripe is plainly visible against the page, a contrast of 1.08 or more, in all three.
 - [x] ISC-682: The default of `editor.contentMaxWidth` is 1024.
 - [x] ISC-683: The checkbox of a task item is 1em wide and high and sits so its middle is on the middle of a capital letter of the line, not on the x-height.
-- [ ] ISC-684: The owner finds the task boxes centered on the text of their line and big enough, in Dark, Light and Sepia, in a proportional and a monospace font.
+- [x] ISC-684: The owner finds the task boxes centered on the text of their line and big enough, in Dark, Light and Sepia, in a proportional and a monospace font.
 - [x] ISC-685: The Git program field is right-aligned, and when it is not being edited it is scrolled to the end of its text, so the file name of a long path shows.
-- [ ] ISC-686: The owner finds the end of a long Git program path showing in the real window.
+- [x] ISC-686: The owner finds the end of a long Git program path showing in the real window.
 - [x] ISC-687: The line number of a heading line is centered on the first row of the heading, a heading being taller than body text and having top padding.
 - [x] ISC-688: The owner finds the line number of each heading centered on its heading in the real window, in Dark, Light and Sepia.
 - [x] ISC-689: The editors of documents draw no selection or cursor layer of their own, and the theme preview does.
@@ -1507,7 +1507,7 @@ Why: the look must be yours to change without rebuilding, which is why everythin
 - [x] ISC-799: Monochrome declares every token, all of them gray except the error red and faint tints for the git statuses, warning and success.
 - [x] ISC-800: Monochrome passes the contrast floors and keeps the syntax kinds apart by lightness, or by weight or italic where lightness is not enough.
 - [x] ISC-801: In Monochrome the file-type icons of the sidebar are gray, while images in documents and hex colour squares keep their colours.
-- [ ] ISC-802: The owner finds the Monochrome theme right in the real window.
+- [x] ISC-802: The owner finds the Monochrome theme right in the real window.
 
 ### F10 · Image authoring
 Why: screenshots are the most common thing dropped into documentation, and adding one should take a single paste.
@@ -1714,7 +1714,7 @@ Why: a large workspace stays quick to search only when mdmate keeps a list of it
 - [x] ISC-320: `settings.json` holds `links.onRename` (`ask`, `update` or `never`) and a saved change applies to the next rename with no restart; what `MDMATE_LINKS_ON_RENAME` does once the file exists is decided and written in the Phase 8 decisions.
 - [x] ISC-321: A rename or move reads files for links only in the workspace roots that hold the file (all of them when roots lie inside one another), so another workspace is neither read nor changed; Find File References looks in the same roots, and in every root for a file no root holds.
 - [x] ISC-704: The bar of the indexing status in the status bar is drawn in the primary colour, its track is unchanged, and the primary colour reads at 3:1 or more on the status bar in Dark, Light and Sepia.
-- [ ] ISC-705: The owner finds the indexing bar in the primary colour in the real window during an index run, in Dark, Light and Sepia.
+- [x] ISC-705: The owner finds the indexing bar in the primary colour in the real window during an index run, in Dark, Light and Sepia.
 
 ### F14 · Git status in the tree
 Why: a folder of projects is easier to read when new, changed and ignored files show in the tree itself, with no separate staging view.
@@ -1733,12 +1733,12 @@ Why: a folder of projects is easier to read when new, changed and ignored files 
 - [x] ISC-660: The owner finds the colors right in the real window in Dark, Light and Sepia, on a root that holds several repositories, on a selected row, and after a commit made in a terminal and a switch back to mdmate.
 - [x] ISC-666: A command lets the user pick a program file in a native dialog and returns its path without granting access to the file; the page can ask for it (the browser mock answers with a chosen path), and a cancel gives nothing.
 - [x] ISC-667: The Git program row has a Browse button that puts the picked path into the field through the same check as typing; a cancelled dialog changes nothing, and a path that fails the check shows the usual error.
-- [ ] ISC-668: The owner browses to git.exe from the Git program row in the real window and finds the path set and git working.
+- [x] ISC-668: The owner browses to git.exe from the Git program row in the real window and finds the path set and git working.
 - [x] ISC-776: The left of the status bar shows a branch icon and the branch of the repository that holds the focused file, inside or outside the sidebar folders.
 - [x] ISC-777: A detached HEAD shows a short commit id, and the item is hidden for a file in no repository, an untitled document and with git turned off.
-- [ ] ISC-778: After a checkout made outside the app the branch shown updates without reopening the file.
+- [x] ISC-778: After a checkout made outside the app the branch shown updates without reopening the file.
 - [x] ISC-779: Anti: showing the branch writes nothing to a repository and adds no git process for a repository whose status is already read.
-- [ ] ISC-780: The owner finds the branch name right in the real window.
+- [x] ISC-780: The owner finds the branch name right in the real window.
 
 ## Decisions
 
@@ -1962,6 +1962,7 @@ Why: a folder of projects is easier to read when new, changed and ignored files 
 - 2026-11-27: refined: reworded ISC-714 to the 0.5em the owner accepted (set by 901578c in P9.1-T37, which left the claim and test at 0.4em). Its second half, estimates matching the drawn rows, did not hold when measured (body 39px against 33, header 41.5px against 38, at 15.2px table text), so it is now ISC-804 and open.
 
 ## Verification
+- Owner checks, second set (2026-11-27): the owner reported ISC-579, ISC-633, ISC-664, ISC-668, ISC-671, ISC-677, ISC-681, ISC-684, ISC-686, ISC-697, ISC-703, ISC-705, ISC-713, ISC-743, ISC-747, ISC-751, ISC-761, ISC-768, ISC-775, ISC-778, ISC-780 and ISC-802 as passed, and ISC-709 afterwards (progress 789/803). ISC-756 stays open: Go to line reaches the line, but its box is drawn under the sticky headings. With ISC-768 the owner asked for changes to the sticky headings, which get claims of their own.
 - ISC-795 (2026-11-27), closed (progress 766/803): the owner ran as Administrator the setup of a scratch folder with two junctions and two file symlinks pointing outside it, deleted them with Delete Permanently in the app, and ran the `permanent_keeps_link_targets` test, and reported that all of it worked. The folder's checker, run again by the agent, found all four links made, the three items deleted and all four targets intact. The test output itself was not seen by the agent.
 - Owner checks and ISC-714 (2026-11-27): the owner reported the real-window checks asked for on scratch files as all ok, which closes ISC-785, ISC-791, ISC-792 and ISC-797 (progress 765/803). ISC-784 is closed as reworded on the same report and on the `recycle_never_permanent` tests in the owner's `pnpm test:rust` run at P9.1-T52 (720 passed, 2 ignored). ISC-714 holds as reworded: `tableStyle.test.ts` passes, and the owner finds the padding right. A table measured in `pnpm dev` with the default settings drew rows of 39px and a header of 41.5px (ISC-804, open). ISC-795 stays open.
 - P9.1-T52 (2026-11-27), permanent delete: ISC-793, ISC-794 and ISC-796 closed (progress 760/802); ISC-795 stays open, since this machine cannot make the file symlink its test needs (error 1314) and that half was skipped, and ISC-797 is the owner's check in the real window. The owner ran cargo: `pnpm check:rust` exit 0, `pnpm test:rust` 720 passed and 2 ignored. With the walk made to look through links, `permanent_keeps_link_targets` failed because the folder hold refused the junction; with the hold's check off too, it failed because the temp link target was lost; both files were then restored. 9 of 12 new page tests failed before the page change, and four deliberate breaks each failed. `pnpm check` exit 0; `pnpm test:web` 4317 of 4318 (the earlier ISC-714 failure) with one unhandled editor error in `imageResize.test.ts`, also seen at T51. The question and the progress dialog were looked at in `pnpm dev` with a fake host. Not verified: the app's own window, and the macOS and Linux build.

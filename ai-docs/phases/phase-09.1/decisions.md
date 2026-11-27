@@ -425,3 +425,9 @@ The owner's list of 2026-11-26, settled by grilling. No code yet. The owner keep
 - **ISC-714.** The owner accepts the table padding as it is, 0.5em. The claim and test follow. The height estimates do not match the drawn rows (ISC-804, open); they were left as fixed first guesses when the line height became a setting.
 - **Spike.** The owner cleared its leftovers.
 - **ISC-795** is closed: the owner made real file symlinks as Administrator, and a permanent delete in the app left every target intact. T52 is ticked.
+
+## Owner checks, second set (2026-11-27)
+
+- **Passed:** every visual check of T42 to T53 and the older ones on the list, except ISC-756. ISC-709 was reported as passed afterwards.
+- **ISC-756:** the sticky headings lie over the Go to line box and over a pane’s tab list.
+- **ISC-768:** passed, with two changes asked for: no line numbers in the sticky headings, and a fill of their own.
