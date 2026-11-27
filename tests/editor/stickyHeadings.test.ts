@@ -103,7 +103,10 @@ const lineStart = (view: EditorView, text: string): number => {
 const blockTop = (view: EditorView, pos: number): number => view.lineBlockAt(pos).top
 
 const rows = (view: EditorView): string[] =>
-  [...view.dom.querySelectorAll('.cm-md-sticky-text')].map((row) => row.textContent ?? '')
+  // The whole row, so anything drawn beside the heading text would show here.
+  [...view.dom.querySelectorAll('.cm-md-sticky-row:not(.cm-md-sticky-probe)')].map(
+    (row) => row.textContent ?? '',
+  )
 
 /** Scrolls so the line stands just under a stack of `count` rows. */
 const under = (view: EditorView, text: string, count: number): Promise<void> =>
@@ -141,14 +144,16 @@ describe('the rows (ISC-762)', () => {
     expect(rows(view)).toEqual(['# One'])
   })
 
-  it('are the source lines, with their numbers while line numbers are on', async () => {
+  it('are the source lines, with no line number even while line numbers are on (ISC-806)', async () => {
     settings.editor.lineNumbers = true
     const view = await mount()
     await under(view, 'body 12 of  Two', 2)
     expect(rows(view)).toEqual(['# One', '## Two'])
-    expect(
-      [...view.dom.querySelectorAll('.cm-md-sticky-number')].map((number) => number.textContent),
-    ).toEqual(['2', '18'])
+  })
+
+  it('stay inside the editor, so a box or a menu over it is on top (ISC-805)', async () => {
+    const view = await mount()
+    expect(getComputedStyle(view.dom).isolation).toBe('isolate')
   })
 
   it('stay on their lines while the text above is edited, before the next scan', async () => {

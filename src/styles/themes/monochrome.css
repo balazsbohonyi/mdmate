@@ -68,6 +68,8 @@
   --gutter: var(--background);
   --gutter-foreground: oklch(0.64 0 0);
   --table-stripe: oklch(0.29 0 0);
+  /* The sticky headings over the top of a document: a step lighter than the page. */
+  --sticky-background: oklch(0.275 0 0);
   --checkbox-background: oklch(0.27 0 0);
   --syntax-heading: var(--foreground);
   --syntax-link: oklch(0.88 0 0);

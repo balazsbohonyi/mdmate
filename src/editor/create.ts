@@ -34,6 +34,9 @@ const frame = EditorView.theme({
     height: '100%',
     color: 'var(--foreground)',
     backgroundColor: 'var(--background)',
+    // The z-indexes inside the editor (gutter, sticky headings) order only its own layers: every
+    // box, menu and hint of the app is drawn above all of them.
+    isolation: 'isolate',
   },
   // CodeMirror draws a dotted outline round a focused editor by default. The caret already shows
   // where focus is, and the outline cuts across the top of the pane under the tab strip.

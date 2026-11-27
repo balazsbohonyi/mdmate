@@ -73,6 +73,8 @@
   --gutter-foreground: oklch(0.64 0.02 262);
   /* The fill of every second body row of a table: a faint tint of the page, under the header fill. */
   --table-stripe: oklch(0.29 0.014 262);
+  /* The sticky headings over the top of a document: a step lighter than the page. */
+  --sticky-background: oklch(0.275 0.014 262);
   /* The inside of an unchecked task box: a step off the page, so it reads as a box. */
   --checkbox-background: oklch(0.27 0.014 262);
   --syntax-heading: var(--foreground);

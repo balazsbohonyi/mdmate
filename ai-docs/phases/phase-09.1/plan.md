@@ -788,3 +788,13 @@ Not tasks. Each one reopens or adds the claim named, fails its probe on the old 
 | List marker box as wide as the en dash | P9.1-T19 | ISC-670, ISC-671 | `bullet.ts` and `theme.ts:72-79`; the pinned test `listMarker.test.ts:113-126` changes |
 
 Order: the follow-ups from the smallest up (menu, width, icons, marker, gutter, font list, Browse, pane handle), then T29, then T30.
+
+## Follow-ups on done tasks (2026-11-27)
+
+Same rules as the table above.
+
+| Follow-up | Amends | Claims | Where |
+|---|---|---|---|
+| Boxes and menus drawn over the sticky headings | P9.1-T47 | ISC-805; ISC-756 for the owner | the editor becomes its own stacking context, `src/editor/create.ts` |
+| No line numbers in the sticky headings | P9.1-T47 | ISC-806 | `src/editor/stickyHeadings.ts` |
+| A fill of their own for the sticky headings | P9.1-T47 | ISC-807, ISC-808 | token `sticky-background`: theme files, `tokens.css`, `themeTokens.ts`, `themeTokenUsage.ts` |

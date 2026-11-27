@@ -10,7 +10,6 @@ import { EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view'
 import { HEADING_SCAN_DELAY_MS } from '@/lib/headingScan'
 import { settings } from '@/lib/settings'
 import { BUILT_IN_CODE_FAMILY } from './documentFonts'
-import { GUTTER_PADDING_X } from './lineNumbers'
 import {
   buildOutline,
   depthAt,
@@ -65,7 +64,6 @@ const asked = (view: EditorView): boolean =>
 
 interface Row {
   readonly pos: number
-  readonly number: string
   readonly text: string
 }
 
@@ -74,7 +72,6 @@ interface Measured {
   readonly rowHeight: number
   /** Where the text of a line starts, from the editor's left edge. */
   readonly textLeft: number
-  readonly gutterWidth: number
   /** The room the vertical scrollbar takes. */
   readonly right: number
 }
@@ -196,15 +193,10 @@ class StickyStack {
     return {
       rows: stack.map((index) => {
         const at = view.state.doc.lineAt(outline.positions[index] ?? 0)
-        return {
-          pos: at.from,
-          number: settings.editor.lineNumbers ? String(at.number) : '',
-          text: at.text,
-        }
+        return { pos: at.from, text: at.text }
       }),
       rowHeight,
       textLeft: content.left - editor.left + padding,
-      gutterWidth: view.dom.querySelector<HTMLElement>('.cm-gutters')?.offsetWidth ?? 0,
       right: view.scrollDOM.offsetWidth - view.scrollDOM.clientWidth,
     }
   }
@@ -212,7 +204,6 @@ class StickyStack {
   private write(measured: Measured): void {
     this.rowHeight = measured.rowHeight
     this.dom.style.setProperty('--sticky-text-left', `${String(measured.textLeft)}px`)
-    this.dom.style.setProperty('--sticky-gutter', `${String(measured.gutterWidth)}px`)
     this.dom.style.right = `${String(measured.right)}px`
     const wanted = JSON.stringify(measured.rows)
     if (wanted === this.drawn) return
@@ -224,13 +215,7 @@ class StickyStack {
   private rowOf(row: Row): HTMLElement {
     const element = document.createElement('div')
     element.className = 'cm-md-sticky-row'
-    const number = document.createElement('span')
-    number.className = 'cm-md-sticky-number'
-    number.textContent = row.number
-    const text = document.createElement('span')
-    text.className = 'cm-md-sticky-text'
-    text.textContent = row.text
-    element.append(number, text)
+    element.textContent = row.text
     // Taken on the press, so the editor keeps its focus and no text under the row is touched.
     element.addEventListener('mousedown', (event) => {
       if (event.button !== 0) return
@@ -267,7 +252,7 @@ const theme = EditorView.baseTheme({
     // Above the text and the gutter (CodeMirror puts the gutter at 200).
     zIndex: '210',
     overflow: 'hidden',
-    backgroundColor: 'var(--background)',
+    backgroundColor: 'var(--sticky-background)',
     fontFamily: `var(--doc-font-code, ${BUILT_IN_CODE_FAMILY})`,
     fontSize: 'calc(var(--doc-code-ratio, calc(14 / 16)) * var(--doc-size, 16px))',
     userSelect: 'none',
@@ -282,22 +267,12 @@ const theme = EditorView.baseTheme({
     color: 'var(--foreground)',
     cursor: 'pointer',
   },
-  '.cm-md-sticky-row:hover': { backgroundColor: 'var(--muted)' },
+  '.cm-md-sticky-row:hover': { backgroundColor: 'var(--accent)' },
   // Measures a row's height while none is shown.
   '.cm-md-sticky-row.cm-md-sticky-probe': {
     position: 'absolute',
     visibility: 'hidden',
     pointerEvents: 'none',
-  },
-  // The line number, right-aligned where the gutter's numbers are.
-  '.cm-md-sticky-number': {
-    position: 'absolute',
-    left: '0',
-    width: 'var(--sticky-gutter, 0px)',
-    boxSizing: 'border-box',
-    paddingRight: GUTTER_PADDING_X,
-    textAlign: 'right',
-    color: 'var(--gutter-foreground)',
   },
 })
 

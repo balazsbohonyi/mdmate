@@ -136,6 +136,7 @@
   --color-gutter: var(--gutter);
   --color-gutter-foreground: var(--gutter-foreground);
   --color-table-stripe: var(--table-stripe);
+  --color-sticky-background: var(--sticky-background);
   --color-checkbox-background: var(--checkbox-background);
   --color-syntax-heading: var(--syntax-heading);
   --color-syntax-link: var(--syntax-link);

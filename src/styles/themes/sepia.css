@@ -72,6 +72,8 @@
   --gutter-foreground: #6f5a44;
   /* The fill of every second body row of a table: a faint tint of the page, under the header fill. */
   --table-stripe: #f2e8cf;
+  /* The sticky headings over the top of a document: a step darker than the page. */
+  --sticky-background: #f5ecd6;
   /* The inside of an unchecked task box: tinted like the page, not white. */
   --checkbox-background: #f7edd5;
   --syntax-heading: var(--foreground);

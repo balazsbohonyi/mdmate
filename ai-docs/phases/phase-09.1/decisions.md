@@ -431,3 +431,12 @@ The owner's list of 2026-11-26, settled by grilling. No code yet. The owner keep
 - **Passed:** every visual check of T42 to T53 and the older ones on the list, except ISC-756. ISC-709 was reported as passed afterwards.
 - **ISC-756:** the sticky headings lie over the Go to line box and over a pane’s tab list.
 - **ISC-768:** passed, with two changes asked for: no line numbers in the sticky headings, and a fill of their own.
+
+## Follow-ups to P9.1-T47: sticky headings (2026-11-27)
+
+- **Cause of the overlap.** The stack’s z-index of 210 (above CodeMirror’s gutter at 200) competed with the whole page, so it and the gutter lay over every overlay at 50.
+- **Fix at the root.** The editor is its own stacking context (`isolation: isolate` in the `frame` theme). No overlay’s z-index changed, and later overlays need nothing.
+- **One `&` rule.** The line goes into the theme’s existing `&` block: a second `&` key replaces the first in a JavaScript object, and with it the editor’s height and colors.
+- **No line numbers.** A row is its heading’s source line alone, still aligned with the text of the document.
+- **Fill.** New token `sticky-background`: a step lighter than the page in Dark and Monochrome, darker in Light and Sepia. A hovered row uses `--accent`, since `--muted` is almost the new fill in the dark themes. A custom theme that leaves the token out takes its base theme’s value, whatever page color it set.
+- **Owner.** ISC-756 and ISC-808 passed in the real window, and the changes were accepted as they are, the hover shade and the custom theme behaviour included.

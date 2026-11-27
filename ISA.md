@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 789/803
+progress: 794/807
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-27T18:36:14Z
+updated: 2026-11-27T18:47:03Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -872,6 +872,10 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-801 | bash | read the style rules under the theme | the filter applies to tree icons in that theme only | pnpm test:web tests/styles/monochrome.test.ts | derived: reported-by-owner | | |
 | ISC-802 | manual | the owner works in it | the owner finds it right | Owner review in the real window | derived: reported-by-owner | | |
 | ISC-803 | bash | delete a link to a folder inside the workspace and one to a folder outside it | the bin gets each link and both folders keep their files | pnpm test:rust delete_entry_removes_a_link | derived: file-management | critical | |
+| ISC-805 | screenshot | open each over a scrolled document with sticky headings and line numbers, and hit-test where they overlap | every sampled point of the overlap shows the overlay | pnpm test:web tests/editor/stickyHeadings.test.ts; hit test in pnpm dev | derived: reported-by-owner | | |
+| ISC-806 | bash | draw the stack with line numbers on | a row holds the heading text and nothing else | pnpm test:web tests/editor/stickyHeadings.test.ts | derived: reported-by-owner | | |
+| ISC-807 | bash | read the page and sticky fills of every built-in theme and the editor theme rule | lighter in dark, darker in light, a contrast with the page between 1.04 and 1.25, and the stack and its hover use the tokens | pnpm test:web tests/styles/stickyFill.test.ts tests/styles/themes.test.ts | derived: reported-by-owner | | |
+| ISC-808 | manual | the owner scrolls a long document in each theme and opens the boxes and menus over it | the owner finds it right | Owner review in the real window | derived: reported-by-owner | | |
 
 ## Features
 
@@ -1105,7 +1109,7 @@ Why: formatting should stay in your fingers, so writing never stops for syntax.
 - [x] ISC-753: The Go to line box shows the jump while the number is typed, and Escape puts the caret and the scroll position back.
 - [x] ISC-754: Line numbers are source lines with the frontmatter counted, a number out of range goes to the nearest line or column, and text that is not a number moves nothing.
 - [x] ISC-755: Go to line works in every text tab, rendered Markdown, Raw Markdown and other files, a jump into a collapsed frontmatter or a drawn table leaves the target line visible, and it is disabled for image and Settings tabs.
-- [ ] ISC-756: The owner jumps to lines with the box in the real window.
+- [x] ISC-756: The owner jumps to lines with the box in the real window.
 
 ### F7 · Workspace
 Why: Markdown lives among other files, so the sidebar must manage them and renames must never strand a link.
@@ -1210,6 +1214,10 @@ Why: long documents and folders are only usable when you can jump straight to th
 - [x] ISC-765: The sticky stack never covers the caret or the target of a jump.
 - [x] ISC-767: Anti: with sticky headings on, the typing speed gate (ISC-7) still holds in the release build.
 - [x] ISC-768: The owner finds the sticky headings right in the real window, scrolling included.
+- [x] ISC-805: The Go to line box, Quick Open, the command palette, a pane’s tab list and its tab menu are drawn above the editor, its sticky headings and line numbers included.
+- [x] ISC-806: A sticky heading row never shows a line number, with line numbers on or off.
+- [x] ISC-807: The sticky headings have a fill of their own, a theme token a little lighter than the page in the dark built-in themes and a little darker in Light and Sepia.
+- [x] ISC-808: The owner finds the sticky headings right in the real window with the new fill, and nothing that opens over a document hidden behind them.
 
 ### F9 · Configuration and themes
 Why: the look must be yours to change without rebuilding, which is why everything runs on tokens.
@@ -1960,8 +1968,11 @@ Why: a folder of projects is easier to read when new, changed and ignored files 
 - 2026-11-27: refined: reworded ISC-103, ISC-227 and ISC-794 and the probe of ISC-794 (P9.1-T52). A permanent delete now exists beside the Recycle Bin one. Its progress cannot be the same phases as a recycle, which only counts and then moves: removing is our own walk, so the dialog shows how much is gone and Cancel acts to the end, keeping what is already removed.
 - 2026-11-27: refined: reworded ISC-784 and its probe on the owner's choice. It promised that nothing is ever removed for good; the size check covers the volume's setting and a volume with no bin. Between what Windows really takes and that setting (3685 to 3749 MB on the measured drive), or where the setting cannot be read, only Windows' own warning stands in front.
 - 2026-11-27: refined: reworded ISC-714 to the 0.5em the owner accepted (set by 901578c in P9.1-T37, which left the claim and test at 0.4em). Its second half, estimates matching the drawn rows, did not hold when measured (body 39px against 33, header 41.5px against 38, at 15.2px table text), so it is now ISC-804 and open.
+- 2026-11-27: refined: added ISC-805 to ISC-808 from the owner’s second checks. ISC-805 is a bug no claim covered: the stack’s z-index of 210 competed with the whole page, above every overlay at 50. ISC-806 and ISC-807 change the look P9.1-T47 chose (numbers where the gutter has them, on the page colour). ISC-808 is the second look at it.
 
 ## Verification
+- Owner checks of the sticky heading follow-ups (2026-11-27): the owner reported ISC-756 and ISC-808 as passed in the real window (progress 794/807).
+- P9.1-T47 follow-ups (2026-11-27), sticky headings: ISC-805, ISC-806 and ISC-807 closed (progress 791/807); ISC-756 and ISC-808 are the owner's checks in the real window. Fail-first: 7 new or turned checks failed on the old code. In `pnpm dev`, hit tests where each overlay meets the stack went from none of the points to all of them: Go to line 225, Quick Open 375, command palette 375, tab list 165, tab menu 180; the line number strip no longer covers a box either. Rows seen in the four built-in themes with line numbers on, and a row click still scrolls to its heading. `pnpm check` exit 0; `pnpm test:web` 4332 of 4332 passed, with the one unhandled editor error in `imageResize.test.ts` also seen at P9.1-T51 and T52. No Rust changed. Not looked at: the real window.
 - Owner checks, second set (2026-11-27): the owner reported ISC-579, ISC-633, ISC-664, ISC-668, ISC-671, ISC-677, ISC-681, ISC-684, ISC-686, ISC-697, ISC-703, ISC-705, ISC-713, ISC-743, ISC-747, ISC-751, ISC-761, ISC-768, ISC-775, ISC-778, ISC-780 and ISC-802 as passed, and ISC-709 afterwards (progress 789/803). ISC-756 stays open: Go to line reaches the line, but its box is drawn under the sticky headings. With ISC-768 the owner asked for changes to the sticky headings, which get claims of their own.
 - ISC-795 (2026-11-27), closed (progress 766/803): the owner ran as Administrator the setup of a scratch folder with two junctions and two file symlinks pointing outside it, deleted them with Delete Permanently in the app, and ran the `permanent_keeps_link_targets` test, and reported that all of it worked. The folder's checker, run again by the agent, found all four links made, the three items deleted and all four targets intact. The test output itself was not seen by the agent.
 - Owner checks and ISC-714 (2026-11-27): the owner reported the real-window checks asked for on scratch files as all ok, which closes ISC-785, ISC-791, ISC-792 and ISC-797 (progress 765/803). ISC-784 is closed as reworded on the same report and on the `recycle_never_permanent` tests in the owner's `pnpm test:rust` run at P9.1-T52 (720 passed, 2 ignored). ISC-714 holds as reworded: `tableStyle.test.ts` passes, and the owner finds the padding right. A table measured in `pnpm dev` with the default settings drew rows of 39px and a header of 41.5px (ISC-804, open). ISC-795 stays open.
