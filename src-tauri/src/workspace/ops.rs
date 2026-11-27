@@ -10,7 +10,7 @@ use crate::documents::AppState;
 use crate::error::{AppError, friendly_io, plain_text};
 use crate::links::guard::is_device_name;
 use crate::platform::Platform;
-use crate::platform::bin::{self, End, Progress};
+use crate::platform::bin::{self, End, Kept, Progress};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io;
@@ -41,6 +41,18 @@ pub(crate) struct Moved {
 pub(crate) struct KeptEntry {
     pub(crate) path: String,
     pub(crate) reason: String,
+    /// A Cancel is why it stayed, which the page does not report as a failure.
+    pub(crate) cancelled: bool,
+}
+
+impl KeptEntry {
+    fn of(path: String, why: &Kept) -> Self {
+        Self {
+            path,
+            reason: why.words(),
+            cancelled: *why == Kept::Cancelled,
+        }
+    }
 }
 
 /// What a delete of several items did, by path as people read it.
@@ -326,22 +338,6 @@ pub(crate) fn move_entry(state: &AppState, path: &Path, into: &Path) -> Result<M
     }
 }
 
-/// Sends a file or folder to the Recycle Bin. Open tabs keep their text; a later save brings the
-/// file back, like any file that vanishes under an open document.
-pub(crate) fn delete_entry(
-    state: &AppState,
-    platform: &dyn Platform,
-    path: &Path,
-) -> Result<(), AppError> {
-    let source = deletable(state, path)?;
-    let moved = platform.move_to_trash(&source);
-    // A failure can still have removed it, when the system destroyed it on the way.
-    if moved.is_ok() || !is_taken(&source) {
-        state.index().removed(&source);
-    }
-    Ok(moved?)
-}
-
 /// The entry a delete acts on. A link is the entry itself, never what it leads to, so its path is
 /// not resolved past the folder that holds it.
 fn deletable(state: &AppState, path: &Path) -> Result<PathBuf, AppError> {
@@ -357,9 +353,10 @@ fn deletable(state: &AppState, path: &Path) -> Result<PathBuf, AppError> {
     Ok(folder.path.join(name))
 }
 
-/// Sends several files and folders to the Recycle Bin as one operation, with one total and one
-/// Cancel ([`AppState::cancel_delete`]). A path outside the workspace refuses all of them before
-/// anything moves. An item that is already gone, or that stays, is reported with the reason.
+/// Sends files and folders to the Recycle Bin as one operation, with one total and one Cancel
+/// ([`AppState::cancel_delete`]). A path outside the workspace refuses all of them before anything
+/// moves. An item that is already gone, or that stays, is reported with the reason. Rust keeps an
+/// open document of a deleted file, so a later save brings the file back.
 pub(crate) fn delete_entries(
     state: &AppState,
     platform: &dyn Platform,
@@ -379,6 +376,7 @@ pub(crate) fn delete_entries(
                 done.kept.push(KeptEntry {
                     path: display_path(path),
                     reason: friendly_io(&error),
+                    cancelled: false,
                 });
             }
             Err(error) => return Err(error),
@@ -399,10 +397,7 @@ pub(crate) fn delete_entries(
         match end {
             End::InBin => done.deleted.push(path),
             End::Destroyed => done.destroyed.push(path),
-            End::Kept(why) => done.kept.push(KeptEntry {
-                path,
-                reason: why.words(),
-            }),
+            End::Kept(why) => done.kept.push(KeptEntry::of(path, &why)),
         }
     }
     done.destroyed.extend(
@@ -1097,12 +1092,18 @@ mod tests {
 
     // ---- delete and reveal ----
 
+    /// Runs a delete, with nothing listening to the progress.
+    fn delete_all(w: &Workspace, paths: &[PathBuf]) -> Result<Deleted, AppError> {
+        delete_entries(&w.state, &w.os, paths, None, Box::new(|_| {}))
+    }
+
     #[test]
-    fn delete_entry_hands_the_item_to_the_recycle_bin_and_nothing_else() {
+    fn delete_hands_the_item_to_the_recycle_bin_and_nothing_else() {
         let w = workspace();
         write(&w.root.join("a.md"), "keep me");
         write(&w.root.join("b.md"), "other");
-        delete_entry(&w.state, &w.os, &w.root.join("a.md")).expect("deleted");
+        let done = delete_all(&w, &[w.root.join("a.md")]).expect("ran");
+        assert_eq!(done.deleted, [as_text(&w.root.join("a.md"))]);
         assert!(!w.root.join("a.md").exists());
         assert_eq!(w.os.trashed(), [w.root.join("a.md")]);
         assert!(w.root.join("b.md").exists());
@@ -1111,21 +1112,27 @@ mod tests {
     }
 
     #[test]
-    fn delete_entry_keeps_the_item_when_there_is_no_bin() {
+    fn delete_keeps_the_item_when_there_is_no_bin() {
         let mut w = workspace();
         w.os.full = true;
         write(&w.root.join("a.md"), "keep me");
-        assert!(delete_entry(&w.state, &w.os, &w.root.join("a.md")).is_err());
+        let done = delete_all(&w, &[w.root.join("a.md")]).expect("ran");
+        assert!(done.deleted.is_empty());
+        assert!(
+            done.kept[0].reason.contains("no Recycle Bin"),
+            "{:?}",
+            done.kept
+        );
         assert_eq!(read(&w.root.join("a.md")), "keep me");
     }
 
     #[test]
-    fn delete_entry_refuses_a_root_and_a_path_outside_the_roots() {
+    fn delete_refuses_a_root_and_a_path_outside_the_roots() {
         let w = workspace();
         write(&w.outside.join("o.md"), "x");
-        let refused = delete_entry(&w.state, &w.os, &w.root).expect_err("root");
+        let refused = delete_all(&w, std::slice::from_ref(&w.root)).expect_err("root");
         assert_eq!(refused.kind(), "invalid");
-        let refused = delete_entry(&w.state, &w.os, &w.outside.join("o.md")).expect_err("outside");
+        let refused = delete_all(&w, &[w.outside.join("o.md")]).expect_err("outside");
         assert_eq!(refused.kind(), "not-allowed");
         assert!(w.os.trashed().is_empty());
         assert!(w.root.exists() && w.outside.join("o.md").exists());
@@ -1138,8 +1145,8 @@ mod tests {
         write(&w.outside.join("far/keep.md"), "me too");
         platform::make_folder_link(&w.root.join("real"), &w.root.join("near-link")).expect("link");
         platform::make_folder_link(&w.outside.join("far"), &w.root.join("far-link")).expect("link");
-        delete_entry(&w.state, &w.os, &w.root.join("near-link")).expect("deleted");
-        delete_entry(&w.state, &w.os, &w.root.join("far-link")).expect("deleted");
+        delete_all(&w, &[w.root.join("near-link")]).expect("ran");
+        delete_all(&w, &[w.root.join("far-link")]).expect("ran");
         assert_eq!(
             w.os.trashed(),
             [w.root.join("near-link"), w.root.join("far-link")]
@@ -1148,9 +1155,10 @@ mod tests {
         assert_eq!(read(&w.outside.join("far/keep.md")), "me too");
     }
 
-    /// Runs a delete of several items, with nothing listening to the progress.
-    fn delete_all(w: &Workspace, paths: &[PathBuf]) -> Result<Deleted, AppError> {
-        delete_entries(&w.state, &w.os, paths, None, Box::new(|_| {}))
+    #[test]
+    fn delete_many_marks_only_what_a_cancel_kept() {
+        assert!(KeptEntry::of("a".into(), &Kept::Cancelled).cancelled);
+        assert!(!KeptEntry::of("a".into(), &Kept::TooBig).cancelled);
     }
 
     #[test]
@@ -1195,6 +1203,29 @@ mod tests {
         // A Cancel that came for the last delete does not stop the next one.
         let done = delete_all(&w, &[w.root.join("a.md")]).expect("ran");
         assert_eq!(done.deleted.len(), 1);
+    }
+
+    #[test]
+    fn delete_cancel_on_close_waits_for_the_delete_to_end() {
+        use std::sync::atomic::Ordering;
+        use std::time::Duration;
+        let w = workspace();
+        // With no delete there is nothing to wait for.
+        w.state.stop_delete_and_wait();
+        let turn = w.state.begin_delete().expect("the turn");
+        std::thread::scope(|scope| {
+            let closing = scope.spawn(|| w.state.stop_delete_and_wait());
+            for _ in 0..500 {
+                if turn.cancel.load(Ordering::SeqCst) {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            assert!(turn.cancel.load(Ordering::SeqCst), "asked to stop");
+            std::thread::sleep(Duration::from_millis(150));
+            assert!(!closing.is_finished(), "the delete is still running");
+            drop(turn);
+        });
     }
 
     #[test]
@@ -1339,7 +1370,7 @@ mod tests {
         write(&w.root.join("a.md"), "one\n");
         open_document(&w.state, &w.root.join("a.md")).expect("opened");
         let id = w.state.documents().entries().next().expect("open").0;
-        delete_entry(&w.state, &w.os, &w.root.join("a.md")).expect("deleted");
+        delete_all(&w, &[w.root.join("a.md")]).expect("deleted");
         save_document(&w.state, id, &edit_frame("again\n")).expect("saved");
         assert_eq!(read(&w.root.join("a.md")), "again\n");
     }

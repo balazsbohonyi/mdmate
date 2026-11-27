@@ -734,7 +734,7 @@ Twelve tasks from the owner's list, settled by grilling on 2026-11-27 (answers i
 
 **Tests:** Rust `delete_progress`, `delete_cancel`, `recycle_never_permanent`, `delete_many`.
 
-**Done when:** the spike is read, fail-first tests pass, the owner restores a deleted folder, and the checks are green. Closes ISC-781 to ISC-786.
+**Done when:** the spike is read, fail-first tests pass, the owner restores a deleted folder, and the checks are green. Closes ISC-781 to ISC-785 and ISC-803.
 
 ## P9.1-T51: Delete progress dialog
 
@@ -746,7 +746,7 @@ Twelve tasks from the owner's list, settled by grilling on 2026-11-27 (answers i
 
 **Tests:** `tests/features/deleteProgress.test.ts`.
 
-**Done when:** fail-first tests pass, the owner deletes a large folder, and the checks are green. Closes ISC-787 to ISC-792.
+**Done when:** fail-first tests pass, the owner deletes a large folder, and the checks are green. Closes ISC-786 to ISC-792.
 
 ## P9.1-T52: Permanent delete
 

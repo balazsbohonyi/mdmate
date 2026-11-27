@@ -39,6 +39,24 @@ function zoomAliasCommand(event: KeyEventLike, platform: Platform): string | und
   return COMMAND_IDS.zoomIn
 }
 
+/** How many dialogs hold the shortcuts back. */
+let held = 0
+
+/**
+ * Holds every shortcut back until the returned function is called, for a dialog that blocks the
+ * app. A press that matches one is still taken from the page.
+ */
+export function holdShortcuts(): () => void {
+  held++
+  cancelCycle()
+  let released = false
+  return () => {
+    if (released) return
+    released = true
+    held--
+  }
+}
+
 /**
  * Runs the command a key press stands for, and says whether the press was one. A press that
  * matches a shortcut is always taken away from the page, even when the command is disabled or the
@@ -50,11 +68,12 @@ function takeShortcut(event: Event, platform: Platform): boolean {
   const id = command?.id ?? zoomAliasCommand(event, platform)
   if (id === undefined) {
     // While the tab list is open from Ctrl+Tab, Tab, the arrows, Escape and Enter belong to it.
-    if (event.repeat === true || !cycleKey(event)) return false
+    if (held > 0 || event.repeat === true || !cycleKey(event)) return false
     event.preventDefault()
     return true
   }
   event.preventDefault()
+  if (held > 0) return true
   if (event.repeat === true && !REPEATING.has(id)) return true
   // The cycle ends when the modifiers of the key that began it go up, so it is told which they are.
   if (CYCLING.has(id)) noteChord(heldModifiers(event))

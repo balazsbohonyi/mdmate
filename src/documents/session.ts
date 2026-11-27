@@ -295,10 +295,27 @@ function touch(): void {
   }, wait)
 }
 
+const quitHolds = new Set<() => Promise<void>>()
+
+/**
+ * Has a window close wait for `settle` before the app ends, for work that must not be cut off.
+ * Returns the function that takes it back.
+ */
+export function holdQuit(settle: () => Promise<void>): () => void {
+  quitHolds.add(settle)
+  return () => {
+    quitHolds.delete(settle)
+  }
+}
+
 /** The window was asked to close: write the newest state, then end the app. No prompt. */
 async function closeRequested(): Promise<void> {
   // The window as it is at the very end, which a debounced write may not have caught.
   await refreshWindowShape()
+  // Written before any wait: Rust gives a page only so long before it ends the app.
+  await flushSession()
+  await Promise.allSettled([...quitHolds].map((settle) => settle()))
+  // Again, for what the work that was waited for has changed.
   await flushSession()
   const host = await getHost()
   await host.quitApp()

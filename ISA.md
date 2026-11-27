@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 752/802
+progress: 757/802
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-27T11:45:11Z
+updated: 2026-11-27T12:43:05Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -853,12 +853,12 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-783 | bash | cancel before and during counting, and after moving starts | while counting nothing is removed and all is reported kept; after moving starts the delete completes | pnpm test:rust delete_cancel | derived: reported-by-owner | | |
 | ISC-784 | bash | a fake bin limit, a volume with no bin, and replayed shell calls without the recycle flag, destroyed, and answered No | what the bin cannot take stays on disk and is reported; anything destroyed is reported as such | pnpm test:rust recycle_never_permanent | derived: reported-by-owner | critical | |
 | ISC-785 | manual | the owner deletes a large folder and restores it | one entry and the whole folder back | Owner review in the real window | derived: reported-by-owner | | |
-| ISC-786 | bash | delete several files and folders and cancel | one stream of events and one cancel stops all | pnpm test:rust delete_many | derived: reported-by-owner | | |
+| ISC-786 | bash | delete several files and folders and cancel | one stream of events and one cancel stops all | pnpm test:rust delete_many; pnpm test:web tests/features/deleteProgress.test.ts | derived: reported-by-owner | | |
 | ISC-787 | bash | drive the fake host with short and long deletes on a fake clock | no dialog before 2 s, one after | pnpm test:web tests/features/deleteProgress.test.ts | derived: reported-by-owner | | |
 | ISC-788 | bash | mount each state | each as the claim says, primary on the bar | pnpm test:web tests/features/deleteProgress.test.ts | derived: reported-by-owner | | |
 | ISC-789 | bash | press shortcuts and click behind the dialog | nothing happens | pnpm test:web tests/features/deleteProgress.test.ts | derived: reported-by-owner | | |
 | ISC-790 | bash | finish, cancel and fail a delete with open tabs | tabs of kept files stay open with their edits | pnpm test:web tests/features/deleteProgress.test.ts | derived: reported-by-owner | | |
-| ISC-791 | manual | the owner closes the window during a large delete | the delete stops and the rest of the folder is intact | Owner review in the real window | derived: reported-by-owner | | |
+| ISC-791 | manual | the owner closes the window during a large delete | closed while counting, the folder is intact; closed while moving, the whole of it reaches the bin; then the app exits | Owner review in the real window | derived: reported-by-owner | | |
 | ISC-792 | manual | the owner deletes a `node_modules` | the owner finds the dialog and Cancel right | Owner review in the real window | derived: reported-by-owner | | |
 | ISC-793 | bash | use both on one and several rows | the question shows, Cancel has focus and the host is not called before Yes | pnpm test:web tests/features/deletePermanent.test.ts | derived: reported-by-owner | | |
 | ISC-794 | bash | delete a generated tree permanently | gone from disk, nothing handed to the bin, events as for a recycle | pnpm test:rust delete_permanent | derived: reported-by-owner | | |
@@ -1671,13 +1671,13 @@ Why: an everyday editor starts, keeps and manages files without sending you to E
 - [x] ISC-783: Cancel while counting stops the delete with nothing changed on disk; once moving starts, Cancel no longer acts.
 - [ ] ISC-784: Anti: a delete to the Recycle Bin never removes anything permanently; what the bin cannot take is kept and reported.
 - [ ] ISC-785: A folder deleted to the Recycle Bin is one entry there that restores whole.
-- [ ] ISC-786: Deleting a multi-selection is one operation with one total and one Cancel.
+- [x] ISC-786: Deleting a multi-selection is one operation with one total and one Cancel.
 - [x] ISC-803: Anti: deleting a symlink or a junction from the tree sends the link itself to the Recycle Bin and leaves what it leads to unchanged.
-- [ ] ISC-787: A progress dialog appears only when a delete has run for 2 seconds, and a faster delete shows none.
-- [ ] ISC-788: The dialog shows a bar styled as the indexing bar and longer: with no figure before the system counts, with the percent while it counts, and with no figure while moving, when Cancel is disabled.
-- [ ] ISC-789: While the dialog is open the rest of the app takes no click or shortcut.
-- [ ] ISC-790: When a delete ends, by finishing, Cancel or failure, only tabs of files that are gone close, the tree matches the disk, and failures show as toasts.
-- [ ] ISC-791: Closing the window during a delete cancels it before the app exits.
+- [x] ISC-787: A progress dialog appears only when a delete has run for 2 seconds, and a faster delete shows none.
+- [x] ISC-788: The dialog shows a bar styled as the indexing bar and longer: with no figure before the system counts, with the percent while it counts, and with no figure while moving, when Cancel is disabled.
+- [x] ISC-789: While the dialog is open the rest of the app takes no click or shortcut.
+- [x] ISC-790: When a delete ends, by finishing, Cancel or failure, only tabs of files that are gone close, the tree matches the disk, and failures show as toasts.
+- [ ] ISC-791: Closing the window during a delete cancels what can still be cancelled, and the app exits only once the delete is over.
 - [ ] ISC-792: The owner deletes a large folder in the real window and finds the dialog right.
 - [ ] ISC-793: `Shift+Delete` in the tree and a `Delete Permanently` menu item ask first, saying it cannot be undone with Cancel focused, and nothing is deleted before the owner confirms.
 - [ ] ISC-794: A confirmed permanent delete removes the files without the Recycle Bin, with the same progress and Cancel.
@@ -1954,8 +1954,10 @@ Why: a folder of projects is easier to read when new, changed and ignored files 
 - 2026-11-27: refined: the owner read the spike notes and chose option 1 (a percent only while counting) and guard B (mdmate keeps what the bin cannot take, Windows' warning left on behind it). Reworded ISC-782, ISC-783 and ISC-788 (P9.1-T50), since the shell gives no figure and takes no Cancel while it moves. ISC-784 stands; its probe no longer reads the operation flags alone, which warn only for what is inside a folder.
 - 2026-11-27: bug found while building P9.1-T50: a delete resolved the whole path, so deleting a link in the tree sent what it led to to the Recycle Bin. No claim covered it (ISC-795 speaks of permanent delete only), so ISC-803 is added and fixed in the same task. Rename and move still resolve through a link and are not changed.
 - 2026-11-27: P9.1-T50 closes less than its task line names. ISC-784 stays open although its probe passes: the refusal of an oversize item has not run through mdmate against the real shell, and between the measured 3,685 MB and the drive's limit, or where the limit cannot be read, only Windows' own question stands in front. ISC-786 stays open until the page deletes a selection through `delete_entries` (P9.1-T51). The task is ticked once the owner has restored a deleted folder (ISC-785).
+- 2026-11-27: refined: reworded ISC-791 and its probe (P9.1-T51). Windows takes no Cancel while it moves, so a close cancels what can still be cancelled and waits for the rest. Rust's 3 second close grace starts only when no delete runs, so a delete the system never ends keeps the app open.
 
 ## Verification
+- P9.1-T51 (2026-11-27), delete progress dialog: ISC-786 to ISC-790 closed (progress 757/802); ISC-791 and ISC-792 are the owner's checks in the real window. The owner ran cargo: `pnpm check:rust` exit 0, `pnpm test:rust` 710 passed and 2 ignored. The new page tests failed on the missing component, then six deliberate breaks each failed the test meant for it. `pnpm check` exit 0; `pnpm test:web` 4304 of 4306 with one unhandled editor error in `imageResize.test.ts`: one failure was the new bar missing from the text-free fills in `colorPairs.test.ts`, listed since, the other is the earlier ISC-714 one; 259 related tests then passed with no error. The dialog was looked at in `pnpm dev` with a delete held open. Not verified: the app's own window.
 - P9.1-T50 (2026-11-27), delete engine: ISC-781, ISC-782, ISC-783 and ISC-803 closed (progress 752/802); ISC-784 and ISC-785 wait for the owner's checks in the app, ISC-786 for the page to use the engine (T51). The owner ran cargo: `pnpm check:rust` exit 0, `pnpm test:rust` 708 passed and 2 ignored, and the two ignored `real_shell` tests passed against the Windows 11 shell. `delete_entry_removes_a_link` failed with the old delete line put back. `pnpm check` exit 0; `pnpm test:web` 4282 of 4285, two slow-run timeouts that pass alone (61 of 61) and the earlier ISC-714 failure. Not verified: the app's own window.
 - P9.1-T53 (2026-11-27), Monochrome theme: ISC-798 to ISC-801 closed (progress 748/801); ISC-802 stays open for the owner's review. Fail-first: before `monochrome.css` existed `tests/styles/monochrome.test.ts` did not load and 5 tests of the theme suites failed; all pass. In `pnpm dev` (port 5199) a code block, quote and link, the tree with git names and gray icons, Find, the Settings theme row, two pictures and a colour square keeping their colour, a theme file based on Monochrome (palette and bold keywords; its icons not looked at) and Dark's keyword weight were checked. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 4284 passed with the one earlier failure (ISC-714). Not verified: the real window.
 - P9.1-T49 (2026-11-27), Git branch in the status bar: ISC-776, ISC-777 and ISC-779 closed (progress 744/801); ISC-778 and ISC-780 stay open for the owner's review, and ISC-236 as T48 worded it holds. Fail-first: before code the Rust tests did not compile, and 11 of 12 tests in `tests/shell/statusBarBranch.test.ts` failed; both now pass. ISC-779: `branch_adds_no_run` counts one run per repository, and a real git leaves a stale index byte for byte; with `--no-optional-locks` removed for one run that test failed. In `pnpm dev` (port 5199) the item, a long name at 480 px with and without a selection, and an untitled document were checked; a checkout, a detached HEAD and git off are covered by tests only. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 4120 passed with the one earlier failure (ISC-714). Not verified: the real window.

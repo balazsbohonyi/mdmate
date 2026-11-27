@@ -5,6 +5,7 @@ import { activeDocument, refreshMissing } from '@/documents/store'
 import { Toaster } from '@/components/ui/sonner'
 import { paletteMode } from '@/features/palette/state'
 import DeleteDialog from '@/features/tree/DeleteDialog.vue'
+import DeleteProgressDialog from '@/features/tree/DeleteProgressDialog.vue'
 import { runCommand } from '@/workbench/commands'
 import { registerDefaultCommands } from '@/workbench/defaultCommands'
 import { installKeybindings } from '@/workbench/keyboard'
@@ -74,6 +75,7 @@ function menuOpened(): void {
       :mode="paletteMode"
     />
     <DeleteDialog />
+    <DeleteProgressDialog />
     <Toaster
       position="bottom-right"
       expand

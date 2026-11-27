@@ -93,9 +93,13 @@ pub fn run() {
             {
                 // The page writes the session and then ends the app. If it never does (it is
                 // stuck), the app still ends after a grace period, so a close is never refused.
+                // A delete under way is the one thing the app waits for, however long it takes.
                 api.prevent_close();
                 let app = window.app_handle().clone();
                 std::thread::spawn(move || {
+                    if let Some(state) = app.try_state::<Arc<AppState>>() {
+                        state.stop_delete_and_wait();
+                    }
                     std::thread::sleep(CLOSE_GRACE);
                     commands::end_app(&app);
                     // The windows were asked to go; if the loop has not ended soon after, end it.
@@ -187,7 +191,6 @@ pub fn run() {
         commands::quick_open_query,
         commands::rewrite_cancel,
         commands::rewrite_discard,
-        commands::delete_entry,
         commands::delete_entries,
         commands::delete_cancel,
         commands::reveal_entry,
@@ -294,7 +297,6 @@ pub fn run() {
         commands::quick_open_query,
         commands::rewrite_cancel,
         commands::rewrite_discard,
-        commands::delete_entry,
         commands::delete_entries,
         commands::delete_cancel,
         commands::reveal_entry,

@@ -297,5 +297,7 @@ The window starts hidden on a themed background and shows after first paint. Pal
 - `Cancel` acts until the first item moves. Windows offers no figure and no Cancel after that. One delete runs at a time (`AppState::begin_delete`).
 - Windows (`platform/windows/shell_bin.rs`) runs `IFileOperation` on its own thread with a progress sink. Three guards keep an item from being destroyed: the size and setting check of the volume's bin before queuing, a refusal of any call without the recycle flag, and Windows' own question (`FOF_WANTNUKEWARNING`) for what passes both. A Yes there destroys the item, and the report says so.
 - macOS and Linux use the `trash` crate, one item at a time, through the same engine.
-- `delete_entry` and `delete_entries` act on a link itself, never on what it leads to.
+- `delete_entries` acts on a link itself, never on what it leads to.
+- The page deletes through `deletePaths` (`features/tree/ops.ts`). A delete that runs for 2 seconds opens `DeleteProgressDialog.vue`, which is modal and holds the shortcuts back. Only tabs of what is reported gone close.
+- A window close during a delete cancels it and waits for it. The page writes the session first, then waits (`holdQuit` in `documents/session.ts`); Rust starts its close grace only when no delete runs (`AppState::stop_delete_and_wait`).
 - The custom titlebar sits behind one component, so macOS can use native controls.

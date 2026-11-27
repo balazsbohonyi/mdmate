@@ -99,6 +99,12 @@ impl Workspace {
     fn shown(&self, rel: &str) -> PathBuf {
         abs_of(&self.root, rel)
     }
+
+    fn delete(&self, rel: &str) {
+        let paths = [self.shown(rel)];
+        let done = ops::delete_entries(&self.state, &self.bin, &paths, None, Box::new(|_| {}));
+        assert_eq!(done.expect("ran").deleted.len(), 1, "{rel}");
+    }
 }
 
 fn names(list: &[&str]) -> Vec<String> {
@@ -158,8 +164,8 @@ fn a_moved_file_and_a_moved_folder_are_held_in_their_new_place() {
 #[test]
 fn a_deleted_file_and_a_deleted_folder_are_gone() {
     let w = workspace(&["a.md", "b.md", "dir/c.md", "dir/deep/d.md", "keep/e.md"]);
-    ops::delete_entry(&w.state, &w.bin, &w.shown("a.md")).expect("deleted");
-    ops::delete_entry(&w.state, &w.bin, &w.shown("dir")).expect("deleted");
+    w.delete("a.md");
+    w.delete("dir");
     let expected = names(&["b.md", "keep/e.md"]);
     assert_eq!(w.rels(), expected);
     assert_eq!(w.cached(), expected);
@@ -187,7 +193,7 @@ fn what_the_index_holds_matches_the_disk_after_a_run_of_operations() {
     ops::move_entry(&w.state, &w.shown("a.md"), &w.shown("n")).expect("moved");
     ops::rename_entry(&w.state, &w.shown("b"), "bee").expect("renamed");
     ops::create_file(&w.state, &w.shown("bee"), "x.md").expect("created");
-    ops::delete_entry(&w.state, &w.bin, &w.shown("bee/c.md")).expect("deleted");
+    w.delete("bee/c.md");
     remove(&w.root, "sneaky.md");
     assert_eq!(w.rels(), walked_paths(&w.root));
 }

@@ -1382,19 +1382,13 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     quickOpenQuery(query, limit) {
       return Promise.resolve(mockQuickOpen(files.paths(), roots, query, limit))
     },
-    deleteEntry(path) {
-      return attempt(() => {
-        entryInRoot(path)
-        recycled.push(...files.remove(path))
-      })
-    },
     deleteEntries(paths, onProgress) {
       return attempt((): DeleteReport => {
-        const kept: { path: string; reason: string }[] = []
+        const kept: DeleteReport['kept'][number][] = []
         // Every path is checked before the first is removed.
         const targets = paths.filter((path) => {
           if (insideRoot(path) && !exists(path)) {
-            kept.push({ path, reason: 'the file or folder was not found' })
+            kept.push({ path, reason: 'the file or folder was not found', cancelled: false })
             return false
           }
           entryInRoot(path)

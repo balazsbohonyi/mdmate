@@ -423,7 +423,7 @@ describe('deleting (ISC-103)', () => {
 
   it('keeps the file and says why when the host cannot recycle it', async () => {
     await start()
-    vi.spyOn(host, 'deleteEntry').mockRejectedValue(new Error('no Recycle Bin on this drive'))
+    vi.spyOn(host, 'deleteEntries').mockRejectedValue(new Error('no Recycle Bin on this drive'))
     await deleteRow('/work/Zeta.txt')
     await flush()
     expect(toasts.last).toContain('no Recycle Bin')
@@ -777,7 +777,7 @@ describe('deleting closes the tabs (ISC-228)', () => {
   it('keeps every tab when the host cannot delete', async () => {
     await start()
     await openPath('/work/notes/a.md')
-    vi.spyOn(host, 'deleteEntry').mockRejectedValue(new Error('no'))
+    vi.spyOn(host, 'deleteEntries').mockRejectedValue(new Error('no'))
     await deleteRow('/work/notes/a.md')
     await flush()
     expect(allDocuments().map((d) => d.path)).toEqual(['/work/notes/a.md'])

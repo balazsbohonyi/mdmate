@@ -105,8 +105,12 @@ export type DeleteProgress =
 export interface DeleteReport {
   /** Now in the Recycle Bin. */
   readonly deleted: readonly string[]
-  /** Still where they were, each with the reason. */
-  readonly kept: readonly { readonly path: string; readonly reason: string }[]
+  /** Still where they were, each with the reason, and whether the reason is a Cancel. */
+  readonly kept: readonly {
+    readonly path: string
+    readonly reason: string
+    readonly cancelled: boolean
+  }[]
   /** Gone, and not into the bin. */
   readonly destroyed: readonly string[]
   /** A Cancel stopped something. */
@@ -217,7 +221,12 @@ export function parseDeleteReport(value: unknown): DeleteReport {
     deleted: parsePaths(report.deleted),
     kept: (kept as unknown[]).map((item) => {
       const entry = record(item)
-      return { path: textField(entry, 'path'), reason: textField(entry, 'reason') }
+      if (typeof entry.cancelled !== 'boolean') throw new Error('cancelled is not a flag')
+      return {
+        path: textField(entry, 'path'),
+        reason: textField(entry, 'reason'),
+        cancelled: entry.cancelled,
+      }
     }),
     destroyed: parsePaths(report.destroyed),
     cancelled,

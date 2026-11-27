@@ -1,11 +1,19 @@
 import { shallowRef } from 'vue'
+import { holdQuit } from '@/documents/session'
 import { allDocuments, describe, documentMoved } from '@/documents/store'
 import { moveWithLinks, type RewriteBatch } from '@/features/links/rewrite'
 import type { TabId } from '@/workbench/splitTree'
 import { holdingEditorFocus } from '@/workbench/focus'
 import { closeTabById, imageTabs, setImagePath, tabsOfDocument } from '@/workbench/store'
 import { nameProblem } from '@/lib/fileNames'
-import { getHost, type ClashAnswer, type ClashChoice, type Moved } from '@/platform'
+import {
+  getHost,
+  type ClashAnswer,
+  type ClashChoice,
+  type DeleteProgress,
+  type DeleteReport,
+  type Moved,
+} from '@/platform'
 import { requestGitRefresh } from './gitStore'
 import { baseName, outermost, parentPath, type Place } from './model'
 import {
@@ -323,31 +331,139 @@ export async function confirmDelete(
 ): Promise<void> {
   deletePrompt.value = null
   if (asked === null) return
-  for (const path of asked.paths) await deleteRow(path)
+  await deletePaths(asked.paths)
+}
+
+/** Deletes one row, as `deletePaths` does. */
+export function deleteRow(path: string): Promise<void> {
+  return deletePaths([path])
+}
+
+/** How long a delete runs before its dialog shows (ISC-787). */
+export const DELETE_DIALOG_AFTER_MS = 2000
+
+/** A delete that has run long enough to be shown. */
+export interface DeleteRun {
+  /** The name of the item, or "3 items". */
+  readonly name: string
+  readonly progress: DeleteProgress
+  /** Cancel was asked for and the delete has not ended yet. */
+  readonly cancelling: boolean
+}
+export const deleteRun = shallowRef<DeleteRun | null>(null)
+
+/** Cancels the delete under way, shown or not; null while none runs. */
+let stopRunning: (() => void) | null = null
+
+/** Asks the delete that is running to stop. Once it moves, there is nothing left to stop. */
+export function cancelRunningDelete(): void {
+  stopRunning?.()
 }
 
 /**
- * Sends a file or folder to the Recycle Bin, then closes every tab of it, with or without unsaved
- * edits: the question was answered before this runs (ISC-228).
+ * Sends files and folders to the Recycle Bin as one operation (ISC-786), then closes every tab of
+ * what is gone, with or without unsaved edits: the question was answered before this runs
+ * (ISC-228). A delete that takes long is shown in a dialog that holds the app back.
  */
-export async function deleteRow(path: string): Promise<void> {
-  const { tabs } = tabsUnder(path)
-  try {
-    const host = await getHost()
-    await host.deleteEntry(path)
-  } catch (error) {
-    reportError(`Could not delete ${baseName(path)}: ${describe(error)}`)
+export async function deletePaths(paths: readonly string[]): Promise<void> {
+  const [first] = paths
+  if (first === undefined) return
+  if (stopRunning !== null) {
+    reportWarning('Another delete is still running.')
     return
   }
+  const name = paths.length > 1 ? `${String(paths.length)} items` : baseName(first)
+  let progress: DeleteProgress = { phase: 'counting', percent: null }
+  let cancelling = false
+  let shown = false
+  const redraw = (): void => {
+    if (shown) deleteRun.value = { name, progress, cancelling }
+  }
+  stopRunning = () => {
+    if (cancelling || progress.phase === 'moving') return
+    cancelling = true
+    redraw()
+    getHost()
+      .then((host) => host.deleteCancel())
+      .catch((error: unknown) => {
+        reportError(`Could not cancel the delete: ${describe(error)}`)
+      })
+  }
+  let finish: () => void = () => undefined
+  const over = new Promise<void>((resolve) => {
+    finish = resolve
+  })
+  // A window close stops what it still can, and waits for the rest (ISC-791).
+  const releaseQuit = holdQuit(() => {
+    cancelRunningDelete()
+    return over
+  })
+  const timer = setTimeout(() => {
+    shown = true
+    redraw()
+  }, DELETE_DIALOG_AFTER_MS)
+  try {
+    let report: DeleteReport | null = null
+    try {
+      const host = await getHost()
+      report = await host.deleteEntries(paths, (step) => {
+        progress = step
+        redraw()
+      })
+    } catch (error) {
+      reportError(`Could not delete ${name}: ${describe(error)}`)
+    } finally {
+      clearTimeout(timer)
+      shown = false
+      deleteRun.value = null
+    }
+    await settleDelete(paths, report)
+  } finally {
+    stopRunning = null
+    releaseQuit()
+    finish()
+  }
+}
+
+/**
+ * Brings the page in step with what a delete did: closes the tabs of what is gone and no others
+ * (ISC-790), reads the folders again, and says what stayed. With no report nothing is known to be
+ * gone.
+ */
+async function settleDelete(asked: readonly string[], report: DeleteReport | null): Promise<void> {
+  const gone = report === null ? [] : [...report.deleted, ...report.destroyed]
+  const tabs = new Set(gone.flatMap((path) => tabsUnder(path).tabs))
   // Closing the tabs shows a neighbour, whose editor would take focus; it stays in the tree.
   await holdingEditorFocus(() => {
     for (const id of tabs) closeTabById(id)
   })
-  forgetPath(path)
+  for (const path of gone) forgetPath(path)
   requestGitRefresh()
-  const holder = parentPath(path)
-  if (holder !== null) void loadFolder(holder)
+  const holders = new Set([...asked, ...gone].map((path) => parentPath(path)))
+  for (const holder of holders) {
+    // A folder that went too has nothing left to list.
+    if (holder !== null && !gone.some((path) => isUnder(holder, path))) void loadFolder(holder)
+  }
   restoreTreeFocus()
+  if (report !== null) reportDelete(report)
+}
+
+/** What is gone for good, and what stayed and why. What a Cancel kept is not a failure. */
+function reportDelete(report: DeleteReport): void {
+  const andMore = (count: number): string => (count > 1 ? ` and ${String(count - 1)} more` : '')
+  const [lost] = report.destroyed
+  if (lost !== undefined) {
+    reportError(
+      `Removed for good, not moved to the Recycle Bin: ${baseName(lost)}${andMore(report.destroyed.length)}`,
+    )
+  }
+  const failed = report.kept.filter((item) => !item.cancelled)
+  const [first] = failed
+  if (first !== undefined) {
+    reportError(
+      `Could not delete ${baseName(first.path)}: ${first.reason}${andMore(failed.length)}`,
+    )
+  }
 }
 
 /**

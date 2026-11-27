@@ -1420,21 +1420,7 @@ pub(crate) fn rewrite_discard(state: State<'_, Arc<AppState>>, token: u64) {
     links::flow::discard(&state, token);
 }
 
-/// Sends a file or folder of the workspace to the Recycle Bin.
-#[tauri::command]
-pub(crate) async fn delete_entry(
-    state: State<'_, Arc<AppState>>,
-    path: String,
-) -> Result<(), AppError> {
-    let state = state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        ops::delete_entry(&state, &platform::current(), std::path::Path::new(&path))
-    })
-    .await
-    .map_err(|error| AppError::Task(error.to_string()))?
-}
-
-/// Sends several files and folders of the workspace to the Recycle Bin as one operation. Progress
+/// Sends files and folders of the workspace to the Recycle Bin as one operation. Progress
 /// streams to `on_progress`, and [`delete_cancel`] stops it while the system counts.
 #[tauri::command]
 pub(crate) async fn delete_entries(

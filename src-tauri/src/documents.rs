@@ -327,6 +327,20 @@ impl AppState {
         }
     }
 
+    /// Asks any delete to stop, and returns when none runs. The app does this before it ends on a
+    /// close, so a delete is never cut off half way. It blocks, so it needs a thread of its own.
+    pub(crate) fn stop_delete_and_wait(&self) {
+        loop {
+            self.cancel_delete();
+            let running = self.delete.lock().unwrap_or_else(PoisonError::into_inner);
+            if running.is_none() {
+                return;
+            }
+            drop(running);
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+    }
+
     /// A new name for a rewrite plan; never zero.
     pub(crate) fn next_token(&self) -> u64 {
         self.rewrite_tokens

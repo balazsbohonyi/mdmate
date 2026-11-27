@@ -377,9 +377,6 @@ export const tauriHost: Host = {
   async quickOpenQuery(query, limit) {
     return parseQuickOpenAnswer(await invoke<unknown>('quick_open_query', { query, limit }))
   },
-  async deleteEntry(path) {
-    await invoke('delete_entry', { path })
-  },
   async deleteEntries(paths, onProgress) {
     const channel = new Channel<unknown>()
     channel.onmessage = (value) => {

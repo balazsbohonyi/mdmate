@@ -553,8 +553,6 @@ export interface Host {
    * index Rust keeps up to date. Nothing is read from the disk to answer.
    */
   quickOpenQuery(query: string, limit: number): Promise<QuickOpenAnswer>
-  /** Sends a file or folder of the workspace to the Recycle Bin. */
-  deleteEntry(path: string): Promise<void>
   /**
    * Sends several files and folders of the workspace to the Recycle Bin as one operation.
    * `onProgress` hears each phase. What stayed, and anything removed for good, is in the answer.

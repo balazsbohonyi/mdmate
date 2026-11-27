@@ -172,8 +172,8 @@ Phase 9.1 collects the small fixes and rough edges found in daily use, between t
 - [x] P9.1-T47: Sticky headings at the top of a scrolled Markdown document — closes ISC-762 to ISC-768 (owner request)
 - [x] P9.1-T48: Status bar file info: line and column, selection, words, line ending, encoding, language — closes ISC-769 to ISC-775 (owner request)
 - [x] P9.1-T49: Git branch of the focused file in the status bar — closes ISC-776 to ISC-780 (owner request)
-- [ ] P9.1-T50: Delete engine with progress and Cancel, spike first — closes ISC-781 to ISC-786 (owner request)
-- [ ] P9.1-T51: Delete progress dialog after 2 seconds — closes ISC-787 to ISC-792 (owner request)
+- [ ] P9.1-T50: Delete engine with progress and Cancel, spike first — closes ISC-781 to ISC-785 and ISC-803 (owner request)
+- [ ] P9.1-T51: Delete progress dialog after 2 seconds — closes ISC-786 to ISC-792 (owner request)
 - [ ] P9.1-T52: Permanent delete: `Shift+Delete` and Delete Permanently — closes ISC-793 to ISC-797 (owner request)
 - [x] P9.1-T53: Monochrome built-in theme with gray file icons — closes ISC-798 to ISC-802 (owner request)
 
