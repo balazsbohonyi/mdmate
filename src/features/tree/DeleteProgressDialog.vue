@@ -32,15 +32,17 @@ onScopeDispose(() => releaseShortcuts?.())
 
 const moving = computed(() => deleteRun.value?.progress.phase === 'moving')
 const cancelling = computed(() => !moving.value && deleteRun.value?.cancelling === true)
-/** How far the system has counted, or null where there is no figure. */
+/** How far the system has counted or removed, or null where there is no figure. */
 const percent = computed(() => {
   const progress = deleteRun.value?.progress
-  return progress?.phase === 'counting' ? progress.percent : null
+  return progress === undefined || progress.phase === 'moving' ? null : progress.percent
 })
 const state = computed(() => {
   if (moving.value) return `Moving to ${bin}…`
   if (cancelling.value) return 'Cancelling…'
-  return percent.value === null ? 'Preparing…' : `Counting… ${String(percent.value)}%`
+  if (percent.value === null) return 'Preparing…'
+  const doing = deleteRun.value?.progress.phase === 'removing' ? 'Deleting permanently' : 'Counting'
+  return `${doing}… ${String(percent.value)}%`
 })
 const filled = computed(() =>
   percent.value === null ? {} : { width: `${String(percent.value)}%` },

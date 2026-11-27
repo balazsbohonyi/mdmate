@@ -562,6 +562,15 @@ export interface Host {
     paths: readonly string[],
     onProgress: (progress: DeleteProgress) => void,
   ): Promise<DeleteReport>
+  /**
+   * Removes files and folders of the workspace for good, without the Recycle Bin. A link goes
+   * itself and what it leads to stays. `deleted` in the answer is what is gone. Rejects as
+   * `deleteEntries` does, and also for a folder that holds a workspace folder.
+   */
+  deletePermanently(
+    paths: readonly string[],
+    onProgress: (progress: DeleteProgress) => void,
+  ): Promise<DeleteReport>
   /** Stops the delete that is running, if it has not started to move anything. */
   deleteCancel(): Promise<void>
   /** Shows a file or folder in the system's file manager, selected. */

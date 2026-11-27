@@ -143,6 +143,14 @@ impl Access {
         self.roots.iter().any(|root| root.key == resolved.key)
     }
 
+    /// True when a workspace root lies below this folder, which removing it for good would take
+    /// along.
+    pub(crate) fn holds_a_root(&self, folder: &Resolved) -> bool {
+        self.roots
+            .iter()
+            .any(|root| root.key != folder.key && is_inside(&root.key, &folder.key))
+    }
+
     /// Resolves a path the page asked for, or refuses it when it was never granted.
     pub(crate) fn check(&self, path: &Path) -> Result<Resolved, AppError> {
         let resolved = self.resolve(path)?;

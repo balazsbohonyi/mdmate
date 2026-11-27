@@ -34,8 +34,23 @@ import {
   parseSavedImage,
   parseTreeEntries,
   toCssPosition,
+  type DeleteProgress,
   type FileDragEvent,
 } from './workspace'
+
+/** The channel Rust sends the steps of a delete on. */
+function deleteChannel(onProgress: (progress: DeleteProgress) => void): Channel<unknown> {
+  const channel = new Channel<unknown>()
+  channel.onmessage = (value) => {
+    try {
+      onProgress(parseDeleteProgress(value))
+    } catch (error) {
+      // A step that does not parse is dropped; the next one replaces it.
+      console.error('Bad delete progress', error)
+    }
+  }
+  return channel
+}
 
 /** The Rust commands behind this exist only in `--features perf` builds. */
 const perfBridge: PerfHost = {
@@ -378,17 +393,13 @@ export const tauriHost: Host = {
     return parseQuickOpenAnswer(await invoke<unknown>('quick_open_query', { query, limit }))
   },
   async deleteEntries(paths, onProgress) {
-    const channel = new Channel<unknown>()
-    channel.onmessage = (value) => {
-      try {
-        onProgress(parseDeleteProgress(value))
-      } catch (error) {
-        // A step that does not parse is dropped; the next one replaces it.
-        console.error('Bad delete progress', error)
-      }
-    }
     return parseDeleteReport(
-      await invoke<unknown>('delete_entries', { paths, onProgress: channel }),
+      await invoke<unknown>('delete_entries', { paths, onProgress: deleteChannel(onProgress) }),
+    )
+  },
+  async deletePermanently(paths, onProgress) {
+    return parseDeleteReport(
+      await invoke<unknown>('delete_permanently', { paths, onProgress: deleteChannel(onProgress) }),
     )
   },
   async deleteCancel() {

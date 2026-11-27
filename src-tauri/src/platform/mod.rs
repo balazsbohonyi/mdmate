@@ -9,6 +9,7 @@ pub(crate) mod fonts;
 mod linux;
 #[cfg(target_os = "macos")]
 mod macos;
+pub(crate) mod purge;
 #[cfg(target_os = "windows")]
 mod windows;
 
@@ -104,6 +105,25 @@ pub(crate) trait Platform {
     /// The system's handle of the app window, for [`Platform::recycle`].
     fn window_handle(&self, _window: &tauri::WebviewWindow) -> Option<isize> {
         None
+    }
+
+    /// Holds a folder in place while what is in it is removed for good, and refuses anything that
+    /// is no folder, a link among them. It is let go when the answer is dropped.
+    fn hold_folder(&self, path: &Path) -> std::io::Result<Box<dyn std::any::Any>> {
+        if !std::fs::symlink_metadata(path)?.is_dir() {
+            return Err(std::io::Error::other("it is no longer a folder"));
+        }
+        Ok(Box::new(()))
+    }
+
+    /// Runs `remove` for the item at `path`. Where the system refuses to remove a read-only item
+    /// (Windows), the mark is taken off for it, and put back if the item stays.
+    fn remove_even_read_only(
+        &self,
+        _path: &Path,
+        remove: &dyn Fn() -> std::io::Result<()>,
+    ) -> std::io::Result<()> {
+        remove()
     }
 
     /// Shows the item in the system's file manager, selected where the OS can do that.
@@ -228,6 +248,20 @@ pub(crate) fn make_folder_link(target: &Path, link: &Path) -> std::io::Result<()
         } else {
             Err(std::io::Error::other("mklink failed"))
         }
+    }
+    #[cfg(not(windows))]
+    {
+        std::os::unix::fs::symlink(target, link)
+    }
+}
+
+/// Makes `link` a symbolic link to the file `target`, for tests of code that must not follow
+/// links. Windows allows it only to an administrator or with Developer Mode on.
+#[cfg(test)]
+pub(crate) fn make_file_link(target: &Path, link: &Path) -> std::io::Result<()> {
+    #[cfg(windows)]
+    {
+        std::os::windows::fs::symlink_file(target, link)
     }
     #[cfg(not(windows))]
     {

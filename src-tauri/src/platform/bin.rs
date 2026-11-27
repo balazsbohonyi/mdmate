@@ -44,6 +44,9 @@ pub(crate) enum Progress {
     Counting { percent: Option<u8> },
     /// Items are moving: there is no figure, and a Cancel no longer acts.
     Moving,
+    /// Items are being removed for good, with this much of them gone. A Cancel still stops the
+    /// rest. Only [`super::purge`] tells it.
+    Removing { percent: u8 },
 }
 
 /// What the system means to do with an item it is about to remove.
@@ -114,6 +117,8 @@ pub(crate) enum End {
     Kept(Kept),
     /// Gone, and not into the bin.
     Destroyed,
+    /// Gone for good, as asked. Only [`super::purge`] ends an item so.
+    Removed,
 }
 
 /// What a delete did.
@@ -129,13 +134,13 @@ pub(crate) struct Report {
 
 /// What an item holds: itself and everything under it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct Size {
-    items: u64,
+pub(super) struct Size {
+    pub(super) items: u64,
     bytes: u64,
 }
 
 #[derive(Debug)]
-enum Stop {
+pub(super) enum Stop {
     Cancelled,
     Io(io::Error),
 }
@@ -143,7 +148,7 @@ enum Stop {
 /// Counts an item and sizes it. A link is one item with no bytes and is never followed, as the
 /// Windows shell counts it. What cannot be read inside a folder is left out of the figures, so the
 /// system's own refusal or question still has to cover it.
-fn measure(path: &Path, cancel: &AtomicBool) -> Result<Size, Stop> {
+pub(super) fn measure(path: &Path, cancel: &AtomicBool) -> Result<Size, Stop> {
     let meta = fs::symlink_metadata(path).map_err(Stop::Io)?;
     let mut size = Size { items: 1, bytes: 0 };
     if meta.file_type().is_symlink() {
@@ -293,7 +298,7 @@ fn within(path: &Path, folder: &Path, ignore_case: bool) -> bool {
 
 /// For each target, the one that moves it: the outermost target that holds it, or itself. A repeat
 /// goes with the first.
-fn holders(targets: &[PathBuf], ignore_case: bool) -> Vec<usize> {
+pub(super) fn holders(targets: &[PathBuf], ignore_case: bool) -> Vec<usize> {
     let keys: Vec<PathBuf> = targets.iter().map(|path| key(path, ignore_case)).collect();
     keys.iter()
         .enumerate()
@@ -308,7 +313,7 @@ fn holders(targets: &[PathBuf], ignore_case: bool) -> Vec<usize> {
 }
 
 /// Only a missing item counts as gone: one that cannot be looked at is taken to be there.
-fn is_gone(path: &Path) -> bool {
+pub(super) fn is_gone(path: &Path) -> bool {
     matches!(fs::symlink_metadata(path), Err(error) if error.kind() == io::ErrorKind::NotFound)
 }
 
@@ -444,7 +449,7 @@ pub(crate) fn one(platform: &dyn Platform, path: &Path) -> io::Result<()> {
     match report.ends.first() {
         Some(End::InBin) => Ok(()),
         Some(End::Kept(why)) => Err(io::Error::other(why.words())),
-        Some(End::Destroyed) | None => Err(io::Error::other(
+        Some(End::Destroyed | End::Removed) | None => Err(io::Error::other(
             "it was removed for good, not moved to the Recycle Bin",
         )),
     }
@@ -593,7 +598,7 @@ mod tests {
         told.iter()
             .filter_map(|step| match step {
                 Progress::Counting { percent } => *percent,
-                Progress::Moving => None,
+                Progress::Moving | Progress::Removing { .. } => None,
             })
             .collect()
     }

@@ -170,6 +170,58 @@ impl Platform for Native {
         shell_bin::recycle(paths, owner, watcher)
     }
 
+    fn hold_folder(&self, path: &Path) -> std::io::Result<Box<dyn std::any::Any>> {
+        use std::os::windows::fs::OpenOptionsExt as _;
+        use windows::Win32::Storage::FileSystem::{
+            FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT, FILE_SHARE_READ,
+        };
+        // Sharing reads only: while this handle lives, nothing can rename or remove the folder
+        // to put a link in its place. Opening it never goes through a link.
+        let held = std::fs::OpenOptions::new()
+            .read(true)
+            .share_mode(FILE_SHARE_READ.0)
+            .custom_flags(FILE_FLAG_BACKUP_SEMANTICS.0 | FILE_FLAG_OPEN_REPARSE_POINT.0)
+            .open(path)?;
+        if !held.metadata()?.is_dir() {
+            return Err(std::io::Error::other("it is no longer a folder"));
+        }
+        Ok(Box::new(held))
+    }
+
+    fn remove_even_read_only(
+        &self,
+        path: &Path,
+        remove: &dyn Fn() -> std::io::Result<()>,
+    ) -> std::io::Result<()> {
+        let Err(refused) = remove() else {
+            return Ok(());
+        };
+        let Ok(meta) = std::fs::symlink_metadata(path) else {
+            return Err(refused);
+        };
+        // A link keeps its mark: changing it would change what the link leads to.
+        if refused.kind() != std::io::ErrorKind::PermissionDenied
+            || meta.file_type().is_symlink()
+            || !meta.permissions().readonly()
+        {
+            return Err(refused);
+        }
+        let mut writable = meta.permissions();
+        // Clearing the mark is all this does on Windows, whatever the lint fears for Unix.
+        #[expect(
+            clippy::permissions_set_readonly_false,
+            reason = "on Windows this only clears the read-only attribute"
+        )]
+        writable.set_readonly(false);
+        std::fs::set_permissions(path, writable)?;
+        let removed = remove();
+        if removed.is_err() {
+            // The item stays, so it stays as it was.
+            let _ = std::fs::set_permissions(path, meta.permissions());
+        }
+        removed
+    }
+
     fn window_handle(&self, window: &tauri::WebviewWindow) -> Option<isize> {
         window.hwnd().ok().map(|handle| handle.0 as isize)
     }
@@ -256,6 +308,50 @@ impl Platform for Native {
 mod tests {
     use super::*;
     use std::ffi::OsString;
+
+    #[test]
+    fn delete_permanent_holds_a_folder_against_a_swap() {
+        let dir = tempfile::tempdir().expect("a temp dir");
+        let folder = dir.path().join("folder");
+        std::fs::create_dir_all(&folder).expect("folder");
+        std::fs::write(folder.join("a.txt"), b"x").expect("written");
+        let held = Native.hold_folder(&folder).expect("held");
+        assert!(std::fs::rename(&folder, dir.path().join("other")).is_err());
+        // What is inside it can still go.
+        std::fs::remove_file(folder.join("a.txt")).expect("removed");
+        drop(held);
+        std::fs::rename(&folder, dir.path().join("other")).expect("let go");
+        let link = dir.path().join("link");
+        crate::platform::make_folder_link(&dir.path().join("other"), &link).expect("link");
+        assert!(
+            Native.hold_folder(&link).is_err(),
+            "a link is no folder to hold"
+        );
+    }
+
+    #[test]
+    fn delete_permanent_keeps_a_file_in_use_and_says_which() {
+        let dir = tempfile::tempdir().expect("a temp dir");
+        let tree = dir.path().join("tree");
+        std::fs::create_dir_all(tree.join("sub")).expect("folders");
+        std::fs::write(tree.join("sub/busy.txt"), b"x").expect("written");
+        std::fs::write(tree.join("sub/free.txt"), b"x").expect("written");
+        std::fs::write(tree.join("free.txt"), b"x").expect("written");
+        let busy = crate::platform::hold_exclusively(&tree.join("sub/busy.txt")).expect("locked");
+        let report = crate::platform::purge::run(
+            &Native,
+            std::slice::from_ref(&tree),
+            &std::sync::atomic::AtomicBool::new(false),
+            &|_| {},
+        );
+        let [bin::End::Kept(why)] = report.ends.as_slice() else {
+            panic!("kept: {:?}", report.ends);
+        };
+        assert_eq!(why.words(), "busy.txt: another program is using it");
+        assert!(tree.join("sub/busy.txt").exists());
+        assert!(!tree.join("sub/free.txt").exists() && !tree.join("free.txt").exists());
+        drop(busy);
+    }
 
     #[test]
     fn the_no_window_flag_is_the_documented_value() {

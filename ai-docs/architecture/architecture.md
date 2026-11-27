@@ -293,11 +293,12 @@ The window starts hidden on a themed background and shows after first paint. Pal
 
 ## Deleting
 
-- Every delete goes to the Recycle Bin through `platform/bin.rs`. `bin::run` takes any number of items as one operation: it counts each (never following a link), leaves out what the bin of its volume cannot take, tells the page `counting` (with a percent while the system counts) and then `moving` (no figure), and reads from the disk what each item ended as: in the bin, kept with a reason, or destroyed.
+- Delete goes to the Recycle Bin through `platform/bin.rs`. `bin::run` takes any number of items as one operation: it counts each (never following a link), leaves out what the bin of its volume cannot take, tells the page `counting` (with a percent while the system counts) and then `moving` (no figure), and reads from the disk what each item ended as: in the bin, kept with a reason, or destroyed.
 - `Cancel` acts until the first item moves. Windows offers no figure and no Cancel after that. One delete runs at a time (`AppState::begin_delete`).
 - Windows (`platform/windows/shell_bin.rs`) runs `IFileOperation` on its own thread with a progress sink. Three guards keep an item from being destroyed: the size and setting check of the volume's bin before queuing, a refusal of any call without the recycle flag, and Windows' own question (`FOF_WANTNUKEWARNING`) for what passes both. A Yes there destroys the item, and the report says so.
 - macOS and Linux use the `trash` crate, one item at a time, through the same engine.
-- `delete_entries` acts on a link itself, never on what it leads to.
-- The page deletes through `deletePaths` (`features/tree/ops.ts`). A delete that runs for 2 seconds opens `DeleteProgressDialog.vue`, which is modal and holds the shortcuts back. Only tabs of what is reported gone close.
+- A permanent delete (`Shift+Delete`, **Delete Permanently**) is a command of its own, `delete_permanently`, over `platform/purge.rs`: our own walk on every OS, which removes a link and never goes through it. `Platform::hold_folder` holds each folder while its contents go (on Windows without sharing delete or write, so it cannot be renamed or removed and replaced by a link), and `Platform::remove_even_read_only` lifts Windows' read-only mark. It takes the same turn and Cancel, tells `removing` with the percent of items gone, and keeps what it cannot remove. It also refuses a folder that holds a workspace root.
+- Both commands act on a link itself, never on what it leads to.
+- The page deletes through `deletePaths` (`features/tree/ops.ts`). A delete that runs for 2 seconds opens `DeleteProgressDialog.vue`, which is modal and holds the shortcuts back. Tabs of what is reported gone close; after a permanent delete that left a folder part empty, so do the tabs of files that are gone from it.
 - A window close during a delete cancels it and waits for it. The page writes the session first, then waits (`holdQuit` in `documents/session.ts`); Rust starts its close grace only when no delete runs (`AppState::stop_delete_and_wait`).
 - The custom titlebar sits behind one component, so macOS can use native controls.

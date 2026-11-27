@@ -99,7 +99,10 @@ export interface CopyReport {
  * when there is no figure and Cancel no longer acts. Mirrors `platform::bin::Progress`.
  */
 export type DeleteProgress =
-  { readonly phase: 'counting'; readonly percent: number | null } | { readonly phase: 'moving' }
+  | { readonly phase: 'counting'; readonly percent: number | null }
+  | { readonly phase: 'moving' }
+  /** A permanent delete only: how much of it is gone. A Cancel still stops the rest. */
+  | { readonly phase: 'removing'; readonly percent: number }
 
 /** What a delete of several items did. Mirrors `workspace::ops::Deleted`. */
 export interface DeleteReport {
@@ -204,6 +207,10 @@ export function parseMoved(value: unknown): Moved {
 export function parseDeleteProgress(value: unknown): DeleteProgress {
   const step = record(value)
   if (step.phase === 'moving') return { phase: 'moving' }
+  if (step.phase === 'removing') {
+    if (typeof step.percent !== 'number') throw new Error('percent is not a number')
+    return { phase: 'removing', percent: step.percent }
+  }
   if (step.phase !== 'counting') throw new Error(`unknown delete phase ${String(step.phase)}`)
   const percent = step.percent
   if (percent !== null && typeof percent !== 'number') throw new Error('percent is not a number')

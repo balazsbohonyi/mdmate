@@ -53,6 +53,7 @@ import {
   revealInFileManager,
   selectedTargets,
   TREE_DELETE_KEY,
+  TREE_DELETE_PERMANENTLY_KEYS,
 } from './ops'
 import {
   activateRow,
@@ -226,13 +227,13 @@ function menuRename(): void {
   const path = menuPath()
   if (path !== null) void renameRow(path, menuRow.value?.root)
 }
-function menuDelete(): void {
+function menuDelete(permanent = false): void {
   if (manyRows.value) {
-    void deleteSelected()
+    void deleteSelected(permanent)
     return
   }
   const path = menuPath()
-  if (path !== null) void requestDelete(path)
+  if (path !== null) void requestDelete(path, permanent)
 }
 function menuOpenAll(): void {
   void openAllSelected()
@@ -355,7 +356,7 @@ function onKeydown(event: KeyboardEvent): void {
     void renameSelected()
   } else if (event.key === TREE_DELETE_KEY) {
     event.preventDefault()
-    void deleteSelected()
+    void deleteSelected(event.shiftKey)
   }
 }
 
@@ -695,9 +696,13 @@ function rowHint(row: TreeRow): string | null {
           </ContextMenuItem>
           <ContextMenuSeparator />
         </template>
-        <ContextMenuItem @select="menuDelete">
+        <ContextMenuItem @select="menuDelete()">
           Delete {{ selectedPlaces.length }} items
           <ContextMenuShortcut>{{ TREE_DELETE_KEY }}</ContextMenuShortcut>
+        </ContextMenuItem>
+        <ContextMenuItem @select="menuDelete(true)">
+          Delete {{ selectedPlaces.length }} items Permanently
+          <ContextMenuShortcut>{{ TREE_DELETE_PERMANENTLY_KEYS }}</ContextMenuShortcut>
         </ContextMenuItem>
       </template>
       <template v-else>
@@ -713,9 +718,13 @@ function rowHint(row: TreeRow): string | null {
               shortcutLabel(COMMAND_IDS.rename, platform)
             }}</ContextMenuShortcut>
           </ContextMenuItem>
-          <ContextMenuItem @select="menuDelete">
+          <ContextMenuItem @select="menuDelete()">
             Delete
             <ContextMenuShortcut>{{ TREE_DELETE_KEY }}</ContextMenuShortcut>
+          </ContextMenuItem>
+          <ContextMenuItem @select="menuDelete(true)">
+            Delete Permanently
+            <ContextMenuShortcut>{{ TREE_DELETE_PERMANENTLY_KEYS }}</ContextMenuShortcut>
           </ContextMenuItem>
           <ContextMenuSeparator />
         </template>

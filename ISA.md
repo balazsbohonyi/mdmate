@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 757/802
+progress: 760/802
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-27T12:43:05Z
+updated: 2026-11-27T13:35:52Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -861,7 +861,7 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-791 | manual | the owner closes the window during a large delete | closed while counting, the folder is intact; closed while moving, the whole of it reaches the bin; then the app exits | Owner review in the real window | derived: reported-by-owner | | |
 | ISC-792 | manual | the owner deletes a `node_modules` | the owner finds the dialog and Cancel right | Owner review in the real window | derived: reported-by-owner | | |
 | ISC-793 | bash | use both on one and several rows | the question shows, Cancel has focus and the host is not called before Yes | pnpm test:web tests/features/deletePermanent.test.ts | derived: reported-by-owner | | |
-| ISC-794 | bash | delete a generated tree permanently | gone from disk, nothing handed to the bin, events as for a recycle | pnpm test:rust delete_permanent | derived: reported-by-owner | | |
+| ISC-794 | bash | delete a generated tree permanently | gone from disk, nothing handed to the bin, a percent of what is gone, and a Cancel that keeps the rest | pnpm test:rust delete_permanent; pnpm test:web tests/features/deletePermanent.test.ts | derived: reported-by-owner | | |
 | ISC-795 | bash | delete a folder holding a junction and a symlink that point outside it | the targets and their contents are intact | pnpm test:rust permanent_keeps_link_targets | derived: reported-by-owner | critical | |
 | ISC-796 | bash | ask for both | refused and untouched | pnpm test:rust permanent_refuses_roots | derived: reported-by-owner | critical | |
 | ISC-797 | manual | the owner deletes scratch files with `Shift+Delete` | the owner finds it right | Owner review in the real window | derived: reported-by-owner | | |
@@ -1114,7 +1114,7 @@ Why: Markdown lives among other files, so the sidebar must manage them and renam
 - [x] ISC-100: The tree creates a new file.
 - [x] ISC-101: The tree renames a file.
 - [x] ISC-102: Dragging in the tree moves a file.
-- [x] ISC-103: Deleting moves a file to the Recycle Bin, once the owner has confirmed it (ISC-227).
+- [x] ISC-103: Delete moves a file to the Recycle Bin, once the owner has confirmed it (ISC-227); only the permanent delete (ISC-793, ISC-794) removes without the bin.
 - [x] ISC-104: Reveal in Explorer selects the file.
 - [ ] ISC-105: [DROPPED — see Decisions 2026-11-20]
 - [x] ISC-576: A file row in the sidebar shows an icon for its file type (a subset of Material Icon Theme: Markdown, text, JSON, YAML, TOML, scripts, images, archives, lock and config files and more); the type is read from the whole name first, then the longest extension, case-insensitively, and an unknown name gets a default icon; folder rows keep their icons.
@@ -1591,7 +1591,7 @@ Why: an everyday editor starts, keeps and manages files without sending you to E
 - [x] ISC-224: A tab shows its tooltip only when its name is cut off, and a tab, a tree file and a tree folder wait 1 s before showing one; every other hint keeps 300 ms.
 - [x] ISC-225: Anti: the tooltip arrow never draws over the tooltip box.
 - [x] ISC-226: Anti: no tooltip drawn inside the editor is a native `title` attribute; a broken link, the frontmatter pill and an image that did not load show a themed tooltip that follows dark and light.
-- [x] ISC-227: Deleting a file or a folder from the tree, by the menu or the Delete key, asks first in a themed shadcn dialog, and nothing is deleted until the owner confirms.
+- [x] ISC-227: Deleting a file or a folder from the tree, to the Recycle Bin or for good, by the menu, the Delete key or Shift+Delete, asks first in a themed shadcn dialog, and nothing is deleted until the owner confirms.
 - [x] ISC-228: Confirming a delete closes every tab of the deleted file, or under the deleted folder, even one with unsaved edits; the dialog says how many tabs close and whether any is unsaved.
 - [x] ISC-229: The tree menu has Copy Path and Copy Relative Path for a file, a folder and (path only) a workspace folder, and Find File References for a file.
 - [x] ISC-230: The reveal item reads Open Containing Folder for a file (everywhere, tab menu included) and Open Folder for a folder, and Open Folder opens that folder itself.
@@ -1679,10 +1679,10 @@ Why: an everyday editor starts, keeps and manages files without sending you to E
 - [x] ISC-790: When a delete ends, by finishing, Cancel or failure, only tabs of files that are gone close, the tree matches the disk, and failures show as toasts.
 - [ ] ISC-791: Closing the window during a delete cancels what can still be cancelled, and the app exits only once the delete is over.
 - [ ] ISC-792: The owner deletes a large folder in the real window and finds the dialog right.
-- [ ] ISC-793: `Shift+Delete` in the tree and a `Delete Permanently` menu item ask first, saying it cannot be undone with Cancel focused, and nothing is deleted before the owner confirms.
-- [ ] ISC-794: A confirmed permanent delete removes the files without the Recycle Bin, with the same progress and Cancel.
+- [x] ISC-793: `Shift+Delete` in the tree and a `Delete Permanently` menu item ask first, saying it cannot be undone with Cancel focused, and nothing is deleted before the owner confirms.
+- [x] ISC-794: A confirmed permanent delete removes the files without the Recycle Bin, in the same progress dialog, which shows how much is gone and whose Cancel stops the rest, keeping what is already removed.
 - [ ] ISC-795: Anti: a permanent delete never follows a symlink or a junction; it removes the link and leaves the target.
-- [ ] ISC-796: Anti: a permanent delete refuses a workspace root and any path outside the roots.
+- [x] ISC-796: Anti: a permanent delete refuses a workspace root and any path outside the roots.
 - [ ] ISC-797: The owner finds permanent delete right in the real window.
 
 ### F13 · Workspace index
@@ -1955,8 +1955,10 @@ Why: a folder of projects is easier to read when new, changed and ignored files 
 - 2026-11-27: bug found while building P9.1-T50: a delete resolved the whole path, so deleting a link in the tree sent what it led to to the Recycle Bin. No claim covered it (ISC-795 speaks of permanent delete only), so ISC-803 is added and fixed in the same task. Rename and move still resolve through a link and are not changed.
 - 2026-11-27: P9.1-T50 closes less than its task line names. ISC-784 stays open although its probe passes: the refusal of an oversize item has not run through mdmate against the real shell, and between the measured 3,685 MB and the drive's limit, or where the limit cannot be read, only Windows' own question stands in front. ISC-786 stays open until the page deletes a selection through `delete_entries` (P9.1-T51). The task is ticked once the owner has restored a deleted folder (ISC-785).
 - 2026-11-27: refined: reworded ISC-791 and its probe (P9.1-T51). Windows takes no Cancel while it moves, so a close cancels what can still be cancelled and waits for the rest. Rust's 3 second close grace starts only when no delete runs, so a delete the system never ends keeps the app open.
+- 2026-11-27: refined: reworded ISC-103, ISC-227 and ISC-794 and the probe of ISC-794 (P9.1-T52). A permanent delete now exists beside the Recycle Bin one. Its progress cannot be the same phases as a recycle, which only counts and then moves: removing is our own walk, so the dialog shows how much is gone and Cancel acts to the end, keeping what is already removed.
 
 ## Verification
+- P9.1-T52 (2026-11-27), permanent delete: ISC-793, ISC-794 and ISC-796 closed (progress 760/802); ISC-795 stays open, since this machine cannot make the file symlink its test needs (error 1314) and that half was skipped, and ISC-797 is the owner's check in the real window. The owner ran cargo: `pnpm check:rust` exit 0, `pnpm test:rust` 720 passed and 2 ignored. With the walk made to look through links, `permanent_keeps_link_targets` failed because the folder hold refused the junction; with the hold's check off too, it failed because the temp link target was lost; both files were then restored. 9 of 12 new page tests failed before the page change, and four deliberate breaks each failed. `pnpm check` exit 0; `pnpm test:web` 4317 of 4318 (the earlier ISC-714 failure) with one unhandled editor error in `imageResize.test.ts`, also seen at T51. The question and the progress dialog were looked at in `pnpm dev` with a fake host. Not verified: the app's own window, and the macOS and Linux build.
 - P9.1-T51 (2026-11-27), delete progress dialog: ISC-786 to ISC-790 closed (progress 757/802); ISC-791 and ISC-792 are the owner's checks in the real window. The owner ran cargo: `pnpm check:rust` exit 0, `pnpm test:rust` 710 passed and 2 ignored. The new page tests failed on the missing component, then six deliberate breaks each failed the test meant for it. `pnpm check` exit 0; `pnpm test:web` 4304 of 4306 with one unhandled editor error in `imageResize.test.ts`: one failure was the new bar missing from the text-free fills in `colorPairs.test.ts`, listed since, the other is the earlier ISC-714 one; 259 related tests then passed with no error. The dialog was looked at in `pnpm dev` with a delete held open. Not verified: the app's own window.
 - P9.1-T50 (2026-11-27), delete engine: ISC-781, ISC-782, ISC-783 and ISC-803 closed (progress 752/802); ISC-784 and ISC-785 wait for the owner's checks in the app, ISC-786 for the page to use the engine (T51). The owner ran cargo: `pnpm check:rust` exit 0, `pnpm test:rust` 708 passed and 2 ignored, and the two ignored `real_shell` tests passed against the Windows 11 shell. `delete_entry_removes_a_link` failed with the old delete line put back. `pnpm check` exit 0; `pnpm test:web` 4282 of 4285, two slow-run timeouts that pass alone (61 of 61) and the earlier ISC-714 failure. Not verified: the app's own window.
 - P9.1-T53 (2026-11-27), Monochrome theme: ISC-798 to ISC-801 closed (progress 748/801); ISC-802 stays open for the owner's review. Fail-first: before `monochrome.css` existed `tests/styles/monochrome.test.ts` did not load and 5 tests of the theme suites failed; all pass. In `pnpm dev` (port 5199) a code block, quote and link, the tree with git names and gray icons, Find, the Settings theme row, two pictures and a colour square keeping their colour, a theme file based on Monochrome (palette and bold keywords; its icons not looked at) and Dark's keyword weight were checked. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 4284 passed with the one earlier failure (ISC-714). Not verified: the real window.

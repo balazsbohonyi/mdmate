@@ -10,7 +10,8 @@ use crate::documents::AppState;
 use crate::error::{AppError, friendly_io, plain_text};
 use crate::links::guard::is_device_name;
 use crate::platform::Platform;
-use crate::platform::bin::{self, End, Kept, Progress};
+use crate::platform::bin::{self, End, Kept, Progress, Report};
+use crate::platform::purge;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io;
@@ -367,6 +368,58 @@ pub(crate) fn delete_entries(
     let Some(turn) = state.begin_delete() else {
         return Err(AppError::Invalid("another delete is still running".into()));
     };
+    let (targets, mut done) = delete_targets(state, paths)?;
+    let report = bin::run(
+        platform,
+        &targets,
+        owner,
+        Arc::clone(&turn.cancel),
+        progress,
+    );
+    record(state, &targets, report, &mut done);
+    Ok(done)
+}
+
+/// Removes files and folders for good, without the Recycle Bin. It takes the same turn and Cancel
+/// as [`delete_entries`], and refuses what that refuses, and also a folder that holds a workspace
+/// folder. `deleted` in the answer is what is gone.
+pub(crate) fn delete_permanently(
+    state: &AppState,
+    platform: &dyn Platform,
+    paths: &[PathBuf],
+    progress: &dyn Fn(Progress),
+) -> Result<Deleted, AppError> {
+    let Some(turn) = state.begin_delete() else {
+        return Err(AppError::Invalid("another delete is still running".into()));
+    };
+    let (targets, mut done) = delete_targets(state, paths)?;
+    for target in &targets {
+        // A link takes only itself, wherever it leads.
+        if fs::symlink_metadata(target).is_ok_and(|meta| meta.is_dir()) {
+            let access = state.access();
+            if access.holds_a_root(&access.resolve(target)?) {
+                return Err(AppError::Invalid(format!(
+                    "{} holds a workspace folder: remove that from the workspace first",
+                    display_path(target)
+                )));
+            }
+        }
+    }
+    let report = purge::run(platform, &targets, &turn.cancel, progress);
+    // A folder that stayed may have lost some of its files.
+    for target in targets.iter().filter(|target| is_taken(target)) {
+        state.index().changed(target);
+    }
+    record(state, &targets, report, &mut done);
+    Ok(done)
+}
+
+/// What a delete acts on, with the items that are already gone reported as kept. Any other refusal
+/// rejects all of them, before anything is removed.
+fn delete_targets(
+    state: &AppState,
+    paths: &[PathBuf],
+) -> Result<(Vec<PathBuf>, Deleted), AppError> {
     let mut done = Deleted::default();
     let mut targets = Vec::new();
     for path in paths {
@@ -382,20 +435,19 @@ pub(crate) fn delete_entries(
             Err(error) => return Err(error),
         }
     }
-    let report = bin::run(
-        platform,
-        &targets,
-        owner,
-        Arc::clone(&turn.cancel),
-        progress,
-    );
+    Ok((targets, done))
+}
+
+/// Takes what is gone out of the index and writes what each target ended as into `done`. A target
+/// removed for good on request counts as deleted, not as destroyed.
+fn record(state: &AppState, targets: &[PathBuf], report: Report, done: &mut Deleted) {
     for (target, end) in targets.iter().zip(report.ends) {
         if !is_taken(target) {
             state.index().removed(target);
         }
         let path = display_path(target);
         match end {
-            End::InBin => done.deleted.push(path),
+            End::InBin | End::Removed => done.deleted.push(path),
             End::Destroyed => done.destroyed.push(path),
             End::Kept(why) => done.kept.push(KeptEntry::of(path, &why)),
         }
@@ -407,7 +459,6 @@ pub(crate) fn delete_entries(
             .map(|path| display_path(path)),
     );
     done.cancelled = report.cancelled;
-    Ok(done)
 }
 
 /// Shows an entry of the workspace in the system's file manager.
@@ -1226,6 +1277,68 @@ mod tests {
             assert!(!closing.is_finished(), "the delete is still running");
             drop(turn);
         });
+    }
+
+    /// Runs a permanent delete, with nothing listening to the progress.
+    fn destroy(w: &Workspace, paths: &[PathBuf]) -> Result<Deleted, AppError> {
+        delete_permanently(&w.state, &w.os, paths, &|_| {})
+    }
+
+    #[test]
+    fn delete_permanent_removes_without_the_bin_and_reports_it_as_deleted() {
+        let w = workspace();
+        write(&w.root.join("a.md"), "a");
+        write(&w.root.join("dir/b.md"), "b");
+        let done = destroy(&w, &[w.root.join("a.md"), w.root.join("dir")]).expect("ran");
+        assert_eq!(
+            done.deleted,
+            [as_text(&w.root.join("a.md")), as_text(&w.root.join("dir"))]
+        );
+        assert!(done.kept.is_empty() && done.destroyed.is_empty() && !done.cancelled);
+        assert!(!w.root.join("a.md").exists() && !w.root.join("dir").exists());
+        assert!(w.os.trashed().is_empty(), "nothing went to the bin");
+    }
+
+    #[test]
+    fn delete_permanent_takes_the_same_turn_as_a_delete_to_the_bin() {
+        let w = workspace();
+        write(&w.root.join("a.md"), "a");
+        let turn = w.state.begin_delete().expect("the turn");
+        assert!(destroy(&w, &[w.root.join("a.md")]).is_err());
+        assert!(w.root.join("a.md").exists());
+        drop(turn);
+        destroy(&w, &[w.root.join("a.md")]).expect("ran");
+    }
+
+    #[test]
+    fn permanent_refuses_roots_and_whatever_lies_outside_them() {
+        let w = workspace();
+        write(&w.root.join("a.md"), "a");
+        write(&w.root.join("holder/inner/in.md"), "in");
+        write(&w.outside.join("o.md"), "o");
+        w.state
+            .access()
+            .grant_root(&w.root.join("holder/inner"))
+            .expect("granted");
+        platform::make_folder_link(&w.outside, &w.root.join("way-out")).expect("link");
+        for stranger in [
+            w.root.clone(),
+            w.root.join("holder/inner"),
+            w.root.join("holder"),
+            w.outside.join("o.md"),
+            w.outside.clone(),
+            w.root.join("way-out/o.md"),
+        ] {
+            let refused = destroy(&w, &[w.root.join("a.md"), stranger.clone()]);
+            assert!(refused.is_err(), "{} was not refused", stranger.display());
+        }
+        assert!(w.root.join("a.md").exists());
+        assert!(w.root.join("holder/inner/in.md").exists());
+        assert_eq!(read(&w.outside.join("o.md")), "o");
+        // The link itself is an entry of the workspace: it goes, and what it leads to stays.
+        destroy(&w, &[w.root.join("way-out")]).expect("ran");
+        assert!(!is_taken(&w.root.join("way-out")));
+        assert_eq!(read(&w.outside.join("o.md")), "o");
     }
 
     #[test]

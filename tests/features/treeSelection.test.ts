@@ -396,9 +396,10 @@ describe('clicks and keys on the tree (P9.1-T9)', () => {
     const items = [...document.body.querySelectorAll<HTMLElement>('[role=menuitem]')].map((el) =>
       el.textContent.replace(/\s+/g, ' ').trim(),
     )
-    expect(items).toHaveLength(2)
+    expect(items).toHaveLength(3)
     expect(items[0]).toMatch(/^Open All/)
-    expect(items[1]).toMatch(/^Delete 2 items/)
+    expect(items[1]).toMatch(/^Delete 2 items Delete$/)
+    expect(items[2]).toBe('Delete 2 items Permanently Shift+Delete')
     ;[...document.body.querySelectorAll<HTMLElement>('[role=menuitem]')][1]?.click()
     await flush()
     expect(deletePrompt.value?.paths).toEqual(['/work/a.md', '/work/c.md'])

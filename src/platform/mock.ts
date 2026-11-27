@@ -1400,6 +1400,21 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
         return { deleted: targets, kept, destroyed: [], cancelled: false }
       })
     },
+    deletePermanently(paths, onProgress) {
+      return attempt((): DeleteReport => {
+        // Every path is checked before the first is removed.
+        for (const path of paths) {
+          entryInRoot(path)
+          if (roots.some((root) => trimmed(root).startsWith(`${trimmed(path)}/`))) {
+            throw hostError('invalid', 'it holds a workspace folder')
+          }
+        }
+        onProgress({ phase: 'counting', percent: null })
+        onProgress({ phase: 'removing', percent: 100 })
+        for (const path of paths) files.remove(path)
+        return { deleted: [...paths], kept: [], destroyed: [], cancelled: false }
+      })
+    },
     deleteCancel() {
       // A delete of the mock is over at once, so there is nothing to stop.
       return Promise.resolve()

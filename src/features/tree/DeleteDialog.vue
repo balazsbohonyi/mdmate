@@ -14,8 +14,8 @@ import { cancelDelete, confirmDelete, deletePrompt, type DeletePrompt } from './
 
 /**
  * The question before a file or folder is deleted from the tree (ISC-227): what goes, where it
- * goes, and what happens to the tabs that show it (ISC-228). Cancel has the focus, so a stray
- * Enter never deletes.
+ * goes, and what happens to the tabs that show it (ISC-228). A permanent delete says that it
+ * cannot be undone (ISC-793). Cancel has the focus, so a stray Enter never deletes.
  */
 const bin = navigator.userAgent.includes('Windows') ? 'the Recycle Bin' : 'the Trash'
 
@@ -25,9 +25,15 @@ const several = computed(() => (deletePrompt.value?.paths.length ?? 1) > 1)
 const title = computed(() => {
   const asked = deletePrompt.value
   if (asked === null) return ''
-  if (several.value) return `Delete ${asked.name}?`
-  return `Delete ${asked.folder ? 'the folder ' : ''}"${asked.name}"?`
+  const how = asked.permanent ? ' permanently' : ''
+  if (several.value) return `Delete ${asked.name}${how}?`
+  return `Delete ${asked.folder ? 'the folder ' : ''}"${asked.name}"${how}?`
 })
+
+const UNDONE = 'This cannot be undone.'
+
+/** The lines that tell of a loss, which are drawn in the warning color. */
+const warns = (line: string): boolean => line === UNDONE || line.includes('lost')
 
 function count(n: number, one: string, many: string): string {
   return `${String(n)} ${n === 1 ? one : many}`
@@ -42,8 +48,17 @@ const lines = computed<string[]>(() => {
       asked.files > 0 ? count(asked.files, 'file', 'files') : null,
       asked.folders > 0 ? count(asked.folders, 'folder', 'folders') : null,
     ].filter((part): part is string => part !== null)
-    out.push(`${parts.join(' and ')} move to ${bin}.`)
+    const what = parts.join(' and ')
+    out.push(
+      asked.permanent ? `${what} will be removed without ${bin}.` : `${what} move to ${bin}.`,
+    )
     if (asked.folders > 0) out.push('A folder takes everything in it.')
+  } else if (asked.permanent) {
+    out.push(
+      asked.folder
+        ? `The folder and everything in it will be removed without ${bin}.`
+        : `The file will be removed without ${bin}.`,
+    )
   } else {
     out.push(
       asked.folder
@@ -51,6 +66,7 @@ const lines = computed<string[]>(() => {
         : `The file moves to ${bin}.`,
     )
   }
+  if (asked.permanent) out.push(UNDONE)
   if (asked.tabs > 0) {
     out.push(asked.tabs === 1 ? '1 open tab closes.' : `${String(asked.tabs)} open tabs close.`)
   }
@@ -105,8 +121,8 @@ function onOpenChange(open: boolean): void {
             <p
               v-for="line in lines"
               :key="line"
-              :data-warn="line.includes('lost') ? '' : undefined"
-              :class="line.includes('lost') ? 'text-destructive' : ''"
+              :data-warn="warns(line) ? '' : undefined"
+              :class="warns(line) ? 'text-destructive' : ''"
             >
               {{ line }}
             </p>
@@ -120,7 +136,7 @@ function onOpenChange(open: boolean): void {
           data-delete-confirm
           @click="confirm"
         >
-          Delete
+          {{ deletePrompt?.permanent ? 'Delete Permanently' : 'Delete' }}
         </AlertDialogAction>
       </AlertDialogFooter>
     </AlertDialogContent>

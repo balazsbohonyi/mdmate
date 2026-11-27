@@ -255,6 +255,8 @@ export interface DeletePrompt {
   readonly folder: boolean
   /** Every path that goes when the question is answered yes. */
   readonly paths: readonly string[]
+  /** True when yes removes them for good, without the Recycle Bin. */
+  readonly permanent: boolean
   /** How many of them are files, and how many are folders (which take what is in them). */
   readonly files: number
   readonly folders: number
@@ -269,8 +271,10 @@ export const deletePrompt = shallowRef<DeletePrompt | null>(null)
  * Asks before deleting a file or folder. Nothing is deleted until `confirmDelete`. A workspace
  * root skips the question: it is refused, and the refusal says to use Remove Folder.
  */
-export function requestDelete(path: string): Promise<void> {
-  if (workspaceRoots.value.some((root) => samePath(root, path))) return deleteRow(path)
+export function requestDelete(path: string, permanent = false): Promise<void> {
+  if (workspaceRoots.value.some((root) => samePath(root, path))) {
+    return deletePaths([path], permanent)
+  }
   const row = treeRows.value.find(
     (r) => (r.kind === 'file' || r.kind === 'folder') && samePath(r.path, path),
   )
@@ -281,6 +285,7 @@ export function requestDelete(path: string): Promise<void> {
     name: baseName(path),
     folder,
     paths: [path],
+    permanent,
     files: folder ? 0 : 1,
     folders: folder ? 1 : 0,
     tabs: tabs.length,
@@ -293,7 +298,7 @@ export function requestDelete(path: string): Promise<void> {
  * Asks once before deleting several files and folders: how many of each, and what happens to the
  * tabs of all of them. `paths` must not hold one inside another (see `selectedTargets`).
  */
-export function requestDeleteMany(paths: readonly string[]): void {
+export function requestDeleteMany(paths: readonly string[], permanent = false): void {
   const first = paths[0]
   if (first === undefined) return
   const tabIds = new Set<TabId>()
@@ -313,6 +318,7 @@ export function requestDeleteMany(paths: readonly string[]): void {
     name: `${String(paths.length)} items`,
     folder: false,
     paths: [...paths],
+    permanent,
     files: paths.length - folders,
     folders,
     tabs: tabIds.size,
@@ -331,7 +337,7 @@ export async function confirmDelete(
 ): Promise<void> {
   deletePrompt.value = null
   if (asked === null) return
-  await deletePaths(asked.paths)
+  await deletePaths(asked.paths, asked.permanent)
 }
 
 /** Deletes one row, as `deletePaths` does. */
@@ -346,6 +352,7 @@ export const DELETE_DIALOG_AFTER_MS = 2000
 export interface DeleteRun {
   /** The name of the item, or "3 items". */
   readonly name: string
+  readonly permanent: boolean
   readonly progress: DeleteProgress
   /** Cancel was asked for and the delete has not ended yet. */
   readonly cancelling: boolean
@@ -355,17 +362,18 @@ export const deleteRun = shallowRef<DeleteRun | null>(null)
 /** Cancels the delete under way, shown or not; null while none runs. */
 let stopRunning: (() => void) | null = null
 
-/** Asks the delete that is running to stop. Once it moves, there is nothing left to stop. */
+/** Asks the delete that is running to stop. Once it moves to the bin, nothing is left to stop. */
 export function cancelRunningDelete(): void {
   stopRunning?.()
 }
 
 /**
- * Sends files and folders to the Recycle Bin as one operation (ISC-786), then closes every tab of
- * what is gone, with or without unsaved edits: the question was answered before this runs
- * (ISC-228). A delete that takes long is shown in a dialog that holds the app back.
+ * Deletes files and folders as one operation (ISC-786), to the Recycle Bin, or for good when
+ * `permanent`. Then closes every tab of what is gone, with or without unsaved edits: the question
+ * was answered before this runs (ISC-228). A delete that takes long is shown in a dialog that
+ * holds the app back.
  */
-export async function deletePaths(paths: readonly string[]): Promise<void> {
+export async function deletePaths(paths: readonly string[], permanent = false): Promise<void> {
   const [first] = paths
   if (first === undefined) return
   if (stopRunning !== null) {
@@ -377,7 +385,7 @@ export async function deletePaths(paths: readonly string[]): Promise<void> {
   let cancelling = false
   let shown = false
   const redraw = (): void => {
-    if (shown) deleteRun.value = { name, progress, cancelling }
+    if (shown) deleteRun.value = { name, permanent, progress, cancelling }
   }
   stopRunning = () => {
     if (cancelling || progress.phase === 'moving') return
@@ -406,10 +414,13 @@ export async function deletePaths(paths: readonly string[]): Promise<void> {
     let report: DeleteReport | null = null
     try {
       const host = await getHost()
-      report = await host.deleteEntries(paths, (step) => {
+      const told = (step: DeleteProgress): void => {
         progress = step
         redraw()
-      })
+      }
+      report = await (permanent
+        ? host.deletePermanently(paths, told)
+        : host.deleteEntries(paths, told))
     } catch (error) {
       reportError(`Could not delete ${name}: ${describe(error)}`)
     } finally {
@@ -417,7 +428,7 @@ export async function deletePaths(paths: readonly string[]): Promise<void> {
       shown = false
       deleteRun.value = null
     }
-    await settleDelete(paths, report)
+    await settleDelete(paths, permanent, report)
   } finally {
     stopRunning = null
     releaseQuit()
@@ -430,9 +441,18 @@ export async function deletePaths(paths: readonly string[]): Promise<void> {
  * (ISC-790), reads the folders again, and says what stayed. With no report nothing is known to be
  * gone.
  */
-async function settleDelete(asked: readonly string[], report: DeleteReport | null): Promise<void> {
+async function settleDelete(
+  asked: readonly string[],
+  permanent: boolean,
+  report: DeleteReport | null,
+): Promise<void> {
   const gone = report === null ? [] : [...report.deleted, ...report.destroyed]
   const tabs = new Set(gone.flatMap((path) => tabsUnder(path).tabs))
+  // A permanent delete that stopped part way leaves a folder without some of its files. The bin
+  // takes an item whole or not at all.
+  if (permanent && report !== null) {
+    for (const id of await tabsWithoutFile(report.kept.map((item) => item.path))) tabs.add(id)
+  }
   // Closing the tabs shows a neighbour, whose editor would take focus; it stays in the tree.
   await holdingEditorFocus(() => {
     for (const id of tabs) closeTabById(id)
@@ -446,6 +466,28 @@ async function settleDelete(asked: readonly string[], report: DeleteReport | nul
   }
   restoreTreeFocus()
   if (report !== null) reportDelete(report)
+}
+
+/** The tabs under these paths whose file is no longer on disk. */
+async function tabsWithoutFile(under: readonly string[]): Promise<TabId[]> {
+  const held = (path: string): boolean => under.some((folder) => isUnder(path, folder))
+  const found: TabId[] = []
+  const host = await getHost()
+  for (const doc of allDocuments()) {
+    if (doc.untitled || !held(doc.path)) continue
+    // A document the host cannot answer for keeps its tab.
+    const exists = await host.documentExists(doc.id).catch(() => true)
+    if (!exists) found.push(...tabsOfDocument(doc.id))
+  }
+  for (const [id, tab] of imageTabs()) {
+    if (!held(tab.path)) continue
+    try {
+      await host.imageInfo(tab.path)
+    } catch {
+      found.push(id)
+    }
+  }
+  return found
 }
 
 /** What is gone for good, and what stayed and why. What a Cancel kept is not a failure. */
@@ -517,25 +559,27 @@ export async function openFolderInFileManager(path: string): Promise<void> {
 
 /** The key that deletes the selected row. The tree handles it itself, so it is not a command. */
 export const TREE_DELETE_KEY = 'Delete'
+/** As the menu shows it: Shift with the delete key removes for good. */
+export const TREE_DELETE_PERMANENTLY_KEYS = `Shift+${TREE_DELETE_KEY}`
 
 /**
  * Asks to delete the selected rows, for the Delete key and the menu: one row as it always did, and
  * several with a single question. A workspace folder among them is left out with a note.
  */
-export function deleteSelected(): Promise<void> {
+export function deleteSelected(permanent = false): Promise<void> {
   const path = selectedPath.value
   if (path === null) return Promise.resolve()
-  if (selectedPlaces.value.length <= 1) return requestDelete(path)
+  if (selectedPlaces.value.length <= 1) return requestDelete(path, permanent)
   const { paths, roots } = selectedTargets()
-  if (paths.length === 0) return requestDelete(path)
+  if (paths.length === 0) return requestDelete(path, permanent)
   if (roots > 0) {
     reportWarning(
       `${String(roots)} workspace folder${roots === 1 ? ' was' : 's were'} left out: use Remove Folder from Workspace.`,
     )
   }
   const [only] = paths
-  if (paths.length === 1 && only !== undefined) return requestDelete(only)
-  requestDeleteMany(paths)
+  if (paths.length === 1 && only !== undefined) return requestDelete(only, permanent)
+  requestDeleteMany(paths, permanent)
   return Promise.resolve()
 }
 

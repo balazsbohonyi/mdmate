@@ -94,6 +94,7 @@ describe('the items of the sidebar menu', () => {
     expect(labels).toEqual([
       'Rename... F2',
       'Delete Delete',
+      'Delete Permanently Shift+Delete',
       'Copy Path',
       'Copy Relative Path',
       'Open Containing Folder',
@@ -108,6 +109,7 @@ describe('the items of the sidebar menu', () => {
       'New Folder',
       'Rename... F2',
       'Delete Delete',
+      'Delete Permanently Shift+Delete',
       'Copy Path',
       'Copy Relative Path',
       expect.stringMatching(/^Find in Folder\.\.\./),

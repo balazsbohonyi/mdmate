@@ -191,7 +191,6 @@ impl Documents {
     }
 }
 
-/// Everything the commands share. Held in Tauri's managed state.
 /// The one delete that may run, with the flag its Cancel sets.
 #[derive(Debug)]
 pub(crate) struct DeleteTurn<'a> {
@@ -209,6 +208,7 @@ impl Drop for DeleteTurn<'_> {
     }
 }
 
+/// Everything the commands share. Held in Tauri's managed state.
 #[derive(Debug)]
 pub(crate) struct AppState {
     ignore_case: bool,

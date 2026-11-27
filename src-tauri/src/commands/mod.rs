@@ -1448,7 +1448,29 @@ pub(crate) async fn delete_entries(
     .map_err(|error| AppError::Task(error.to_string()))?
 }
 
-/// Stops the delete that is running, if it has not started to move anything.
+/// Removes files and folders of the workspace for good, without the Recycle Bin. A command of its
+/// own, so that no argument of a delete to the bin can ask for this. [`delete_cancel`] stops it
+/// between two items.
+#[tauri::command]
+pub(crate) async fn delete_permanently(
+    state: State<'_, Arc<AppState>>,
+    paths: Vec<String>,
+    on_progress: Channel<platform::bin::Progress>,
+) -> Result<ops::Deleted, AppError> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let paths: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
+        ops::delete_permanently(&state, &platform::current(), &paths, &|step| {
+            // A page that has gone away has nobody to tell.
+            let _ = on_progress.send(step);
+        })
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Stops the delete that is running: one to the bin while nothing has moved, a permanent one
+/// between two items.
 #[tauri::command]
 pub(crate) fn delete_cancel(state: State<'_, Arc<AppState>>) {
     state.cancel_delete();
