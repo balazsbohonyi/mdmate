@@ -285,3 +285,18 @@ The owner's list of 2026-11-26, settled by grilling. No code yet. The owner keep
 - **Perf.** `typing-1mb` and `typing-1mb-trusted` now run with sticky headings and a Rust scan as their source, and report `stickyRows`. The other scenarios that share `typing()` ask for no sticky headings, so their recorded numbers measure what they did before.
 - **Speed** (Windows, release app, 2026-11-27): real keys gave p95 11.8 ms with sticky headings on and 10.9 ms with them off, so they cost about 1 ms at most. The same scenario read 6.9 ms on 2026-11-13; the control shows most of that rise is not sticky headings. The cause was not looked for, and the machine was 63 to 82% idle in these runs.
 - **Checked** in `pnpm dev` on port 5199: preview and raw, line numbers on and off, a row click, ArrowUp into the stack, Find Next and Previous, an outline click, the wheel over the stack, and the toggle. Not looked at: the real window.
+
+## P9.1-T48: status bar file info
+
+- **Look.** Spacing separates the items, as the bar already does; no dot between them. The selection reads `(41 chars, 4 lines)`.
+- **Characters** count as the column does: an emoji is one, a line break is one. A selection that ends at the start of a line does not count that line.
+- **Words** are runs without white space that hold a letter or a digit, counted on the source. So `#`, `-` and `--` are not words, a link address joins the word it touches, and frontmatter and code count. Text with no spaces between words (Chinese, Japanese) counts one per run.
+- **Delay.** Counts follow a 250 ms pause. The last ones stay on show while typing.
+- **Language** is `Markdown`, or the name CodeMirror's language list gives the file name, whether or not the file is colored; otherwise `Plain Text`.
+- **Endings** show `CR` too, for a file with old Mac endings.
+- **Encoding** is now kept on the document. A file mdmate cannot write shows `Unknown encoding` until a Save As writes it as UTF-8.
+- **Perf.** New scenarios `typing-status` and `typing-status-trusted` (ISC-774): the `typing-1mb` keys in an editor that shows a real open document with the status bar mounted. Its keys come faster than the counting pause, so the scenario reports the cost of one counting turn separately (`countTurnMs`).
+- **Counting turn.** 700 text parts a turn took about 29 ms in the release app on Windows; 80 takes 7 to 10 ms, so that is the size.
+- **Narrow window.** The message is cut first, then the position; the other items keep their width.
+- **Go to line's column** is now counted in place, since the bar asks on every caret move.
+- **Checked** in `pnpm dev` on port 5199: the items for a mixed-ending file, select all, a click on the position and Escape, raw mode, and a 480 px window. Not looked at: the real window.

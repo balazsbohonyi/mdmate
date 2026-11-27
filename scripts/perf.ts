@@ -419,6 +419,21 @@ const SPECS: Record<string, Spec> = {
     trusted: true,
     metrics: findMetrics,
   },
+  'typing-status': {
+    claim: 'ISC-774',
+    page: 'typing-status',
+    headlineName: 'work per key, p95',
+    targetMs: 16,
+    metrics: typingMetrics,
+  },
+  'typing-status-trusted': {
+    claim: 'ISC-774',
+    page: 'typing-status-trusted',
+    headlineName: 'work per key, p95',
+    targetMs: 16,
+    trusted: true,
+    metrics: typingMetrics,
+  },
   'typing-outline-open': {
     claim: 'ISC-144',
     page: 'typing-outline-open',

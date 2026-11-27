@@ -88,6 +88,12 @@ export function languageForFile(name: string): Promise<LanguageSupport | null> {
   return found
 }
 
+/** What the list calls the language of a file name (`TypeScript`), or null when it knows none. */
+export async function languageNameForFile(name: string): Promise<string | null> {
+  const { languages } = await import('@codemirror/language-data')
+  return LanguageDescription.matchFilename(languages, name.toLowerCase())?.name ?? null
+}
+
 /** A language the list knows, for a picker: its name and the file extensions that name it. */
 export interface LanguageChoice {
   readonly name: string

@@ -44,7 +44,14 @@ export function positionOf(doc: Text, target: LineTarget): number {
 /** The column of a position, counted as `positionOf` counts it. */
 export function columnAt(doc: Text, pos: number): number {
   const line = doc.lineAt(pos)
-  return [...line.text.slice(0, pos - line.from)].length + 1
+  let column = 1
+  // Counted in place: the status bar asks on every caret move, on a line of any length.
+  for (let at = 0; at < pos - line.from; at++) {
+    const unit = line.text.charCodeAt(at)
+    // The second half of a character that takes two units.
+    if (unit < 0xdc00 || unit > 0xdfff) column += 1
+  }
+  return column
 }
 
 /** Puts the caret on the target and the line in the middle of the view. */

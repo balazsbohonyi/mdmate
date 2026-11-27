@@ -1,5 +1,5 @@
 import { EditorView } from '@codemirror/view'
-import type { Text } from '@codemirror/state'
+import { StateEffect, type Text } from '@codemirror/state'
 import { createState, createView } from '@/editor/create'
 import { headingSource, stickyHeadings } from '@/editor/stickyHeadings'
 import type { ScenarioContext, ScenarioOutput } from './params'
@@ -59,7 +59,11 @@ export async function typing(
   /** Runs once the editor has its document and caret, before the keys: a scenario's own load. */
   setup?: (view: EditorView) => void,
   /** What the app adds that a scenario has to ask for, so the others keep their measured load. */
-  load: { readonly stickyHeadings?: boolean } = {},
+  load: {
+    readonly stickyHeadings?: boolean
+    /** An editor already showing the fixture, to type in instead of one made here. */
+    readonly view?: EditorView
+  } = {},
 ): Promise<ScenarioOutput> {
   const { warmupKeys, keys, keyIntervalMs } = ctx.params
   const total = warmupKeys + keys
@@ -92,13 +96,16 @@ export async function typing(
     return (await ctx.host.outlineScan(asked)).headings
   })
   const sticky = load.stickyHeadings === true ? [stickyHeadings, headings] : []
-  const view: EditorView = createView(
-    mountEditorHost(),
-    createState(text, [watchKeys, sticky], {
-      parser: ctx.params.parser !== 0,
-      preview: ctx.params.preview !== 0,
-    }),
-  )
+  const view: EditorView =
+    load.view ??
+    createView(
+      mountEditorHost(),
+      createState(text, [watchKeys, sticky], {
+        parser: ctx.params.parser !== 0,
+        preview: ctx.params.preview !== 0,
+      }),
+    )
+  if (load.view !== undefined) view.dispatch({ effects: StateEffect.appendConfig.of(watchKeys) })
   const caret = pickCaret(view.state.doc)
   view.dispatch({
     selection: { anchor: caret },

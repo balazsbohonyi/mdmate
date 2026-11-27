@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 735/801
+progress: 741/801
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-27T00:30:51Z
+updated: 2026-11-27T01:28:01Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -841,7 +841,7 @@ Commands: `pnpm test:rust <filter>` runs Cargo tests, `pnpm test:web <file>` run
 | ISC-771 | bash | count a fixture whole and selected, and a code file | right counts for Markdown and none for the code file | pnpm test:web tests/shell/statusBarFile.test.ts | derived: reported-by-owner | | |
 | ISC-772 | bash | open files of each ending and several languages | right labels, no button | pnpm test:web tests/shell/statusBarFile.test.ts | derived: reported-by-owner | | |
 | ISC-773 | bash | switch focus between kinds of tabs while indexing | items follow focus and the other content stays | pnpm test:web tests/shell/statusBarFile.test.ts | derived: reported-by-owner | | |
-| ISC-774 | bash | keystroke latency on the 1 MB fixture with the status bar items shown | p95 under 16 ms | pnpm perf typing-1mb | derived: reported-by-owner | critical | |
+| ISC-774 | bash | keystroke latency on the 1 MB fixture with the status bar items shown | p95 under 16 ms | pnpm perf typing-status typing-status-trusted | derived: reported-by-owner | critical | |
 | ISC-775 | manual | the owner uses the app | the owner finds them right | Owner review in the real window | derived: reported-by-owner | | |
 | ISC-776 | bash | focus files from two repositories and one outside every root | each shows its own branch | pnpm test:web tests/shell/statusBarBranch.test.ts | derived: reported-by-owner | | |
 | ISC-777 | bash | parse the branch headers and mount each case | short id when detached, hidden otherwise | pnpm test:rust branch_header && pnpm test:web tests/shell/statusBarBranch.test.ts | derived: reported-by-owner | | |
@@ -942,12 +942,12 @@ Why: a dense keyboard-driven layout you can rearrange freely is what separates t
 - [ ] ISC-664: The owner finds the pane handles right in the real window: the 1px line widens on hover, stays wide while dragging, and leaves no second line behind.
 - [x] ISC-691: The root viewport locks `overflow: hidden` and `overscroll-behavior: none`, the editor scroller and scrollable chrome panels suppress overscroll chaining, and a wide table's wrapper contains horizontal overscroll without blocking vertical scrolling.
 - [x] ISC-692: The owner scrolls past every edge of a document and chrome panels with a precision touchpad in the real window and sees no shifting of the window inside its frame.
-- [ ] ISC-769: For a text tab the status bar shows `Ln` and `Col` of the caret, the same in live preview and raw, and clicking it opens Go to line.
-- [ ] ISC-770: While text is selected the status bar also shows how many characters and lines are selected, and nothing about selection otherwise.
-- [ ] ISC-771: For a Markdown tab the status bar shows the word count of the document, or of the selection while there is one.
-- [ ] ISC-772: For a text tab the status bar shows the line ending (`LF`, `CRLF` or `Mixed`), the encoding and the file language, as text that does nothing on click.
-- [ ] ISC-773: The file items follow the focused pane and are absent for image, Settings and preview tabs and empty panes, messages and the indexing bar keep showing, and in a narrow window the message is cut first.
-- [ ] ISC-774: Anti: the status bar items do not break the typing speed gate (ISC-7).
+- [x] ISC-769: For a text tab the status bar shows `Ln` and `Col` of the caret, the same in live preview and raw, and clicking it opens Go to line.
+- [x] ISC-770: While text is selected the status bar also shows how many characters and lines are selected, and nothing about selection otherwise.
+- [x] ISC-771: For a Markdown tab the status bar shows the word count of the document, or of the selection while there is one.
+- [x] ISC-772: For a text tab the status bar shows the line ending (`LF`, `CRLF` or `Mixed`), the encoding and the file language, as text that does nothing on click.
+- [x] ISC-773: The file items follow the focused pane and are absent for image, Settings and preview tabs and empty panes, messages and the indexing bar keep showing, and in a narrow window the message is cut first.
+- [x] ISC-774: Anti: the status bar items do not break the typing speed gate (ISC-7).
 - [ ] ISC-775: The owner finds the status bar items right in the real window.
 
 ### F2 · Reliable documents
@@ -1599,7 +1599,7 @@ Why: an everyday editor starts, keeps and manages files without sending you to E
 - [x] ISC-233: An image tab keeps its zoom and pan while the owner works in other tabs, and a tab never zoomed still fits.
 - [x] ISC-234: Every item of the tab menu and the tree menu whose action has a key shows that key (Close and Close All, Rename, Delete, Find File References), and the two menus call the same action by the same name.
 - [x] ISC-235: Anti: a tooltip, an editor hint or the delete dialog never splits a word that fits on a line by itself; the whole word moves to the next line, and only a word longer than the line (a path) is cut.
-- [x] ISC-236: Anti: the status bar never shows the operating system name; it holds a message or the find match count and nothing else (the shown file's path or name is in the title bar).
+- [x] ISC-236: Anti: the status bar never shows the operating system name, nor the shown file's path or name (those are in the title bar).
 - [x] ISC-237: The key shown at the right of a menu item sits on the same text baseline as the item label, with the font sizes unchanged (label 14 px, key 12 px).
 - [x] ISC-238: The frontmatter pill says only "Frontmatter"; it never lists the block's field names.
 - [x] ISC-239: While Ctrl (Cmd) is held and the pointer is over a link that Ctrl+click follows, the cursor is a pointer; over plain text, a missing link, a table-cell link or with the keys let go, it is not.
@@ -1947,8 +1947,10 @@ Why: a folder of projects is easier to read when new, changed and ignored files 
 
 - 2026-11-25: refined: P9.1-T41 preset & search polish (owner review of T39/T40; ISC-727 & ISC-735 closed). (1) Hid `input[type='search']::-webkit-search-cancel-button` globally in `tokens.css` and gave `Search settings` and `Search shortcuts` the same thin Lucide `X` clear button as `FontPresetCards`. (2) Made `noticesHeld` a reactive `shallowRef` in `features/fontPresets/store.ts` so `fontPresetProblem` returns `null` during `holdFontPresetNotices` instead of flashing a transient missing-preset error while renaming the active preset. (3) `FontPresetCards` adjusts `grid.scrollTop` directly on mount (never `scrollIntoView()`, keeping the outer Settings panel at top) and suppresses the scroll indicator during that adjustment. (4) `[data-font-preset-cards]:not([data-scrolling='true'])::-webkit-scrollbar-thumb` is transparent at rest and reveals for 800ms on user scroll. (5) Preset grid switches to `@[46rem]:grid-cols-3` when `allFontPresets.length >= 6`.
 - 2026-11-27: refined: added ISC-741 to ISC-802 for P9.1-T42 to P9.1-T53 (owner list of 2026-11-26, settled by grilling; answers in `ai-docs/phases/phase-09.1/decisions.md`). Older claims are reworded by the task that changes the behaviour, not now: ISC-236 (T48, T49: the status bar holds more than a message), ISC-103 and ISC-227 (T52: a permanent delete exists beside the Recycle Bin one), ISC-185 (T44: fences in list items get the container, fences in quotes stay plain).
+- 2026-11-27: refined: reworded ISC-236 (P9.1-T48): the status bar now holds file items beside the message, so the claim keeps only what it must never show. ISC-774 is probed by `typing-status`, since `typing-1mb` mounts no status bar.
 
 ## Verification
+- P9.1-T48 (2026-11-27), status bar file info: ISC-769 to ISC-774 closed (progress 741/801), ISC-236 reworded; ISC-775 stays open for the owner's review. Fail-first: before code `tests/shell/statusBarFile.test.ts` did not load (no `textStats`, no `fileStatus`); it now passes, including the reworded half of ISC-236 ("names neither the open file nor its folder"), raw Markdown (769) and the encoding after a Save As. ISC-774, release app on Windows: `typing-status` p95 work per key 10.0 ms (9.5 to 10.3) on the final code; `typing-status-trusted` 12.6 ms (11.2 to 13.1, not repeatable by the 10% rule), measured before the counting turn was shortened and the narrow-window styles changed, against 16 ms. Keys come every 50 ms, under the 250 ms pause, so these measure `Ln` and `Col` only; one counting turn by itself took 7.1 to 9.6 ms (about 29 ms before it was shortened). The CPU was under 85% idle before every run. In `pnpm dev` (port 5199) a mixed-ending file, select all, the position click, raw mode and a 480 px window were checked. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 4108 passed with the one earlier failure (ISC-714). Not verified: the real window.
 - P9.1-T47 (2026-11-27), sticky headings: ISC-762 to ISC-767 closed (progress 735/801); ISC-768 stays open for the owner's review. Fail-first: `tests/editor/stickyHeadings.test.ts` did not load before the module existed; it now passes, and the Settings row and palette command (ISC-766) are covered there and in `tests/features/settingsView.test.ts`. In `pnpm dev` (port 5199) arrow up, Find Next and Previous, and an outline click left the caret below the stack. ISC-767, release app on Windows, sticky headings on: `typing-1mb` work per key p95 8.0 ms (7.9 to 8.8); `typing-1mb-trusted` p95 11.8 ms (11.2 to 14.5, not repeatable by the 10% rule), against 16 ms; a control with them off gave 10.9 ms (10.2 to 11.7). The CPU was under 85% idle before every run. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 4082 passed with the one earlier failure (ISC-714). Not verified: the real window.
 - P9.1-T46 (2026-11-27), links with a line: ISC-757 to ISC-760 closed (progress 729/801), ISC-78 reworded; ISC-761 stays open for the owner's review. Fail-first: before code the new Rust tests did not compile (no `place`, no `line`) and 12 of 20 tests in `tests/editor/lineLinks.test.ts` failed; now `line_suffix`, `line_suffix_refusals`, `rewrite_keeps_line_suffix` and the page tests pass. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 4062 passed with the one earlier failure (ISC-714). Not verified: the real window and a browser run.
 - P9.1-T45 (2026-11-27), Go to line: ISC-752 to ISC-755 closed (progress 725/801); ISC-756 stays open for the owner's review. Fail-first: before code, `tests/features/goToLine.test.ts` failed because the module did not exist; now it passes. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 4042 passed with the one earlier failure (ISC-714). In `pnpm dev` on port 5199, `Ctrl+G` and `121:6` centred and marked the line, Escape restored caret and scroll, Enter kept the target, and the palette entry opened the box. Not verified: the real window.

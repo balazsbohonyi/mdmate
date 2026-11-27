@@ -90,6 +90,7 @@ sequenceDiagram
 
 - Copy and cut hand over the file's bytes. Hidden Markdown syntax is still in the text, so it is copied, and the master's line endings are put back by `sourceCopy` (`src/editor/sourceCopy.ts`), a clipboard output filter in every follower that reads them through `FollowerLink.endings()`.
 - A file above 3 MiB on disk opens as plain source: `Document` makes its tabs with no Markdown parser, and the pane shows a notice. The rule lives in `src/documents/largeFile.ts` and is decided once, when the document opens.
+- The status bar's file items come from `features/status/fileStatus.ts`, as plain data about the focused tab: a change only asks for the next frame, and words and selected characters are counted after a 250 ms pause. `editor/textStats.ts` remembers the counts of each part of CodeMirror's text tree, so an edit recounts only what it touched, and a long first count is split into turns.
 
 ### Hot exit
 

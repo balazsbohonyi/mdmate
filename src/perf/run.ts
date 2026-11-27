@@ -30,6 +30,7 @@ import { typingDuringScan } from './typingDuringScan'
 import { typingDuringSearch } from './typingDuringSearch'
 import { typingFindOpen } from './typingFindOpen'
 import { typingOutlineOpen } from './typingOutlineOpen'
+import { typingStatus } from './typingStatus'
 
 /** The size-cutoff scenarios: open and type in a generated document of each size, in MB. */
 function sizedScenarios(): Record<string, (ctx: ScenarioContext) => Promise<ScenarioOutput>> {
@@ -56,6 +57,8 @@ const scenarios: Record<string, (ctx: ScenarioContext) => Promise<ScenarioOutput
   'typing-during-search-trusted': (ctx) => typingDuringSearch(ctx, 'trusted'),
   'typing-find-open': (ctx) => typingFindOpen(ctx, 'dispatch'),
   'typing-find-open-trusted': (ctx) => typingFindOpen(ctx, 'trusted'),
+  'typing-status': (ctx) => typingStatus(ctx, 'dispatch'),
+  'typing-status-trusted': (ctx) => typingStatus(ctx, 'trusted'),
   'typing-outline-open': (ctx) => typingOutlineOpen(ctx, 'dispatch'),
   'typing-outline-open-trusted': (ctx) => typingOutlineOpen(ctx, 'trusted'),
   ...sizedScenarios(),

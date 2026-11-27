@@ -155,6 +155,8 @@ export class Document implements FollowerHost {
   untitledNumber: number | null
   /** Hash of the bytes last read from or written to disk. */
   diskHash: string
+  /** The encoding the file was read in. A save keeps it. */
+  encoding: OpenedFile['encoding']
   #master: EditorState
   /** True for a non-Markdown file small enough to be colored by its extension. */
   readonly #colorable: boolean
@@ -173,6 +175,7 @@ export class Document implements FollowerHost {
     this.name = opened.name
     this.readOnly = opened.readOnly
     this.diskHash = opened.hash
+    this.encoding = opened.encoding
     this.untitledNumber = options.untitledNumber ?? null
     this.#changed = changed
     this.#touched = options.touched ?? (() => undefined)
@@ -488,6 +491,7 @@ export class Document implements FollowerHost {
     this.untitledNumber = null
     this.#saved = { doc: baseline, endings: snapshot.endings }
     this.diskHash = saved.hash
+    this.encoding = saved.encoding
     this.#applyReadOnly(null)
     this.imagesMoved()
     this.#touched()
@@ -532,6 +536,7 @@ export class Document implements FollowerHost {
     }
     this.#saved = { doc: this.#master.doc, endings: endingsOf(this.#master) }
     this.diskHash = opened.hash
+    this.encoding = opened.encoding
     this.#applyReadOnly(opened.readOnly)
     if (changes !== null) {
       for (const follower of this.#followers.values()) follower.receive(changes)
@@ -549,6 +554,7 @@ export class Document implements FollowerHost {
     const theirs = createMasterState(opened.text, [lineEndingsFor(opened.endings)])
     this.#saved = { doc: theirs.doc, endings: endingsOf(theirs) }
     this.diskHash = opened.hash
+    this.encoding = opened.encoding
     this.#applyReadOnly(opened.readOnly)
     this.#touched()
     this.#refreshDirty()
