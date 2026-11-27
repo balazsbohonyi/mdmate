@@ -1530,6 +1530,21 @@ pub(crate) async fn add_dropped_root(
     .map_err(|error| AppError::Task(error.to_string()))?
 }
 
+/// The repository that holds the file of the open document `id` and its branch, for the status bar.
+/// A repository in `known` is only named. None for a document with no file, a file in no
+/// repository, and with git off or missing.
+#[tauri::command]
+pub(crate) async fn git_branch(
+    state: State<'_, Arc<AppState>>,
+    id: u32,
+    known: Vec<String>,
+) -> Result<Option<crate::git::command::FileBranch>, AppError> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || crate::git::command::branch(&state, id, &known))
+        .await
+        .map_err(|error| AppError::Task(error.to_string()))
+}
+
 /// What git says about the files under an open workspace root, for the colours of the tree: the
 /// repositories found and one entry per changed, new or ignored path. `folders` are folders the tree
 /// has listed, whose direct children are also checked for a repository. Nothing here is an error

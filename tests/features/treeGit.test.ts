@@ -52,7 +52,7 @@ const entry = (
 ): GitEntry => ({ repo, path: path.replace(/\/$/, ''), status, folder })
 
 function indexOf(repos: string[], entries: GitEntry[]): GitIndex {
-  return buildGitIndex({ repos, entries }, keyOf)
+  return buildGitIndex({ repos, branches: repos.map(() => null), entries }, keyOf)
 }
 
 describe('how a name is drawn (ISC-656)', () => {
@@ -204,6 +204,7 @@ const FILES: Record<string, string> = {
 
 const WORK_REPORT: GitReport = {
   repos: ['/work'],
+  branches: [null],
   entries: [
     entry('/work/mod.md', 'modified'),
     entry('/work/new.md', 'untracked'),
@@ -397,7 +398,7 @@ describe('what asks for the status (ISC-657)', () => {
     start()
     await open()
     const before = host.gitCalls.length
-    report = { repos: ['/work'], entries: [entry('/work/clean.md', 'modified')] }
+    report = { repos: ['/work'], branches: [null], entries: [entry('/work/clean.md', 'modified')] }
     window.dispatchEvent(new Event('focus'))
     await tick()
     expect(host.gitCalls.length).toBe(before + 1)
@@ -490,10 +491,18 @@ describe('what asks for the status (ISC-657)', () => {
     await tick()
     expect(answers.length).toBe(2)
     // The newer answer arrives first, then the older one.
-    answers[1]?.({ repos: ['/work'], entries: [entry('/work/mod.md', 'modified')] })
+    answers[1]?.({
+      repos: ['/work'],
+      branches: [null],
+      entries: [entry('/work/mod.md', 'modified')],
+    })
     await settle()
     expect(lookOf('/work/mod.md')).toBe('modified')
-    answers[0]?.({ repos: ['/work'], entries: [entry('/work/new.md', 'untracked')] })
+    answers[0]?.({
+      repos: ['/work'],
+      branches: [null],
+      entries: [entry('/work/new.md', 'untracked')],
+    })
     await settle()
     expect(lookOf('/work/mod.md')).toBe('modified')
     expect(lookOf('/work/new.md')).toBeUndefined()
@@ -512,7 +521,11 @@ describe('what asks for the status (ISC-657)', () => {
     await tick()
     await removeRootFolder('/work')
     // The answer comes before the page has asked again, so nothing but the root check can stop it.
-    answers[0]?.({ repos: ['/work'], entries: [entry('/work/mod.md', 'modified')] })
+    answers[0]?.({
+      repos: ['/work'],
+      branches: [null],
+      entries: [entry('/work/mod.md', 'modified')],
+    })
     await settle()
     expect(gitLook('/work', '/work/mod.md', 'file')).toBeUndefined()
     await tick()
@@ -532,6 +545,7 @@ describe('a root with several repositories (ISC-658)', () => {
   let two: GitEntry[]
   const reportOfMany = (): GitReport => ({
     repos: ['/many/one', '/many/two'],
+    branches: [null, null],
     entries: [...one, ...two],
   })
 
@@ -581,8 +595,12 @@ describe('a root with several repositories (ISC-658)', () => {
       roots: ['/outer', '/outer/inner'],
       git: (root) =>
         root === '/outer'
-          ? { repos: ['/outer'], entries: [entry('/outer/inner/x.md', 'modified', 0)] }
-          : { repos: [], entries: [] },
+          ? {
+              repos: ['/outer'],
+              branches: [null],
+              entries: [entry('/outer/inner/x.md', 'modified', 0)],
+            }
+          : { repos: [], branches: [], entries: [] },
     })
     await restoreWorkspace(
       [],
@@ -626,7 +644,7 @@ describe('git off or missing (ISC-659)', () => {
   })
 
   it('colors nothing and says nothing when Rust finds no git', async () => {
-    report = { repos: [], entries: [] }
+    report = { repos: [], branches: [], entries: [] }
     start()
     await open()
     expect(host.gitCalls.length).toBeGreaterThan(0)
@@ -653,7 +671,7 @@ describe('git off or missing (ISC-659)', () => {
   })
 
   it('keeps a listing working when git has nothing to say', async () => {
-    report = { repos: [], entries: [] }
+    report = { repos: [], branches: [], entries: [] }
     start()
     await open()
     await loadFolder('/work')
@@ -666,26 +684,31 @@ describe('the report as Rust sends it', () => {
   // The same JSON Rust's test `the_report_is_what_the_page_reads` pins.
   const SENT = {
     repos: ['C:/work'],
+    branches: ['main'],
     entries: [{ repo: 0, path: 'C:/work/a.md', status: 'modified', folder: false }],
   }
 
   it('is read as it is', () => {
     expect(parseGitReport(SENT)).toEqual(SENT)
-    expect(parseGitReport({ repos: [], entries: [] })).toEqual({ repos: [], entries: [] })
+    expect(parseGitReport({ repos: [], branches: [], entries: [] })).toEqual({
+      repos: [],
+      branches: [],
+      entries: [],
+    })
   })
 
   it('refuses a report that is not one, so the rows never draw from it', () => {
     const bad: unknown[] = [
       null,
       'report',
-      { repos: 'C:/work', entries: [] },
-      { repos: ['C:/work'] },
-      { repos: ['C:/work'], entries: [{ ...SENT.entries[0], repo: 1 }] },
-      { repos: ['C:/work'], entries: [{ ...SENT.entries[0], repo: -1 }] },
-      { repos: ['C:/work'], entries: [{ ...SENT.entries[0], status: 'staged' }] },
-      { repos: ['C:/work'], entries: [{ ...SENT.entries[0], path: '' }] },
-      { repos: ['C:/work'], entries: [{ ...SENT.entries[0], folder: 'no' }] },
-      { repos: [1], entries: [] },
+      { repos: 'C:/work', branches: [null], entries: [] },
+      { repos: ['C:/work'], branches: [null] },
+      { repos: ['C:/work'], branches: [null], entries: [{ ...SENT.entries[0], repo: 1 }] },
+      { repos: ['C:/work'], branches: [null], entries: [{ ...SENT.entries[0], repo: -1 }] },
+      { repos: ['C:/work'], branches: [null], entries: [{ ...SENT.entries[0], status: 'staged' }] },
+      { repos: ['C:/work'], branches: [null], entries: [{ ...SENT.entries[0], path: '' }] },
+      { repos: ['C:/work'], branches: [null], entries: [{ ...SENT.entries[0], folder: 'no' }] },
+      { repos: [1], branches: [null], entries: [] },
     ]
     for (const value of bad) expect(() => parseGitReport(value), JSON.stringify(value)).toThrow()
   })

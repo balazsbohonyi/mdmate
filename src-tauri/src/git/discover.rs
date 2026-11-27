@@ -46,9 +46,14 @@ pub(crate) fn discover(root: &Path, listed: &[PathBuf]) -> Vec<PathBuf> {
     discover_with(root, listed, SCAN_DEPTH, SCAN_BUDGET)
 }
 
+/// The innermost repository that is `folder` or holds it.
+pub(crate) fn holder(folder: &Path) -> Option<&Path> {
+    folder.ancestors().find(|folder| has_git(folder))
+}
+
 fn discover_with(root: &Path, listed: &[PathBuf], depth: usize, budget: usize) -> Vec<PathBuf> {
     let mut found: Vec<PathBuf> = Vec::new();
-    if let Some(holder) = root.ancestors().find(|folder| has_git(folder)) {
+    if let Some(holder) = holder(root) {
         found.push(holder.to_path_buf());
     }
     let mut level = vec![root.to_path_buf()];

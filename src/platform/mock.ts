@@ -16,7 +16,7 @@ import type {
 import { IDLE_INDEX, type IndexStatus } from './indexStatus'
 import type { WindowGeometry } from './windowGeometry'
 import type { LinkInfo } from './links'
-import { NO_GIT, type GitReport } from './git'
+import { NO_GIT, type FileBranch, type GitReport } from './git'
 import type {
   ClashAnswer,
   CopyReport,
@@ -134,6 +134,8 @@ export interface MockHost extends Host {
   session: string | null
   /** Every `gitStatus` call, in order. */
   readonly gitCalls: { readonly root: string; readonly folders: readonly string[] }[]
+  /** Every `gitBranch` call, in order, with the path of the document. */
+  readonly branchCalls: { readonly path: string; readonly known: readonly string[] }[]
   /** Text the page asked to keep because it could not put it back in a tab. */
   readonly recovered: { name: string; text: string }[]
   /** Pretends the user closed the window: asks the page to flush and quit. False when no page listens. */
@@ -350,6 +352,11 @@ export interface MockHostOptions {
    * does. Default: an empty report.
    */
   readonly git?: (root: string, folders: readonly string[]) => GitReport | Promise<GitReport>
+  /**
+   * The repository above a file and the branch its HEAD names, as `gitBranch` finds them. The mock
+   * leaves the branch out for a repository the page knows, as Rust does. Default: none.
+   */
+  readonly gitHolder?: (path: string) => FileBranch | null
   /** Makes the Recycle Bin unavailable, as on a drive without one: deleting a theme fails and the file stays. */
   readonly noRecycleBin?: boolean
 }
@@ -532,6 +539,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
   const copiedImages: string[] = []
   const sweeps: number[][] = []
   const gitCalls: MockHost['gitCalls'] = []
+  const branchCalls: MockHost['branchCalls'] = []
   const runtime: MockHost['runtime'] = {
     calls: [],
     values: {
@@ -826,6 +834,7 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
     sweeps,
     runtime,
     gitCalls,
+    branchCalls,
     files,
     openDocuments() {
       return new Map([...open].map(([id, doc]) => [id, doc.path]))
@@ -1395,6 +1404,14 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
       if (!runtime.values.gitEnabled || options.git === undefined) return Promise.resolve(NO_GIT)
       return Promise.resolve(options.git(root, folders))
     },
+    gitBranch(id, known) {
+      const path = open.get(id)?.path
+      if (path === undefined || path === '') return Promise.resolve(null)
+      branchCalls.push({ path, known: [...known] })
+      const found = runtime.values.gitEnabled ? (options.gitHolder?.(path) ?? null) : null
+      if (found === null || !known.includes(found.repo)) return Promise.resolve(found)
+      return Promise.resolve({ repo: found.repo, branch: null })
+    },
     listFontFamilies() {
       // A short fixed list stands in for the system's fonts in a browser tab.
       return Promise.resolve(MOCK_FONT_FAMILIES)
@@ -1932,6 +1949,7 @@ export const mockHost: MockHost = createMockHost({
     root === '/demo'
       ? {
           repos: ['/demo'],
+          branches: ['main'],
           entries: [
             { repo: 0, path: '/demo/README.md', status: 'modified', folder: false },
             { repo: 0, path: '/demo/notes.md', status: 'untracked', folder: false },
@@ -1941,5 +1959,6 @@ export const mockHost: MockHost = createMockHost({
             { repo: 0, path: '/demo/docs/logo.png', status: 'added', folder: false },
           ],
         }
-      : { repos: [], entries: [] },
+      : { repos: [], branches: [], entries: [] },
+  gitHolder: (path) => (path.startsWith('/demo/') ? { repo: '/demo', branch: 'main' } : null),
 })

@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { GitBranch } from '@lucide/vue'
 import { computed, onBeforeUnmount } from 'vue'
 import { indexCutNote, indexStatus } from '@/features/index/status'
 import { zoomNote } from '@/features/settings/zoom'
 import { fileStatus, watchFileStatus } from '@/features/status/fileStatus'
+import { gitBranch, watchGitBranch } from '@/features/status/gitBranch'
 import { runCommand } from '@/workbench/commands'
 import { COMMAND_IDS } from '@/workbench/defaultCommands'
 import { findCounts } from '@/workbench/find'
@@ -19,6 +21,7 @@ const text = computed(
 )
 
 onBeforeUnmount(watchFileStatus())
+onBeforeUnmount(watchGitBranch())
 
 const counted = (count: number, one: string): string =>
   `${count.toLocaleString('en-US')} ${one}${count === 1 ? '' : 's'}`
@@ -49,6 +52,24 @@ const facts = computed(() => {
   <footer
     class="flex h-statusbar shrink-0 items-center gap-4 overflow-hidden bg-statusbar px-3 text-xs text-statusbar-foreground select-none"
   >
+    <!-- Of the repository that holds the focused file. In a narrow window a long name is cut
+         before the position is. -->
+    <span
+      v-if="gitBranch !== null"
+      class="flex max-w-2/5 min-w-0 shrink-1000 items-center gap-1 whitespace-nowrap"
+      data-status-branch
+    >
+      <GitBranch
+        class="size-3 shrink-0"
+        aria-hidden="true"
+      />
+      <span class="sr-only">Git branch</span>
+      <span
+        class="truncate"
+        data-branch-name
+        >{{ gitBranch }}</span
+      >
+    </span>
     <!-- Takes the room the rest leaves, so in a narrow window the message is what is cut. -->
     <span
       class="min-w-0 flex-1 truncate"

@@ -1,4 +1,5 @@
-//! Reading `git status --porcelain=v2 -z --ignored=matching` into one status per path.
+//! Reading `git status --porcelain=v2 -z --ignored=matching` into one status per path, and its
+//! `--branch` headers into the name of the branch.
 //!
 //! With `-z` every record ends in a NUL and no path is quoted or escaped, so a name with spaces, a
 //! quote or a non-ASCII character comes through as it is. Paths are relative to the repository's
@@ -32,6 +33,27 @@ pub(crate) struct Change {
     pub(crate) status: GitStatus,
     /// A folder git reports as a whole: everything below it has `status`.
     pub(crate) folder: bool,
+}
+
+/// How much of a commit id names a detached HEAD.
+const SHORT_ID: usize = 7;
+
+/// The branch the headers of a status name, or the short id of the commit when HEAD is detached.
+/// None for output with no such headers.
+pub(crate) fn branch(output: &[u8]) -> Option<String> {
+    // The headers come first, so the first record of a name is the header and not a file.
+    let header = |name: &str| {
+        let start = format!("# branch.{name} ");
+        output
+            .split(|byte| *byte == 0)
+            .find_map(|record| record.strip_prefix(start.as_bytes()))
+            .map(|value| String::from_utf8_lossy(value).into_owned())
+    };
+    let head = header("head")?;
+    if head != "(detached)" {
+        return Some(head);
+    }
+    Some(header("oid")?.chars().take(SHORT_ID).collect())
 }
 
 /// The status a changed (`1`) record's two status letters mean.
@@ -264,6 +286,46 @@ mod tests {
                 ("copy.md".into(), GitStatus::Added, false),
             ]
         );
+    }
+
+    #[test]
+    fn branch_header() {
+        let read = |records: &[&str]| branch(&z(records));
+        assert_eq!(
+            read(&[
+                &format!("# branch.oid {HASH}"),
+                "# branch.head feature/one two",
+                "# branch.upstream origin/main",
+                "# branch.ab +1 -0",
+                "? new.md",
+            ]),
+            Some("feature/one two".into())
+        );
+        assert_eq!(
+            read(&[
+                "# branch.oid 0123456789abcdef0123456789abcdef01234567",
+                "# branch.head (detached)",
+            ]),
+            Some("0123456".into())
+        );
+        // A new repository with no commit yet has a branch and no id.
+        assert_eq!(
+            read(&["# branch.oid (initial)", "# branch.head main"]),
+            Some("main".into())
+        );
+        assert_eq!(read(&["? new.md"]), None);
+        assert_eq!(read(&["# branch.head (detached)"]), None);
+        assert_eq!(branch(b""), None);
+        // A file name that looks like a header comes after the real ones.
+        assert_eq!(
+            read(&[
+                "# branch.oid abc",
+                "# branch.head main",
+                "# branch.head not-this",
+            ]),
+            Some("main".into())
+        );
+        assert!(parse(&z(&["# branch.head main"])).is_empty());
     }
 
     #[test]

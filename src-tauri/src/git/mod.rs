@@ -1,4 +1,5 @@
-//! What git says about the files under a workspace root, for the colours of the tree (P9.1-T27).
+//! What git says about the files under a workspace root, for the colours of the tree (P9.1-T27),
+//! and the branch of the focused file for the status bar (P9.1-T49).
 //!
 //! The work is split the way it can fail: `locate` finds the program, `discover` finds the
 //! repositories under a root (several can sit under one, and one can hold another), `run` starts

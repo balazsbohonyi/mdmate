@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 741/801
+progress: 744/801
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-27T01:28:01Z
+updated: 2026-11-27T02:04:56Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -1730,10 +1730,10 @@ Why: a folder of projects is easier to read when new, changed and ignored files 
 - [x] ISC-666: A command lets the user pick a program file in a native dialog and returns its path without granting access to the file; the page can ask for it (the browser mock answers with a chosen path), and a cancel gives nothing.
 - [x] ISC-667: The Git program row has a Browse button that puts the picked path into the field through the same check as typing; a cancelled dialog changes nothing, and a path that fails the check shows the usual error.
 - [ ] ISC-668: The owner browses to git.exe from the Git program row in the real window and finds the path set and git working.
-- [ ] ISC-776: The left of the status bar shows a branch icon and the branch of the repository that holds the focused file, inside or outside the sidebar folders.
-- [ ] ISC-777: A detached HEAD shows a short commit id, and the item is hidden for a file in no repository, an untitled document and with git turned off.
+- [x] ISC-776: The left of the status bar shows a branch icon and the branch of the repository that holds the focused file, inside or outside the sidebar folders.
+- [x] ISC-777: A detached HEAD shows a short commit id, and the item is hidden for a file in no repository, an untitled document and with git turned off.
 - [ ] ISC-778: After a checkout made outside the app the branch shown updates without reopening the file.
-- [ ] ISC-779: Anti: showing the branch writes nothing to a repository and adds no git process for a repository whose status is already read.
+- [x] ISC-779: Anti: showing the branch writes nothing to a repository and adds no git process for a repository whose status is already read.
 - [ ] ISC-780: The owner finds the branch name right in the real window.
 
 ## Decisions
@@ -1950,6 +1950,7 @@ Why: a folder of projects is easier to read when new, changed and ignored files 
 - 2026-11-27: refined: reworded ISC-236 (P9.1-T48): the status bar now holds file items beside the message, so the claim keeps only what it must never show. ISC-774 is probed by `typing-status`, since `typing-1mb` mounts no status bar.
 
 ## Verification
+- P9.1-T49 (2026-11-27), Git branch in the status bar: ISC-776, ISC-777 and ISC-779 closed (progress 744/801); ISC-778 and ISC-780 stay open for the owner's review, and ISC-236 as T48 worded it holds. Fail-first: before code the Rust tests did not compile, and 11 of 12 tests in `tests/shell/statusBarBranch.test.ts` failed; both now pass. ISC-779: `branch_adds_no_run` counts one run per repository, and a real git leaves a stale index byte for byte; with `--no-optional-locks` removed for one run that test failed. In `pnpm dev` (port 5199) the item, a long name at 480 px with and without a selection, and an untitled document were checked; a checkout, a detached HEAD and git off are covered by tests only. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 4120 passed with the one earlier failure (ISC-714). Not verified: the real window.
 - P9.1-T48 (2026-11-27), status bar file info: ISC-769 to ISC-774 closed (progress 741/801), ISC-236 reworded; ISC-775 stays open for the owner's review. Fail-first: before code `tests/shell/statusBarFile.test.ts` did not load (no `textStats`, no `fileStatus`); it now passes, including the reworded half of ISC-236 ("names neither the open file nor its folder"), raw Markdown (769) and the encoding after a Save As. ISC-774, release app on Windows: `typing-status` p95 work per key 10.0 ms (9.5 to 10.3) on the final code; `typing-status-trusted` 12.6 ms (11.2 to 13.1, not repeatable by the 10% rule), measured before the counting turn was shortened and the narrow-window styles changed, against 16 ms. Keys come every 50 ms, under the 250 ms pause, so these measure `Ln` and `Col` only; one counting turn by itself took 7.1 to 9.6 ms (about 29 ms before it was shortened). The CPU was under 85% idle before every run. In `pnpm dev` (port 5199) a mixed-ending file, select all, the position click, raw mode and a 480 px window were checked. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 4108 passed with the one earlier failure (ISC-714). Not verified: the real window.
 - P9.1-T47 (2026-11-27), sticky headings: ISC-762 to ISC-767 closed (progress 735/801); ISC-768 stays open for the owner's review. Fail-first: `tests/editor/stickyHeadings.test.ts` did not load before the module existed; it now passes, and the Settings row and palette command (ISC-766) are covered there and in `tests/features/settingsView.test.ts`. In `pnpm dev` (port 5199) arrow up, Find Next and Previous, and an outline click left the caret below the stack. ISC-767, release app on Windows, sticky headings on: `typing-1mb` work per key p95 8.0 ms (7.9 to 8.8); `typing-1mb-trusted` p95 11.8 ms (11.2 to 14.5, not repeatable by the 10% rule), against 16 ms; a control with them off gave 10.9 ms (10.2 to 11.7). The CPU was under 85% idle before every run. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 4082 passed with the one earlier failure (ISC-714). Not verified: the real window.
 - P9.1-T46 (2026-11-27), links with a line: ISC-757 to ISC-760 closed (progress 729/801), ISC-78 reworded; ISC-761 stays open for the owner's review. Fail-first: before code the new Rust tests did not compile (no `place`, no `line`) and 12 of 20 tests in `tests/editor/lineLinks.test.ts` failed; now `line_suffix`, `line_suffix_refusals`, `rewrite_keeps_line_suffix` and the page tests pass. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 4062 passed with the one earlier failure (ISC-714). Not verified: the real window and a browser run.

@@ -12,7 +12,7 @@ import type {
   SavedFile,
 } from './host'
 import { parseFollowedLink, parseLinkInfo } from './links'
-import { parseGitReport } from './git'
+import { parseFileBranch, parseGitReport } from './git'
 import { parseIndexStatus } from './indexStatus'
 import { parseQuickOpenAnswer } from './quickOpen'
 import { parseReferencesFound } from './references'
@@ -386,6 +386,9 @@ export const tauriHost: Host = {
   },
   async gitStatus(root, folders) {
     return parseGitReport(await invoke<unknown>('git_status', { root, folders }))
+  },
+  async gitBranch(id, known) {
+    return parseFileBranch(await invoke<unknown>('git_branch', { id, known }))
   },
   async dragOut(paths) {
     return invoke<boolean>('drag_out', { paths })

@@ -2,7 +2,7 @@ import type { Endings } from '@/lib/endings'
 import type { LinksOnRename } from '@/lib/settings'
 import type { FollowedLink, LinkInfo } from './links'
 import type { IndexStatus } from './indexStatus'
-import type { GitReport } from './git'
+import type { FileBranch, GitReport } from './git'
 import type { QuickOpenAnswer } from './quickOpen'
 import type { ReferencesFound } from './references'
 import type { RewriteBuffer, RewriteChange, RewriteDone, RewritePlanned } from './rewrite'
@@ -568,6 +568,13 @@ export interface Host {
    * that is not an open root.
    */
   gitStatus(root: string, folders: readonly string[]): Promise<GitReport>
+  /**
+   * The repository that holds the file of an open document, with its branch (the short commit id
+   * for a detached HEAD) read from HEAD alone. A repository in `known`, whose status the page has,
+   * is only named, and nothing is started for it. Null for a document with no file, a file in no
+   * repository, and while git is off or missing. Gives no access to anything.
+   */
+  gitBranch(id: number, known: readonly string[]): Promise<FileBranch | null>
   /** Opens a folder itself in the system's file manager. A file is refused. */
   showFolder(path: string): Promise<void>
   /**

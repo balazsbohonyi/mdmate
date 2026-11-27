@@ -40,6 +40,8 @@ pub(crate) struct GitEntry {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct GitReport {
     pub(crate) repos: Vec<String>,
+    /// The branch of each repository in `repos`, or None for one whose run gave none.
+    pub(crate) branches: Vec<Option<String>>,
     pub(crate) entries: Vec<GitEntry>,
 }
 
@@ -89,7 +91,9 @@ pub(crate) fn read(
     }
     let outputs = run::run_all(&repos, run::PARALLEL, run_one);
     let mut entries = Vec::new();
+    let mut branches = Vec::with_capacity(repos.len());
     for (index, (repo, output)) in repos.iter().zip(outputs).enumerate() {
+        branches.push(output.as_deref().and_then(status::branch));
         let Some(output) = output else { continue };
         for change in status::parse(&output) {
             let path = repo.join(&change.path);
@@ -113,6 +117,7 @@ pub(crate) fn read(
     }
     GitReport {
         repos: repos.iter().map(|repo| slash(repo)).collect(),
+        branches,
         entries,
     }
 }
@@ -129,6 +134,51 @@ pub(crate) fn answer(
         Some(git) if enabled => read(request, |repo| run_one(git, repo)),
         _ => GitReport::default(),
     }
+}
+
+/// The repository that holds a file, and its branch.
+#[derive(Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct FileBranch {
+    pub(crate) repo: String,
+    /// None for a repository the page already knows the branch of, or one git says nothing about.
+    pub(crate) branch: Option<String>,
+}
+
+/// The innermost repository above the file at `path`. Its branch is read with `read_head` unless
+/// the repository is in `known`, whose status the page has. None for a file in no repository, with
+/// git off or not found.
+pub(crate) fn file_branch(
+    path: &Path,
+    known: &[String],
+    enabled: bool,
+    git: Option<&Path>,
+    read_head: impl Fn(&Path, &Path) -> Option<String>,
+) -> Option<FileBranch> {
+    let git = git.filter(|_| enabled)?;
+    let repo = discover::holder(path.parent()?)?;
+    let name = slash(repo);
+    let branch = if known.contains(&name) {
+        None
+    } else {
+        read_head(git, repo)
+    };
+    Some(FileBranch { repo: name, branch })
+}
+
+/// The page's question about the file of an open document, which it names by id: nothing about a
+/// folder can be asked, and the answer gives no access to one.
+pub(crate) fn branch(state: &AppState, id: u32, known: &[String]) -> Option<FileBranch> {
+    let path = PathBuf::from(display_path(&state.documents().get(id)?.path));
+    let runtime = state.runtime();
+    let git = locate::find(&runtime.git_path());
+    file_branch(
+        &path,
+        known,
+        runtime.git_enabled(),
+        git.as_deref(),
+        |git, repo| run::run_head(git, repo, run::TIMEOUT),
+    )
 }
 
 /// The page's question, against the live settings and the real git.
@@ -224,6 +274,119 @@ mod tests {
     }
 
     use std::time::Duration;
+
+    const MAIN: &[u8] = b"# branch.oid abc\0# branch.head main\0";
+
+    #[test]
+    fn branch_adds_no_run() {
+        let (_keep, root) = testing::temp();
+        for name in ["one", "two"] {
+            std::fs::create_dir_all(root.join(name).join(".git")).expect("a repository marker");
+        }
+        let access = access_with(&root);
+        let request = resolve_request(&access, &root, &[]).expect("an open root");
+        let runs = AtomicUsize::new(0);
+        let report = answer(&request, true, Some(Path::new("git")), |_, repo| {
+            runs.fetch_add(1, Ordering::SeqCst);
+            repo.ends_with("one").then(|| MAIN.to_vec())
+        });
+        let ours: Vec<usize> = (0..report.repos.len())
+            .filter(|&at| report.repos[at].starts_with(&slash(&root)))
+            .collect();
+        // One run a repository, the branch included. (A temp folder inside a repository adds that
+        // one above the root.)
+        assert_eq!(runs.load(Ordering::SeqCst), report.repos.len());
+        assert_eq!(ours.len(), 2);
+        assert_eq!(report.branches.len(), report.repos.len());
+        assert_eq!(report.branches[ours[0]], Some("main".into()));
+        assert_eq!(report.branches[ours[1]], None, "its run gave nothing");
+        // A file of a repository whose status the page has read starts nothing.
+        let reads = AtomicUsize::new(0);
+        let found = file_branch(
+            &root.join("one").join("a.md"),
+            &report.repos,
+            true,
+            Some(Path::new("git")),
+            |_, _| {
+                reads.fetch_add(1, Ordering::SeqCst);
+                Some("other".into())
+            },
+        );
+        assert_eq!(
+            found,
+            Some(FileBranch {
+                repo: slash(&root.join("one")),
+                branch: None
+            })
+        );
+        assert_eq!(reads.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn a_files_branch_is_that_of_the_innermost_repository_above_it() {
+        let (_keep, root) = testing::temp();
+        let inner = root.join("a").join("b").join("c").join("d").join("inner");
+        std::fs::create_dir_all(root.join(".git")).expect("the outer one");
+        std::fs::create_dir_all(inner.join(".git")).expect("the inner one");
+        let outer_known = [slash(&root)];
+        let ask = |path: &Path, enabled: bool, git: Option<&Path>| {
+            file_branch(path, &outer_known, enabled, git, |_, repo| {
+                assert_eq!(repo, inner);
+                Some("deep".into())
+            })
+        };
+        let git = Path::new("git");
+        assert_eq!(
+            ask(&inner.join("note.md"), true, Some(git)),
+            Some(FileBranch {
+                repo: slash(&inner),
+                branch: Some("deep".into())
+            })
+        );
+        assert_eq!(ask(&inner.join("note.md"), false, Some(git)), None);
+        assert_eq!(ask(&inner.join("note.md"), true, None), None);
+    }
+
+    #[test]
+    fn branch_adds_no_run_and_a_real_git_writes_nothing() {
+        let Some(git) = testing::require_git("branch_adds_no_run_and_a_real_git_writes_nothing")
+        else {
+            return;
+        };
+        let (_keep, root) = testing::temp();
+        testing::init_repo(&git, &root);
+        testing::run_git(&git, &root, &["checkout", "-q", "-b", "first/one"]);
+        let note = root.join("note.md");
+        testing::write(&note, "text\n");
+        let read = || {
+            file_branch(&note, &[], true, Some(&git), |git, repo| {
+                run::run_head(git, repo, Duration::from_secs(30))
+            })
+            .and_then(|found| found.branch)
+        };
+        assert_eq!(read(), Some("first/one".into()), "before any commit");
+        testing::commit_all(&git, &root);
+        // Stale stat data is what makes a plain `status` rewrite the index.
+        let earlier = std::time::SystemTime::now() - Duration::from_secs(60);
+        std::fs::File::options()
+            .write(true)
+            .open(&note)
+            .and_then(|file| file.set_modified(earlier))
+            .expect("the time can be set");
+        let index = root.join(".git").join("index");
+        let before = std::fs::read(&index).expect("an index");
+        assert_eq!(read(), Some("first/one".into()));
+        let request = resolve_request(&access_with(&root), &root, &[]).expect("an open root");
+        let report = answer(&request, true, Some(&git), |git, repo| {
+            run::run_status(git, repo, Duration::from_secs(30))
+        });
+        assert_eq!(report.branches, [Some("first/one".to_owned())]);
+        assert_eq!(std::fs::read(&index).expect("an index"), before);
+        testing::run_git(&git, &root, &["checkout", "-q", "--detach"]);
+        let short = read().expect("a commit id");
+        assert_eq!(short.len(), 7, "{short}");
+        assert!(short.chars().all(|c| c.is_ascii_hexdigit()), "{short}");
+    }
 
     #[test]
     fn a_path_outside_every_root_and_a_folder_that_is_not_a_root_are_refused() {
@@ -420,6 +583,7 @@ mod tests {
     fn the_report_is_what_the_page_reads() {
         let report = GitReport {
             repos: vec!["C:/work".into()],
+            branches: vec![Some("main".into())],
             entries: vec![GitEntry {
                 repo: 0,
                 path: "C:/work/a.md".into(),
@@ -432,6 +596,7 @@ mod tests {
             json,
             serde_json::json!({
                 "repos": ["C:/work"],
+                "branches": ["main"],
                 "entries": [{ "repo": 0, "path": "C:/work/a.md", "status": "modified", "folder": false }]
             })
         );

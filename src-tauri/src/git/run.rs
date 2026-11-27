@@ -72,8 +72,8 @@ impl Gate {
 /// The one gate every status run passes through.
 static GATE: Gate = Gate::new(PARALLEL);
 
-/// The command that reads the status of the repository in `repo`.
-pub(crate) fn status_command(git: &Path, repo: &Path) -> Command {
+/// A git command that only reads the repository in `repo`.
+fn reading(git: &Path, repo: &Path, subcommand: &[&str]) -> Command {
     let mut command = Command::new(git);
     command
         .arg("--no-optional-locks")
@@ -83,7 +83,7 @@ pub(crate) fn status_command(git: &Path, repo: &Path) -> Command {
         .args(["-c", "core.fsmonitor=false"])
         .arg("-C")
         .arg(repo)
-        .args(["status", "--porcelain=v2", "-z", "--ignored=matching"])
+        .args(subcommand)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -91,6 +91,43 @@ pub(crate) fn status_command(git: &Path, repo: &Path) -> Command {
         .env("GIT_TERMINAL_PROMPT", "0");
     platform::current().hide_console(&mut command);
     command
+}
+
+/// The command that reads the status of the repository in `repo`, with the branch in its headers.
+/// How far the branch is ahead or behind is not asked for, since counting it walks the history.
+pub(crate) fn status_command(git: &Path, repo: &Path) -> Command {
+    let status = [
+        "status",
+        "--porcelain=v2",
+        "-z",
+        "--ignored=matching",
+        "--branch",
+        "--no-ahead-behind",
+    ];
+    reading(git, repo, &status)
+}
+
+/// The command that names the branch of HEAD; it fails when HEAD is detached.
+fn head_name_command(git: &Path, repo: &Path) -> Command {
+    reading(git, repo, &["symbolic-ref", "-q", "--short", "HEAD"])
+}
+
+/// The command that gives the short id of the commit HEAD is at.
+fn head_id_command(git: &Path, repo: &Path) -> Command {
+    let id = ["rev-parse", "-q", "--verify", "--short=7", "HEAD"];
+    reading(git, repo, &id)
+}
+
+/// The branch of the repository in `repo` from its HEAD alone, or the short id of the commit when
+/// HEAD is detached. No file of the working folder is looked at. Waits for a place in the gate.
+pub(crate) fn run_head(git: &Path, repo: &Path, timeout: Duration) -> Option<String> {
+    GATE.run(|| {
+        // The first fails for a detached HEAD, and only then is the second needed.
+        let output = run_for_output(head_name_command(git, repo), timeout)
+            .or_else(|| run_for_output(head_id_command(git, repo), timeout))?;
+        let text = String::from_utf8_lossy(&output).trim().to_owned();
+        (!text.is_empty()).then_some(text)
+    })
 }
 
 /// Runs `command` and returns what it wrote, or None when it could not start, ran past `timeout`
@@ -187,7 +224,9 @@ mod tests {
                 "status",
                 "--porcelain=v2",
                 "-z",
-                "--ignored=matching"
+                "--ignored=matching",
+                "--branch",
+                "--no-ahead-behind"
             ]
         );
         // These are git options, so they come before the subcommand.
@@ -236,6 +275,27 @@ mod tests {
         let answer = run_status(&git, &root, Duration::from_secs(30));
         assert!(answer.is_some(), "the status still runs");
         assert!(!marker.exists(), "the repository's program was started");
+    }
+
+    #[test]
+    fn the_head_commands_read_only_and_take_no_lock() {
+        let (git, repo) = (Path::new("git"), Path::new("/repo"));
+        for (command, subcommand) in [
+            (head_name_command(git, repo), "symbolic-ref"),
+            (head_id_command(git, repo), "rev-parse"),
+        ] {
+            assert_eq!(
+                args_of(&command)[..6],
+                [
+                    "--no-optional-locks",
+                    "-c",
+                    "core.fsmonitor=false",
+                    "-C",
+                    "/repo",
+                    subcommand
+                ]
+            );
+        }
     }
 
     #[test]

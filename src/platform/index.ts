@@ -19,7 +19,7 @@ export type {
 export type { WindowGeometry } from './windowGeometry'
 export type { FollowedLink, LinkInfo, LinkRefusal } from './links'
 export type { IndexStatus } from './indexStatus'
-export type { GitEntry, GitReport, GitStatusName } from './git'
+export type { FileBranch, GitEntry, GitReport, GitStatusName } from './git'
 export { NO_GIT } from './git'
 export { IDLE_INDEX } from './indexStatus'
 export type { Reference, ReferenceProblem, ReferencesFound } from './references'

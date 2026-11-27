@@ -286,6 +286,16 @@ The owner's list of 2026-11-26, settled by grilling. No code yet. The owner keep
 - **Speed** (Windows, release app, 2026-11-27): real keys gave p95 11.8 ms with sticky headings on and 10.9 ms with them off, so they cost about 1 ms at most. The same scenario read 6.9 ms on 2026-11-13; the control shows most of that rise is not sticky headings. The cause was not looked for, and the machine was 63 to 82% idle in these runs.
 - **Checked** in `pnpm dev` on port 5199: preview and raw, line numbers on and off, a row click, ArrowUp into the stack, Find Next and Previous, an outline click, the wheel over the stack, and the toggle. Not looked at: the real window.
 
+## P9.1-T49: Git branch
+
+- **Two sources.** A repository under an open folder takes its branch from the status run the tree already makes (`--branch`). A repository the page has not read, such as one above a lone file or one deeper than the search, is read from HEAD alone: `symbolic-ref`, then `rev-parse` when detached. The plan did not say how it is read; a full status there would walk the whole working folder.
+- **No ahead and behind.** `--no-ahead-behind` keeps `--branch` from walking the history. The plan named only `--branch`.
+- **The page asks by document id.** Rust walks up to the repository, so the innermost one wins even when the tree's search did not reach it.
+- **Look.** Branch icon and name at the far left, at most two fifths of the bar. In a narrow window the message goes first, then a long branch name is cut, then the position. At 480 px with text selected the name is cut to almost nothing.
+- **Stays up** while another file of the same repository is asked about, so it does not blink on a tab switch. A file outside that repository clears it at once.
+- **ISC-236** needs no new wording: T48's covers T49, since only the branch shows, never the repository's folder.
+- **Checked** in `pnpm dev` on port 5199: the item in a demo file, a long name at 480 px with and without a selection, an untitled document. Checkout, detached HEAD and git off are covered by tests only. Not looked at: the real window.
+
 ## P9.1-T48: status bar file info
 
 - **Look.** Spacing separates the items, as the bar already does; no dot between them. The selection reads `(41 chars, 4 lines)`.

@@ -2,9 +2,16 @@ import { shallowRef, watch } from 'vue'
 import { onDocumentSaved } from '@/documents/store'
 import { settledRuntime } from '@/features/settings/store'
 import { settings } from '@/lib/settings'
-import { getHost } from '@/platform'
+import { getHost, type GitReport } from '@/platform'
 import { buildGitIndex, NO_LOOKS, type GitIndex, type GitLook, type GitRowKind } from './gitModel'
-import { expandedPlaces, onTreeChanged, onTreeReset, pathKey, workspaceRoots } from './store'
+import {
+  expandedPlaces,
+  isUnder,
+  onTreeChanged,
+  onTreeReset,
+  pathKey,
+  workspaceRoots,
+} from './store'
 
 /**
  * What git says about the files under each workspace root, kept beside the tree (`git_status` in
@@ -21,6 +28,34 @@ import { expandedPlaces, onTreeChanged, onTreeReset, pathKey, workspaceRoots } f
 
 /** How long a burst of triggers waits, in milliseconds, before the question is asked. */
 export const GIT_DEBOUNCE_MS = 250
+
+/** The branches in each root's report, by the root's key: repository folder to branch. */
+const branches = new Map<string, ReadonlyMap<string, string>>()
+/** The roots git has answered about, well or not, since they opened. */
+const answered = new Set<string>()
+const refreshListeners = new Set<() => void>()
+
+/** Calls `listener` when what git said may have changed. Returns the function that stops it. */
+export function onGitRefreshed(listener: () => void): () => void {
+  refreshListeners.add(listener)
+  return () => {
+    refreshListeners.delete(listener)
+  }
+}
+
+function refreshed(): void {
+  for (const listener of refreshListeners) listener()
+}
+
+/** Every repository whose branch a root's report named, with that branch. */
+export function knownBranches(): ReadonlyMap<string, string> {
+  return new Map([...branches.values()].flatMap((root) => [...root]))
+}
+
+/** True while the first answer about a folder that holds `path` is still to come. */
+export function gitPending(path: string): boolean {
+  return workspaceRoots.value.some((root) => !answered.has(pathKey(root)) && isUnder(path, root))
+}
 
 /** The index of each root's report, by the root's key. */
 const indexes = shallowRef<ReadonlyMap<string, GitIndex>>(new Map())
@@ -43,6 +78,16 @@ function setIndex(key: string, index: GitIndex | undefined): void {
   indexes.value = next
 }
 
+/** The repositories of a report that it names a branch for. */
+function branchesOf(report: GitReport): ReadonlyMap<string, string> {
+  return new Map(
+    report.repos.flatMap((repo, at) => {
+      const branch = report.branches[at]
+      return typeof branch === 'string' ? [[repo, branch] as const] : []
+    }),
+  )
+}
+
 /** Asks for the status of one root, and shows the answer unless a newer question went out. */
 async function ask(root: string): Promise<void> {
   const key = pathKey(root)
@@ -56,9 +101,12 @@ async function ask(root: string): Promise<void> {
     ),
   ]
   let index: GitIndex | undefined
+  let named: ReadonlyMap<string, string> = new Map()
   try {
     const host = await getHost()
-    index = buildGitIndex(await host.gitStatus(root, folders), pathKey)
+    const report = await host.gitStatus(root, folders)
+    index = buildGitIndex(report, pathKey)
+    named = branchesOf(report)
   } catch {
     // Git has nothing to say, or the root went away. Either way the names stay plain, with no note.
     index = undefined
@@ -66,6 +114,11 @@ async function ask(root: string): Promise<void> {
   if (newest.get(key) !== mine) return
   if (!workspaceRoots.value.some((open) => pathKey(open) === key)) return
   setIndex(key, index)
+  branches.set(key, named)
+  const first = !answered.has(key)
+  answered.add(key)
+  // A folder that just opened is told about at once, not after the slowest of the others.
+  if (first) refreshed()
 }
 
 /** Asks now for every root, or clears everything when git is off. */
@@ -79,13 +132,19 @@ async function refreshNow(): Promise<void> {
     // A root that is gone: its report goes, and an answer still on its way is dropped.
     newest.set(key, (newest.get(key) ?? 0) + 1)
     setIndex(key, undefined)
+    branches.delete(key)
+    answered.delete(key)
   }
   if (!settings.git.enabled) {
     for (const key of open) newest.set(key, (newest.get(key) ?? 0) + 1)
     if (indexes.value.size > 0) indexes.value = new Map()
+    branches.clear()
+    answered.clear()
+    refreshed()
     return
   }
   await Promise.all(roots.map(ask))
+  refreshed()
 }
 
 /** Asks for the status of every root soon: bursts of triggers become one question. */
@@ -103,6 +162,8 @@ function resetGit(): void {
   timer = undefined
   newest.clear()
   indexes.value = new Map()
+  branches.clear()
+  answered.clear()
 }
 
 // The roots opening, restoring and closing; git turned on or off, or pointed somewhere else.
