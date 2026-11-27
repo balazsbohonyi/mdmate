@@ -78,6 +78,7 @@ export const COMMAND_IDS = {
   toggleRawSource: 'view.toggleRawSource',
   toggleWordWrap: 'view.toggleWordWrap',
   toggleLineNumbers: 'view.toggleLineNumbers',
+  toggleStickyHeadings: 'view.toggleStickyHeadings',
   toggleContentWidth: 'view.toggleContentWidth',
   switchTheme: 'view.switchTheme',
   zoomIn: 'view.zoomIn',
@@ -332,6 +333,15 @@ export function registerDefaultCommands(): () => void {
       state: () => isToggleOn('editor.lineNumbers'),
       run: async () => {
         await flipSetting('editor.lineNumbers')
+      },
+    }),
+    registerCommand({
+      id: COMMAND_IDS.toggleStickyHeadings,
+      group: 'View',
+      title: 'Toggle Sticky Headings',
+      state: () => isToggleOn('editor.stickyHeadings'),
+      run: async () => {
+        await flipSetting('editor.stickyHeadings')
       },
     }),
     registerCommand({

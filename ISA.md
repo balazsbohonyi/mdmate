@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 729/801
+progress: 735/801
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-26T23:28:10Z
+updated: 2026-11-27T00:30:51Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -1201,11 +1201,11 @@ Why: long documents and folders are only usable when you can jump straight to th
 - [x] ISC-610: The owner finds the outline layout right in the real window in Dark, Light and Sepia.
 - [x] ISC-639: The lowest heading level a document uses is drawn bold in the outline, also when it is the only level the document uses.
 - [x] ISC-640: When the lowest level occurs once, the next level the document uses is bold too (one H1 makes H2 bold; one H2 and no H1 makes H3 bold); the step does not chain, and a lowest level that occurs more than once does not make the next level bold.
-- [ ] ISC-762: While a Markdown document is scrolled, a sticky stack at the top of the editor shows every ancestor heading of the top visible line, one row per level, as its source line in the code font at the code size.
-- [ ] ISC-763: The sticky headings show in live preview and Raw Markdown, each pane on its own, never in other files, and `#` lines in frontmatter or code are never rows.
-- [ ] ISC-764: Clicking a sticky row scrolls its heading to just under the stack and puts the caret on it.
-- [ ] ISC-765: The sticky stack never covers the caret or the target of a jump.
-- [ ] ISC-767: Anti: with sticky headings on, the typing speed gate (ISC-7) still holds in the release build.
+- [x] ISC-762: While a Markdown document is scrolled, a sticky stack at the top of the editor shows every ancestor heading of the top visible line, one row per level, as its source line in the code font at the code size.
+- [x] ISC-763: The sticky headings show in live preview and Raw Markdown, each pane on its own, never in other files, and `#` lines in frontmatter or code are never rows.
+- [x] ISC-764: Clicking a sticky row scrolls its heading to just under the stack and puts the caret on it.
+- [x] ISC-765: The sticky stack never covers the caret or the target of a jump.
+- [x] ISC-767: Anti: with sticky headings on, the typing speed gate (ISC-7) still holds in the release build.
 - [ ] ISC-768: The owner finds the sticky headings right in the real window, scrolling included.
 
 ### F9 · Configuration and themes
@@ -1499,7 +1499,7 @@ Why: the look must be yours to change without rebuilding, which is why everythin
 - [x] ISC-739: The preset container scrollbar thumb is hidden at rest and appears only while scrolling.
 - [x] ISC-740: When the app has 6 or more presets, the preset grid shows 3 cards per row on desktop widths (`@[46rem]:grid-cols-3`).
 - [x] ISC-742: The `checkbox-background` token exists in each built-in theme and in the theme editor with a usage text, tinted to the page in Sepia.
-- [ ] ISC-766: A setting `editor.stickyHeadings`, on by default, with a Settings row and a palette command, turns the sticky headings on and off live.
+- [x] ISC-766: A setting `editor.stickyHeadings`, on by default, with a Settings row and a palette command, turns the sticky headings on and off live.
 - [ ] ISC-798: A built-in dark theme Monochrome can be picked in Settings and Switch Theme and used as the base of a user theme, and the System choice stays Dark or Light.
 - [ ] ISC-799: Monochrome declares every token, all of them gray except the error red and faint tints for the git statuses, warning and success.
 - [ ] ISC-800: Monochrome passes the contrast floors and keeps the syntax kinds apart by lightness, or by weight or italic where lightness is not enough.
@@ -1949,6 +1949,7 @@ Why: a folder of projects is easier to read when new, changed and ignored files 
 - 2026-11-27: refined: added ISC-741 to ISC-802 for P9.1-T42 to P9.1-T53 (owner list of 2026-11-26, settled by grilling; answers in `ai-docs/phases/phase-09.1/decisions.md`). Older claims are reworded by the task that changes the behaviour, not now: ISC-236 (T48, T49: the status bar holds more than a message), ISC-103 and ISC-227 (T52: a permanent delete exists beside the Recycle Bin one), ISC-185 (T44: fences in list items get the container, fences in quotes stay plain).
 
 ## Verification
+- P9.1-T47 (2026-11-27), sticky headings: ISC-762 to ISC-767 closed (progress 735/801); ISC-768 stays open for the owner's review. Fail-first: `tests/editor/stickyHeadings.test.ts` did not load before the module existed; it now passes, and the Settings row and palette command (ISC-766) are covered there and in `tests/features/settingsView.test.ts`. In `pnpm dev` (port 5199) arrow up, Find Next and Previous, and an outline click left the caret below the stack. ISC-767, release app on Windows, sticky headings on: `typing-1mb` work per key p95 8.0 ms (7.9 to 8.8); `typing-1mb-trusted` p95 11.8 ms (11.2 to 14.5, not repeatable by the 10% rule), against 16 ms; a control with them off gave 10.9 ms (10.2 to 11.7). The CPU was under 85% idle before every run. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 4082 passed with the one earlier failure (ISC-714). Not verified: the real window.
 - P9.1-T46 (2026-11-27), links with a line: ISC-757 to ISC-760 closed (progress 729/801), ISC-78 reworded; ISC-761 stays open for the owner's review. Fail-first: before code the new Rust tests did not compile (no `place`, no `line`) and 12 of 20 tests in `tests/editor/lineLinks.test.ts` failed; now `line_suffix`, `line_suffix_refusals`, `rewrite_keeps_line_suffix` and the page tests pass. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 4062 passed with the one earlier failure (ISC-714). Not verified: the real window and a browser run.
 - P9.1-T45 (2026-11-27), Go to line: ISC-752 to ISC-755 closed (progress 725/801); ISC-756 stays open for the owner's review. Fail-first: before code, `tests/features/goToLine.test.ts` failed because the module did not exist; now it passes. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 4042 passed with the one earlier failure (ISC-714). In `pnpm dev` on port 5199, `Ctrl+G` and `121:6` centred and marked the line, Escape restored caret and scroll, Enter kept the target, and the palette entry opened the box. Not verified: the real window.
 - P9.1-T44 (2026-11-27), code blocks inside lists: ISC-748 to ISC-750 closed (progress 721/801), ISC-185 reworded; ISC-751 stays open for the owner's review. Fail-first: before code, 11 of 18 tests in `listFences.test.ts` failed; now all pass with `codeCopy.test.ts` and `codeBlock.test.ts`. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 4018 passed with the one earlier failure (ISC-714). In `pnpm dev` on port 5199 containers started under their item's text in a monospace and a proportional font, a long line wrapped inside the panel, and the arrow keys reached every line. Not verified: the real window, the owner's research document.

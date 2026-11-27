@@ -220,6 +220,14 @@ export const SETTING_ROWS: readonly SettingRowSpec[] = [
     control: { kind: 'switch' },
   },
   {
+    key: 'editor.stickyHeadings',
+    category: 'editor',
+    label: 'Sticky headings',
+    description:
+      'Keep the headings that lead to the top line stacked at the top of a Markdown document.',
+    control: { kind: 'switch' },
+  },
+  {
     key: 'editor.stripedTables',
     category: 'editor',
     label: 'Striped table rows',

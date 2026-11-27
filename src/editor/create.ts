@@ -23,7 +23,8 @@ import {
   FULL_WIDTH_CLASS,
   WIDTH_VARIABLE,
 } from './documentWidth'
-import { headingGutterRules, lineNumbers } from './lineNumbers'
+import { GUTTER_PADDING_X, headingGutterRules, lineNumbers } from './lineNumbers'
+import { stickyHeadings } from './stickyHeadings'
 import { wordWrap } from './wordWrap'
 import { DEFAULT_SETTINGS } from '@/lib/settings'
 
@@ -113,8 +114,8 @@ const frame = EditorView.theme({
   // The same room on both sides of the digits (CodeMirror's own is 5px on the left and 3px on the
   // right, and the numbers are right-aligned).
   '&.cm-lineNumbersOn .cm-lineNumbers .cm-gutterElement': {
-    paddingLeft: '10px',
-    paddingRight: '10px',
+    paddingLeft: GUTTER_PADDING_X,
+    paddingRight: GUTTER_PADDING_X,
   },
   ...headingGutterRules(),
   '&.cm-lineNumbersOn .cm-activeLineGutter': {
@@ -172,6 +173,7 @@ const common: Extension = [
   findSupport(),
   revealMark(),
   matchTicks(),
+  stickyHeadings,
 ]
 const withParser: Extension = [
   common,
@@ -233,6 +235,8 @@ const followerBase: Extension = [
   matchTicks(),
   // Hints for things drawn in the editor, in the shadcn tooltip's colors (ISC-226).
   hoverHints(),
+  // The headings over the top visible line; it draws only where a document gives it a source.
+  stickyHeadings,
 ]
 
 export interface FollowerOptions {

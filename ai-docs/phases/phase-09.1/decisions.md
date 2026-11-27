@@ -274,3 +274,14 @@ The owner's list of 2026-11-26, settled by grilling. No code yet. The owner keep
 - **Fragment form** reads `L` in either case. A heading of that name wins in a Markdown file. A link inside the same document (`#L5`) is a heading jump only, as before.
 - **Rename** keeps the suffix byte for byte and writes `./Makefile:3` where a bare name would read as a scheme.
 - **Not looked at:** the real window, and a browser run (the follow flow is covered against the mock host in `lineLinks.test.ts`).
+
+## P9.1-T47: sticky headings
+
+- **Which files.** Every Markdown document, including one too large for the parser (shown as plain source): the headings come from Rust. Other files get nothing.
+- **When a row shows.** Row by row: a heading takes a row once the middle of its line has passed above that row, and gives it up as the next heading of its level reaches the row. This is what lets the room kept above the caret be exactly its number of parent headings.
+- **Overlay.** The stack changes no layout, so the top visible line cannot jump as rows come and go. It passes the wheel on to the text.
+- **Shared scan.** The outline panel now asks the document (`headings()`), not the host, so the two share a scan under way. ISC-279 still describes the panel; its tests turn sticky headings off to count the panel's own scans.
+- **Row height** is the page's inherited line height, not the code line height, which ISC-626 and ISC-627 keep for code blocks and raw source.
+- **Perf.** `typing-1mb` and `typing-1mb-trusted` now run with sticky headings and a Rust scan as their source, and report `stickyRows`. The other scenarios that share `typing()` ask for no sticky headings, so their recorded numbers measure what they did before.
+- **Speed** (Windows, release app, 2026-11-27): real keys gave p95 11.8 ms with sticky headings on and 10.9 ms with them off, so they cost about 1 ms at most. The same scenario read 6.9 ms on 2026-11-13; the control shows most of that rise is not sticky headings. The cause was not looked for, and the machine was 63 to 82% idle in these runs.
+- **Checked** in `pnpm dev` on port 5199: preview and raw, line numbers on and off, a row click, ArrowUp into the stack, Find Next and Previous, an outline click, the wheel over the stack, and the toggle. Not looked at: the real window.

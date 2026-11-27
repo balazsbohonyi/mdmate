@@ -20,13 +20,26 @@ export async function changeSettingFromCommand<K extends SettingKey>(
 
 /** The settings that are one plain on or off, and have a command that flips them. */
 export type ToggleKey =
-  'editor.wordWrap' | 'editor.lineNumbers' | 'editor.limitContentWidth' | 'devtools'
+  | 'editor.wordWrap'
+  | 'editor.lineNumbers'
+  | 'editor.stickyHeadings'
+  | 'editor.limitContentWidth'
+  | 'devtools'
 
 /** Whether a toggle is on now. Reads the live settings, so a computed or a command state follows it. */
 export function isToggleOn(key: ToggleKey): boolean {
-  if (key === 'devtools') return settings.devtools
-  if (key === 'editor.limitContentWidth') return settings.editor.limitContentWidth
-  return key === 'editor.lineNumbers' ? settings.editor.lineNumbers : settings.editor.wordWrap
+  switch (key) {
+    case 'devtools':
+      return settings.devtools
+    case 'editor.wordWrap':
+      return settings.editor.wordWrap
+    case 'editor.lineNumbers':
+      return settings.editor.lineNumbers
+    case 'editor.stickyHeadings':
+      return settings.editor.stickyHeadings
+    case 'editor.limitContentWidth':
+      return settings.editor.limitContentWidth
+  }
 }
 
 /** Turns a toggle the other way round. */

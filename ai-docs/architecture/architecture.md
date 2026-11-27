@@ -167,6 +167,8 @@ Built so far are the inline layer and the block layer (tables, images, frontmatt
 - Pasting a web address over selected plain text makes a link (`src/editor/paste.ts`). lang-markdown's own `pasteURLAsLink` is switched off in `markdownSupport()` because it edits read-only documents. Multiple selections stay off (CodeMirror's default), and a test fails if any state turns them on.
 - Drag-to-move for selected text (`src/editor/textDrag.ts`) is in every editor state. It runs on pointer events because native file drops are on, moves the text in one transaction, and treats drawn block widgets as no drop target.
 
+- Sticky headings (`src/editor/stickyHeadings.ts`, `stickyOutline.ts`) stack the headings over the top visible line, in preview and raw. The editor takes them from a `headingSource` facet; a Markdown document provides it with `Document.headings()`, Rust's outline scan, which the outline panel uses too, so callers asking about the same text while a scan is under way share it. The answer is kept as positions that edits move, and a new scan follows the same 400 ms pause as the panel (`lib/headingScan.ts`). The stack lies over the editor and moves no text; `scrollMargins` keeps the caret and jump targets below it.
+
 CM6 parsing is budgeted and can stop on huge files, so whole-document features, such as outline and link scans, run in Rust.
 
 ## Files and IPC

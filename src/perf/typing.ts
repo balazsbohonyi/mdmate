@@ -1,6 +1,7 @@
 import { EditorView } from '@codemirror/view'
 import type { Text } from '@codemirror/state'
 import { createState, createView } from '@/editor/create'
+import { headingSource, stickyHeadings } from '@/editor/stickyHeadings'
 import type { ScenarioContext, ScenarioOutput } from './params'
 import {
   type FrameMarks,
@@ -57,6 +58,8 @@ export async function typing(
   fixture = 'realistic-1mb.md',
   /** Runs once the editor has its document and caret, before the keys: a scenario's own load. */
   setup?: (view: EditorView) => void,
+  /** What the app adds that a scenario has to ask for, so the others keep their measured load. */
+  load: { readonly stickyHeadings?: boolean } = {},
 ): Promise<ScenarioOutput> {
   const { warmupKeys, keys, keyIntervalMs } = ctx.params
   const total = warmupKeys + keys
@@ -82,9 +85,16 @@ export async function typing(
     })
   })
 
-  const view = createView(
+  // Sticky headings as in the app, with Rust's scan of the text as their source.
+  let scans = 0
+  const headings = headingSource.of(async () => {
+    const asked = { id: ++scans, text: view.state.doc.toString() }
+    return (await ctx.host.outlineScan(asked)).headings
+  })
+  const sticky = load.stickyHeadings === true ? [stickyHeadings, headings] : []
+  const view: EditorView = createView(
     mountEditorHost(),
-    createState(text, [watchKeys], {
+    createState(text, [watchKeys, sticky], {
       parser: ctx.params.parser !== 0,
       preview: ctx.params.preview !== 0,
     }),
@@ -99,7 +109,9 @@ export async function typing(
   await framePresented()
   await sleep(300)
 
-  const values = { caret, docBytes: text.length, warmupKeys }
+  // The rows over the editor as the keys begin: 0 would mean the stack was not measured.
+  const stickyRows = view.dom.querySelectorAll('.cm-md-sticky-row:not(.cm-md-sticky-probe)').length
+  const values = { caret, docBytes: text.length, warmupKeys, stickyRows }
 
   if (mode === 'dispatch') {
     for (let i = 0; i < total; i++) {

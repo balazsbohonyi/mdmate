@@ -1,7 +1,8 @@
 import type { Text } from '@codemirror/state'
 import { computed, shallowRef, watch } from 'vue'
 import { describe, followerOfTab, activeDocument, watchDocuments } from '@/documents/store'
-import { getHost, type OutlineHeading, type OutlineRequest } from '@/platform'
+import { HEADING_SCAN_DELAY_MS } from '@/lib/headingScan'
+import type { OutlineHeading } from '@/platform'
 import { focusActiveEditor, holdingEditorFocus } from '@/workbench/focus'
 import { showSidebar } from '@/workbench/sidebar'
 import { workbenchLayout } from '@/workbench/store'
@@ -17,7 +18,7 @@ import { sectionIndex } from './layout'
  */
 
 /** How long typing must pause before the unsaved text is scanned. */
-export const OUTLINE_DEBOUNCE_MS = 400
+export const OUTLINE_DEBOUNCE_MS = HEADING_SCAN_DELAY_MS
 
 export type OutlinePhase = 'idle' | 'loading' | 'ready' | 'failed' | 'unsupported'
 
@@ -87,14 +88,10 @@ async function scan(): Promise<void> {
     outlineState.value = { ...IDLE, phase: 'unsupported' }
     return
   }
-  // Text for a document the disk does not have; the path for one it does.
-  const request: OutlineRequest =
-    doc.dirty || doc.untitled
-      ? { id: mine, text: doc.snapshot().text }
-      : { id: mine, path: doc.path }
   outlineState.value = { ...outlineState.value, phase: 'loading', message: null }
   try {
-    const answer = await (await getHost()).outlineScan(request)
+    // The document shares this scan with its sticky headings.
+    const answer = await doc.headings()
     if (mine !== latest) return
     // A new list may be shorter than the old one; a selection past its end would point at nothing.
     if (selectedHeading.value >= answer.headings.length) selectedHeading.value = -1

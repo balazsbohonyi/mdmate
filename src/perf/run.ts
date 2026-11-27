@@ -46,8 +46,9 @@ const scenarios: Record<string, (ctx: ScenarioContext) => Promise<ScenarioOutput
   startup,
   'open-1mb': open,
   'tab-switch': tabSwitch,
-  'typing-1mb': (ctx) => typing(ctx, 'dispatch'),
-  'typing-1mb-trusted': (ctx) => typing(ctx, 'trusted'),
+  'typing-1mb': (ctx) => typing(ctx, 'dispatch', undefined, undefined, { stickyHeadings: true }),
+  'typing-1mb-trusted': (ctx) =>
+    typing(ctx, 'trusted', undefined, undefined, { stickyHeadings: true }),
   'typing-during-scan': typingDuringScan,
   'typing-during-indexing': (ctx) => typingDuringIndexing(ctx, 'dispatch'),
   'typing-during-indexing-trusted': (ctx) => typingDuringIndexing(ctx, 'trusted'),

@@ -143,6 +143,9 @@ export function refreshLineNumbers(): void {
   for (const view of views) view.dispatch({ effects: refresh.of(null) })
 }
 
+/** The room on each side of a line number. */
+export const GUTTER_PADDING_X = '10px'
+
 /** The top padding of a heading line in live preview, in em of the heading's own size (theme.ts). */
 const HEADING_PADDING_TOP = [0.3, 0.25, 0.2, 0, 0, 0] as const
 

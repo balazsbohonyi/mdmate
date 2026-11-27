@@ -1,3 +1,6 @@
+import { headingSource } from '@/editor/stickyHeadings'
+import { outlineRequest } from './outlineRequest'
+import type { OutlineAnswer, OutlineRequest } from '@/platform'
 import { redo, undo } from '@codemirror/commands'
 import {
   ChangeSet,
@@ -111,6 +114,8 @@ export interface DocumentOptions {
   readonly copyText?: (text: string) => Promise<void>
   /** Says which link targets are missing files, for the broken-link style. Without it, none is drawn. */
   readonly checkLinks?: (hrefs: readonly string[]) => Promise<readonly boolean[]>
+  /** The heading scan, for sticky headings. Without it, none are drawn. */
+  readonly scanOutline?: (request: OutlineRequest) => Promise<OutlineAnswer>
 }
 
 /** `doc` with the links of renamed images updated. */
@@ -131,6 +136,9 @@ export interface Caret {
  * a follower go to the master, and from there to every other follower. Plain TypeScript, never
  * inside Vue's reactivity; the chrome reads `DocMeta` instead.
  */
+/** Numbers the heading scans of all documents. */
+let headingScans = 0
+
 export class Document implements FollowerHost {
   readonly id: number
   path: string
@@ -222,6 +230,7 @@ export class Document implements FollowerHost {
             this.#imageSinkSupport(),
             this.#linkSupport(tabId),
             this.#brokenLinkSupport(),
+            this.#headingSupport(),
             this.#codeCopySupport(),
             this.#options.extensions ?? [],
           ],
@@ -242,6 +251,36 @@ export class Document implements FollowerHost {
     if (check === undefined || this.#options.parser === false) return []
     this.#linkStatus ??= new LinkStatus(check)
     return [linkStatus.of(this.#linkStatus), brokenLinks()]
+  }
+
+  /** The heading scan under way, so all that ask about the same text share it. */
+  #scanning: { text: Text; answer: Promise<OutlineAnswer> } | null = null
+
+  /**
+   * The headings of the text as it is now, from Rust's scan of the whole file, for the outline
+   * panel and the sticky headings of every tab.
+   */
+  headings(): Promise<OutlineAnswer> {
+    const scan = this.#options.scanOutline
+    if (scan === undefined) return Promise.reject(new Error('there is no heading scan'))
+    const text = this.#master.doc
+    if (this.#scanning?.text === text) return this.#scanning.answer
+    const answer = scan(outlineRequest(this, ++headingScans))
+    const entry = { text, answer }
+    this.#scanning = entry
+    const done = (): void => {
+      if (this.#scanning === entry) this.#scanning = null
+    }
+    answer.then(done, done)
+    return answer
+  }
+
+  /**
+   * Sticky headings, for Markdown, large files in plain source included: the scan needs no parser.
+   */
+  #headingSupport(): Extension {
+    if (this.#options.scanOutline === undefined || this.kind !== 'markdown') return []
+    return headingSource.of(async () => (await this.headings()).headings)
   }
 
   /** The copy button of code blocks, for documents with a parser and a way to write the clipboard. */

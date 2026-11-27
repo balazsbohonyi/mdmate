@@ -9,6 +9,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { resetSettings, settings } from '@/lib/settings'
 import { createApp, h, nextTick, type App } from 'vue'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { contrast, parseColor } from '@/lib/color'
@@ -158,6 +159,9 @@ async function press(key: string, init: KeyboardEventInit = {}): Promise<Keyboar
 }
 
 beforeEach(() => {
+  // These count the panel's own scans; the sticky headings of an editor ask for scans too.
+  resetSettings()
+  settings.editor.stickyHeadings = false
   resetTree()
   resetDocuments()
   resetWorkbench()
@@ -178,6 +182,28 @@ afterEach(() => {
   setHost(undefined)
   resetOutline()
   resetTree()
+})
+
+describe('beside sticky headings', () => {
+  it('shares each scan with the editor on screen', async () => {
+    settings.editor.stickyHeadings = true
+    await start()
+    await openFile('/work/a.md')
+    await openOutline()
+    await pause()
+    // An answer takes a moment, as it does from the app; the mock's own comes at once.
+    const counted = host.outlineScan.bind(host)
+    host.outlineScan = async (request) => {
+      const answer = counted(request)
+      await sleep(50)
+      return answer
+    }
+    asked = []
+    activeFollower().dispatch({ changes: { from: 0, insert: '# New\n\n' } })
+    await pause()
+    expect(asked).toHaveLength(1)
+    expect(texts()[0]).toBe('New')
+  })
 })
 
 describe('the Outline tab', () => {

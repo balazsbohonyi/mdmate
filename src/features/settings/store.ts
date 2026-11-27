@@ -10,6 +10,7 @@ import {
 import { updateContentWidth } from '@/editor/documentWidth'
 import { refreshSourceLanguages } from '@/editor/sourceLanguage'
 import { refreshLineNumbers } from '@/editor/lineNumbers'
+import { refreshStickyHeadings } from '@/editor/stickyHeadings'
 import { refreshWordWrap } from '@/editor/wordWrap'
 import type { FileTemplate } from '@/lib/fileTemplate'
 import {
@@ -163,7 +164,9 @@ export function applySettingsText(text: string | null): void {
   settingsFileState.problems = problems
   const wrapped = settings.editor.wordWrap
   const numbered = settings.editor.lineNumbers
+  const sticky = settings.editor.stickyHeadings
   assignSettings(settingsAfter(settings, parsed))
+  if (settings.editor.stickyHeadings !== sticky) refreshStickyHeadings()
   if (settings.editor.wordWrap !== wrapped) refreshWordWrap()
   if (settings.editor.lineNumbers !== numbered) refreshLineNumbers()
   applyCurrentFontPreset()

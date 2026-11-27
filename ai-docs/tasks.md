@@ -169,7 +169,7 @@ Phase 9.1 collects the small fixes and rough edges found in daily use, between t
 - [x] P9.1-T44: Fenced code blocks inside list items drawn as code containers — closes ISC-748 to ISC-751
 - [x] P9.1-T45: Go to line (`Mod+G`) with live preview of the jump — closes ISC-752 to ISC-756 (owner request)
 - [x] P9.1-T46: Links with a line suffix (`file:548`, `#L548`) open at the line — closes ISC-757 to ISC-761
-- [ ] P9.1-T47: Sticky headings at the top of a scrolled Markdown document — closes ISC-762 to ISC-768 (owner request)
+- [x] P9.1-T47: Sticky headings at the top of a scrolled Markdown document — closes ISC-762 to ISC-768 (owner request)
 - [ ] P9.1-T48: Status bar file info: line and column, selection, words, line ending, encoding, language — closes ISC-769 to ISC-775 (owner request)
 - [ ] P9.1-T49: Git branch of the focused file in the status bar — closes ISC-776 to ISC-780 (owner request)
 - [ ] P9.1-T50: Delete engine with progress and Cancel, spike first — closes ISC-781 to ISC-786 (owner request)
