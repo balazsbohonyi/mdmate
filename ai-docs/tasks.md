@@ -175,7 +175,7 @@ Phase 9.1 collects the small fixes and rough edges found in daily use, between t
 - [ ] P9.1-T50: Delete engine with progress and Cancel, spike first — closes ISC-781 to ISC-786 (owner request)
 - [ ] P9.1-T51: Delete progress dialog after 2 seconds — closes ISC-787 to ISC-792 (owner request)
 - [ ] P9.1-T52: Permanent delete: `Shift+Delete` and Delete Permanently — closes ISC-793 to ISC-797 (owner request)
-- [ ] P9.1-T53: Monochrome built-in theme with gray file icons — closes ISC-798 to ISC-802 (owner request)
+- [x] P9.1-T53: Monochrome built-in theme with gray file icons — closes ISC-798 to ISC-802 (owner request)
 
 ## Phase 10: Ship ([plan](phases/phase-10/plan.md))
 

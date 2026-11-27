@@ -1,7 +1,7 @@
 /*
  * Design tokens. Every color, font and size the app uses starts here.
  *
- * - Colors live in themes/dark.css, light.css and sepia.css, one value per token per theme. This
+ * - Colors live in the files of themes/, one per built-in, one value per token per theme. This
  *   file holds none, so a theme file is the only place a color can change.
  * - The `@theme inline` block below maps each color token to a Tailwind utility (`bg-titlebar`,
  *   `text-syntax-heading`). Add a color token in every theme file, in this block and in
@@ -17,6 +17,17 @@
 @import './themes/dark.css';
 @import './themes/light.css';
 @import './themes/sepia.css';
+@import './themes/monochrome.css';
+
+/*
+ * Weight and italic that tell kinds of text apart where a theme has no color to do it. Read by
+ * `editor/highlight.ts`; a theme that sets none inherits, as before.
+ */
+:root[data-theme='monochrome'] {
+  --kind-keyword-weight: 700;
+  --kind-type-style: italic;
+  --kind-quote-style: italic;
+}
 
 /*
  * Tailwind's `dark:` variant follows the theme's darkness, not its name: the root carries the

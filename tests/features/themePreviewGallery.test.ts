@@ -513,7 +513,7 @@ describe('the live controls work and the pictures cannot be used (ISC-530)', () 
   it('opens the real dropdown and shows what was picked', async () => {
     const root = await mountPreview()
     const options = await openDropdown(root)
-    expect(texts(options)).toEqual(['Dark', 'Light', 'Sepia'])
+    expect(texts(options)).toEqual(['Dark', 'Light', 'Sepia', 'Monochrome'])
     options
       .find((one) => one.textContent.trim() === 'Light')
       ?.dispatchEvent(

@@ -97,11 +97,18 @@ async function openThemeList(): Promise<string[]> {
 }
 
 describe('the Theme row', () => {
-  it('offers Dark, Light, Sepia and System, and each user theme after them', async () => {
+  it('offers the built-ins and System, and each user theme after them', async () => {
     await mountScreen('appearance', {
       [themeFile('mine')]: '{ "name": "Mine", "colors": {} }',
     })
-    expect(await openThemeList()).toEqual(['Dark', 'Light', 'Sepia', 'System', 'Mine'])
+    expect(await openThemeList()).toEqual([
+      'Dark',
+      'Light',
+      'Sepia',
+      'Monochrome',
+      'System',
+      'Mine',
+    ])
   })
 
   it('shows what is wrong with the chosen theme under the row', async () => {

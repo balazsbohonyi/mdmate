@@ -155,6 +155,7 @@ const LINES = Array.from({ length: 14 }, (_, at) => `Line ${String(at + 1)} of a
           <SelectItem value="dark">Dark</SelectItem>
           <SelectItem value="light">Light</SelectItem>
           <SelectItem value="sepia">Sepia</SelectItem>
+          <SelectItem value="monochrome">Monochrome</SelectItem>
         </SelectContent>
       </Select>
     </GalleryItem>

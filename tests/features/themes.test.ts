@@ -125,7 +125,7 @@ describe('the built-in themes', () => {
     expect(root().classList.contains('dark')).toBe(false)
   })
 
-  it('offer Dark, Light, Sepia and System, then the user themes by name', async () => {
+  it('offer the built-ins and System, then the user themes by name', async () => {
     await start({
       [themeFile('zebra')]: '{ "colors": {} }',
       [themeFile('Apple')]: '{ "name": "Orchard", "colors": {} }',
@@ -134,6 +134,7 @@ describe('the built-in themes', () => {
       'Dark',
       'Light',
       'Sepia',
+      'Monochrome',
       'System',
       'Orchard',
       'zebra',
@@ -261,12 +262,14 @@ describe('ISC-451: a file named like a built-in is ignored', () => {
       [themeFile('Light')]: '{ "colors": {} }',
       [themeFile('SEPIA')]: '{ "colors": {} }',
       [themeFile('system')]: '{ "colors": {} }',
+      [themeFile('Monochrome')]: '{ "colors": {} }',
     })
     expect(root().style.getPropertyValue('--background')).toBe('')
     expect(themeChoices.value.map((choice) => choice.value)).toEqual([
       'dark',
       'light',
       'sepia',
+      'monochrome',
       'system',
     ])
     const notice = themeProblem.value ?? ''

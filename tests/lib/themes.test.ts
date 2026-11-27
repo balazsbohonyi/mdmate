@@ -10,13 +10,15 @@ import {
   type UserThemeSlot,
 } from '@/lib/themes'
 import { THEME_TOKENS } from '@/lib/themeTokens'
+import { parseThemeText } from '@/lib/themeFile'
+import { checkThemeLabel } from '@/lib/themeNames'
 
 const NOTHING: ReadonlyMap<string, UserThemeSlot> = new Map()
 const LOADED = { systemDark: false, loaded: true }
 
 function userSlot(
   id: string,
-  base: 'dark' | 'light' | 'sepia',
+  base: 'dark' | 'light' | 'sepia' | 'monochrome',
   colors: Record<string, string> = {},
   problems: string[] = [],
 ): Map<string, UserThemeSlot> {
@@ -32,17 +34,35 @@ function userSlot(
 }
 
 describe('the themes a person can choose', () => {
-  it('are Dark, Light, Sepia and System, in that order', () => {
+  it('are Dark, Light, Sepia, Monochrome and System, in that order (ISC-798)', () => {
     expect(BUILT_IN_CHOICES.map((theme) => theme.value)).toEqual([
       'dark',
       'light',
       'sepia',
+      'monochrome',
       'system',
     ])
   })
 
+  it('keep System on Dark or Light, and let a user theme start from Monochrome (ISC-798)', () => {
+    for (const systemDark of [true, false])
+      expect(resolveTheme('system', NOTHING, { systemDark, loaded: true }).palette).toBe(
+        systemDark ? 'dark' : 'light',
+      )
+    const mine = userSlot('mine', 'monochrome', { background: '#123456' })
+    const shown = resolveTheme('mine', mine, LOADED)
+    expect(shown.palette).toBe('monochrome')
+    expect(shown.scheme).toBe('dark')
+    expect(shown.notice).toBeNull()
+    expect(parseThemeText('{ "base": "monochrome" }')).toMatchObject({
+      ok: true,
+      theme: { base: 'monochrome', problems: [] },
+    })
+    expect(checkThemeLabel('Monochrome', []).ok).toBe(false)
+  })
+
   it('show the palette a built-in names, with no notice', () => {
-    for (const id of ['dark', 'light', 'sepia'] as const) {
+    for (const id of ['dark', 'light', 'sepia', 'monochrome'] as const) {
       const shown = resolveTheme(id, NOTHING, LOADED)
       expect(shown.palette).toBe(id)
       expect(shown.scheme).toBe(BUILT_IN_THEMES[id].scheme)

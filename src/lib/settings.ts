@@ -115,7 +115,7 @@ export const DEFAULT_HEADING_SCALE: readonly number[] = PRESET_HEADING_SCALE
  * variable, which wins over this object (see `host.linksOnRenameOverride`).
  */
 export interface Settings {
-  /** `dark`, `light`, `sepia`, `system`, or the name of a theme file. Applied by Phase 8's themes. */
+  /** `dark`, `light`, `sepia`, `monochrome`, `system`, or the name of a theme file. Applied by Phase 8's themes. */
   theme: string
   fonts: {
     /** The active font preset (`system`, `editorial`, `modern`, `journal`, or custom id). */

@@ -9,8 +9,8 @@ import { checkThemeColor } from './themeFile'
 import { THEME_TOKEN_NAMES, THEME_TOKENS } from './themeTokens'
 
 /**
- * Which theme is shown and how it gets onto the page. The `theme` setting names one of four
- * built-ins (Dark, Light, Sepia, System) or a user theme file. A theme is a palette (the root's
+ * Which theme is shown and how it gets onto the page. The `theme` setting names one of five
+ * built-ins (Dark, Light, Sepia, Monochrome, System) or a user theme file. A theme is a palette (the root's
  * `data-theme`, which the CSS in `src/styles/themes/` keys on) plus color overrides from a user
  * file, which are set as properties on the root. Darkness is separate from the palette: the root
  * carries the `dark` class only for a dark palette, so Tailwind's `dark:` variants never follow
@@ -30,6 +30,7 @@ export const BUILT_IN_CHOICES: readonly ThemeChoice[] = [
   { value: 'dark', label: BUILT_IN_THEMES.dark.label },
   { value: 'light', label: BUILT_IN_THEMES.light.label },
   { value: 'sepia', label: BUILT_IN_THEMES.sepia.label },
+  { value: 'monochrome', label: BUILT_IN_THEMES.monochrome.label },
   { value: SYSTEM_THEME, label: 'System' },
 ]
 

@@ -25,7 +25,7 @@ export function checkThemeName(value: unknown): Checked<string> {
 export const MAX_THEME_LABEL = 60
 
 /** The names the built-in themes go by, lower-cased: no user theme takes one. */
-const BUILT_IN_LABELS: readonly string[] = ['dark', 'light', 'sepia', 'system']
+const BUILT_IN_LABELS: readonly string[] = ['dark', 'light', 'sepia', 'monochrome', 'system']
 
 /**
  * What a theme may be called on screen (the `name` in its file): free text of 1 to 60 characters

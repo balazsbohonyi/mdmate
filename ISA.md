@@ -3,9 +3,9 @@ task: "Build mdmate, a fast inline Markdown editor"
 slug: 20261107-mdmate
 project: mdmate
 phase: climbing
-progress: 744/801
+progress: 748/801
 started: 2026-11-07T00:30:52Z
-updated: 2026-11-27T02:04:56Z
+updated: 2026-11-27T02:41:14Z
 principal_stated_goal: "Build a markdown editor that follows the markdown inline editing philosophy from Obsidian and simplicity of SublimeText."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -1500,10 +1500,10 @@ Why: the look must be yours to change without rebuilding, which is why everythin
 - [x] ISC-740: When the app has 6 or more presets, the preset grid shows 3 cards per row on desktop widths (`@[46rem]:grid-cols-3`).
 - [x] ISC-742: The `checkbox-background` token exists in each built-in theme and in the theme editor with a usage text, tinted to the page in Sepia.
 - [x] ISC-766: A setting `editor.stickyHeadings`, on by default, with a Settings row and a palette command, turns the sticky headings on and off live.
-- [ ] ISC-798: A built-in dark theme Monochrome can be picked in Settings and Switch Theme and used as the base of a user theme, and the System choice stays Dark or Light.
-- [ ] ISC-799: Monochrome declares every token, all of them gray except the error red and faint tints for the git statuses, warning and success.
-- [ ] ISC-800: Monochrome passes the contrast floors and keeps the syntax kinds apart by lightness, or by weight or italic where lightness is not enough.
-- [ ] ISC-801: In Monochrome the file-type icons of the sidebar are gray, while images in documents and hex colour squares keep their colours.
+- [x] ISC-798: A built-in dark theme Monochrome can be picked in Settings and Switch Theme and used as the base of a user theme, and the System choice stays Dark or Light.
+- [x] ISC-799: Monochrome declares every token, all of them gray except the error red and faint tints for the git statuses, warning and success.
+- [x] ISC-800: Monochrome passes the contrast floors and keeps the syntax kinds apart by lightness, or by weight or italic where lightness is not enough.
+- [x] ISC-801: In Monochrome the file-type icons of the sidebar are gray, while images in documents and hex colour squares keep their colours.
 - [ ] ISC-802: The owner finds the Monochrome theme right in the real window.
 
 ### F10 · Image authoring
@@ -1950,6 +1950,7 @@ Why: a folder of projects is easier to read when new, changed and ignored files 
 - 2026-11-27: refined: reworded ISC-236 (P9.1-T48): the status bar now holds file items beside the message, so the claim keeps only what it must never show. ISC-774 is probed by `typing-status`, since `typing-1mb` mounts no status bar.
 
 ## Verification
+- P9.1-T53 (2026-11-27), Monochrome theme: ISC-798 to ISC-801 closed (progress 748/801); ISC-802 stays open for the owner's review. Fail-first: before `monochrome.css` existed `tests/styles/monochrome.test.ts` did not load and 5 tests of the theme suites failed; all pass. In `pnpm dev` (port 5199) a code block, quote and link, the tree with git names and gray icons, Find, the Settings theme row, two pictures and a colour square keeping their colour, a theme file based on Monochrome (palette and bold keywords; its icons not looked at) and Dark's keyword weight were checked. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 4284 passed with the one earlier failure (ISC-714). Not verified: the real window.
 - P9.1-T49 (2026-11-27), Git branch in the status bar: ISC-776, ISC-777 and ISC-779 closed (progress 744/801); ISC-778 and ISC-780 stay open for the owner's review, and ISC-236 as T48 worded it holds. Fail-first: before code the Rust tests did not compile, and 11 of 12 tests in `tests/shell/statusBarBranch.test.ts` failed; both now pass. ISC-779: `branch_adds_no_run` counts one run per repository, and a real git leaves a stale index byte for byte; with `--no-optional-locks` removed for one run that test failed. In `pnpm dev` (port 5199) the item, a long name at 480 px with and without a selection, and an untitled document were checked; a checkout, a detached HEAD and git off are covered by tests only. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 4120 passed with the one earlier failure (ISC-714). Not verified: the real window.
 - P9.1-T48 (2026-11-27), status bar file info: ISC-769 to ISC-774 closed (progress 741/801), ISC-236 reworded; ISC-775 stays open for the owner's review. Fail-first: before code `tests/shell/statusBarFile.test.ts` did not load (no `textStats`, no `fileStatus`); it now passes, including the reworded half of ISC-236 ("names neither the open file nor its folder"), raw Markdown (769) and the encoding after a Save As. ISC-774, release app on Windows: `typing-status` p95 work per key 10.0 ms (9.5 to 10.3) on the final code; `typing-status-trusted` 12.6 ms (11.2 to 13.1, not repeatable by the 10% rule), measured before the counting turn was shortened and the narrow-window styles changed, against 16 ms. Keys come every 50 ms, under the 250 ms pause, so these measure `Ln` and `Col` only; one counting turn by itself took 7.1 to 9.6 ms (about 29 ms before it was shortened). The CPU was under 85% idle before every run. In `pnpm dev` (port 5199) a mixed-ending file, select all, the position click, raw mode and a 480 px window were checked. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 4108 passed with the one earlier failure (ISC-714). Not verified: the real window.
 - P9.1-T47 (2026-11-27), sticky headings: ISC-762 to ISC-767 closed (progress 735/801); ISC-768 stays open for the owner's review. Fail-first: `tests/editor/stickyHeadings.test.ts` did not load before the module existed; it now passes, and the Settings row and palette command (ISC-766) are covered there and in `tests/features/settingsView.test.ts`. In `pnpm dev` (port 5199) arrow up, Find Next and Previous, and an outline click left the caret below the stack. ISC-767, release app on Windows, sticky headings on: `typing-1mb` work per key p95 8.0 ms (7.9 to 8.8); `typing-1mb-trusted` p95 11.8 ms (11.2 to 14.5, not repeatable by the 10% rule), against 16 ms; a control with them off gave 10.9 ms (10.2 to 11.7). The CPU was under 85% idle before every run. `pnpm check` and `pnpm check:rust` exit 0; `pnpm test:web` 4082 passed with the one earlier failure (ISC-714). Not verified: the real window.

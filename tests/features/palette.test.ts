@@ -676,7 +676,7 @@ describe('Switch Theme opens a list of the themes there are (ISC-395)', () => {
     await start()
     await openThemes()
     expect(paletteMode.value).toBe('themes')
-    expect(rowsText()).toEqual(['Dark In use', 'Light', 'Sepia', 'System'])
+    expect(rowsText()).toEqual(['Dark In use', 'Light', 'Sepia', 'Monochrome', 'System'])
     expect(selectedText()).toBe('Dark In use')
     expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe(
       'Switch theme',
@@ -693,8 +693,8 @@ describe('Switch Theme opens a list of the themes there are (ISC-395)', () => {
     })
     await loadThemes()
     await openThemes()
-    expect(rowsText()).toEqual(['Dark In use', 'Light', 'Sepia', 'System', 'Mine'])
-    for (let step = 0; step < 4; step++) press({ key: 'ArrowDown' })
+    expect(rowsText()).toEqual(['Dark In use', 'Light', 'Sepia', 'Monochrome', 'System', 'Mine'])
+    for (let step = 0; step < 5; step++) press({ key: 'ArrowDown' })
     await flush()
     expect(selectedText()).toBe('Mine')
     press({ key: 'Enter' })
@@ -725,7 +725,7 @@ describe('Switch Theme opens a list of the themes there are (ISC-395)', () => {
     expect(document.documentElement.dataset.theme).toBe('light')
     expect(document.documentElement.classList.contains('dark')).toBe(false)
     await openThemes()
-    expect(rowsText()).toEqual(['Dark', 'Light In use', 'Sepia', 'System'])
+    expect(rowsText()).toEqual(['Dark', 'Light In use', 'Sepia', 'Monochrome', 'System'])
     expect(selectedText()).toBe('Light In use')
     press({ key: 'ArrowUp' })
     await flush()

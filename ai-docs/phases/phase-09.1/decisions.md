@@ -286,6 +286,17 @@ The owner's list of 2026-11-26, settled by grilling. No code yet. The owner keep
 - **Speed** (Windows, release app, 2026-11-27): real keys gave p95 11.8 ms with sticky headings on and 10.9 ms with them off, so they cost about 1 ms at most. The same scenario read 6.9 ms on 2026-11-13; the control shows most of that rise is not sticky headings. The cause was not looked for, and the machine was 63 to 82% idle in these runs.
 - **Checked** in `pnpm dev` on port 5199: preview and raw, line numbers on and off, a row click, ArrowUp into the stack, Find Next and Previous, an outline click, the wheel over the stack, and the toggle. Not looked at: the real window.
 
+## P9.1-T53: Monochrome theme
+
+- **Grays.** Dark's lightness with the chroma removed. The page is `#202020`. The accent is a light gray.
+- **Color kept.** Error red (`destructive`, `syntax-invalid`) as in Dark. Git added, untracked, conflicted and modified, warning and success at a chroma of 0.06 to 0.07, spread in lightness too. Ignored is plain gray.
+- **Syntax.** Lightness was not enough for ten kinds, so keywords are bold and types and quotes italic. Comments were italic and links underlined already.
+- **Find.** Selection, a match and the current match are three grays. The text on the current match has the least contrast (about 2.8:1).
+- **A user theme named Monochrome.** A file `themes/monochrome.json` is now ignored with the existing notice for a built-in's name. A file with another name whose `name` is Monochrome still loads, so the list then shows the name twice.
+- **Reach.** A user theme based on Monochrome keeps the bold, the italic and the gray icons. System stays Dark or Light.
+- **Order.** Run before T50 to T52, whose spike is waiting for the owner. Any new token they add must go into `monochrome.css` too; `themes.test.ts` fails if not.
+- **Checked** in `pnpm dev` on port 5199: a code block, quote and link, the tree with git names and icons, Find, the Settings theme row, two pictures and a colour square keeping their colour, a theme file based on Monochrome getting its palette and bold keywords (its tree icons follow from the same attribute and were not looked at), and Dark's keyword weight unchanged. Not looked at: the real window.
+
 ## P9.1-T49: Git branch
 
 - **Two sources.** A repository under an open folder takes its branch from the status run the tree already makes (`--branch`). A repository the page has not read, such as one above a lone file or one deeper than the search, is read from HEAD alone: `symbolic-ref`, then `rev-parse` when detached. The plan did not say how it is read; a full status there would walk the whole working folder.

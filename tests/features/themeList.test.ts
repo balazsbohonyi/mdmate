@@ -170,9 +170,9 @@ const themeStems = (): string[] =>
     .sort()
 
 describe('ISC-478: the list', () => {
-  it('shows Dark, Light, Sepia and System, then the user themes A to Z with case ignored', async () => {
+  it('shows the built-ins and System, then the user themes A to Z with case ignored', async () => {
     await mountScreen(TWO)
-    expect(ids()).toEqual(['dark', 'light', 'sepia', 'system', 'alpha', 'Zed'])
+    expect(ids()).toEqual(['dark', 'light', 'sepia', 'monochrome', 'system', 'alpha', 'Zed'])
     expect(document.querySelector('[data-settings-themes-heading]')?.textContent.trim()).toBe(
       'Themes',
     )
@@ -184,7 +184,7 @@ describe('ISC-478: the list', () => {
       [themeFile('b2')]: '{ "name": "apple", "colors": {} }',
       [themeFile('c3')]: '{ "colors": {} }',
     })
-    expect(ids().slice(4)).toEqual(['b2', 'c3', 'a1'])
+    expect(ids().slice(5)).toEqual(['b2', 'c3', 'a1'])
   })
 
   it('has the name, what it is based on and five swatches on a user theme, none for System', async () => {
@@ -585,13 +585,13 @@ describe('ISC-488 and ISC-489: the form for a new theme or a copy', () => {
       [...form.querySelectorAll<HTMLElement>('[data-theme-new-from]')].map(
         (one) => `${one.dataset.themeNewFrom ?? ''}:${one.dataset.state ?? ''}`,
       )
-    expect(states()).toEqual(['dark:on', 'light:off', 'sepia:off', 'current:off'])
+    expect(states()).toEqual(['dark:on', 'light:off', 'sepia:off', 'monochrome:off', 'current:off'])
     const dark = form.querySelector<HTMLElement>('[data-theme-new-from="dark"]')
     expect(dark?.className).toContain('data-[state=on]:bg-primary')
     await press(form.querySelector<HTMLElement>('[data-theme-new-from="sepia"]'))
-    expect(states()).toEqual(['dark:off', 'light:off', 'sepia:on', 'current:off'])
+    expect(states()).toEqual(['dark:off', 'light:off', 'sepia:on', 'monochrome:off', 'current:off'])
     await press(form.querySelector<HTMLElement>('[data-theme-new-from="sepia"]'))
-    expect(states()).toEqual(['dark:off', 'light:off', 'sepia:on', 'current:off'])
+    expect(states()).toEqual(['dark:off', 'light:off', 'sepia:on', 'monochrome:off', 'current:off'])
   })
 
   it('puts the field right after the label "Name", on the same line, in New theme', async () => {

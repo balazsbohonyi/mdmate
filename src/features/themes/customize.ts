@@ -193,7 +193,7 @@ export async function duplicateTheme(value?: string): Promise<string | null> {
 /** Customize and Duplicate are one thing: a copy of the theme in force, selected and ready to edit. */
 export const customizeTheme = (): Promise<string | null> => duplicateTheme()
 
-/** Dark, Light, Sepia and System are built in: no function here renames, deletes or writes one. */
+/** The built-ins and System: no function here renames, deletes or writes one. */
 export const isBuiltInTheme = (id: string): boolean =>
   slotKey(id) === SYSTEM_THEME || builtInFor(slotKey(id)) !== undefined
 

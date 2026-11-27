@@ -1,5 +1,6 @@
 import darkCss from '@/styles/themes/dark.css?raw'
 import lightCss from '@/styles/themes/light.css?raw'
+import monochromeCss from '@/styles/themes/monochrome.css?raw'
 import sepiaCss from '@/styles/themes/sepia.css?raw'
 
 /**
@@ -11,7 +12,7 @@ import sepiaCss from '@/styles/themes/sepia.css?raw'
 /** Whether a theme is dark or light: the root's `dark` class (Tailwind's `dark:` variants) follows it. */
 export type Scheme = 'dark' | 'light'
 
-export const BUILT_IN_IDS = ['dark', 'light', 'sepia'] as const
+export const BUILT_IN_IDS = ['dark', 'light', 'sepia', 'monochrome'] as const
 export type BuiltInId = (typeof BUILT_IN_IDS)[number]
 
 export interface BuiltInTheme {
@@ -45,6 +46,7 @@ export const BUILT_IN_THEMES: Readonly<Record<BuiltInId, BuiltInTheme>> = {
   dark: make('dark', 'Dark', darkCss),
   light: make('light', 'Light', lightCss),
   sepia: make('sepia', 'Sepia', sepiaCss),
+  monochrome: make('monochrome', 'Monochrome', monochromeCss),
 }
 
 /** The built-in theme an id names, in any case, or undefined. */

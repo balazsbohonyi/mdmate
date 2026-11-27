@@ -15,8 +15,13 @@ export const tokenHighlight = HighlightStyle.define([
   {
     tag: [t.keyword, t.operatorKeyword, t.controlKeyword, t.definitionKeyword, t.moduleKeyword],
     color: 'var(--syntax-keyword)',
+    fontWeight: 'var(--kind-keyword-weight, inherit)',
   },
-  { tag: [t.modifier, t.self], color: 'var(--syntax-keyword)' },
+  {
+    tag: [t.modifier, t.self],
+    color: 'var(--syntax-keyword)',
+    fontWeight: 'var(--kind-keyword-weight, inherit)',
+  },
   {
     tag: [t.string, t.special(t.string), t.character, t.regexp, t.attributeValue],
     color: 'var(--syntax-string)',
@@ -34,8 +39,13 @@ export const tokenHighlight = HighlightStyle.define([
   {
     tag: [t.typeName, t.className, t.namespace, t.attributeName, t.annotation],
     color: 'var(--syntax-type)',
+    fontStyle: 'var(--kind-type-style, inherit)',
   },
-  { tag: [t.tagName, t.standard(t.tagName)], color: 'var(--syntax-keyword)' },
+  {
+    tag: [t.tagName, t.standard(t.tagName)],
+    color: 'var(--syntax-keyword)',
+    fontWeight: 'var(--kind-keyword-weight, inherit)',
+  },
   {
     tag: [t.operator, t.punctuation, t.separator, t.bracket, t.angleBracket, t.derefOperator],
     color: 'var(--syntax-punctuation)',
@@ -53,7 +63,7 @@ export const tokenHighlight = HighlightStyle.define([
     textDecoration: 'underline',
     textUnderlineOffset: '2px',
   },
-  { tag: t.quote, color: 'var(--syntax-quote)' },
+  { tag: t.quote, color: 'var(--syntax-quote)', fontStyle: 'var(--kind-quote-style, inherit)' },
   { tag: [t.processingInstruction, t.contentSeparator], color: 'var(--syntax-marker)' },
   { tag: t.labelName, color: 'var(--syntax-marker)' },
 ])

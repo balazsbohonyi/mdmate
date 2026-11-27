@@ -57,8 +57,8 @@ function resolveToken(theme: Map<string, string>, name: string): string {
 }
 
 describe('theme files', () => {
-  it('are dark, light and sepia, and no other file sits in the folder', () => {
-    expect([...themes.keys()]).toEqual(['dark', 'light', 'sepia'])
+  it('are the four built-ins, and no other file sits in the folder', () => {
+    expect([...themes.keys()]).toEqual(['dark', 'light', 'monochrome', 'sepia'])
   })
 
   it('define exactly the same tokens in every theme, and exactly the tokens the editor lists', () => {
@@ -78,6 +78,7 @@ describe('theme files', () => {
     expect(schemeOf('dark')).toBe('dark')
     expect(schemeOf('light')).toBe('light')
     expect(schemeOf('sepia')).toBe('light')
+    expect(schemeOf('monochrome')).toBe('dark')
   })
 
   it('map every color token to a Tailwind utility, and every utility to a real token', () => {
