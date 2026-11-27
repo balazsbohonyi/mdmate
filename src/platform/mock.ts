@@ -20,6 +20,7 @@ import { NO_GIT, type FileBranch, type GitReport } from './git'
 import type {
   ClashAnswer,
   CopyReport,
+  DeleteReport,
   DroppedItem,
   FileDragEvent,
   FileKind,
@@ -1386,6 +1387,28 @@ export function createMockHost(options: MockHostOptions = {}): MockHost {
         entryInRoot(path)
         recycled.push(...files.remove(path))
       })
+    },
+    deleteEntries(paths, onProgress) {
+      return attempt((): DeleteReport => {
+        const kept: { path: string; reason: string }[] = []
+        // Every path is checked before the first is removed.
+        const targets = paths.filter((path) => {
+          if (insideRoot(path) && !exists(path)) {
+            kept.push({ path, reason: 'the file or folder was not found' })
+            return false
+          }
+          entryInRoot(path)
+          return true
+        })
+        onProgress({ phase: 'counting', percent: null })
+        onProgress({ phase: 'moving' })
+        for (const path of targets) recycled.push(...files.remove(path))
+        return { deleted: targets, kept, destroyed: [], cancelled: false }
+      })
+    },
+    deleteCancel() {
+      // A delete of the mock is over at once, so there is nothing to stop.
+      return Promise.resolve()
     },
     revealEntry(path) {
       return attempt(() => {

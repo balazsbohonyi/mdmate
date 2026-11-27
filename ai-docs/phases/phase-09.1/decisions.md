@@ -2,6 +2,61 @@
 
 Deviations from `plan.md` and choices it left open. The same decisions are in the Decisions section of `ISA.md`.
 
+## P9.1-T50: delete spike (ISC-781)
+
+Progress and Cancel are too coarse during the move, so the plan's "stop and ask" applies. The owner read these notes (2026-11-27) and chose option 1 and guard B below. ISC-782, ISC-783 and ISC-788 are reworded to match.
+
+**For a file or folder too big for the Recycle Bin, Windows shows a warning.** Yes destroys it. No keeps it whole and the operation reports that it was cancelled.
+
+- **Setup.** A copy of this repository's `node_modules` in `D:\mdmate-spike\` (18,209 files, 2,318 folders, 281.6 MB). The copy leaves out pnpm's junctions (`robocopy /XJ`). A throwaway program outside the repository queued the one folder in an `IFileOperation` with the flags of `trash` 5.3.0 (`FOF_NO_UI | FOF_ALLOWUNDO | FOF_WANTNUKEWARNING`) and logged every progress sink call. Windows 11 Pro 10.0.26200, NVMe SSD, NTFS.
+- **Time, three recycles of the whole folder:**
+
+| Run | Shell counts | Shell moves | After the move | Total |
+|---|---|---|---|---|
+| 1 | 20.7 s | 78.1 s | 1.6 s | 100.6 s |
+| 2 | 9.3 s | 4.3 s | 1.2 s | 14.9 s |
+| 3 | 4.1 s | 3.2 s | 0.4 s | 7.7 s |
+
+  Why the runs differ so much was not looked for. A plain `std::fs` walk that counts the same tree took 0.06 to 0.35 s.
+- **Progress.** While counting, `UpdateProgress` comes about once per item (20,529 calls), with 0 done of 0, and the last of them gives the total. Then one `PreDeleteItem` for the top folder. During the move there is no call at all. Then one `PostDeleteItem` and one `UpdateProgress` with all done.
+- **Recycle Bin.** One entry for the folder, 281,643,702 bytes. Restoring it took 6.0 s and gave back the same files, folders and bytes.
+- **A normal recycle.** `PreDeleteItem` received the flags `0x282`, which include `TSF_DELETE_RECYCLE_IF_POSSIBLE` (`0x80`), and `PostDeleteItem` `0x270008` with a new item inside `$Recycle.Bin`.
+- **Too big for the bin** (limit 3,749 MB, a dummy file of 4,773 MB). Windows showed warnings although `FOF_NO_UI` was set, and the owner answered Yes to each. Which cases showed one was not recorded. Every result below is after a Yes. The bin did not change.
+
+| Case | What the sink saw | Result |
+|---|---|---|
+| The file, refusing when `0x80` is missing | `0x282`, then `0x270008` with no new item | Destroyed |
+| The file, `trash` flags | The same | Destroyed, `Ok` |
+| A folder holding it, refusing | The folder: `0x282`, then `0x270003` (not handled) with no new item. The file: `0x2` | Refused, file kept, operation aborted |
+| The same folder, `trash` flags | The same calls, then `0x270008` with no new item for the file | File and folder destroyed, `Ok` |
+
+  So `0x80` was missing only for what is inside a folder too big to recycle. The item queued as a file carried it and was destroyed. `0x270003` also comes with no new item and by itself lost nothing.
+- **Answering No** (a second test, the same flags):
+
+| Case | Warning | Result |
+|---|---|---|
+| A file of 4,773 MB | Asked to delete it permanently | Kept |
+| A folder holding it and a small file | Asked the same for the folder | Folder and both files kept |
+| A folder of two 2,500 MB files | Asked the same for the folder | Folder and both files kept |
+| A file of 3,685 MB, with 281 MB already in the bin | None (0.1 s) | In the bin. Both older entries were still listed, and the bin held more than its limit |
+
+  After No, `PostDeleteItem` and `PerformOperations` returned `0x80270000` (`COPYENGINE_E_USER_CANCELLED`) and `GetAnyOperationsAborted` said true. The results are consistent with "too big" meaning over the bin's limit (3,749 MB) rather than over the room left in it, with a folder counted as a whole. The exact cutoff between 3,685 and 4,773 MB was not measured.
+- **Today's app.** `trash` 5.3.0 sets the same flags, `FOF_WANTNUKEWARNING` among them, so mdmate should show the same warning. By its source `trash` returns an error after No and success after Yes. mdmate's own question still says the files move to the Recycle Bin. Not tried through the app.
+- **Guard (ISC-784).** The owner chose B. The choice was between:
+  - A. Keep the warning. Windows decides what is too big, and the owner can still delete such an item for good. ISC-784 needs new wording.
+  - B (recommended). Refuse it. With the sizes from the counting walk, leave out what the bin cannot take before queuing, and report it as kept. ISC-784 stands. It rests on the bin's limit read from the registry (`MaxCapacity`), so the warning stays on behind it for what the check misjudges or cannot size, a `PreDeleteItem` without `0x80` is still refused, and anything destroyed is reported.
+  - Not measured, and in favour of B: in A, a No may cancel the rest of a selection (ISC-786), and the warning comes in the move, where the app's Cancel cannot act, while the progress dialog is up (ISC-788).
+- **Links.** A folder with a junction to 200 files: the shell counted the junction as one item (13 calls for 12 items), recycled the folder, and left the 200 files in place. Restoring it was not tried.
+- **Not measured.** A drive with no bin (also unchecked in the app for theme and font preset files, ISC-477 and ISC-728), whether a No stops the other items of a selection, and where the warning appears when the operation has no owner window.
+- **Cancel while counting works.** Returning `E_ABORT` from the 5,000th `UpdateProgress` (at 1.22 s) ended the operation 8 ms later, with no further callback. All 18,209 files stayed in place and the bin stayed empty.
+- **Cancel during the move does nothing.** Asked 0.5 s after `PreDeleteItem`, it was first read 2.9 s later in `PostDeleteItem`. The whole folder was already in the bin as one entry.
+- **The result does not say what happened.** Both cancelled runs returned `0x80004004` (operation aborted) from `PerformOperations`, the second one although everything had been recycled. `GetAnyOperationsAborted` said false both times. The engine has to look at the disk to know what is gone.
+- **Not measured.** Several items in one operation (ISC-786), and splitting a folder into its children.
+- **Options, for the owner:**
+  1. A percent while the shell counts (its calls so far over our own count), then a bar with no percent for the move. Cancel works only while counting. One bin entry. ISC-782, ISC-783 and ISC-788 need new wording.
+  2. A bar with no percent from start to end. Cancel as in 1. The same claims need new wording, and ISC-782 loses more.
+  3. Queue a folder's children instead of the folder, for progress and Cancel between them. Many bin entries, which breaks ISC-785, and a cancelled folder is left half deleted. How fine it gets depends on the tree and was not measured.
+
 ## P9.1-T12: Ctrl+Tab cycles the tab-list menu
 
 - **Palette run.** The Cycle Tabs commands run from the command palette have no key press, so there is no release to wait for. They switch to the next or previous tab at once, with no menu. The plan did not say.
@@ -321,3 +376,17 @@ The owner's list of 2026-11-26, settled by grilling. No code yet. The owner keep
 - **Narrow window.** The message is cut first, then the position; the other items keep their width.
 - **Go to line's column** is now counted in place, since the bar asks on every caret move.
 - **Checked** in `pnpm dev` on port 5199: the items for a mixed-ending file, select all, a click on the position and Escape, raw mode, and a 480 px window. Not looked at: the real window.
+
+## P9.1-T50: the delete engine
+
+- **Where it lives.** The engine is `platform/bin.rs`, not `workspace/`: the platform trait names its types, and the theme and font preset deletes pass through it too. It has no OS code. `platform/windows/shell_bin.rs` holds the shell calls.
+- **Every delete is guarded.** On Windows `move_to_trash` runs a one-item delete through the engine, so the tree, Replace on a copy, themes and font presets all get the guard. `trash` is now a dependency of macOS and Linux only.
+- **The result is read from the disk.** An item still there is kept, one gone with a new item in the bin was recycled, and one gone without is reported as removed for good.
+- **A link is deleted as a link.** Before this task a delete resolved the whole path, so by the code deleting a link or junction in the tree sent what it led to to the bin, or was refused when that lay outside the workspace. Delete now resolves only the folder that holds the link. Rename and move still resolve through a link; this task does not change them.
+- **The page still deletes row by row.** `delete_entries` and `delete_cancel` are ready with their host and mock methods. T51 moves the page to them with its dialog.
+- **For T51.** `delete_entry` takes no turn, so one delete at a time holds for `delete_entries` only. When Windows ends a delete of several items after a No, an item it never reached is given the reason of the whole operation, "Windows asked about it", which is the wrong words for it, though nothing is lost.
+- **Gaps that remain.** An item bigger than what Windows really takes but under the volume's `MaxCapacity` (between 3685 and 3749 MB on the measured drive), or on a volume whose limit cannot be read, still reaches Windows' question. Folders that cannot be read are left out of the count and the size.
+- **Not verified.** Whether giving the shell the app window makes that question stay on top of it. How a removable drive answers: mdmate treats every drive that is not fixed as having no bin. Whether a Cancel could act between two queued items.
+- **Probes.** The `delete_progress`, `delete_cancel`, `recycle_never_permanent` and `delete_many` probes matched no test before this task. The tests replay the measured shell calls and never touch the real bin; two ignored `real_shell` tests do, run by hand.
+- **Results (2026-11-27, Windows 11).** The owner ran cargo. With the old delete line put back, `delete_entry_removes_a_link` failed. `pnpm check:rust` exit 0, `pnpm test:rust` 708 passed and 2 ignored, and both `real_shell` tests passed: a file and a folder reached the bin with a percent and the moving phase, and a Cancel while counting left all 300 files. `pnpm test:web` 4282 of 4285: two timed out on a slow run and passed alone (61 of 61), the third is the earlier ISC-714 failure.
+- **Still open.** The task stays unticked until the owner restores a deleted folder in the app (ISC-785). ISC-784 waits for an oversize delete in the app, and ISC-786 for T51. The app's own window was not looked at.

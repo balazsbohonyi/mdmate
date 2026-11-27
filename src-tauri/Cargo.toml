@@ -25,7 +25,6 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri = { version = "2", features = ["protocol-asset", "devtools"] }
 thiserror = "2"
-trash = "5.3.0"
 xxhash-rust = { version = "0.8.19", features = ["xxh3"] }
 
 # The same versions Tauri's own webview already pulls in, so nothing new is built.
@@ -33,7 +32,20 @@ xxhash-rust = { version = "0.8.19", features = ["xxh3"] }
 # Starts a native file drag (OLE) out of the window. Its own `windows` is an older one than Tauri's.
 drag = "2"
 webview2-com = "0.39"
+# The delete engine: IFileOperation, its progress sink, and the Recycle Bin settings of a volume.
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Com",
+    "Win32_System_Registry",
+    "Win32_UI_Shell",
+    "Win32_UI_Shell_Common",
+] }
 windows-core = "0.62"
+
+# Moves items to the Trash on macOS and Linux.
+[target.'cfg(not(windows))'.dependencies]
+trash = "5.3.0"
 
 [features]
 # Compiles the perf-harness commands. Only `pnpm perf` turns this on; shipped builds leave it off.

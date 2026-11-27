@@ -94,6 +94,25 @@ export interface CopyReport {
   readonly linksLeft: number
 }
 
+/**
+ * What a running delete tells: counting, with a percent while the system counts, then moving,
+ * when there is no figure and Cancel no longer acts. Mirrors `platform::bin::Progress`.
+ */
+export type DeleteProgress =
+  { readonly phase: 'counting'; readonly percent: number | null } | { readonly phase: 'moving' }
+
+/** What a delete of several items did. Mirrors `workspace::ops::Deleted`. */
+export interface DeleteReport {
+  /** Now in the Recycle Bin. */
+  readonly deleted: readonly string[]
+  /** Still where they were, each with the reason. */
+  readonly kept: readonly { readonly path: string; readonly reason: string }[]
+  /** Gone, and not into the bin. */
+  readonly destroyed: readonly string[]
+  /** A Cancel stopped something. */
+  readonly cancelled: boolean
+}
+
 /** A point in the page's own pixels, the ones CSS and `elementFromPoint` use. */
 export interface Point {
   readonly x: number
@@ -174,6 +193,34 @@ export function parseMoved(value: unknown): Moved {
       if (typeof id !== 'number') throw new Error('id is not a number')
       return { id, path: textField(entry, 'path') }
     }),
+  }
+}
+
+/** Checks one step a delete reports. */
+export function parseDeleteProgress(value: unknown): DeleteProgress {
+  const step = record(value)
+  if (step.phase === 'moving') return { phase: 'moving' }
+  if (step.phase !== 'counting') throw new Error(`unknown delete phase ${String(step.phase)}`)
+  const percent = step.percent
+  if (percent !== null && typeof percent !== 'number') throw new Error('percent is not a number')
+  return { phase: 'counting', percent }
+}
+
+/** Checks the answer of `delete_entries`. */
+export function parseDeleteReport(value: unknown): DeleteReport {
+  const report = record(value)
+  const kept = report.kept
+  const cancelled = report.cancelled
+  if (!Array.isArray(kept)) throw new Error('kept is not a list')
+  if (typeof cancelled !== 'boolean') throw new Error('cancelled is not a flag')
+  return {
+    deleted: parsePaths(report.deleted),
+    kept: (kept as unknown[]).map((item) => {
+      const entry = record(item)
+      return { path: textField(entry, 'path'), reason: textField(entry, 'reason') }
+    }),
+    destroyed: parsePaths(report.destroyed),
+    cancelled,
   }
 }
 

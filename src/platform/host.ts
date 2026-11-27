@@ -12,6 +12,8 @@ import type { WindowGeometry } from './windowGeometry'
 import type {
   ClashAnswer,
   CopyReport,
+  DeleteProgress,
+  DeleteReport,
   DroppedItem,
   FileDragEvent,
   FileKind,
@@ -553,6 +555,17 @@ export interface Host {
   quickOpenQuery(query: string, limit: number): Promise<QuickOpenAnswer>
   /** Sends a file or folder of the workspace to the Recycle Bin. */
   deleteEntry(path: string): Promise<void>
+  /**
+   * Sends several files and folders of the workspace to the Recycle Bin as one operation.
+   * `onProgress` hears each phase. What stayed, and anything removed for good, is in the answer.
+   * Rejects with nothing deleted for a path outside the workspace, or while another delete runs.
+   */
+  deleteEntries(
+    paths: readonly string[],
+    onProgress: (progress: DeleteProgress) => void,
+  ): Promise<DeleteReport>
+  /** Stops the delete that is running, if it has not started to move anything. */
+  deleteCancel(): Promise<void>
   /** Shows a file or folder in the system's file manager, selected. */
   revealEntry(path: string): Promise<void>
   /**

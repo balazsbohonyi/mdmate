@@ -10,10 +10,12 @@ use crate::documents::AppState;
 use crate::error::{AppError, friendly_io, plain_text};
 use crate::links::guard::is_device_name;
 use crate::platform::Platform;
+use crate::platform::bin::{self, End, Progress};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 /// Windows and most file systems stop at this many characters in one name.
 const NAME_LIMIT: usize = 255;
@@ -32,6 +34,26 @@ pub(crate) struct Moved {
     pub(crate) path: String,
     /// The open documents that came with it.
     pub(crate) documents: Vec<MovedDocument>,
+}
+
+/// An item a delete left where it is, and why.
+#[derive(Debug, PartialEq, Eq, Serialize)]
+pub(crate) struct KeptEntry {
+    pub(crate) path: String,
+    pub(crate) reason: String,
+}
+
+/// What a delete of several items did, by path as people read it.
+#[derive(Debug, Default, PartialEq, Eq, Serialize)]
+pub(crate) struct Deleted {
+    /// Now in the Recycle Bin.
+    pub(crate) deleted: Vec<String>,
+    /// Still where they were.
+    pub(crate) kept: Vec<KeptEntry>,
+    /// Gone, and not into the bin.
+    pub(crate) destroyed: Vec<String>,
+    /// A Cancel stopped something.
+    pub(crate) cancelled: bool,
 }
 
 /// What to do with a copy whose name is taken.
@@ -311,10 +333,86 @@ pub(crate) fn delete_entry(
     platform: &dyn Platform,
     path: &Path,
 ) -> Result<(), AppError> {
-    let source = entry_in_root(state, path)?;
-    platform.move_to_trash(&source.path)?;
-    state.index().removed(&source.path);
-    Ok(())
+    let source = deletable(state, path)?;
+    let moved = platform.move_to_trash(&source);
+    // A failure can still have removed it, when the system destroyed it on the way.
+    if moved.is_ok() || !is_taken(&source) {
+        state.index().removed(&source);
+    }
+    Ok(moved?)
+}
+
+/// The entry a delete acts on. A link is the entry itself, never what it leads to, so its path is
+/// not resolved past the folder that holds it.
+fn deletable(state: &AppState, path: &Path) -> Result<PathBuf, AppError> {
+    // Without a trailing separator, which would look through a link.
+    let path: PathBuf = path.components().collect();
+    if !fs::symlink_metadata(&path).is_ok_and(|meta| meta.file_type().is_symlink()) {
+        return Ok(entry_in_root(state, &path)?.path);
+    }
+    let (Some(folder), Some(name)) = (path.parent(), path.file_name()) else {
+        return Err(AppError::Invalid("that is not an entry of a folder".into()));
+    };
+    let folder = state.access().check_in_root(folder)?;
+    Ok(folder.path.join(name))
+}
+
+/// Sends several files and folders to the Recycle Bin as one operation, with one total and one
+/// Cancel ([`AppState::cancel_delete`]). A path outside the workspace refuses all of them before
+/// anything moves. An item that is already gone, or that stays, is reported with the reason.
+pub(crate) fn delete_entries(
+    state: &AppState,
+    platform: &dyn Platform,
+    paths: &[PathBuf],
+    owner: Option<isize>,
+    progress: Box<dyn Fn(Progress) + Send + Sync>,
+) -> Result<Deleted, AppError> {
+    let Some(turn) = state.begin_delete() else {
+        return Err(AppError::Invalid("another delete is still running".into()));
+    };
+    let mut done = Deleted::default();
+    let mut targets = Vec::new();
+    for path in paths {
+        match deletable(state, path) {
+            Ok(target) => targets.push(target),
+            Err(AppError::Io(error)) if error.kind() == io::ErrorKind::NotFound => {
+                done.kept.push(KeptEntry {
+                    path: display_path(path),
+                    reason: friendly_io(&error),
+                });
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    let report = bin::run(
+        platform,
+        &targets,
+        owner,
+        Arc::clone(&turn.cancel),
+        progress,
+    );
+    for (target, end) in targets.iter().zip(report.ends) {
+        if !is_taken(target) {
+            state.index().removed(target);
+        }
+        let path = display_path(target);
+        match end {
+            End::InBin => done.deleted.push(path),
+            End::Destroyed => done.destroyed.push(path),
+            End::Kept(why) => done.kept.push(KeptEntry {
+                path,
+                reason: why.words(),
+            }),
+        }
+    }
+    done.destroyed.extend(
+        report
+            .destroyed_inside
+            .iter()
+            .map(|path| display_path(path)),
+    );
+    done.cancelled = report.cancelled;
+    Ok(done)
 }
 
 /// Shows an entry of the workspace in the system's file manager.
@@ -1031,6 +1129,72 @@ mod tests {
         assert_eq!(refused.kind(), "not-allowed");
         assert!(w.os.trashed().is_empty());
         assert!(w.root.exists() && w.outside.join("o.md").exists());
+    }
+
+    #[test]
+    fn delete_entry_removes_a_link_and_leaves_what_it_leads_to() {
+        let w = workspace();
+        write(&w.root.join("real/keep.md"), "keep me");
+        write(&w.outside.join("far/keep.md"), "me too");
+        platform::make_folder_link(&w.root.join("real"), &w.root.join("near-link")).expect("link");
+        platform::make_folder_link(&w.outside.join("far"), &w.root.join("far-link")).expect("link");
+        delete_entry(&w.state, &w.os, &w.root.join("near-link")).expect("deleted");
+        delete_entry(&w.state, &w.os, &w.root.join("far-link")).expect("deleted");
+        assert_eq!(
+            w.os.trashed(),
+            [w.root.join("near-link"), w.root.join("far-link")]
+        );
+        assert_eq!(read(&w.root.join("real/keep.md")), "keep me");
+        assert_eq!(read(&w.outside.join("far/keep.md")), "me too");
+    }
+
+    /// Runs a delete of several items, with nothing listening to the progress.
+    fn delete_all(w: &Workspace, paths: &[PathBuf]) -> Result<Deleted, AppError> {
+        delete_entries(&w.state, &w.os, paths, None, Box::new(|_| {}))
+    }
+
+    #[test]
+    fn delete_many_moves_files_and_folders_and_names_what_each_became() {
+        let w = workspace();
+        write(&w.root.join("a.md"), "a");
+        write(&w.root.join("dir/b.md"), "b");
+        let gone = w.root.join("gone.md");
+        let done =
+            delete_all(&w, &[w.root.join("a.md"), w.root.join("dir"), gone.clone()]).expect("ran");
+        assert_eq!(
+            done.deleted,
+            [as_text(&w.root.join("a.md")), as_text(&w.root.join("dir"))]
+        );
+        assert_eq!(done.kept.len(), 1);
+        assert_eq!(done.kept[0].path, as_text(&gone));
+        assert!(done.destroyed.is_empty() && !done.cancelled);
+        assert!(!w.root.join("a.md").exists() && !w.root.join("dir").exists());
+    }
+
+    #[test]
+    fn delete_many_refuses_all_of_them_for_one_path_outside_the_roots() {
+        let w = workspace();
+        write(&w.root.join("a.md"), "a");
+        write(&w.outside.join("o.md"), "o");
+        for stranger in [w.outside.join("o.md"), w.root.clone()] {
+            assert!(delete_all(&w, &[w.root.join("a.md"), stranger]).is_err());
+        }
+        assert!(w.os.trashed().is_empty() && w.root.join("a.md").exists());
+    }
+
+    #[test]
+    fn delete_many_runs_one_at_a_time_and_frees_the_turn_afterwards() {
+        let w = workspace();
+        write(&w.root.join("a.md"), "a");
+        let turn = w.state.begin_delete().expect("the turn");
+        let refused = delete_all(&w, &[w.root.join("a.md")]).expect_err("busy");
+        assert_eq!(refused.kind(), "invalid");
+        w.state.cancel_delete();
+        assert!(turn.cancel.load(std::sync::atomic::Ordering::SeqCst));
+        drop(turn);
+        // A Cancel that came for the last delete does not stop the next one.
+        let done = delete_all(&w, &[w.root.join("a.md")]).expect("ran");
+        assert_eq!(done.deleted.len(), 1);
     }
 
     #[test]

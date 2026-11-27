@@ -5,10 +5,14 @@
 )]
 
 use super::Platform;
+use super::bin::{self, BinRoom, BinWatcher};
 use std::ffi::c_void;
 use std::os::windows::process::CommandExt as _;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::ptr::{null, null_mut};
+use std::sync::Arc;
+
+mod shell_bin;
 
 #[derive(Debug)]
 pub(crate) struct Native;
@@ -149,7 +153,25 @@ impl Platform for Native {
     }
 
     fn move_to_trash(&self, path: &Path) -> std::io::Result<()> {
-        super::trash_item(path)
+        // Through the guard, since the shell can destroy what its bin cannot take.
+        bin::one(self, path)
+    }
+
+    fn bin_room(&self, path: &Path) -> BinRoom {
+        shell_bin::bin_room(path)
+    }
+
+    fn recycle(
+        &self,
+        paths: &[PathBuf],
+        owner: Option<isize>,
+        watcher: Arc<dyn BinWatcher>,
+    ) -> std::io::Result<()> {
+        shell_bin::recycle(paths, owner, watcher)
+    }
+
+    fn window_handle(&self, window: &tauri::WebviewWindow) -> Option<isize> {
+        window.hwnd().ok().map(|handle| handle.0 as isize)
     }
 
     fn reveal(&self, path: &Path) -> std::io::Result<()> {
@@ -172,7 +194,6 @@ impl Platform for Native {
         window: &tauri::WebviewWindow,
         paths: Vec<std::path::PathBuf>,
     ) -> std::io::Result<bool> {
-        use std::sync::Arc;
         use std::sync::atomic::{AtomicBool, Ordering};
         // OLE's drag runs its own message loop inside this call and reports through the callback
         // before it returns. Copy is the only effect offered, so a drop can never move the file.

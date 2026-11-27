@@ -1434,6 +1434,40 @@ pub(crate) async fn delete_entry(
     .map_err(|error| AppError::Task(error.to_string()))?
 }
 
+/// Sends several files and folders of the workspace to the Recycle Bin as one operation. Progress
+/// streams to `on_progress`, and [`delete_cancel`] stops it while the system counts.
+#[tauri::command]
+pub(crate) async fn delete_entries(
+    window: tauri::WebviewWindow,
+    state: State<'_, Arc<AppState>>,
+    paths: Vec<String>,
+    on_progress: Channel<platform::bin::Progress>,
+) -> Result<ops::Deleted, AppError> {
+    let state = state.inner().clone();
+    let owner = platform::current().window_handle(&window);
+    tauri::async_runtime::spawn_blocking(move || {
+        let paths: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
+        ops::delete_entries(
+            &state,
+            &platform::current(),
+            &paths,
+            owner,
+            Box::new(move |step| {
+                // A page that has gone away has nobody to tell.
+                let _ = on_progress.send(step);
+            }),
+        )
+    })
+    .await
+    .map_err(|error| AppError::Task(error.to_string()))?
+}
+
+/// Stops the delete that is running, if it has not started to move anything.
+#[tauri::command]
+pub(crate) fn delete_cancel(state: State<'_, Arc<AppState>>) {
+    state.cancel_delete();
+}
+
 /// Starts a native drag of files and folders of the workspace out of the window, to copy them to
 /// the Desktop or any file manager window. Answers when the drag ends: true when it was dropped
 /// somewhere, false when it was cancelled. The sources never change.

@@ -56,7 +56,7 @@ mdmate/
 │  ├─ settings/       Settings, keybindings, themes (`themes/`), and font presets (`font-presets/`) via shared `JsonFolderStore`
 │  ├─ window_state.rs The window's normal bounds and the fit of a saved window to today's monitors
 │  ├─ paths.rs        Data folder: `MDMATE_DATA_DIR`, else `<exe dir>/data` beside an `mdmate.portable` file, else the app-data folder
-│  └─ platform/       Traits, windows/, macos/ and linux/ stubs
+│  └─ platform/       Traits, bin.rs (delete to the Recycle Bin), windows/, macos/ and linux/ stubs
 ├─ scripts/           check-arch.mjs, check-isa.mjs, fixtures, perf
 └─ tests/             Vitest suites and fixtures
 ```
@@ -290,4 +290,12 @@ The window starts hidden on a themed background and shows after first paint. Pal
 - OS-specific Rust lives behind traits in `src-tauri/src/platform/`, with stubs for macOS and Linux from the start. Two methods serve the git work: `hide_console` (starts a console program with no console window; Windows sets `CREATE_NO_WINDOW`, the default does nothing) and `standard_git_paths` (where git usually lives; empty by default).
 - Keybindings use `Mod`, which maps to Ctrl or Cmd.
 - CI compiles on macOS and Linux on every push.
+
+## Deleting
+
+- Every delete goes to the Recycle Bin through `platform/bin.rs`. `bin::run` takes any number of items as one operation: it counts each (never following a link), leaves out what the bin of its volume cannot take, tells the page `counting` (with a percent while the system counts) and then `moving` (no figure), and reads from the disk what each item ended as: in the bin, kept with a reason, or destroyed.
+- `Cancel` acts until the first item moves. Windows offers no figure and no Cancel after that. One delete runs at a time (`AppState::begin_delete`).
+- Windows (`platform/windows/shell_bin.rs`) runs `IFileOperation` on its own thread with a progress sink. Three guards keep an item from being destroyed: the size and setting check of the volume's bin before queuing, a refusal of any call without the recycle flag, and Windows' own question (`FOF_WANTNUKEWARNING`) for what passes both. A Yes there destroys the item, and the report says so.
+- macOS and Linux use the `trash` crate, one item at a time, through the same engine.
+- `delete_entry` and `delete_entries` act on a link itself, never on what it leads to.
 - The custom titlebar sits behind one component, so macOS can use native controls.

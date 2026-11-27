@@ -192,6 +192,23 @@ impl Documents {
 }
 
 /// Everything the commands share. Held in Tauri's managed state.
+/// The one delete that may run, with the flag its Cancel sets.
+#[derive(Debug)]
+pub(crate) struct DeleteTurn<'a> {
+    state: &'a AppState,
+    pub(crate) cancel: Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl Drop for DeleteTurn<'_> {
+    fn drop(&mut self) {
+        *self
+            .state
+            .delete
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = None;
+    }
+}
+
 #[derive(Debug)]
 pub(crate) struct AppState {
     ignore_case: bool,
@@ -212,6 +229,8 @@ pub(crate) struct AppState {
     rewrite: Mutex<Option<crate::links::flow::Pending>>,
     /// Set by the page to stop a scan that is running.
     rewrite_stop: std::sync::atomic::AtomicBool,
+    /// The Cancel flag of the delete that is running; see [`AppState::begin_delete`].
+    delete: Mutex<Option<Arc<std::sync::atomic::AtomicBool>>>,
     rewrite_tokens: std::sync::atomic::AtomicU64,
     /// Every file under the workspace roots; see [`crate::workspace::index`].
     index: crate::workspace::index::WorkspaceIndex,
@@ -235,6 +254,7 @@ impl AppState {
             images: Mutex::new(std::collections::BTreeMap::new()),
             rewrite: Mutex::new(None),
             rewrite_stop: std::sync::atomic::AtomicBool::new(false),
+            delete: Mutex::new(None),
             rewrite_tokens: std::sync::atomic::AtomicU64::new(0),
             // A test controls every change itself, so no real watcher runs in one.
             #[cfg(not(test))]
@@ -282,6 +302,29 @@ impl AppState {
 
     pub(crate) fn rewrite_stop(&self) -> &std::sync::atomic::AtomicBool {
         &self.rewrite_stop
+    }
+
+    /// Takes the turn to delete, or None while another delete runs. The turn ends when it is
+    /// dropped.
+    pub(crate) fn begin_delete(&self) -> Option<DeleteTurn<'_>> {
+        let mut running = self.delete.lock().unwrap_or_else(PoisonError::into_inner);
+        if running.is_some() {
+            return None;
+        }
+        let cancel = Arc::<std::sync::atomic::AtomicBool>::default();
+        *running = Some(Arc::clone(&cancel));
+        Some(DeleteTurn {
+            state: self,
+            cancel,
+        })
+    }
+
+    /// Asks the delete that is running to stop, if there is one.
+    pub(crate) fn cancel_delete(&self) {
+        let running = self.delete.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(cancel) = running.as_ref() {
+            cancel.store(true, std::sync::atomic::Ordering::SeqCst);
+        }
     }
 
     /// A new name for a rewrite plan; never zero.

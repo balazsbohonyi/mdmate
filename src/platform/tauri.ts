@@ -23,6 +23,8 @@ import { parseThemeEntries } from './themes'
 import { parseWindowGeometry } from './windowGeometry'
 import {
   parseCopyReport,
+  parseDeleteProgress,
+  parseDeleteReport,
   parseDroppedItems,
   parseFileKind,
   parseImageInfo,
@@ -377,6 +379,23 @@ export const tauriHost: Host = {
   },
   async deleteEntry(path) {
     await invoke('delete_entry', { path })
+  },
+  async deleteEntries(paths, onProgress) {
+    const channel = new Channel<unknown>()
+    channel.onmessage = (value) => {
+      try {
+        onProgress(parseDeleteProgress(value))
+      } catch (error) {
+        // A step that does not parse is dropped; the next one replaces it.
+        console.error('Bad delete progress', error)
+      }
+    }
+    return parseDeleteReport(
+      await invoke<unknown>('delete_entries', { paths, onProgress: channel }),
+    )
+  },
+  async deleteCancel() {
+    await invoke('delete_cancel')
   },
   async revealEntry(path) {
     await invoke('reveal_entry', { path })

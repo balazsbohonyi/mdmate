@@ -31,6 +31,8 @@ export type {
   ClashAnswer,
   ClashChoice,
   CopyReport,
+  DeleteProgress,
+  DeleteReport,
   DroppedItem,
   DropKind,
   EntryKind,

@@ -1,7 +1,9 @@
 //! All OS-specific code. Everything outside this module stays portable.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
+pub(crate) mod bin;
 pub(crate) mod fonts;
 #[cfg(target_os = "linux")]
 mod linux;
@@ -66,8 +68,43 @@ pub(crate) trait Platform {
     fn open_external(&self, target: &str) -> std::io::Result<()>;
 
     /// Moves a file or a folder to the Recycle Bin (the Trash). It never deletes for good: where
-    /// the OS has no bin for the item, it fails and the item stays.
+    /// the OS has no bin for the item, it fails and the item stays. Where the system can still
+    /// destroy an item on the way (a Yes to Windows' own question), it fails and says so.
     fn move_to_trash(&self, path: &Path) -> std::io::Result<()>;
+
+    /// What the bin of the volume that holds `path` takes. Unknown where the system refuses by
+    /// itself what its bin cannot take.
+    fn bin_room(&self, _path: &Path) -> bin::BinRoom {
+        bin::BinRoom::Unknown
+    }
+
+    /// Moves the paths to the bin as one operation, telling `watcher` as it goes, and returns when
+    /// it is over. Only [`bin::run`] calls it, with paths it checked; `owner` is the window a
+    /// question of the system belongs to. This one moves them one at a time through
+    /// [`Platform::move_to_trash`], so a platform that builds that on [`bin::one`] overrides it.
+    fn recycle(
+        &self,
+        paths: &[PathBuf],
+        _owner: Option<isize>,
+        watcher: Arc<dyn bin::BinWatcher>,
+    ) -> std::io::Result<()> {
+        for (at, path) in paths.iter().enumerate() {
+            if !watcher.moving(Some(at), path, bin::Route::ToBin) {
+                return Err(std::io::Error::other("the delete was stopped"));
+            }
+            let how = match self.move_to_trash(path) {
+                Ok(()) => bin::Handled::InBin,
+                Err(error) => bin::Handled::Failed(crate::error::friendly_io(&error)),
+            };
+            watcher.handled(Some(at), path, how);
+        }
+        Ok(())
+    }
+
+    /// The system's handle of the app window, for [`Platform::recycle`].
+    fn window_handle(&self, _window: &tauri::WebviewWindow) -> Option<isize> {
+        None
+    }
 
     /// Shows the item in the system's file manager, selected where the OS can do that.
     fn reveal(&self, path: &Path) -> std::io::Result<()>;
@@ -97,8 +134,8 @@ pub(crate) trait Platform {
     fn disable_browser_keys(&self, _window: &tauri::WebviewWindow) {}
 }
 
-/// The trash crate's call, shared by every OS. On Windows it asks the shell for an undoable
-/// delete and reports a drive with no Recycle Bin as an error instead of deleting for good.
+/// The trash crate's call, for macOS and Linux. Windows has its own (`windows/shell_bin.rs`).
+#[cfg(not(target_os = "windows"))]
 fn trash_item(path: &Path) -> std::io::Result<()> {
     trash::delete(path)
         .map_err(|error| std::io::Error::other(crate::error::plain_text(&error.to_string())))
